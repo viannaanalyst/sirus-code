@@ -1469,6 +1469,109 @@ mod tests {
         format!("I split it in two.\n{PLAN_OPEN}\n{{\"summary\":\"Two parts\",\"tasks\":{tasks}}}\n{PLAN_CLOSE}")
     }
 
+    /// Live contract check: the real CLI, read-only in a disposable repository, must
+    /// answer the planning prompt with a plan the native parser accepts. Spends one
+    /// small turn. Run with LIVE_TEAM_PROVIDER=claude|codex and `--ignored`.
+    #[test]
+    #[ignore]
+    fn live_planning_contract() {
+        let provider = std::env::var("LIVE_TEAM_PROVIDER").unwrap_or_else(|_| "claude".into());
+        let repo = crate::git::tests::Repo::new();
+        let root = repo.0.clone();
+        for (path, body) in [
+            (
+                "package.json",
+                "{\"name\":\"shop\",\"scripts\":{\"test\":\"node --test\"}}\n",
+            ),
+            (
+                "src/api/orders.js",
+                "export function listOrders(db) { return db.orders; }\n",
+            ),
+            (
+                "src/ui/OrdersPage.js",
+                "export function OrdersPage(orders) { return orders.map(o => o.id).join(','); }\n",
+            ),
+            (
+                "tests/orders.test.js",
+                "import test from 'node:test';\ntest('placeholder', () => {});\n",
+            ),
+        ] {
+            let file = root.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, body).unwrap();
+        }
+        let catalog: Catalog = vec![
+            (AgentProviderId::Codex, vec![]),
+            (AgentProviderId::Claude, vec![]),
+        ];
+        let request = std::env::var("LIVE_TEAM_REQUEST").unwrap_or_else(|_| {
+            "Add pagination (page and pageSize) to listOrders, show page controls in OrdersPage, and add tests for both.".into()
+        });
+        let prompt = planning_prompt(&request, &catalog);
+        let output = match provider.as_str() {
+            "codex" => {
+                let last = root.join(".last-message.txt");
+                let status = std::process::Command::new("codex")
+                    .args([
+                        "exec",
+                        "--sandbox",
+                        "read-only",
+                        "--skip-git-repo-check",
+                        "-o",
+                    ])
+                    .arg(&last)
+                    .arg(&prompt)
+                    .current_dir(&root)
+                    .stdin(std::process::Stdio::null())
+                    .status()
+                    .unwrap();
+                assert!(status.success());
+                std::fs::read_to_string(last).unwrap()
+            }
+            _ => {
+                let out = std::process::Command::new("claude")
+                    .args(["-p", "--permission-mode", "plan", "--output-format", "text"])
+                    .arg(&prompt)
+                    .current_dir(&root)
+                    .stdin(std::process::Stdio::null())
+                    .output()
+                    .unwrap();
+                assert!(
+                    out.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+                String::from_utf8(out.stdout).unwrap()
+            }
+        };
+        println!("--- {provider} reply ---\n{output}\n---");
+        let (summary, _, tasks) = parse_plan(&output, &catalog).expect("valid team plan");
+        println!("summary: {summary}");
+        for task in &tasks {
+            println!(
+                "task {} [{} {:?}] paths={:?} after={:?}: {}",
+                task.id,
+                task.provider.key(),
+                task.model,
+                task.paths,
+                task.after,
+                task.title
+            );
+        }
+        assert!(!tasks.is_empty() && tasks.len() <= MAX_TASKS);
+        let status = std::process::Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(&root)
+            .output()
+            .unwrap();
+        let changed = String::from_utf8_lossy(&status.stdout)
+            .lines()
+            .filter(|line| !line.ends_with(".last-message.txt"))
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        println!("workspace changes after planning: {changed:?}");
+    }
+
     #[test]
     fn parses_a_valid_plan_and_hides_the_block() {
         let content = plan(
