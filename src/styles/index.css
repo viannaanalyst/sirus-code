@@ -1,0 +1,375 @@
+@layer theme, base, components, utilities;
+@import "tailwindcss";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "./fonts.css";
+@import "./appearance.css";
+@import "./scrollbars.css";
+@import "./motion.css";
+@import "./composer.css";
+@import "./agent-activity.css";
+@import "../components/arc/foundation.css";
+
+:root {
+  --ui-font-scale: 1;
+  --code-font-family: "IBM Plex Mono", ui-monospace, monospace;
+  --code-font-size: 13px;
+  --sidebar-row-height: 32px;
+  --settings-row-padding: 14px;
+  --chat-message-gap: 24px;
+  --composer-density: 1;
+  --text-ui-10: calc(10px * var(--ui-font-scale));
+  --text-ui-11: calc(11px * var(--ui-font-scale));
+  --text-ui-12: calc(12px * var(--ui-font-scale));
+  --text-ui-13: calc(13px * var(--ui-font-scale));
+  --text-ui-14: calc(14px * var(--ui-font-scale));
+  --text-ui-15: calc(15px * var(--ui-font-scale));
+  --text-ui-18: calc(18px * var(--ui-font-scale));
+  --text-ui-22: calc(22px * var(--ui-font-scale));
+  /* Native macOS traffic lights occupy the left edge; leave a gap before our control. */
+  --window-controls-inset: 96px;
+  --window-controls-height: 40px;
+
+  --background-0: #0c0c0c;
+  --background-1: #111111;
+  --background-2: #191919;
+  --background-3: #242424;
+  --background-elevated: #1c1c1c;
+  --border-subtle: rgb(255 255 255 / 0.06);
+  --border-default: rgb(255 255 255 / 0.1);
+  --text-primary: #ececec;
+  --text-secondary: #b4b4b4;
+  --text-muted: #7d7d7d;
+  --sidebar-rail-icon-active: #ffffff;
+  --navigation-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --navigation-selected: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --brand-claude: #d87957;
+  --brand-openai: #3b82f6;
+  --brand-gemini: #8bb8ff;
+  --brand-cursor: #b3a0f2;
+  --brand-nebula: #e4b1f3;
+  --accent: #ececec;
+  --accent-hover: #ffffff;
+  --accent-muted: rgb(255 255 255 / 0.08);
+  --danger: #e5484d;
+  --success: #3dd68c;
+  --warning: #f5a524;
+  --glass: #141414;
+  --shadow-float: 0 12px 40px rgb(0 0 0 / 0.45);
+  --motion-instant: 80ms;
+  --motion-fast: 140ms;
+  --motion-normal: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Spring travel with a slight overshoot; stagger steps cascaded rows. */
+  --motion-spring: 480ms;
+  --motion-reveal: 640ms;
+  --motion-stagger: 22ms;
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --composer-radius: 1.2rem;
+  /* Synara "standard" = 46rem at a 16px root; this app's root is 13px. */
+  --chat-column-width: 736px;
+  /* Synara-style composer density: compact 0.85, comfortable 1, spacious 1.15. */
+  --composer-density: 1;
+  --composer-editor-padding-top: calc(0.75rem * var(--composer-density));
+  --composer-editor-padding-bottom: calc(0.5rem * var(--composer-density));
+  --composer-editor-padding-x: calc(0.75rem * var(--composer-density));
+  --composer-editor-padding-x-end: calc(0.875rem * var(--composer-density));
+  --composer-editor-min-height: calc(2lh * var(--composer-density));
+  --composer-footer-padding: calc(0.375rem * var(--composer-density));
+  --composer-footer-padding-end: calc(0.5rem * var(--composer-density));
+  --switch-track-off: rgb(255 255 255 / 0.1);
+  --switch-track-on: color-mix(in srgb, var(--accent) 38%, var(--background-2));
+  --switch-thumb-on: var(--text-primary);
+  --switch-thumb-off: var(--text-muted);
+  --switch-border: rgb(255 255 255 / 0.12);
+  --switch-disabled: rgb(255 255 255 / 0.06);
+  /* Selected Orbit switch material; a finite state transition, no ambient loop. */
+  --orbit-switch-track: #181818;
+  --orbit-switch-border: #ffffff1a;
+  --orbit-switch-on-start: #55585d;
+  --orbit-switch-on-end: #a7adb4;
+  --orbit-pearl-highlight: #ffffff;
+  --orbit-pearl-body: #dedede;
+  --orbit-pearl-shade: #9c9c9c;
+  --orbit-pearl-edge: #f6f6f6;
+  --orbit-pearl-border: #ffffff90;
+  --orbit-pearl-shadow: #00000065;
+  --statusbar: 32px;
+}
+
+@theme inline {
+  --color-background-0: var(--background-0);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+  --color-background-elevated: var(--background-elevated);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Product typography roles. All sizes follow the user's UI font preference. */
+@utility ui-title {
+  font-size: var(--text-ui-18);
+  line-height: 1.35;
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility ui-dialog-title {
+  font-size: var(--text-ui-15);
+  line-height: 1.4;
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility ui-section-title {
+  font-size: var(--text-ui-13);
+  line-height: 1.5;
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility ui-brand {
+  font-size: var(--text-ui-14);
+  line-height: 1.4;
+  font-weight: 600;
+}
+@utility ui-control {
+  font-size: var(--text-ui-12);
+  line-height: 1.5;
+}
+@utility ui-description {
+  font-size: var(--text-ui-11);
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+@utility ui-caption {
+  font-size: var(--text-ui-11);
+  line-height: 1.5;
+}
+@utility ui-micro {
+  font-size: var(--text-ui-10);
+  line-height: 1.4;
+}
+@utility ui-body {
+  font-size: var(--text-ui-13);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+@utility ui-chat {
+  font-size: var(--text-ui-14);
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+
+@layer base {
+  * {
+    border-color: var(--border-subtle);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--background-0);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: var(--text-ui-13);
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  button,
+  input,
+  textarea {
+    font-family: inherit;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: rgb(255 255 255 / 0.16);
+  }
+}
+
+.glass {
+  background: var(--background-1);
+}
+
+.dot-grid {
+  background-color: var(--background-0);
+}
+
+.landing-orbits { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.landing-orbits canvas { display:block; width:100%; height:100%; transition:opacity var(--motion-slow) var(--ease-out); }
+.landing-orbits[data-editing="true"] canvas { opacity:.55; }
+.landing-orbits-shade { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 39%,color-mix(in srgb,var(--background-0) 70%,transparent),transparent 44%); }
+@media(prefers-reduced-motion:reduce) { .landing-orbits canvas { transition:none; } }
+
+.interactive-glow {
+  --mouse-x: 50%;
+  --mouse-y: 50%;
+  position: relative;
+  isolation: isolate;
+}
+
+.interactive-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-out);
+  background: radial-gradient(
+    120px circle at var(--mouse-x) var(--mouse-y),
+    hsl(0 0% 100% / 0.08),
+    transparent 55%
+  );
+}
+
+.interactive-glow:hover::after {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive-glow::after {
+    display: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.titlebar-drag {
+  -webkit-app-region: drag;
+}
+
+.titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .scroll-thin { scrollbar-width: auto; scrollbar-color: auto; }
+}
+
+/* Keep wheel, trackpad and keyboard transcript navigation without a painted bar. */
+.transcript-scroll { scrollbar-width: none; }
+.transcript-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.transcript-shell { container: transcript / inline-size; }
+.message-trail { display: none; }
+@container transcript (min-width: 600px) {
+  .message-trail { display: flex; }
+  .transcript-shell:has(.message-trail) > .transcript-scroll { padding-inline-start: 3.5rem; }
+}
+
+.selectable {
+  user-select: text;
+}
+
+html[data-theme="light"] {
+  --background-0: #f4f4f5;
+  --background-1: #ececee;
+  --background-2: #e4e4e7;
+  --background-3: #d4d4d8;
+  --background-elevated: #ffffff;
+  --border-subtle: rgb(0 0 0 / 0.08);
+  --border-default: rgb(0 0 0 / 0.12);
+  --text-primary: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --sidebar-rail-icon-active: #000000;
+  --accent: #18181b;
+  --switch-track-off: rgb(0 0 0 / 0.12);
+  --switch-track-on: rgb(24 24 27 / 0.55);
+  --switch-thumb-on: var(--background-0);
+  --switch-thumb-off: var(--text-muted);
+  --switch-border: rgb(0 0 0 / 0.14);
+  --orbit-switch-track: #d4d4d6;
+  --orbit-switch-border: #55555530;
+}
+
+html[data-pointer-glow="off"] .interactive-glow::after {
+  display: none;
+}
+
+html[data-animations="off"] *,
+html[data-animations="off"] *::before,
+html[data-animations="off"] *::after,
+html[data-reduce-motion="on"] *,
+html[data-reduce-motion="on"] *::before,
+html[data-reduce-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+html[data-density="compact"] {
+  --titlebar: 48px;
+}
+
+html[data-density="comfortable"] {
+  --titlebar: 64px;
+}
+
+/* The composer is one field surface; keyboard focus belongs to its outer edge. */
+.agent-composer:has(textarea:focus-visible) {
+  border-color: color-mix(in srgb, var(--text-secondary) 45%, var(--border-default));
+}
+
+/* Transparent vendor glyphs ship white; colored brand assets keep their colors. */
+@layer components {
+  html[data-theme="light"] .brand-mark-monochrome { filter: brightness(0); }
+
+  /* A broad, quiet fill shared by app and settings navigation rows. */
+  .sidebar-menu-row {
+    height: var(--sidebar-row-height);
+    min-height: var(--sidebar-row-height);
+    border-radius: var(--radius-md);
+    transition: background-color var(--motion-fast), color var(--motion-fast);
+  }
+  .sidebar-menu-row:hover:not(:disabled) {
+    background-color: var(--navigation-hover);
+    color: var(--text-primary);
+  }
+  .sidebar-menu-row[aria-current="page"] {
+    background-color: var(--navigation-selected);
+  }
+}

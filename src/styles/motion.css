@@ -1,0 +1,83 @@
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes popOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.dialog-content { translate: -50% -50%; }
+.dialog-content[data-state="open"] { animation: popIn var(--motion-fast) var(--ease-out); }
+.dialog-content[data-state="closed"] { animation: popOut var(--motion-instant) var(--ease-out); }
+
+/* Radix keeps the panel mounted through its real exit keyframe. Use a visible
+   entrance in WebKit too, with the origin/offset supplied by the shared primitive. */
+.usage-popover[data-state="open"] {
+  transition: none;
+  animation: usage-enter var(--motion-normal) var(--ease-out) both;
+}
+.usage-popover[data-state="closed"] {
+  transition: none;
+  animation: usage-exit var(--motion-fast) var(--ease-out) both;
+}
+@keyframes usage-enter {
+  from { opacity: 0; transform: translate(var(--popover-x), var(--popover-y)) scale(.97); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@keyframes usage-exit {
+  from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to { opacity: 0; transform: translate(var(--popover-x), var(--popover-y)) scale(.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .usage-popover[data-state="open"], .usage-popover[data-state="closed"] {
+    animation-duration: var(--motion-instant);
+  }
+  @keyframes usage-enter { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes usage-exit { from { opacity: 1; } to { opacity: 0; } }
+}
+
+/* Settings is born from the rail's Settings gear and folds back into it. Radix keeps the
+   content mounted until the exit keyframe ends. The origin is set by SettingsPage. */
+@keyframes settings-reveal-in {
+  from { clip-path: circle(0 at var(--settings-origin-x, 26px) var(--settings-origin-y, calc(100% - 26px))); }
+  to { clip-path: circle(150% at var(--settings-origin-x, 26px) var(--settings-origin-y, calc(100% - 26px))); }
+}
+@keyframes settings-reveal-out {
+  from { clip-path: circle(150% at var(--settings-origin-x, 26px) var(--settings-origin-y, calc(100% - 26px))); }
+  to { clip-path: circle(0 at var(--settings-origin-x, 26px) var(--settings-origin-y, calc(100% - 26px))); }
+}
+.settings-material[data-state="open"] { animation: settings-reveal-in var(--motion-reveal) var(--ease-out) both; }
+.settings-material[data-state="closed"] { animation: settings-reveal-out var(--motion-slow) var(--ease-out) both; pointer-events: none; }
+/* The app stays painted under the growing circle and hides once Settings covers it. */
+.app-material { transition: visibility 0s, opacity 0s; }
+.app-material[data-settings-open="true"] { transition: visibility 0s linear var(--motion-reveal); }
+/* Translucent Settings would show the app through it; fade it out under the reveal instead. */
+html[data-window-glass="on"] .app-material[data-settings-open="true"] { opacity: 0; transition: opacity var(--motion-reveal) linear, visibility 0s linear var(--motion-reveal); }
+html:is([data-animations="off"], [data-reduce-motion="on"]) .app-material { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-material[data-state] { animation: none; }
+  .app-material, .app-material[data-settings-open="true"] { transition: none; }
+}

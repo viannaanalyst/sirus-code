@@ -1,0 +1,44 @@
+import "./styles/index.css";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import { formatUnknownError, isResizeObserverDeliveryWarning } from "./lib/format-error";
+import { useAppStore } from "./store/app-store";
+import { configureDynamicStyleNonce } from "./lib/editor-nonce";
+
+configureDynamicStyleNonce(document);
+
+function showFatal(error?: unknown) {
+  console.error(error);
+  const root = document.getElementById("root");
+  if (!root) return;
+  const english = useAppStore.getState().settings.locale === "en";
+  const panel = document.createElement("div");
+  panel.className = "flex h-screen flex-col items-center justify-center gap-4 bg-background-0 text-text-primary";
+  const message = document.createElement("p");
+  message.textContent = english ? "Switchyard could not render this view." : "O Switchyard não conseguiu exibir esta tela.";
+  const retry = document.createElement("button");
+  retry.className = "rounded-lg border border-border-subtle px-4 py-2";
+  retry.textContent = english ? "Reload" : "Recarregar";
+  retry.onclick = () => window.location.reload();
+  panel.append(message, retry);
+  // React may still be clearing a failed tree when onUncaughtError runs.
+  queueMicrotask(() => root.replaceChildren(panel));
+}
+
+window.addEventListener("error", (event) => {
+  if (isResizeObserverDeliveryWarning(event)) return;
+  useAppStore.setState({ error: formatUnknownError(event.error ?? event.message) });
+});
+window.addEventListener("unhandledrejection", (event) => {
+  event.preventDefault();
+  useAppStore.setState({ error: formatUnknownError(event.reason) });
+});
+
+try {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement, { onUncaughtError: (error) => showFatal(error) }).render(
+    <React.StrictMode><App /></React.StrictMode>,
+  );
+} catch {
+  showFatal();
+}

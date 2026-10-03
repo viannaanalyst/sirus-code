@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Switchyard · Sidebar: abrir/fechar e janela recolhida</title>
+<style>
+  :root {
+    --bg0: #0c0c0c; --bg1: #111111; --bg2: #191919; --bg3: #242424; --elev: #1c1c1c;
+    --bs: rgb(255 255 255 / .06); --bd: rgb(255 255 255 / .1);
+    --t1: #ececec; --t2: #b4b4b4; --tm: #7d7d7d;
+    --hover: color-mix(in srgb, var(--t1) 5%, transparent);
+    --sel: color-mix(in srgb, var(--t1) 7%, transparent);
+    --ease: cubic-bezier(.16, 1, .3, 1);
+    --spring: cubic-bezier(.34, 1.32, .64, 1);
+    --shadow: 0 12px 40px rgb(0 0 0 / .45);
+    --k: 1;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #070707; color: var(--t1); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  svg.i { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; max-width: 1280px; margin: 0 auto; padding: 32px 28px; align-items: start; }
+  .intro { grid-column: 1 / -1; }
+  .intro h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .intro p { margin: 0; color: var(--tm); }
+
+  /* ---------- Mock window ---------- */
+  .window { position: relative; height: 600px; border-radius: 12px; background: var(--bg0); border: 1px solid var(--bd); overflow: hidden; box-shadow: 0 30px 80px rgb(0 0 0 / .5); }
+  .titlebar { position: absolute; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 14px; padding-left: 14px; color: var(--tm); z-index: 40; }
+  .lights { display: flex; gap: 8px; margin-right: 10px; }
+  .lights span { width: 12px; height: 12px; border-radius: 50%; }
+  .lights span:nth-child(1) { background: #ff5f57; } .lights span:nth-child(2) { background: #febc2e; } .lights span:nth-child(3) { background: #28c840; }
+  .tb-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--tm); }
+  .tb-btn:hover { color: var(--t1); background: var(--hover); }
+  .tb-title { position: absolute; left: 50%; transform: translateX(-50%); color: var(--t2); display: flex; gap: 6px; align-items: center; }
+  .body { position: absolute; inset: 40px 0 0 0; display: flex; }
+
+  .sidebar { position: relative; z-index: 31; display: flex; flex-shrink: 0; height: 100%; background: var(--bg0); }
+  .rail { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 12px 6px; background: var(--bg0); position: relative; z-index: 2; }
+  .rail-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--tm); transition: color calc(140ms * var(--k)), background-color calc(140ms * var(--k)); }
+  .rail-btn:hover, .rail-btn[aria-expanded="true"], .rail-btn[aria-current="true"] { color: var(--t1); background: var(--bg3); }
+  .rail-btn.gear { margin-top: auto; }
+  .dock-clip { position: relative; overflow: hidden; min-width: 0; flex: 1; }
+  .dock-panel { width: 240px; height: 100%; display: flex; flex-direction: column; padding: 10px 10px 0 8px; }
+
+  .main { flex: 1; min-width: 0; margin: 0 8px 8px 0; border-radius: 10px; background: var(--bg1); border: 1px solid var(--bs); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .main .orbit { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 90% 60%, transparent 58%, rgb(255 255 255 / .05) 58.3%, transparent 58.8%), radial-gradient(ellipse 50% 60% at 95% 70%, transparent 62%, rgb(255 255 255 / .04) 62.3%, transparent 62.8%); pointer-events: none; }
+  .main .glyph { margin-top: auto; width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--bd); display: grid; place-items: center; color: var(--t2); }
+  .main h2 { font-size: 20px; font-weight: 500; margin: 14px 0 0; }
+  .composer { margin: auto 0 20px; width: min(520px, calc(100% - 40px)); height: 92px; border-radius: 18px; border: 1px solid var(--bd); background: var(--bg2); display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px; color: var(--tm); }
+  .composer span { width: 28px; height: 28px; border-radius: 50%; background: var(--t1); }
+
+  /* ---------- Shared panel content ---------- */
+  .ph { display: flex; align-items: center; gap: 3px; padding: 0 4px 12px; flex-shrink: 0; }
+  .ph h3 { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ph button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--tm); }
+  .ph button:hover { color: var(--t1); background: var(--hover); }
+  .track { position: relative; isolation: isolate; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .track > :not(.pill) { position: relative; z-index: 1; }
+  .pill { position: absolute; top: 0; left: 0; z-index: 0; border-radius: 6px; opacity: 0; pointer-events: none; transition: transform calc(320ms * var(--k)) var(--ease), width calc(320ms * var(--k)) var(--ease), height calc(320ms * var(--k)) var(--ease), opacity calc(140ms * var(--k)) var(--ease); }
+  .pill::before { content: ""; position: absolute; inset: 2px 0; border-radius: inherit; background: var(--hover); }
+  .pill[data-visible] { opacity: 1; } .pill[data-instant] { transition: opacity calc(140ms * var(--k)) var(--ease); }
+  .pill[data-on-selected]::before { opacity: 0; }
+  .list { overflow-y: auto; margin-top: 12px; flex: 1; min-height: 0; scrollbar-width: none; }
+  .row { position: relative; isolation: isolate; width: 100%; text-align: left; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px; border-radius: 6px; color: color-mix(in srgb, var(--t1) 89%, transparent); white-space: nowrap; cursor: default; }
+  .row > .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .row::before { content: ""; position: absolute; z-index: -1; inset: 2px 0; border-radius: inherit; }
+  .row.selected::before { background: var(--sel); }
+  .row.menu { gap: 10px; }
+  .row.menu kbd { font: inherit; font-size: 10px; color: var(--tm); opacity: 0; transition: opacity calc(140ms * var(--k)); }
+  .row.menu:hover kbd { opacity: 1; }
+  .row.sess { margin-left: 20px; }
+  .group + .group { margin-top: 10px; }
+  .label { padding: 6px 8px; color: var(--tm); font-size: 11px; }
+  .brand { width: 14px; display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
+
+  /* ---------- A · open / close (docked) ---------- */
+  .window[data-open="current"] .sidebar { transition: none; }
+  .window[data-open="slide"] .sidebar { transition: width calc(300ms * var(--k)) var(--ease); }
+  .window[data-open="slide"] .dock-panel { transition: opacity calc(220ms * var(--k)) var(--ease) calc(40ms * var(--k)), transform calc(320ms * var(--k)) var(--ease); }
+  .window[data-open="slide"][data-collapsed] .dock-panel { opacity: 0; transform: translateX(-14px); transition-duration: calc(120ms * var(--k)), calc(200ms * var(--k)); transition-delay: 0s; }
+  .window[data-open="reveal"] .sidebar { transition: width calc(260ms * var(--k)) var(--ease); }
+  .window[data-open="spring"] .sidebar { transition: width calc(480ms * var(--k)) var(--spring); }
+  .window[data-open="spring"] .dock-panel :is(.ph, .row) { transition: opacity calc(200ms * var(--k)) var(--ease) calc((80ms + var(--i, 0) * 22ms) * var(--k)), transform calc(300ms * var(--k)) var(--ease) calc((80ms + var(--i, 0) * 22ms) * var(--k)); }
+  .window[data-open="spring"][data-collapsed] .dock-panel :is(.ph, .row) { opacity: 0; transform: translateX(-10px); transition-duration: calc(100ms * var(--k)); transition-delay: 0s; }
+  .window[data-open="spring"][data-collapsed] .sidebar { transition-timing-function: var(--ease); transition-duration: calc(260ms * var(--k)); }
+
+  /* ---------- B · collapsed peek window ---------- */
+  .peek { position: absolute; z-index: 30; display: flex; flex-direction: column; visibility: hidden; pointer-events: none; opacity: 0; }
+  .peek[data-open] { visibility: visible; pointer-events: auto; opacity: 1; }
+  .peek .content { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+  .peek .content.swap { animation: swap calc(180ms * var(--k)) var(--ease); }
+  @keyframes swap { from { opacity: 0; transform: translateY(4px); } }
+
+  /* B0 · current */
+  .window[data-peek="current"] .peek { left: 60px; top: 8px; bottom: 8px; width: 320px; padding: 12px 8px 0; background: var(--elev); border: 1px solid var(--bs); border-radius: 14px; box-shadow: var(--shadow); transform-origin: top left; transform: scale(.96); transition: opacity calc(150ms * var(--k)) var(--ease), transform calc(150ms * var(--k)) var(--ease), visibility 0s linear calc(150ms * var(--k)); }
+  .window[data-peek="current"] .peek[data-open] { transform: none; transition-delay: 0s; }
+
+  /* B1 · light card */
+  .window[data-peek="light"] .peek { left: 58px; top: 6px; bottom: 8px; width: 264px; padding: 10px 6px 0; background: rgb(22 22 22 / .78); -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5); border: 1px solid rgb(255 255 255 / .07); border-radius: 12px; box-shadow: 0 24px 60px -16px rgb(0 0 0 / .7), 0 2px 8px rgb(0 0 0 / .25), inset 0 1px 0 rgb(255 255 255 / .04); transform: translateX(-8px); transition: opacity calc(130ms * var(--k)) var(--ease), transform calc(160ms * var(--k)) var(--ease), visibility 0s linear calc(160ms * var(--k)); }
+  .window[data-peek="light"] .peek[data-open] { transform: none; transition: opacity calc(200ms * var(--k)) var(--ease), transform calc(260ms * var(--k)) var(--ease), visibility 0s; }
+  .window[data-peek="light"] .peek :is(.ph, .row) { transition: opacity calc(200ms * var(--k)) var(--ease) calc((30ms + var(--i, 0) * 16ms) * var(--k)), translate calc(260ms * var(--k)) var(--ease) calc((30ms + var(--i, 0) * 16ms) * var(--k)); }
+  .window[data-peek="light"] .peek:not([data-open]) :is(.ph, .row) { opacity: 0; translate: -4px 0; transition-duration: calc(80ms * var(--k)); transition-delay: 0s; }
+
+  /* B2 · drawer from behind the rail */
+  .window[data-peek="drawer"] .peek { left: 52px; top: 0; bottom: 8px; width: 264px; padding: 10px 8px 0; background: #141414; border: 1px solid var(--bs); border-left: 0; border-radius: 0 12px 12px 0; box-shadow: 18px 0 40px -18px rgb(0 0 0 / .7); opacity: 1; transform: translateX(-101%); transition: transform calc(200ms * var(--k)) var(--ease), visibility 0s linear calc(200ms * var(--k)); }
+  .window[data-peek="drawer"] .peek[data-open] { transform: none; transition: transform calc(320ms * var(--k)) var(--ease), visibility 0s; }
+  .window[data-peek="drawer"] .peek .content { transition: opacity calc(200ms * var(--k)) var(--ease) calc(70ms * var(--k)); }
+  .window[data-peek="drawer"] .peek:not([data-open]) .content { opacity: 0; transition-delay: 0s; transition-duration: calc(90ms * var(--k)); }
+
+  /* B3 · anchored to the hovered icon, glides between icons */
+  .window[data-peek="anchor"] .peek { left: 60px; width: 256px; max-height: calc(100% - var(--top, 8px) - 8px); padding: 10px 6px 6px; background: rgb(28 28 28 / .9); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgb(255 255 255 / .08); border-radius: 12px; box-shadow: 0 20px 50px -14px rgb(0 0 0 / .7); top: var(--top, 8px); transform-origin: -12px 18px; transform: scale(.92); transition: opacity calc(120ms * var(--k)) var(--ease), transform calc(140ms * var(--k)) var(--ease), visibility 0s linear calc(140ms * var(--k)), top 0s linear calc(140ms * var(--k)); }
+  .window[data-peek="anchor"] .peek[data-open] { transform: none; transition: opacity calc(180ms * var(--k)) var(--ease), transform calc(280ms * var(--k)) var(--spring), visibility 0s, top calc(300ms * var(--k)) var(--ease), max-height calc(300ms * var(--k)) var(--ease); }
+  .window[data-peek="anchor"] .peek .list { flex: initial; }
+  .window[data-peek="anchor"] .peek .track { flex: initial; }
+  .window[data-peek="anchor"] .peek::before { content: ""; position: absolute; left: -5px; top: 15px; width: 8px; height: 8px; background: inherit; border-left: 1px solid rgb(255 255 255 / .08); border-bottom: 1px solid rgb(255 255 255 / .08); transform: rotate(45deg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+  /* Reduced motion: no travel or scale, only a short fade. */
+  .window[data-reduced] :is(.sidebar, .dock-panel, .dock-panel .ph, .dock-panel .row, .peek .ph, .peek .row, .pill) { transition: none !important; transform: none !important; translate: none !important; }
+  .window[data-reduced] .peek { transform: none !important; transition: opacity calc(120ms * var(--k)), visibility 0s linear calc(120ms * var(--k)) !important; }
+  .window[data-reduced] .peek[data-open] { transition: opacity calc(120ms * var(--k)) !important; }
+  .window[data-reduced] .peek .content.swap { animation: none; }
+
+  /* ---------- Controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 24px; }
+  .controls h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tm); }
+  .opts { display: grid; gap: 6px; }
+  .opt { text-align: left; display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bs); background: var(--bg1); transition: border-color calc(140ms * var(--k)), background-color calc(140ms * var(--k)); }
+  .opt:hover { border-color: var(--bd); }
+  .opt[aria-checked="true"] { border-color: rgb(255 255 255 / .28); background: var(--bg2); }
+  .opt b { font-weight: 600; } .opt .n { color: var(--tm); font-variant-numeric: tabular-nums; } .opt small { grid-column: 2; color: var(--tm); font-size: 12px; }
+  .opt:focus-visible, .seg button:focus-visible, .act:focus-visible { outline: 1px solid rgb(255 255 255 / .5); outline-offset: 2px; }
+  .seg { display: flex; padding: 3px; border-radius: 9px; background: var(--bg1); border: 1px solid var(--bs); }
+  .seg button { flex: 1; height: 26px; border-radius: 6px; color: var(--tm); }
+  .seg button[aria-pressed="true"] { background: var(--bg3); color: var(--t1); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .act { height: 32px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--bs); }
+  .act:hover { background: var(--bg3); }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--t2); margin-top: 10px; }
+  .hint { color: var(--tm); font-size: 12px; margin: 0; }
+  .pick { padding: 12px; border-radius: 10px; background: var(--bg1); border: 1px dashed var(--bd); color: var(--t2); }
+  .pick code { color: var(--t1); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Sidebar · abrir/fechar e janela recolhida</h1>
+    <p>Escolha uma opção em cada grupo; elas combinam entre si. Use ⌘B (ou o botão da barra de título) para alternar e passe o mouse nos ícones da trilha com a sidebar recolhida.</p>
+  </header>
+
+  <div class="window" id="win" data-open="slide" data-peek="light">
+    <div class="titlebar">
+      <div class="lights"><span></span><span></span><span></span></div>
+      <button class="tb-btn" id="toggle" aria-label="Alternar sidebar" title="Alternar sidebar (⌘B)"><svg class="i" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg></button>
+      <span class="tb-btn"><svg class="i" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span>
+      <span class="tb-btn"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <span class="tb-title"><span class="brand" style="color:#d87957">✳</span>ooi · fork</span>
+    </div>
+    <div class="body" id="body">
+      <aside class="sidebar" id="sidebar" style="width:292px">
+        <nav class="rail" id="rail" aria-label="Navegação">
+          <button class="rail-btn" data-section="home" aria-label="Início"><svg class="i" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+          <button class="rail-btn" data-section="kanban" aria-label="Kanban"><svg class="i" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></button>
+          <button class="rail-btn" data-section="archived" aria-label="Arquivadas"><svg class="i" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg></button>
+          <button class="rail-btn gear" aria-label="Configurações"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        </nav>
+        <div class="dock-clip"><div class="dock-panel" id="dock"></div></div>
+      </aside>
+      <main class="main">
+        <div class="orbit"></div>
+        <div class="glyph"><svg class="i" viewBox="0 0 24 24" style="width:22px;height:22px"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/></svg></div>
+        <h2>Trabalhar em peticionaaqui2</h2>
+        <div class="composer"><span></span></div>
+      </main>
+      <div class="peek" id="peek" role="dialog" aria-label="Painel da sidebar"><div class="content" id="peekContent"></div></div>
+    </div>
+  </div>
+
+  <aside class="controls">
+    <section>
+      <h4>A · Abrir e fechar (⌘B)</h4>
+      <div class="opts" role="radiogroup" aria-label="Animação de abrir e fechar" data-group="open">
+        <button class="opt" role="radio" data-value="current"><span class="n">A0</span><b>Atual</b><small>Troca instantânea de largura, sem animação.</small></button>
+        <button class="opt" role="radio" data-value="slide"><span class="n">A1</span><b>Deslizar</b><small>Largura cresce suave; o conteúdo entra deslizando e com fade. Fecha mais rápido do que abre.</small></button>
+        <button class="opt" role="radio" data-value="reveal"><span class="n">A2</span><b>Cortina</b><small>O conteúdo fica parado e a borda revela/esconde, como uma cortina.</small></button>
+        <button class="opt" role="radio" data-value="spring"><span class="n">A3</span><b>Mola</b><small>Abre com um leve ressalto e as linhas entram em cascata.</small></button>
+      </div>
+    </section>
+    <section>
+      <h4>B · Janela com a sidebar recolhida</h4>
+      <div class="opts" role="radiogroup" aria-label="Janela recolhida" data-group="peek">
+        <button class="opt" role="radio" data-value="current"><span class="n">B0</span><b>Atual</b><small>Cartão cinza de 320px, altura total, zoom curto.</small></button>
+        <button class="opt" role="radio" data-value="light"><span class="n">B1</span><b>Cartão de vidro</b><small>Mais estreito (264px), vidro translúcido, sombra macia; entra deslizando da trilha com as linhas em cascata.</small></button>
+        <button class="opt" role="radio" data-value="drawer"><span class="n">B2</span><b>Gaveta</b><small>Sai de trás da trilha, encostada nela, como se a sidebar abrisse por cima do chat.</small></button>
+        <button class="opt" role="radio" data-value="anchor"><span class="n">B3</span><b>Ancorado ao ícone</b><small>Altura do conteúdo, preso ao ícone com uma setinha; desliza entre Início/Kanban/Arquivadas.</small></button>
+      </div>
+      <p class="hint" style="margin-top:8px">Em B1–B3 o tooltip do ícone ("Início") não aparece por cima do painel.</p>
+    </section>
+    <section>
+      <h4>Testar</h4>
+      <div class="acts">
+        <button class="act" id="actToggle">Alternar sidebar</button>
+        <button class="act" id="actDemo">Demonstração</button>
+      </div>
+      <h4 style="margin-top:14px">Velocidade</h4>
+      <div class="seg" id="speed"><button data-k="1" aria-pressed="true">1×</button><button data-k="2">½×</button><button data-k="4">¼×</button></div>
+      <label class="check"><input type="checkbox" id="reduced" /> Reduzir movimento</label>
+    </section>
+    <div class="pick" id="pick"></div>
+  </aside>
+</div>
+
+<script>
+const win = document.getElementById("win"), sidebar = document.getElementById("sidebar"), dock = document.getElementById("dock");
+const peek = document.getElementById("peek"), peekContent = document.getElementById("peekContent"), rail = document.getElementById("rail"), body = document.getElementById("body");
+const icon = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const I = {
+  search: icon('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+  drafts: icon('<path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"/><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"/>'),
+  dock: icon('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>'),
+  pen: icon('<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>'),
+  folder: icon('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+  board: icon('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
+};
+const brands = { claude: ["✳", "#d87957"], codex: ["◎", "#ececec"], deepseek: ["◆", "#4d6bfe"], kimi: ["K", "#ececec"] };
+const projects = [
+  { name: "fisioae", open: false, sessions: [["codex", "Oi"], ["deepseek", "Oi"]] },
+  { name: "peticionaaqui2", open: true, sessions: [["claude", "ooi · fork"], ["codex", "ooi · fork"], ["kimi", "ooi · fork"]] },
+];
+let selected = "peticionaaqui2:0";
+const state = { collapsed: false, section: "home", peekSection: null, k: 1 };
+
+function panel(section, floating) {
+  let i = 0;
+  const n = () => `style="--i:${i++}"`;
+  const brand = (id) => `<span class="brand" style="color:${brands[id][1]}">${brands[id][0]}</span>`;
+  const head = (title, extra = "") => `<div class="ph" ${n()}><h3>${title}</h3>${extra}${floating ? `<button data-dock aria-label="Fixar sidebar" title="Fixar sidebar">${I.dock}</button>` : ""}</div>`;
+  if (section === "kanban") return head("Kanban") + `<div class="track"><div class="list" style="margin-top:0">${projects.map(p => `<div class="row" ${n()}>${I.board}<span class="t">${p.name}</span></div>`).join("")}<div class="row" ${n()}>${I.board}<span class="t">Todos os quadros</span></div></div></div>`;
+  if (section === "archived") return head("Sessões arquivadas") + `<div class="track"><div class="list" style="margin-top:0"><p class="label">Esta semana</p>${[["claude", "Refatorar login"], ["codex", "Ajustar PDF"], ["kimi", "Teste de fork"]].map(([b, t]) => `<div class="row" ${n()}>${brand(b)}<span class="t">${t}</span></div>`).join("")}</div></div>`;
+  return head("peticionaaqui2", `<button aria-label="Buscar">${I.search}</button><button aria-label="Rascunhos">${I.drafts}</button>`)
+    + `<div class="track"><button class="row menu" ${n()}>${I.pen}<span class="t">New thread</span><kbd>⌘N</kbd></button><div class="list">`
+    + projects.map(p => `<div class="group"><div class="row folder" data-project="${p.name}" ${n()}>${I.folder}<span class="t">${p.name}</span></div>`
+      + (p.open ? p.sessions.map(([b, t], j) => `<div class="row sess${selected === `${p.name}:${j}` ? " selected" : ""}" data-session="${p.name}:${j}" ${n()}>${brand(b)}<span class="t">${t}</span></div>`).join("") : "") + `</div>`).join("")
+    + `</div></div>`;
+}
+
+// Same gliding hover pill as the product sidebar.
+function wireTrack(root) {
+  root.querySelectorAll(".track").forEach(track => {
+    const pill = document.createElement("div"); pill.className = "pill"; track.prepend(pill);
+    let shown = false;
+    track.addEventListener("mouseover", e => {
+      const row = e.target.closest(".row"); if (!row || !track.contains(row)) return;
+      const o = track.getBoundingClientRect(), r = row.getBoundingClientRect();
+      pill.toggleAttribute("data-instant", !shown);
+      pill.style.transform = `translate(${r.left - o.left}px, ${r.top - o.top}px)`;
+      pill.style.width = `${r.width}px`; pill.style.height = `${r.height}px`;
+      pill.toggleAttribute("data-on-selected", row.classList.contains("selected"));
+      pill.setAttribute("data-visible", ""); shown = true;
+    });
+    track.addEventListener("mouseleave", () => { shown = false; pill.removeAttribute("data-visible"); });
+    track.addEventListener("scroll", () => { shown = false; pill.removeAttribute("data-visible"); }, true);
+  });
+}
+function renderDock() { dock.innerHTML = panel(state.section, false); wireTrack(dock); markRail(); }
+function renderPeek(swap) {
+  peekContent.innerHTML = panel(state.peekSection, true); wireTrack(peekContent);
+  if (swap) { peekContent.classList.remove("swap"); void peekContent.offsetWidth; peekContent.classList.add("swap"); }
+}
+function markRail() {
+  rail.querySelectorAll("[data-section]").forEach(b => {
+    b.setAttribute("aria-current", String(!state.collapsed && b.dataset.section === state.section));
+    b.setAttribute("aria-expanded", String(state.collapsed && b.dataset.section === state.peekSection));
+  });
+}
+
+function setCollapsed(collapsed) {
+  state.collapsed = collapsed;
+  closePeek(true);
+  win.toggleAttribute("data-collapsed", collapsed);
+  sidebar.style.width = collapsed ? "52px" : "292px";
+  markRail();
+}
+
+let closeTimer = 0;
+function openPeek(section, button) {
+  if (!state.collapsed) return;
+  clearTimeout(closeTimer);
+  const swap = peek.hasAttribute("data-open") && state.peekSection !== section;
+  const wasOpen = peek.hasAttribute("data-open");
+  state.peekSection = section;
+  if (!wasOpen || swap) renderPeek(swap);
+  const top = button.getBoundingClientRect().top - body.getBoundingClientRect().top - 8;
+  peek.style.setProperty("--top", `${Math.max(6, top)}px`);
+  peek.setAttribute("data-open", "");
+  markRail();
+}
+function closePeek(now) {
+  clearTimeout(closeTimer);
+  const close = () => { peek.removeAttribute("data-open"); state.peekSection = null; markRail(); };
+  if (now) close(); else closeTimer = setTimeout(close, 240 * state.k);
+}
+
+rail.addEventListener("mouseover", e => { const b = e.target.closest("[data-section]"); if (b) openPeek(b.dataset.section, b); else if (e.target.closest(".gear")) closePeek(true); });
+rail.addEventListener("mouseleave", () => closePeek(false));
+peek.addEventListener("mouseenter", () => clearTimeout(closeTimer));
+peek.addEventListener("mouseleave", () => closePeek(false));
+rail.addEventListener("click", e => { const b = e.target.closest("[data-section]"); if (b && !state.collapsed) { state.section = b.dataset.section; renderDock(); } });
+
+function interact(e) {
+  if (e.target.closest("[data-dock]")) { state.section = state.peekSection ?? state.section; renderDock(); setCollapsed(false); return; }
+  const folder = e.target.closest("[data-project]");
+  if (folder) { const p = projects.find(x => x.name === folder.dataset.project); p.open = !p.open; rerender(); return; }
+  const s = e.target.closest("[data-session]");
+  if (s) { selected = s.dataset.session; rerender(); }
+}
+function rerender() { renderDock(); if (peek.hasAttribute("data-open")) renderPeek(false); }
+dock.addEventListener("click", interact); peek.addEventListener("click", interact);
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") { e.preventDefault(); setCollapsed(!state.collapsed); }
+  if (e.key === "Escape") closePeek(true);
+});
+document.getElementById("toggle").onclick = document.getElementById("actToggle").onclick = () => setCollapsed(!state.collapsed);
+
+const wait = (ms) => new Promise(r => setTimeout(r, ms * state.k));
+document.getElementById("actDemo").onclick = async () => {
+  const btn = (s) => rail.querySelector(`[data-section="${s}"]`);
+  setCollapsed(false); await wait(500);
+  setCollapsed(true); await wait(900);
+  openPeek("home", btn("home")); await wait(1300);
+  openPeek("kanban", btn("kanban")); await wait(1100);
+  openPeek("archived", btn("archived")); await wait(1100);
+  closePeek(true); await wait(700);
+  setCollapsed(false);
+};
+
+// Option pickers
+const labels = { open: {}, peek: {} };
+document.querySelectorAll("[data-group]").forEach(group => {
+  const key = group.dataset.group;
+  group.querySelectorAll(".opt").forEach(opt => {
+    labels[key][opt.dataset.value] = opt.querySelector(".n").textContent + " · " + opt.querySelector("b").textContent;
+    opt.addEventListener("click", () => choose(key, opt.dataset.value));
+  });
+  group.addEventListener("keydown", e => {
+    if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
+    e.preventDefault();
+    const opts = [...group.querySelectorAll(".opt")], i = opts.findIndex(o => o.getAttribute("aria-checked") === "true");
+    const next = opts[(i + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length];
+    choose(key, next.dataset.value); next.focus();
+  });
+});
+function choose(key, value) {
+  closePeek(true);
+  win.dataset[key] = value;
+  document.querySelectorAll(`[data-group="${key}"] .opt`).forEach(o => { const on = o.dataset.value === value; o.setAttribute("aria-checked", String(on)); o.tabIndex = on ? 0 : -1; });
+  document.getElementById("pick").innerHTML = `Sua escolha: <code>${labels.open[win.dataset.open]}</code> + <code>${labels.peek[win.dataset.peek]}</code>`;
+}
+document.getElementById("speed").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  state.k = Number(b.dataset.k); document.documentElement.style.setProperty("--k", b.dataset.k);
+  document.querySelectorAll("#speed button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+});
+const reduced = document.getElementById("reduced");
+reduced.checked = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const applyReduced = () => win.toggleAttribute("data-reduced", reduced.checked);
+reduced.onchange = applyReduced; applyReduced();
+
+renderDock(); choose("open", "slide"); choose("peek", "light");
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+:root {
+  --code-keyword: #c792ea;
+  --code-string: #c3e88d;
+  --code-number: #f78c6c;
+  --code-comment: #87909e;
+  --code-type: #ffcb6b;
+  --code-function: #82aaff;
+  --code-property: #89ddff;
+  --code-tag: #f07178;
+}
+:root[data-theme="light"] {
+  --code-keyword: #7b36a8;
+  --code-string: #3b7029;
+  --code-number: #a34c13;
+  --code-comment: #647082;
+  --code-type: #83630c;
+  --code-function: #2857b0;
+  --code-property: #196878;
+  --code-tag: #ab3447;
+}
+@layer components { .code-editor-host { contain: size; } }

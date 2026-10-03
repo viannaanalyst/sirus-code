@@ -1,0 +1,40 @@
+import type { ProviderUsage, UsageWindow } from "@/client/types";
+
+/** Prefer the longer quota window for the compact footer; the popup shows every window. */
+export function primaryUsageWindow(usage: ProviderUsage | undefined): UsageWindow | undefined {
+  // A calendar month is longer than the fixed rolling windows, without claiming
+  // its duration is always 30 days. The server supplies the actual reset date.
+  const monthly = usage?.windows.find((window) => window.id === "opencode-go/monthly");
+  if (monthly) return monthly;
+  return usage?.windows.reduce<UsageWindow | undefined>((chosen, row) =>
+    !chosen || (row.durationMinutes ?? 0) > (chosen.durationMinutes ?? 0) ? row : chosen, undefined);
+}
+
+export function resetDuration(resetsAt: number | null, now: number): string | null {
+  if (resetsAt == null || !Number.isFinite(resetsAt)) return null;
+  const minutes = Math.max(0, Math.ceil((resetsAt - now) / 60_000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor(minutes % 1440 / 60);
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${minutes % 60}m`;
+  return `${minutes}m`;
+}
+
+export function usageWindowLabel(window: UsageWindow): string {
+  const labels: Record<string, string> = {
+    five_hour: "5-hour usage", seven_day: "Weekly usage", seven_day_opus: "Weekly · Opus",
+    seven_day_sonnet: "Weekly · Sonnet", seven_day_oauth_apps: "Weekly · OAuth apps",
+    "opencode-go/rolling": "5-hour usage", "opencode-go/weekly": "Weekly usage", "opencode-go/monthly": "Monthly usage",
+    "cursor/models": "Cursor models", "cursor/other-models": "Other models", "cursor/included": "Included usage",
+    "cursor/member": "Individual limit", "cursor/team": "Team pool",
+  };
+  if (labels[window.id]) return labels[window.id];
+  if (window.durationMinutes === 300) return "5-hour usage";
+  if (window.durationMinutes === 10_080) return "Weekly usage";
+  return window.id;
+}
+
+export const resetOutcomeMessage = {
+  reset: "Codex usage was reset.", alreadyRedeemed: "This reset was already used. Usage was refreshed.",
+  nothingToReset: "There is no eligible usage window to reset.", noCredit: "No reset credits are available.",
+} as const;

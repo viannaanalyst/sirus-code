@@ -1,0 +1,14 @@
+@layer components {
+  .general-settings .settings-group-card {
+    overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--background-2) 30%, transparent);
+  }
+  .general-settings .settings-group-card > .settings-row { align-items: center; gap: 20px; padding: var(--settings-row-padding) 16px; }
+  .general-settings .settings-row > div:first-child { padding-right: 0; }
+  .general-settings .settings-row-control { gap: 8px; padding-top: 0; }
+  .general-settings .general-settings-select { width: 200px; min-height: 32px; border-radius: var(--radius-md); }
+  @media (max-width: 600px) {
+    .general-settings .settings-row:has([role="combobox"]) { align-items: flex-start; flex-wrap: wrap; }
+    .general-settings .settings-row:has([role="combobox"]) > div:first-child { flex-basis: 100%; }
+  }
+}

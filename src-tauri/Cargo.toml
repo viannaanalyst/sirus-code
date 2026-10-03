@@ -1,0 +1,64 @@
+[package]
+name = "switchyard"
+version = "0.1.0"
+description = "Desktop workspace for AI-assisted software development"
+authors = ["Switchyard"]
+edition = "2021"
+
+[lib]
+name = "switchyard_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["process", "io-util", "sync", "macros", "rt-multi-thread", "time"] }
+portable-pty = "0.9"
+which = "7"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+parking_lot = "0.12"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
+base64 = "0.22"
+sha2 = "0.10"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
+crc32fast = "1"
+tempfile = "3.27"
+objc2-avf-audio = { version = "0.3.2", default-features = false, features = ["AVAudioEngine", "AVAudioNode", "AVAudioFormat", "AVAudioBuffer", "AVAudioFile", "AVAudioTime", "AVAudioTypes", "AVAudioIONode", "AVAudioApplication", "block2"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+csv = "1.4.0"
+roxmltree = "0.21.1"
+similar = "3.2.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.4"
+objc2-user-notifications = { version = "0.3.2", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound"] }
+speech = "0.9"
+block2 = "0.6.2"
+objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "objc2-core-foundation", "objc2-app-kit", "block2", "WKWebView", "WKWebViewConfiguration", "WKWebsiteDataStore", "WKNavigation", "WKNavigationDelegate", "WKNavigationAction", "WKNavigationResponse", "WKPreferences", "WKScriptMessage", "WKUserContentController", "WKUserScript", "WKSnapshotConfiguration", "WKUIDelegate", "WKWindowFeatures", "WKUserScript", "WKUserContentController", "WKContentWorld", "WKFrameInfo"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["block2", "NSSound", "NSEvent", "NSOpenPanel", "NSSavePanel", "NSPasteboard", "NSPasteboardItem", "NSBitmapImageRep", "NSImageRep", "NSImage", "NSResponder", "NSWindow", "NSWorkspace", "NSView", "NSApplication", "NSAppearance", "NSColor", "NSVisualEffectView", "NSUserInterfaceItemIdentification", "NSPanel", "NSButton", "NSButtonCell", "NSControl", "NSCell", "NSTextField", "NSText", "NSBox", "NSScreen", "NSRunningApplication", "NSFont", "NSGraphics", "NSGlassEffectView", "NSFontDescriptor", "NSLayoutConstraint", "libc"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSBundle", "NSArray", "NSDictionary", "NSData", "NSString", "NSURL", "NSURLRequest", "NSGeometry", "NSProcessInfo", "NSError", "NSValue", "NSFileManager"] }
+# Computer use: Accessibility, per-process input, window screenshots.
+objc2-application-services = { version = "0.3.2", default-features = false, features = ["std", "HIServices", "AXUIElement", "AXError", "AXValue", "AXValueConstants", "AXAttributeConstants", "AXActionConstants", "AXRoleConstants", "libc", "objc2"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString", "CFArray", "CFNumber", "CFData", "CFDictionary", "CFCGTypes", "CFBase"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventSource", "CGEventTypes", "CGImage", "CGDataProvider", "CGWindow", "CGRemoteOperation", "libc"] }
+objc2-screen-capture-kit = { version = "0.3.2", default-features = false, features = ["std", "SCShareableContent", "SCScreenshotManager", "SCStream", "SCContentSharingPicker", "block2", "objc2-core-graphics", "objc2-core-foundation", "libc"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

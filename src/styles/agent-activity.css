@@ -1,0 +1,90 @@
+@layer components {
+.agent-activity { margin-bottom: 12px; min-width: 0; color: var(--text-secondary); }
+.activity-line { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; min-height: 24px; max-width: 100%; text-align: left; padding: 0; color: var(--text-secondary); border-radius: var(--radius-sm); }
+button.activity-line { cursor: pointer; }
+.activity-model { color: var(--text-primary); font-weight: 500; overflow-wrap: anywhere; }
+.activity-orbit { width: 18px; height: 18px; flex-shrink: 0; overflow: visible; color: var(--text-primary); }
+.activity-orbit-ring { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: .9; }
+.activity-orbit-core, .activity-orbit-satellite { fill: currentColor; }
+.activity-orbit-core { transform-box: fill-box; transform-origin: center; }
+.agent-activity[data-status="waiting"] .activity-orbit { color: var(--warning); }
+.agent-activity[data-status="completed"] .activity-orbit { color: var(--success); }
+.agent-activity[data-status="failed"] .activity-orbit { color: var(--danger); }
+.agent-activity:is([data-status="completed"], [data-status="failed"], [data-status="stopped"]) .activity-orbit-satellite { opacity: 0; }
+.activity-state { color: var(--text-muted); }
+.activity-duration { color: var(--text-muted); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.activity-chevron { color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
+.activity-chevron.expanded { transform: rotate(180deg); }
+/* V2 trail: every step on one line, newest last. */
+.activity-trail { margin: 6px 0 0 8px; }
+.activity-trail-more { display: block; min-height: 22px; margin-left: 24px; color: var(--text-muted); border-radius: var(--radius-sm); }
+.activity-trail-more:hover { color: var(--text-primary); }
+.activity-steps { position: relative; display: flex; flex-direction: column; list-style: none; margin: 0; padding: 0 0 0 24px; }
+.activity-steps::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 1px; background: var(--border-default); }
+.activity-step { position: relative; display: flex; align-items: center; gap: 8px; min-height: 26px; color: var(--text-secondary); }
+.activity-step::before { content: ""; position: absolute; left: -27px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; border: 1px solid var(--border-default); background: var(--main-material); box-sizing: border-box; }
+.activity-step[data-state="completed"]::before { border-color: var(--text-muted); background: var(--text-muted); }
+.activity-step[data-state="failed"]::before { border-color: var(--danger); background: var(--danger); }
+.activity-step-icon { flex-shrink: 0; color: var(--text-muted); }
+.activity-step[data-kind="agent"] .activity-step-icon { color: var(--text-secondary); }
+.activity-step-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-step-label code { font-family: var(--font-mono); font-size: inherit; }
+.activity-step[data-state="failed"] > .activity-step-label { color: var(--danger); }
+.activity-step-status { margin-left: auto; display: inline-grid; place-items: center; width: 14px; flex-shrink: 0; color: var(--text-muted); }
+.activity-step-status[data-state="completed"] { color: var(--success); }
+.activity-step-status[data-state="failed"] { color: var(--danger); }
+.activity-step-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
+/* S1: a subagent is a trail row with its own tint; its steps open as a branch under it. */
+.activity-child { display: block; min-height: 0; }
+.activity-child::before { top: 13px; margin-top: -3.5px; }
+.activity-child[data-state="running"]::before { border-color: var(--child-tint); background: var(--child-tint); }
+.activity-child-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 26px; padding: 0; text-align: left; color: var(--text-secondary); border-radius: var(--radius-sm); cursor: pointer; }
+.activity-child-head:hover .activity-child-name { text-decoration: underline; text-decoration-color: var(--border-default); text-underline-offset: 3px; }
+.activity-child-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.activity-child-orbit { width: 14px; height: 14px; flex-shrink: 0; overflow: visible; color: var(--text-muted); }
+.activity-child[data-state="running"] .activity-child-orbit { color: var(--child-tint); }
+.activity-child[data-state="completed"] .activity-child-orbit { color: var(--success); }
+.activity-child[data-state="failed"] .activity-child-orbit { color: var(--danger); }
+.activity-child-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 500; }
+.activity-child[data-state="failed"] .activity-child-name { color: var(--danger); }
+.activity-child-model { flex-shrink: 0; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--navigation-hover); color: var(--text-muted); white-space: nowrap; }
+.activity-child-meta { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.activity-child-meta .activity-step-status { margin-left: 0; }
+.activity-child-now { display: block; margin: -2px 0 4px 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.activity-child-steps { position: relative; display: flex; flex-direction: column; list-style: none; margin: 2px 0 6px 6px; padding: 0 0 0 16px; }
+.activity-child-steps::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--child-tint) 55%, transparent); }
+.activity-child[data-state="failed"] .activity-child-steps::before { background: color-mix(in srgb, var(--danger) 55%, transparent); }
+.activity-child-step { display: flex; align-items: center; gap: 8px; min-height: 23px; color: var(--text-secondary); }
+.activity-child-step[data-state="failed"] .activity-step-label { color: var(--danger); }
+.activity-child-folded { min-height: 22px; display: flex; align-items: center; color: var(--text-muted); }
+.activity-line:focus-visible, .activity-trail-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.shortcut-tooltip { display: flex; align-items: center; gap: 8px; }
+.shortcut-tooltip kbd { min-width: 17px; padding: 0 3px; line-height: 17px; border-radius: 3px; background: var(--navigation-hover); color: var(--text-secondary); border-color: var(--border-default); }
+.agent-request { background: var(--background-1); }
+.agent-request-eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--text-muted); }
+.agent-question-choices { display: flex; flex-direction: column; gap: 6px; margin-block: 12px; }
+.agent-question-choice { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); cursor: pointer; }
+.agent-question-choice:hover { background: var(--navigation-hover); }
+.agent-question-choice:has(input:checked) { border-color: var(--accent); background: var(--navigation-selected); }
+.agent-question-choice input { margin-top: 3px; accent-color: var(--accent); }
+.agent-question-progress { display: flex; gap: 3px; margin-left: auto; }
+.agent-question-progress span { width: 12px; height: 3px; border-radius: 3px; background: var(--border-default); }
+.agent-question-progress [data-current="true"] { background: var(--text-primary); }
+html[data-window-glass="on"] .agent-request { background: var(--background-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
+  .agent-activity[data-status="waiting"] .activity-orbit-core { animation: activity-orbit-beat calc(var(--motion-slow) * 4.4) ease-in-out infinite; }
+  .agent-activity[data-status="completed"] .activity-orbit-ring { transform-box: fill-box; transform-origin: center; animation: activity-orbit-settle var(--motion-reveal) var(--ease-spring) both; }
+  /* Steps enter only while the turn is live; history renders still. */
+  .agent-activity[data-active] .activity-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
+  .agent-activity[data-live] .activity-step-pulse { animation: activity-step-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
+  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
+  .agent-activity[data-active] .activity-child-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
+}
+@keyframes activity-orbit-beat { 50% { transform: scale(1.35); } }
+@keyframes activity-orbit-settle { from { transform: scale(1.3); opacity: 0; } }
+@keyframes activity-step-in { from { opacity: 0; translate: 0 5px; } }
+@keyframes activity-step-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 50%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
+@keyframes activity-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .activity-chevron { transition: none; } }
+}

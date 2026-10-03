@@ -1,0 +1,27 @@
+# .graphifyignore
+# Extra exclusions beyond .gitignore. Graphify also honors .gitignore;
+# this file can only exclude more, never re-include.
+
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/
+.git/
+build/
+coverage/
+graphify-out/
+.superpowers/
+
+# Lockfiles pin exact versions for installs. They do not help architectural
+# queries (Session, IPC, Worktree). Keep them in git; keep them out of the graph.
+package-lock.json
+Cargo.lock
+*.lock
+
+# Binary / generated assets
+*.png
+*.icns
+*.ico
+*.woff
+*.woff2

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Switchyard · Três efeitos para New thread</title>
+  </head>
+  <body data-effect="orbitas">
+    <header class="comparison-bar">
+      <a class="comparison-brand ui-brand" href="?effect=mare"><img src="/switchyard-glyph.png" alt="" />Switchyard <span class="ui-caption">/ new thread</span></a>
+      <div class="effect-picker" role="group" aria-label="Escolher efeito de fundo">
+        <button type="button" class="ui-control" data-effect="mare" aria-pressed="false"><span class="ui-micro">01</span>Maré de prata</button>
+        <button type="button" class="ui-control" data-effect="veu" aria-pressed="false"><span class="ui-micro">02</span>Véu de luz</button>
+        <button type="button" class="ui-control" data-effect="orbitas" aria-pressed="true"><span class="ui-micro">03</span>Órbitas</button>
+      </div>
+      <button id="pause" type="button" class="quiet-button ui-control" aria-pressed="false"><i data-icon="pause"></i><span>Pausar</span></button>
+    </header>
+    <main class="app-frame">
+      <header class="window-header">
+        <span class="ui-section-title"><i data-icon="session"></i>Nova sessão</span>
+        <span class="window-tools" aria-hidden="true"><i data-icon="panel"></i><i data-icon="dock"></i></span>
+      </header>
+      <section class="landing dot-grid" aria-label="Preview da página Nova sessão">
+        <canvas id="effect-canvas" aria-hidden="true"></canvas>
+        <div class="center-shade" aria-hidden="true"></div>
+        <div class="import-banner">
+          <div class="import-icons" aria-hidden="true"><img src="/src/assets/providers/claude.png" alt="" /><img src="/src/assets/providers/codex.png" alt="" /><span class="import-dots">···</span><img src="/switchyard-glyph.png" alt="" /></div>
+          <div><p class="ui-control">Importe seus projetos do Claude Code e do Codex</p><p class="ui-caption">Traga suas conversas e continue no Switchyard</p></div>
+        </div>
+        <div class="welcome">
+          <img src="/switchyard-glyph.png" alt="" draggable="false" />
+          <h1 class="ui-title">Em que vamos trabalhar em peticionaaqui??</h1>
+        </div>
+        <div class="composer-area">
+          <div class="workspace ui-control" aria-label="Contexto ilustrativo">
+            <span><i data-icon="folder"></i>peticionaaqui<i data-icon="chevron"></i></span>
+            <span><i data-icon="monitor"></i>Local<i data-icon="chevron"></i></span>
+            <span><i data-icon="branch"></i>main<i data-icon="chevron"></i></span>
+          </div>
+          <form class="agent-composer" id="composer">
+            <span class="composer-contour" aria-hidden="true"></span>
+            <textarea class="ui-chat" id="prompt" rows="2" aria-label="Mensagem de demonstração" placeholder="O que vamos construir?" spellcheck="false"></textarea>
+            <div class="composer-footer">
+              <div class="footer-group">
+                <button type="button" id="add" class="composer-control composer-icon-control composer-metal-button" aria-label="Adicionar contexto de demonstração" aria-expanded="false"><span class="composer-metal-surface" aria-hidden="true"></span><span class="composer-metal-core" aria-hidden="true"></span><i data-icon="plus"></i></button>
+                <button type="button" id="approval" class="composer-control text-control ui-control"><i data-icon="hand"></i><span>Solicitar aprovação</span><i data-icon="chevron"></i></button>
+              </div>
+              <div class="footer-group">
+                <button type="button" id="model" class="composer-control text-control ui-control"><img src="/src/assets/providers/opencode.svg" alt="" /><span>DeepSeek V4.1 Flash</span><i data-icon="chevron"></i></button>
+                <button type="submit" id="send" class="composer-control composer-icon-control send" disabled aria-label="Simular envio"><i data-icon="up"></i></button>
+              </div>
+            </div>
+            <div id="add-menu" class="add-menu" hidden><p class="ui-caption">Contexto de demonstração</p><button id="context" type="button" class="ui-control"><i data-icon="folder"></i>Adicionar pasta de exemplo</button></div>
+          </form>
+        </div>
+      </section>
+    </main>
+    <footer class="comparison-footer">
+      <div class="effect-caption"><span id="effect-number" class="ui-micro">03 / 03</span><p id="effect-description" class="ui-caption">Arcos delicados e pontos de luz em órbita. O centro fica livre.</p></div>
+      <div class="preview-adjustments">
+        <label class="ui-caption intensity-control">Intensidade<input id="intensity" type="range" min="35" max="115" value="100" /><output id="intensity-value">100%</output></label>
+        <button id="speed" type="button" class="quiet-button ui-control" aria-label="Velocidade do fundo: rápida">Rápida <i data-icon="chevron"></i></button>
+      </div>
+      <span class="sr-only" id="status" role="status">Preview visual. Envio simulado.</span>
+    </footer>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/switchyard.svg" type="image/svg+xml" />
+    <title>Switchyard · Cinco jeitos de ditar</title>
+  </head>
+  <body data-variant="silver" data-recording="true" data-motion="false">
+    <header class="preview-header">
+      <a class="ui-brand" href="./"><img src="/switchyard-glyph.png" alt="" />Switchyard <span class="ui-caption">/ ditado</span></a>
+      <button class="preview-button ui-control" id="motion" type="button" aria-pressed="false"><i data-icon="pause"></i><span>Pausar movimento</span></button>
+    </header>
+    <main class="dictation-preview">
+      <div class="preview-intro">
+        <p class="ui-caption eyebrow">CINCO ESTUDOS / COMPOSER</p>
+        <h1 class="ui-title">Ditado, do jeito do Switchyard.</h1>
+        <p class="ui-body">O mesmo composer. Cinco maneiras de mostrar que estamos ouvindo.</p>
+      </div>
+      <div class="variant-tabs" role="tablist" aria-label="Estilo do ditado">
+        <button id="tab-silver" role="tab" type="button" aria-controls="preview-panel" aria-selected="true" data-choice="silver"><span class="tab-number">01</span>Linha de prata</button>
+        <button id="tab-capsule" role="tab" type="button" aria-controls="preview-panel" aria-selected="false" tabindex="-1" data-choice="capsule"><span class="tab-number">02</span>Cápsula</button>
+        <button id="tab-orbit" role="tab" type="button" aria-controls="preview-panel" aria-selected="false" tabindex="-1" data-choice="orbit"><span class="tab-number">03</span>Órbita</button>
+        <button id="tab-rails" role="tab" type="button" aria-controls="preview-panel" aria-selected="false" tabindex="-1" data-choice="rails"><span class="tab-number">04</span>Trilhos</button>
+        <button id="tab-halo" role="tab" type="button" aria-controls="preview-panel" aria-selected="false" tabindex="-1" data-choice="halo"><span class="tab-number">05</span>Halo</button>
+      </div>
+      <section class="preview-window" id="preview-panel" role="tabpanel" aria-labelledby="tab-silver">
+        <div class="window-header ui-control"><span><i data-icon="session"></i>Nova sessão</span><span class="window-mode ui-caption">PREVIEW</span></div>
+        <div class="window-content dot-grid">
+          <div class="landing-title"><img src="/switchyard-glyph.png" alt="" draggable="false" /><h2 class="ui-title">Em que vamos trabalhar no Switchyard?</h2></div>
+          <div class="composer-area">
+            <div class="workspace ui-caption"><span><i data-icon="folder"></i>Switchyard<i data-icon="chevron"></i></span><span><i data-icon="monitor"></i>Local<i data-icon="chevron"></i></span><span><i data-icon="branch"></i>main<i data-icon="chevron"></i></span></div>
+            <form class="agent-composer" id="composer">
+              <span class="composer-contour" aria-hidden="true"></span>
+              <textarea class="ui-chat" id="prompt" rows="2" placeholder="Pergunte algo ou dite sua ideia…" aria-label="Mensagem de demonstração" spellcheck="false"></textarea>
+              <div class="composer-footer">
+                <button class="composer-control composer-icon-control composer-metal-button" id="add" type="button" aria-label="Adicionar contexto de exemplo"><span class="composer-metal-surface" aria-hidden="true"></span><span class="composer-metal-core" aria-hidden="true"></span><i data-icon="plus"></i></button>
+                <div class="idle-controls">
+                  <span class="approval ui-control"><i data-icon="hand"></i>Solicitar aprovação<i data-icon="chevron"></i></span>
+                  <div class="model-group"><span class="model ui-control"><img src="/src/assets/providers/claude.png" alt="" />Opus 5<i data-icon="chevron"></i></span><button class="composer-control composer-icon-control composer-metal-button" id="mic" type="button" aria-label="Iniciar ditado simulado" title="Iniciar ditado"><span class="composer-metal-surface" aria-hidden="true"></span><span class="composer-metal-core" aria-hidden="true"></span><i data-icon="mic"></i></button><button class="composer-control composer-icon-control send" id="send" type="submit" aria-label="Simular envio" disabled><i data-icon="up"></i></button></div>
+                </div>
+                <div class="record-strip" aria-label="Ditado simulado em andamento">
+                  <div class="record-visual" aria-hidden="true">
+                    <div class="visual visual-silver"><span class="silver-baseline"></span><div class="wave wave-silver" data-wave="43"></div></div>
+                    <div class="visual visual-capsule"><span class="capsule-mic"><i data-icon="mic"></i></span><span class="capsule-label ui-caption">Ouvindo</span><div class="wave wave-capsule" data-wave="23"></div><span class="capsule-light"></span></div>
+                    <div class="visual visual-orbit"><div class="orbital-icon"><svg viewBox="0 0 76 48"><defs><linearGradient id="orbit-silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="currentColor" stop-opacity=".15"/><stop offset=".5" stop-color="currentColor"/><stop offset="1" stop-color="currentColor" stop-opacity=".25"/></linearGradient></defs><path d="M9 37C-4 16 63-4 67 12C80 33 13 54 9 37Z"/><ellipse cx="38" cy="24" rx="33" ry="11" transform="rotate(25 38 24)"/></svg><span class="orbital-dot"></span><span class="orbital-core"><i data-icon="mic"></i></span></div><span class="voice-label ui-control">Sua ideia em órbita<span class="ui-caption">Ouvindo você</span></span><div class="wave wave-orbit" data-wave="13"></div></div>
+                    <div class="visual visual-rails"><span class="rail-label ui-caption">OUVINDO</span><svg viewBox="0 0 360 44" preserveAspectRatio="none"><path class="rail-base" d="M0 14H110C140 14 140 30 170 30H360M0 30H110C140 30 140 14 170 14H360"/><path class="rail-signal" d="M0 14H110C140 14 140 30 170 30H360"/><path class="rail-signal rail-reverse" d="M0 30H110C140 30 140 14 170 14H360"/></svg><div class="wave wave-rails" data-wave="19"></div></div>
+                    <div class="visual visual-halo"><div class="halo-icon"><span class="halo-ring"></span><span class="halo-ring"></span><span class="halo-ring"></span><span class="halo-core"><i data-icon="mic"></i></span></div><span class="voice-label ui-control">Pode falar<span class="ui-caption">Transformando voz em ideias</span></span><div class="wave wave-halo" data-wave="9"></div></div>
+                  </div>
+                  <span class="record-clock ui-control" aria-label="Tempo da demonstração">0:03</span>
+                  <button class="composer-control composer-icon-control cancel" id="cancel" type="button" aria-label="Cancelar ditado simulado" title="Cancelar"><i data-icon="x"></i></button>
+                  <button class="composer-control composer-icon-control finish" id="finish" type="button" aria-label="Concluir ditado simulado" title="Concluir ditado"><i data-icon="square"></i></button>
+                </div>
+              </div>
+            </form>
+            <div class="composer-caption ui-caption"><span class="listening-dot"></span><span id="caption">Ditado simulado em andamento</span><span class="shortcut">Esc para cancelar</span></div>
+          </div>
+        </div>
+      </section>
+      <div class="preview-details">
+        <div><p class="eyebrow ui-caption" id="variant-number">01 / LINHA DE PRATA</p><h2 class="ui-section" id="variant-title">Sua referência, com o nosso acabamento.</h2><p class="ui-body" id="variant-description">Uma linha contínua cede espaço à onda de voz. Prata, contraste suave e toda a largura do composer.</p></div>
+        <div class="demo-controls">
+          <div class="state-pill ui-control" role="group" aria-label="Estado do composer"><button id="idle" type="button" aria-pressed="false">Em repouso</button><button id="record" type="button" aria-pressed="true">Ditando</button></div>
+          <button class="preview-button ui-control" id="phrase" type="button"><i data-icon="text"></i>Simular uma frase</button>
+        </div>
+      </div>
+      <p class="preview-note ui-caption" id="status" role="status">Preview visual · microfone não é acessado. Concluir coloca a frase no campo; enviar apenas simula.</p>
+    </main>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>

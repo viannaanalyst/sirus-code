@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Switchyard · Movimento premium: Configurações e abertura do app</title>
+<style>
+  :root {
+    --bg0: #0c0c0c; --bg1: #111111; --bg2: #191919; --bg3: #242424; --elev: #1c1c1c;
+    --bs: rgb(255 255 255 / .06); --bd: rgb(255 255 255 / .1);
+    --t1: #ececec; --t2: #b4b4b4; --tm: #7d7d7d;
+    --hover: color-mix(in srgb, var(--t1) 5%, transparent);
+    --sel: color-mix(in srgb, var(--t1) 7%, transparent);
+    --ease: cubic-bezier(.16, 1, .3, 1);
+    --spring: cubic-bezier(.34, 1.32, .64, 1);
+    --k: 1;
+    --glyph: url("__GLYPH__");
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: #070707; color: var(--t1); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  svg.i { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+  .page { max-width: 1320px; margin: 0 auto; padding: 28px; }
+  .intro { display: flex; align-items: flex-end; gap: 24px; margin-bottom: 20px; }
+  .intro h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .intro p { margin: 0; color: var(--tm); }
+  .tabs { margin-left: auto; display: flex; padding: 3px; border-radius: 10px; background: var(--bg1); border: 1px solid var(--bs); }
+  .tabs button { height: 30px; padding: 0 14px; border-radius: 7px; color: var(--tm); }
+  .tabs button[aria-selected="true"] { background: var(--bg3); color: var(--t1); }
+  .stage { display: none; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+  .stage[data-active] { display: grid; }
+
+  /* ---------- Shared window chrome ---------- */
+  .window { position: relative; height: 620px; border-radius: 12px; background: var(--bg0); border: 1px solid var(--bd); overflow: hidden; box-shadow: 0 30px 80px rgb(0 0 0 / .5); isolation: isolate; }
+  .titlebar { position: absolute; inset: 0 0 auto 0; height: 40px; display: flex; align-items: center; gap: 14px; padding-left: 14px; color: var(--tm); z-index: 60; pointer-events: none; }
+  .lights { display: flex; gap: 8px; margin-right: 10px; }
+  .lights span { width: 12px; height: 12px; border-radius: 50%; }
+  .lights span:nth-child(1) { background: #ff5f57; } .lights span:nth-child(2) { background: #febc2e; } .lights span:nth-child(3) { background: #28c840; }
+
+  .app { position: absolute; inset: 0; display: flex; padding-top: 40px; transform-origin: 50% 40%; }
+  .rail { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 12px 6px; }
+  .rail-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--tm); }
+  .rail-btn:first-child { color: var(--t1); background: var(--bg3); }
+  .rail-btn.gear { margin-top: auto; color: var(--t2); }
+  .rail-btn.gear:hover { color: var(--t1); background: var(--bg3); }
+  .side { width: 240px; padding: 10px 10px 0 8px; display: flex; flex-direction: column; }
+  .side h3 { margin: 0 4px 12px; font-size: 15px; font-weight: 600; }
+  .srow { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px; border-radius: 6px; color: color-mix(in srgb, var(--t1) 89%, transparent); white-space: nowrap; }
+  .srow.sub { margin-left: 20px; } .srow.sel { background: var(--sel); }
+  .brand { width: 14px; display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
+  .main { flex: 1; min-width: 0; margin: 0 8px 8px 0; border-radius: 10px; background: var(--bg1); border: 1px solid var(--bs); position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .main .orbit { position: absolute; inset: 0; background: radial-gradient(ellipse 60% 70% at 90% 60%, transparent 58%, rgb(255 255 255 / .05) 58.3%, transparent 58.8%), radial-gradient(ellipse 50% 60% at 95% 70%, transparent 62%, rgb(255 255 255 / .04) 62.3%, transparent 62.8%); pointer-events: none; }
+  .landing-glyph { margin-top: auto; width: 54px; height: 54px; background: var(--glyph) center / contain no-repeat; opacity: .95; }
+  .main h2 { font-size: 20px; font-weight: 500; margin: 14px 0 0; }
+  .composer { margin: auto 0 20px; width: min(520px, calc(100% - 40px)); height: 92px; border-radius: 18px; border: 1px solid var(--bd); background: var(--bg2); display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px; }
+  .composer span { width: 28px; height: 28px; border-radius: 50%; background: var(--t1); }
+
+  /* ---------- Settings layer ---------- */
+  .settings { position: absolute; inset: 0; z-index: 20; display: flex; background: var(--bg0); visibility: hidden; pointer-events: none; }
+  .settings[data-open] { visibility: visible; pointer-events: auto; }
+  .snav { position: relative; width: 236px; flex-shrink: 0; padding: 46px 8px 12px; border-right: 1px solid var(--bs); background: var(--bg1); display: flex; flex-direction: column; isolation: isolate; }
+  .snav .back { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border-radius: 8px; margin-bottom: 12px; color: var(--t1); }
+  .snav .back:hover { background: var(--hover); }
+  .snav .glabel { margin: 14px 10px 4px; color: var(--tm); font-size: 11px; }
+  .snav .glabel:first-of-type { margin-top: 2px; }
+  .snav .item { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; margin-bottom: 2px; border-radius: 8px; color: var(--t2); text-align: left; transition: color calc(140ms * var(--k)) var(--ease); }
+  .snav .item svg { color: var(--tm); transition: color calc(140ms * var(--k)) var(--ease); }
+  .snav .item:hover { color: var(--t1); }
+  .snav .item[aria-current="page"] { color: var(--t1); } .snav .item[aria-current="page"] svg { color: var(--t1); }
+  .snav:not([data-glide]) .item[aria-current="page"] { background: var(--sel); }
+  .snav .indicator { position: absolute; z-index: 0; left: 0; top: 0; border-radius: 8px; background: var(--sel); pointer-events: none; opacity: 0; }
+  .snav[data-glide] .indicator { opacity: 1; transition: transform calc(380ms * var(--k)) var(--ease), height calc(380ms * var(--k)) var(--ease); }
+  .smain { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+  .scroll { position: absolute; inset: 0; overflow-y: auto; padding: 52px 40px 32px; scrollbar-width: none; }
+  .sview { max-width: 620px; margin: 0 auto; }
+  .sview h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+  .sview > p { margin: 0 0 22px; color: var(--tm); }
+  .sgroup { margin-bottom: 22px; }
+  .sgroup h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--t2); }
+  .card { border: 1px solid var(--bs); border-radius: 12px; background: var(--bg1); }
+  .srow2 { display: flex; align-items: center; gap: 16px; padding: 14px 16px; }
+  .srow2 + .srow2 { border-top: 1px solid var(--bs); }
+  .srow2 .txt { flex: 1; min-width: 0; } .srow2 b { display: block; font-weight: 500; } .srow2 small { color: var(--tm); font-size: 12px; }
+  .toggle { width: 34px; height: 20px; border-radius: 10px; background: var(--bg3); position: relative; flex-shrink: 0; transition: background calc(200ms * var(--k)) var(--ease); }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #9a9a9a; transition: transform calc(320ms * var(--k)) var(--spring), background calc(200ms * var(--k)); }
+  .toggle[aria-checked="true"] { background: #e8e8e8; } .toggle[aria-checked="true"]::after { transform: translateX(14px); background: #111; }
+  .select { height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid var(--bd); background: var(--bg2); color: var(--t2); display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+  /* S · how Settings opens. JS adds data-open after the first frame so transitions run. */
+  .window[data-sopen="depth"] .app { transition: transform calc(480ms * var(--k)) var(--ease), filter calc(480ms * var(--k)) var(--ease), opacity calc(480ms * var(--k)) var(--ease); }
+  .window[data-sopen="depth"][data-settings] .app { transform: scale(.94); filter: blur(6px) brightness(.6); }
+  .window[data-sopen="depth"] .settings { opacity: 0; transform: scale(1.03); transition: opacity calc(200ms * var(--k)) var(--ease), transform calc(320ms * var(--k)) var(--ease), visibility 0s linear calc(320ms * var(--k)); }
+  .window[data-sopen="depth"] .settings[data-open] { opacity: 1; transform: none; transition: opacity calc(320ms * var(--k)) var(--ease), transform calc(480ms * var(--k)) var(--ease), visibility 0s; }
+
+  .window[data-sopen="push"] .app { transition: transform calc(480ms * var(--k)) var(--ease), filter calc(480ms * var(--k)) var(--ease); }
+  .window[data-sopen="push"][data-settings] .app { transform: translateX(-12%); filter: brightness(.5); }
+  .window[data-sopen="push"] .settings { transform: translateX(100%); box-shadow: -30px 0 60px rgb(0 0 0 / .45); transition: transform calc(320ms * var(--k)) var(--ease), visibility 0s linear calc(320ms * var(--k)); }
+  .window[data-sopen="push"] .settings[data-open] { transform: none; transition: transform calc(480ms * var(--k)) var(--ease), visibility 0s; }
+
+  .window[data-sopen="reveal"] .settings { clip-path: circle(0 at var(--gx, 26px) var(--gy, 590px)); transition: clip-path calc(320ms * var(--k)) var(--ease), visibility 0s linear calc(320ms * var(--k)); }
+  .window[data-sopen="reveal"] .settings[data-open] { clip-path: circle(150% at var(--gx, 26px) var(--gy, 590px)); transition: clip-path calc(640ms * var(--k)) var(--ease), visibility 0s; }
+
+  .window[data-sopen="glass"] .app { transition: filter calc(480ms * var(--k)) var(--ease), transform calc(480ms * var(--k)) var(--ease); }
+  .window[data-sopen="glass"][data-settings] .app { filter: blur(22px) saturate(1.3) brightness(.7); transform: scale(1.02); }
+  .window[data-sopen="glass"] .settings { background: rgb(12 12 12 / .55); opacity: 0; transition: opacity calc(200ms * var(--k)) var(--ease), visibility 0s linear calc(200ms * var(--k)); }
+  .window[data-sopen="glass"] .settings[data-open] { opacity: 1; transition: opacity calc(320ms * var(--k)) var(--ease), visibility 0s; }
+  .window[data-sopen="glass"] .snav { background: rgb(17 17 17 / .55); }
+  .window[data-sopen="glass"] .card { background: rgb(17 17 17 / .6); }
+  .window[data-sopen="glass"] .snav, .window[data-sopen="glass"] .snav ~ * { transition: transform calc(480ms * var(--k)) var(--ease); }
+  .window[data-sopen="glass"] .settings:not([data-open]) .snav { transform: translateX(-16px); }
+
+  /* ---------- Launch stage ---------- */
+  .desk { position: relative; height: 620px; border-radius: 14px; overflow: hidden; background: radial-gradient(circle at 18% 22%, #3a4a7a 0, transparent 42%), radial-gradient(circle at 82% 30%, #7a3d5c 0, transparent 40%), radial-gradient(circle at 60% 85%, #2f6a63 0, transparent 45%), #1a1b22; }
+  .desk .window { position: absolute; inset: 34px 40px; height: auto; background: transparent; opacity: 0; }
+  .desk .window[data-shown] { opacity: 1; }
+  .desk .app { background: var(--bg0); opacity: 0; }
+  .splash { position: absolute; inset: 0; z-index: 50; display: grid; place-items: center; pointer-events: none; }
+  .splash .glass { position: absolute; inset: 0; background: rgb(14 14 16 / .55); -webkit-backdrop-filter: blur(40px) saturate(1.6); backdrop-filter: blur(40px) saturate(1.6); }
+  .splash .solid { position: absolute; inset: 0; background: var(--bg0); display: none; }
+  .logo { position: relative; width: 96px; height: 96px; background: var(--glyph) center / contain no-repeat; opacity: 0; }
+  .logo .sheen { position: absolute; inset: 0; -webkit-mask: var(--glyph) center / contain no-repeat; mask: var(--glyph) center / contain no-repeat; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .9) 50%, transparent 65%) -100% 0 / 250% 100% no-repeat; opacity: 0; }
+  .glow { position: absolute; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgb(255 255 255 / .12), transparent 62%); opacity: 0; }
+  .hairline { position: absolute; top: calc(50% + 78px); width: 120px; height: 2px; border-radius: 1px; overflow: hidden; background: rgb(255 255 255 / .08); opacity: 0; }
+  .hairline::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: inherit; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .7), transparent); animation: hair calc(1200ms * var(--k)) var(--ease) infinite; }
+  @keyframes hair { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+  @keyframes breathe { 50% { opacity: .78; transform: scale(1.025); } }
+  @keyframes sweep { 0% { background-position: 120% 0; } 60%, 100% { background-position: -120% 0; } }
+  @keyframes glowpulse { 50% { opacity: .5; transform: scale(1.08); } }
+
+  /* ---------- Controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 22px; position: sticky; top: 24px; }
+  .controls h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tm); }
+  .opts { display: grid; gap: 6px; }
+  .opt { text-align: left; display: grid; grid-template-columns: 24px 1fr; gap: 2px 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--bs); background: var(--bg1); transition: border-color calc(140ms * var(--k)), background-color calc(140ms * var(--k)); }
+  .opt:hover { border-color: var(--bd); }
+  .opt[aria-checked="true"] { border-color: rgb(255 255 255 / .28); background: var(--bg2); }
+  .opt b { font-weight: 600; } .opt .n { color: var(--tm); font-variant-numeric: tabular-nums; } .opt small { grid-column: 2; color: var(--tm); font-size: 12px; }
+  :is(.opt, .seg button, .act, .tabs button, .item, .back, .gear):focus-visible { outline: 1px solid rgb(255 255 255 / .5); outline-offset: 2px; }
+  .seg { display: flex; padding: 3px; border-radius: 9px; background: var(--bg1); border: 1px solid var(--bs); }
+  .seg button { flex: 1; height: 26px; border-radius: 6px; color: var(--tm); }
+  .seg button[aria-pressed="true"] { background: var(--bg3); color: var(--t1); }
+  .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .act { height: 32px; border-radius: 8px; background: var(--bg2); border: 1px solid var(--bs); }
+  .act:hover { background: var(--bg3); }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--t2); margin-top: 10px; }
+  .hint { color: var(--tm); font-size: 12px; margin: 8px 0 0; }
+  .pick { padding: 12px; border-radius: 10px; background: var(--bg1); border: 1px dashed var(--bd); color: var(--t2); }
+  .pick code { color: var(--t1); }
+
+  /* Reduced motion keeps only short fades. */
+  body[data-reduced] .window :is(.app, .settings, .snav, .indicator) { transform: none !important; filter: none !important; clip-path: none !important; }
+  body[data-reduced] .window .settings { transition: opacity calc(140ms * var(--k)), visibility 0s linear calc(140ms * var(--k)) !important; opacity: 0; }
+  body[data-reduced] .window .settings[data-open] { opacity: 1; transition: opacity calc(140ms * var(--k)) !important; }
+  body[data-reduced] .snav .indicator { transition: none !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <div>
+      <h1>Movimento premium</h1>
+      <p>Escolha uma opção em cada grupo; elas combinam. Velocidade em câmera lenta ajuda a ver os detalhes.</p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="settings">Configurações</button>
+      <button role="tab" aria-selected="false" data-tab="launch">Abertura do app</button>
+    </div>
+  </header>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="stage" id="stage-settings" data-active>
+    <div class="window" id="win" data-sopen="depth" data-section="cascade">
+      <div class="titlebar"><div class="lights"><span></span><span></span><span></span></div></div>
+      <div class="app" id="app"></div>
+      <div class="settings" id="settings" role="dialog" aria-label="Configurações">
+        <nav class="snav" id="snav" data-glide></nav>
+        <div class="smain"><div class="scroll" id="scroll"></div></div>
+      </div>
+    </div>
+    <aside class="controls">
+      <section>
+        <h4>A · Abrir as Configurações</h4>
+        <div class="opts" role="radiogroup" data-group="sopen">
+          <button class="opt" role="radio" data-value="current"><span class="n">A0</span><b>Atual</b><small>Troca seca: a página aparece de uma vez.</small></button>
+          <button class="opt" role="radio" data-value="depth"><span class="n">A1</span><b>Profundidade</b><small>O app recua e desfoca ao fundo; as Configurações chegam à frente, saindo de um leve zoom.</small></button>
+          <button class="opt" role="radio" data-value="push"><span class="n">A2</span><b>Empurrar</b><small>Desliza da direita como uma página nova; o app escurece e recua para a esquerda.</small></button>
+          <button class="opt" role="radio" data-value="reveal"><span class="n">A3</span><b>Nascer da engrenagem</b><small>Um círculo se expande a partir do botão de engrenagem e revela a página.</small></button>
+          <button class="opt" role="radio" data-value="glass"><span class="n">A4</span><b>Vidro</b><small>O app vira vidro fosco por trás e as Configurações flutuam por cima, translúcidas.</small></button>
+        </div>
+      </section>
+      <section>
+        <h4>B · Trocar de menu</h4>
+        <div class="opts" role="radiogroup" data-group="section">
+          <button class="opt" role="radio" data-value="current"><span class="n">B0</span><b>Atual</b><small>O conteúdo troca na hora.</small></button>
+          <button class="opt" role="radio" data-value="cascade"><span class="n">B1</span><b>Cascata</b><small>Título sobe primeiro e cada grupo de opções entra em seguida, em sequência.</small></button>
+          <button class="opt" role="radio" data-value="direction"><span class="n">B2</span><b>Direcional</b><small>Desce no menu → o conteúdo sobe; sobe no menu → desce. Dá noção de lugar.</small></button>
+          <button class="opt" role="radio" data-value="focus"><span class="n">B3</span><b>Foco</b><small>O conteúdo antigo desfoca e some; o novo entra saindo do desfoque.</small></button>
+        </div>
+        <label class="check"><input type="checkbox" id="glide" checked /> Destaque do menu deslizando entre itens</label>
+      </section>
+      <section>
+        <h4>Testar</h4>
+        <div class="acts"><button class="act" id="openSettings">Abrir/fechar</button><button class="act" id="demoSettings">Demonstração</button></div>
+        <p class="hint">Ou clique na engrenagem do app e em "Voltar ao app".</p>
+      </section>
+      <div class="pick" id="pickSettings"></div>
+    </aside>
+  </section>
+
+  <!-- ================= LAUNCH ================= -->
+  <section class="stage" id="stage-launch">
+    <div class="desk" id="desk">
+      <div class="window" id="lwin">
+        <div class="titlebar"><div class="lights"><span></span><span></span><span></span></div></div>
+        <div class="app" id="lapp"></div>
+        <div class="splash" id="splash"><div class="solid"></div><div class="glass"></div><div class="glow"></div><div class="logo" id="logo"><div class="sheen"></div></div><div class="hairline"></div></div>
+      </div>
+    </div>
+    <aside class="controls">
+      <section>
+        <h4>C · Abertura do app</h4>
+        <div class="opts" role="radiogroup" data-group="launch">
+          <button class="opt" role="radio" data-value="current"><span class="n">C0</span><b>Atual</b><small>Janela escura até carregar, depois o app aparece de uma vez.</small></button>
+          <button class="opt" role="radio" data-value="glass"><span class="n">C1</span><b>Vidro e logo</b><small>Janela toda fosca e translúcida, logo no centro respirando devagar. Ao carregar, o vidro dissolve e revela o app.</small></button>
+          <button class="opt" role="radio" data-value="sheen"><span class="n">C2</span><b>Brilho metálico</b><small>Vidro fosco com um reflexo de luz correndo pelo metal do logo e uma linha fina de progresso.</small></button>
+          <button class="opt" role="radio" data-value="morph"><span class="n">C3</span><b>Logo vira o app</b><small>Igual ao C2, mas ao carregar o logo encolhe e voa até o lugar dele na tela inicial do app.</small></button>
+        </div>
+      </section>
+      <section>
+        <h4>Tempo de carregamento simulado</h4>
+        <div class="seg" id="loadTime"><button data-ms="900">Rápido</button><button data-ms="1800" aria-pressed="true">Normal</button><button data-ms="3200">Lento</button></div>
+        <div class="acts" style="margin-top:12px"><button class="act" id="relaunch" style="grid-column:1/-1">Abrir o app de novo</button></div>
+        <p class="hint">O fundo colorido simula a área de trabalho do macOS, para dar para ver a translucidez.</p>
+      </section>
+      <div class="pick" id="pickLaunch"></div>
+    </aside>
+  </section>
+
+  <section class="controls" style="position:static;margin-top:22px;max-width:320px;margin-left:auto">
+    <div>
+      <h4>Velocidade</h4>
+      <div class="seg" id="speed"><button data-k="1" aria-pressed="true">1×</button><button data-k="2">½×</button><button data-k="4">¼×</button></div>
+      <label class="check"><input type="checkbox" id="reduced" /> Reduzir movimento</label>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const icon = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const I = {
+  home: icon('<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  board: icon('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
+  archive: icon('<rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/>'),
+  gear: icon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
+  back: icon('<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>'),
+  user: icon('<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>'),
+  monitor: icon('<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>'),
+  bell: icon('<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>'),
+  key: icon('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M7 16h10"/>'),
+  puzzle: icon('<path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/>'),
+  box: icon('<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'),
+  branch: icon('<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>'),
+  folder: icon('<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'),
+  term: icon('<path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2"/>'),
+  sliders: icon('<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>'),
+  chev: icon('<path d="m6 9 6 6 6-6"/>'),
+};
+const k = () => Number(getComputedStyle(document.documentElement).getPropertyValue("--k")) || 1;
+const reduced = () => document.body.hasAttribute("data-reduced");
+const wait = (ms) => new Promise(r => setTimeout(r, ms * k()));
+const appHTML = `<nav class="rail"><button class="rail-btn" tabindex="-1">${I.home}</button><button class="rail-btn" tabindex="-1">${I.board}</button><button class="rail-btn" tabindex="-1">${I.archive}</button><button class="rail-btn gear" data-gear aria-label="Configurações">${I.gear}</button></nav>
+  <div class="side"><h3>peticionaaqui2</h3><div class="srow">${icon('<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>')}New thread</div><div style="height:12px"></div><div class="srow">${I.folder}fisioae</div><div class="srow">${I.folder}peticionaaqui2</div><div class="srow sub sel"><span class="brand" style="color:#d87957">✳</span>ooi · fork</div><div class="srow sub"><span class="brand">◎</span>ooi · fork</div><div class="srow sub"><span class="brand">K</span>ooi · fork</div></div>
+  <main class="main"><div class="orbit"></div><div class="landing-glyph" data-landing></div><h2>Trabalhar em peticionaaqui2</h2><div class="composer"><span></span></div></main>`;
+
+/* ================= Settings ================= */
+const SECTIONS = [
+  ["Pessoal", [["general", "Geral", I.gear], ["profile", "Perfil", I.user], ["appearance", "Aparência", I.monitor], ["notifications", "Notificações", I.bell], ["keybindings", "Atalhos", I.key]]],
+  ["Código", [["providers", "Provedores", I.puzzle], ["skills", "Skills", I.box], ["git", "Git", I.branch], ["worktrees", "Worktrees", I.folder], ["terminal", "Terminal", I.term]]],
+  ["Sistema", [["advanced", "Avançado", I.sliders]]],
+];
+const ORDER = SECTIONS.flatMap(([, items]) => items.map(([id]) => id));
+const CONTENT = {
+  general: ["Preferências do app e da barra lateral.", [["Padrões", [["Novos threads", "Onde cada novo thread começa.", "Local"], ["Idioma", "Idioma da interface.", "Português (Brasil)"], ["Reabrir último projeto", "Ao iniciar o Switchyard.", true]]], ["Organização da barra lateral", [["Ordem dos projetos", "Fixados ficam primeiro.", "Manual"], ["Ordem das conversas", "Dentro de cada projeto.", "Criação"]]]]],
+  profile: ["Sua identidade local e atividade.", [["Identidade", [["Nome de exibição", "Aparece no cartão de perfil.", "Gabriel"], ["Foto", "Imagem local, nunca enviada.", "Alterar"]]], ["Atividade", [["Mostrar heatmap", "Atividade dos seus threads.", true]]]]],
+  appearance: ["Tema, vidro e tipografia.", [["Tema", [["Modo", "Claro, escuro ou do sistema.", "Escuro"], ["Vidro na janela", "Translucidez do macOS.", true], ["Opacidade da barra lateral", "Quanto do fundo aparece.", "72%"]]], ["Movimento", [["Animações", "Transições da interface.", true], ["Reduzir movimento", "Também segue o macOS.", false]]]]],
+  notifications: ["Quando e como o Switchyard avisa você.", [["Canais", [["No app", "Avisos dentro da janela.", true], ["Sistema", "Banners do macOS.", true], ["Som", "Toca ao concluir.", "Vidro"]]], ["Eventos", [["Pedidos de permissão", "Quando um agente pede aprovação.", true], ["Conclusão", "Quando um turno termina.", true]]]]],
+  keybindings: ["Atalhos de teclado.", [["Navegação", [["Paleta de comandos", "", "⌘K"], ["Nova sessão", "", "⌘N"], ["Barra lateral", "", "⌘B"], ["Configurações", "", "⌘,"]]], ["Espaço de trabalho", [["Terminal", "", "⌘`"], ["Navegador", "", "⌥⌘B"]]]]],
+  providers: ["CLIs detectadas neste Mac.", [["Instalados", [["Codex", "codex 0.48 · conectado", true], ["Claude Code", "claude 2.1 · conectado", true], ["OpenCode", "opencode 1.4", true]]], ["Disponíveis", [["Cursor", "Não encontrado no PATH.", false], ["Grok", "Não encontrado no PATH.", false]]]]],
+  skills: ["Skills locais que os agentes podem usar.", [["Catálogo", [["frontend-design", "~/.agents/skills", true], ["systematic-debugging", "~/.agents/skills", true], ["writing-plans", "~/.agents/skills", false]]]]],
+  git: ["Commits e pushes explícitos.", [["Commit", [["Assinar commits", "Usa sua configuração do Git.", false], ["Mensagem padrão", "Sugerida pelo agente.", "Curta"]]], ["Push", [["Confirmar antes do push", "Sempre pergunta.", true]]]]],
+  worktrees: ["Árvores isoladas por sessão.", [["Local", [["Pasta base", "~/Library/Application Support/…", "Alterar"], ["Novo thread usa worktree", "Por padrão.", false]]]]],
+  terminal: ["Seu shell dentro do app.", [["Aparência", [["Fonte", "Família do terminal.", "JetBrains Mono"], ["Tamanho", "Em pontos.", "13"], ["Cursor piscando", "", true]]]]],
+  advanced: ["Diagnóstico e comportamento ao fechar.", [["Sistema", [["Confirmar ao fechar com agentes rodando", "", true], ["Logs de desenvolvedor", "Somente contagens, sem conteúdo.", false]]]]],
+};
+const label = (id) => SECTIONS.flatMap(([, i]) => i).find(([x]) => x === id)[1];
+
+const win = $("#win"), settings = $("#settings"), snav = $("#snav"), scroll = $("#scroll");
+$("#app").innerHTML = appHTML;
+let current = "general";
+
+function viewHTML(id) {
+  const [desc, groups] = CONTENT[id];
+  return `<div class="sview"><h2 data-anim>${label(id)}</h2><p data-anim>${desc}</p>${groups.map(([title, rows]) => `<div class="sgroup" data-anim><h4>${title}</h4><div class="card">${rows.map(([t, s, v]) => `<div class="srow2" data-row><div class="txt"><b>${t}</b>${s ? `<small>${s}</small>` : ""}</div>${typeof v === "boolean" ? `<button class="toggle" role="switch" aria-checked="${v}" aria-label="${t}"></button>` : `<span class="select">${v}${/⌘|⌥/.test(v) ? "" : I.chev}</span>`}</div>`).join("")}</div></div>`).join("")}</div>`;
+}
+function navHTML() {
+  return `<span class="indicator" aria-hidden="true"></span><button class="back" data-back>${I.back}Voltar ao app</button>` + SECTIONS.map(([g, items]) => `<p class="glabel">${g}</p>` + items.map(([id, l, ic]) => `<button class="item" data-id="${id}" ${id === current ? 'aria-current="page"' : ""}>${ic}${l}</button>`).join("")).join("");
+}
+snav.innerHTML = navHTML();
+scroll.innerHTML = viewHTML(current);
+
+function moveIndicator(instant) {
+  const ind = $(".indicator", snav), item = $(`.item[data-id="${current}"]`, snav);
+  if (!item) return;
+  if (instant) ind.style.transition = "none";
+  ind.style.width = item.offsetWidth + "px"; ind.style.height = item.offsetHeight + "px";
+  ind.style.transform = `translate(${item.offsetLeft}px, ${item.offsetTop}px)`;
+  if (instant) { void ind.offsetWidth; ind.style.transition = ""; }
+}
+
+// Entry animation for a freshly rendered view, by option B.
+function enter(view, mode, dir) {
+  const parts = [...view.querySelectorAll("[data-anim]")];
+  const K = k();
+  if (mode === "current") return;
+  if (reduced()) { view.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 140 * K, easing: "ease-out" }); return; }
+  if (mode === "cascade") parts.forEach((el, i) => el.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 420 * K, delay: (40 + i * 45) * K, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" }));
+  if (mode === "direction") view.animate([{ opacity: 0, transform: `translateY(${dir * 22}px)` }, { opacity: 1, transform: "none" }], { duration: 420 * K, delay: 40 * K, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+  if (mode === "focus") view.animate([{ opacity: 0, filter: "blur(8px)", transform: "scale(.985)" }, { opacity: 1, filter: "blur(0)", transform: "none" }], { duration: 380 * K, delay: 60 * K, easing: "cubic-bezier(.16,1,.3,1)", fill: "both" });
+}
+function exit(view, mode, dir) {
+  const K = k();
+  if (mode === "current" || reduced()) return Promise.resolve();
+  const frames = mode === "direction" ? [{ opacity: 1, transform: "none" }, { opacity: 0, transform: `translateY(${-dir * 16}px)` }]
+    : mode === "focus" ? [{ opacity: 1, filter: "blur(0)" }, { opacity: 0, filter: "blur(8px)" }]
+    : [{ opacity: 1 }, { opacity: 0 }];
+  return view.animate(frames, { duration: (mode === "cascade" ? 110 : 160) * K, easing: "ease-in", fill: "forwards" }).finished;
+}
+
+let switching = 0;
+async function go(id) {
+  if (id === current) return;
+  const token = ++switching;
+  const dir = ORDER.indexOf(id) > ORDER.indexOf(current) ? 1 : -1;
+  const mode = win.dataset.section;
+  current = id;
+  snav.querySelectorAll(".item").forEach(b => b.toggleAttribute("aria-current", false));
+  $(`.item[data-id="${id}"]`, snav).setAttribute("aria-current", "page");
+  moveIndicator(false);
+  const old = $(".sview", scroll);
+  await exit(old, mode, dir);
+  if (token !== switching) return;
+  scroll.innerHTML = viewHTML(id); scroll.scrollTop = 0;
+  enter($(".sview", scroll), mode, dir);
+}
+snav.addEventListener("click", e => { const b = e.target.closest(".item"); if (b) go(b.dataset.id); if (e.target.closest("[data-back]")) toggleSettings(false); });
+scroll.addEventListener("click", e => { const t = e.target.closest(".toggle"); if (t) t.setAttribute("aria-checked", String(t.getAttribute("aria-checked") !== "true")); });
+snav.addEventListener("keydown", e => {
+  if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
+  e.preventDefault();
+  const i = ORDER.indexOf(current), next = ORDER[(i + (e.key === "ArrowDown" ? 1 : ORDER.length - 1)) % ORDER.length];
+  go(next); $(`.item[data-id="${next}"]`, snav).focus();
+});
+
+function toggleSettings(open = !settings.hasAttribute("data-open")) {
+  const gear = $("[data-gear]", win).getBoundingClientRect(), w = win.getBoundingClientRect();
+  settings.style.setProperty("--gx", `${gear.left - w.left + gear.width / 2}px`);
+  settings.style.setProperty("--gy", `${gear.top - w.top + gear.height / 2}px`);
+  win.toggleAttribute("data-settings", open);
+  settings.toggleAttribute("data-open", open);
+  if (open) {
+    moveIndicator(true);
+    const mode = win.dataset.section;
+    enter($(".sview", scroll), mode === "current" ? "current" : mode === "direction" ? "cascade" : mode, 1);
+    requestAnimationFrame(() => $(`.item[data-id="${current}"]`, snav).focus({ preventScroll: true }));
+  } else $("[data-gear]", win).focus({ preventScroll: true });
+}
+$("#app").addEventListener("click", e => { if (e.target.closest("[data-gear]")) toggleSettings(true); });
+$("#openSettings").onclick = () => toggleSettings();
+document.addEventListener("keydown", e => {
+  if (!$("#stage-settings").hasAttribute("data-active")) return;
+  if (e.key === "Escape" && settings.hasAttribute("data-open")) toggleSettings(false);
+  if ((e.metaKey || e.ctrlKey) && e.key === ",") { e.preventDefault(); toggleSettings(); }
+});
+$("#glide").onchange = (e) => { snav.toggleAttribute("data-glide", e.target.checked); moveIndicator(true); };
+$("#demoSettings").onclick = async () => {
+  toggleSettings(false); await wait(500);
+  toggleSettings(true); await wait(1100);
+  for (const id of ["appearance", "providers", "terminal", "profile"]) { go(id); await wait(1000); }
+  toggleSettings(false);
+};
+
+/* ================= Launch ================= */
+const lwin = $("#lwin"), lapp = $("#lapp"), splash = $("#splash"), logo = $("#logo");
+lapp.innerHTML = appHTML;
+let loadMs = 1800, launchToken = 0;
+const anims = [];
+const play = (el, frames, opts) => { const a = el.animate(frames, { fill: "both", easing: "cubic-bezier(.16,1,.3,1)", ...opts }); anims.push(a); return a; };
+async function launch() {
+  const token = ++launchToken, K = k(), mode = lwin.dataset.launch ?? "glass", rm = reduced();
+  anims.splice(0).forEach(a => a.cancel());
+  lwin.removeAttribute("data-shown"); splash.style.display = ""; logo.style.cssText = "";
+  $(".solid", splash).style.display = mode === "current" ? "block" : "none";
+  $(".glass", splash).style.display = mode === "current" ? "none" : "block";
+  $("[data-landing]", lapp).style.opacity = "";
+  await new Promise(r => setTimeout(r, 350));
+  if (token !== launchToken) return;
+  lwin.setAttribute("data-shown", "");
+  const sheen = $(".sheen", logo), glow = $(".glow", splash), hair = $(".hairline", splash);
+  play(lapp, [{ opacity: 0 }, { opacity: 0 }], { duration: 1 });
+  if (mode === "current") {
+    play(lwin, [{ opacity: 0 }, { opacity: 1 }], { duration: 1 });
+    await wait(loadMs); if (token !== launchToken) return;
+    play(lapp, [{ opacity: 1 }, { opacity: 1 }], { duration: 1 }); splash.style.display = "none"; return;
+  }
+  // Window fades in as frosted glass, then the logo arrives.
+  play(lwin, [{ opacity: 0, transform: "scale(.985)" }, { opacity: 1, transform: "none" }], { duration: rm ? 120 * K : 360 * K });
+  play(glow, [{ opacity: 0 }, { opacity: 1 }], { duration: 600 * K, delay: 120 * K });
+  if (!rm) anims.push(glow.animate([{ opacity: 1, transform: "none" }, { opacity: .5, transform: "scale(1.08)" }, { opacity: 1, transform: "none" }], { duration: 2400 * K, delay: 720 * K, iterations: Infinity, easing: "ease-in-out" }));
+  await play(logo, rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "scale(.86)", filter: "blur(6px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }], { duration: rm ? 160 * K : 620 * K, delay: 140 * K, easing: rm ? "ease-out" : "cubic-bezier(.34,1.32,.64,1)" }).finished.catch(() => {});
+  if (token !== launchToken) return;
+  if (!rm && mode === "glass") anims.push(logo.animate([{ opacity: 1, transform: "none" }, { opacity: .78, transform: "scale(1.025)" }, { opacity: 1, transform: "none" }], { duration: 2000 * K, iterations: Infinity, easing: "ease-in-out" }));
+  if (mode !== "glass") {
+    play(hair, [{ opacity: 0 }, { opacity: 1 }], { duration: 240 * K });
+    if (!rm) anims.push(sheen.animate([{ opacity: 1, backgroundPosition: "120% 0" }, { opacity: 1, backgroundPosition: "-120% 0", offset: .6 }, { opacity: 1, backgroundPosition: "-120% 0" }], { duration: 1800 * K, iterations: Infinity, easing: "ease-in-out" }));
+  }
+  await wait(Math.max(0, loadMs - 760));
+  if (token !== launchToken) return;
+  // Ready: reveal the app.
+  anims.filter(a => a.effect?.getComputedTiming().iterations === Infinity).forEach(a => a.cancel());
+  play(hair, [{ opacity: 1 }, { opacity: 0 }], { duration: 160 * K });
+  play(glow, [{ opacity: 1 }, { opacity: 0 }], { duration: 300 * K });
+  const landing = $("[data-landing]", lapp);
+  if (mode === "morph" && !rm) {
+    const a = logo.getBoundingClientRect(), b = landing.getBoundingClientRect();
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2), s = b.width / a.width;
+    landing.style.opacity = "0";
+    play(lapp, [{ opacity: 0 }, { opacity: 1 }], { duration: 420 * K, delay: 120 * K });
+    play($(".glass", splash), [{ opacity: 1 }, { opacity: 0 }], { duration: 520 * K, delay: 60 * K });
+    await play(logo, [{ transform: "none", opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(${s})`, opacity: .95 }], { duration: 640 * K, easing: "cubic-bezier(.65,0,.25,1)" }).finished.catch(() => {});
+    if (token !== launchToken) return;
+    landing.style.opacity = ""; splash.style.display = "none"; return;
+  }
+  play(logo, rm ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 1, transform: "none", filter: "blur(0)" }, { opacity: 0, transform: "scale(1.12)", filter: "blur(4px)" }], { duration: 300 * K, easing: "cubic-bezier(.4,0,1,1)" });
+  play(lapp, rm ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: "scale(.985)" }, { opacity: 1, transform: "none" }], { duration: 480 * K, delay: 140 * K });
+  await play($(".glass", splash), [{ opacity: 1 }, { opacity: 0 }], { duration: 480 * K, delay: 120 * K }).finished.catch(() => {});
+  if (token === launchToken) splash.style.display = "none";
+}
+$("#relaunch").onclick = launch;
+$("#loadTime").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; loadMs = Number(b.dataset.ms); document.querySelectorAll("#loadTime button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); launch(); });
+
+/* ================= Options, tabs, speed ================= */
+const names = {};
+const targets = { sopen: win, section: win, launch: lwin };
+document.querySelectorAll("[data-group]").forEach(group => {
+  const key = group.dataset.group; names[key] = {};
+  group.querySelectorAll(".opt").forEach(opt => { names[key][opt.dataset.value] = opt.querySelector(".n").textContent + " · " + opt.querySelector("b").textContent; opt.onclick = () => choose(key, opt.dataset.value, true); });
+  group.addEventListener("keydown", e => {
+    if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
+    e.preventDefault();
+    const opts = [...group.querySelectorAll(".opt")], i = opts.findIndex(o => o.getAttribute("aria-checked") === "true");
+    const next = opts[(i + (e.key === "ArrowDown" ? 1 : opts.length - 1)) % opts.length]; choose(key, next.dataset.value, true); next.focus();
+  });
+});
+function choose(key, value, user) {
+  targets[key].dataset[key] = value;
+  document.querySelectorAll(`[data-group="${key}"] .opt`).forEach(o => { const on = o.dataset.value === value; o.setAttribute("aria-checked", String(on)); o.tabIndex = on ? 0 : -1; });
+  $("#pickSettings").innerHTML = `Sua escolha: <code>${names.sopen[win.dataset.sopen]}</code> + <code>${names.section[win.dataset.section]}</code>`;
+  if (names.launch[lwin.dataset.launch]) $("#pickLaunch").innerHTML = `Sua escolha: <code>${names.launch[lwin.dataset.launch]}</code>`;
+  if (user && key === "launch") launch();
+}
+document.querySelectorAll(".tabs button").forEach(tab => tab.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(t => t.setAttribute("aria-selected", String(t === tab)));
+  document.querySelectorAll(".stage").forEach(s => s.toggleAttribute("data-active", s.id === `stage-${tab.dataset.tab}`));
+  if (tab.dataset.tab === "launch") launch(); else moveIndicator(true);
+});
+$("#speed").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  document.documentElement.style.setProperty("--k", b.dataset.k);
+  document.querySelectorAll("#speed button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+});
+const rmBox = $("#reduced");
+rmBox.checked = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const applyRM = () => document.body.toggleAttribute("data-reduced", rmBox.checked);
+rmBox.onchange = applyRM; applyRM();
+
+choose("sopen", "depth"); choose("section", "cascade"); choose("launch", "glass");
+requestAnimationFrame(() => moveIndicator(true));
+</script>
+</body>
+</html>

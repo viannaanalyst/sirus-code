@@ -1,0 +1,2299 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
+use parking_lot::Mutex;
+use tauri::{AppHandle, Emitter, State};
+use uuid::Uuid;
+
+use crate::agent::{self, AgentProcess};
+use crate::detect;
+use crate::error::{Error, Result};
+use crate::fs_tree;
+use crate::git;
+use crate::models::{
+    AgentInstall, AgentProviderId, AppData, AppSettings, CreateSessionRequest, FileEntry,
+    GitCommitResult, GitPushResult, GitStatus, HostInfo, Message, MessageRole, ProbeResult,
+    Project, SendPromptRequest, Session, SessionStatus, Worktree, WorktreeLocationPref,
+};
+use crate::paths::{self, display_path, now_rfc3339};
+use crate::persist;
+use crate::pty_term::{self, PtyMap};
+use crate::worktree;
+
+pub struct AppState {
+    pub data_path: PathBuf,
+    pub worktree_root: PathBuf,
+    pub data: Mutex<AppData>,
+    pub agents: Mutex<HashMap<String, AgentProcess>>,
+    pub ptys: Mutex<PtyMap>,
+    pub closing: AtomicBool,
+    pub attachment_picker: AtomicBool,
+    pub attachments: crate::attachments::AttachmentState,
+    pub usage: crate::provider_usage::UsageState,
+    pub accounts: crate::provider_accounts::AccountState,
+    pub close_guard: Mutex<crate::close::CloseGuard>,
+    pub draft_checkpoint: Mutex<Option<std::time::Instant>>,
+    pub catalogs: Mutex<
+        HashMap<AgentProviderId, (Option<String>, crate::provider_models::ProviderModelList)>,
+    >,
+}
+
+impl AppState {
+    pub fn ensure_running(&self) -> Result<()> {
+        if self.closing.load(Ordering::Acquire) {
+            return Err(Error::agent("Switchyard is closing"));
+        }
+        Ok(())
+    }
+    pub fn shutdown(&self) -> Result<()> {
+        // Lock order excludes starts, admission and terminal creation during cleanup.
+        let mut data = self.data.lock();
+        self.closing.store(true, Ordering::Release);
+        self.usage.stop();
+        crate::commit_title::stop();
+        self.accounts.stop();
+        self.attachments.clear();
+        for process in self.agents.lock().values() {
+            if let Err(error) = process.stop() {
+                tracing::warn!(%error, "agent shutdown failed");
+            }
+        }
+        for terminal in self.ptys.lock().values() {
+            if let Err(error) = terminal.kill() {
+                tracing::warn!(%error, "terminal shutdown failed");
+            }
+        }
+        for session in &mut data.sessions {
+            if session.status.is_active() {
+                session.status = SessionStatus::Stopped;
+                crate::activity::sync(session);
+                session.last_error =
+                    Some("Execution was interrupted when Switchyard closed.".into());
+            }
+            session.pending_requests.clear();
+            // A stream can fail before its process monitor publishes finality.
+            for message in &mut session.messages {
+                message.streaming = false;
+            }
+        }
+        persist::save(&self.data_path, &data)
+    }
+
+    pub fn persist(&self) -> Result<()> {
+        persist::save(&self.data_path, &self.data.lock())
+    }
+}
+
+pub(crate) fn session_cwd(data: &AppData, session: &Session) -> Result<PathBuf> {
+    let project = data
+        .projects
+        .iter()
+        .find(|project| project.id == session.project_id)
+        .ok_or_else(|| Error::not_found("project not found"))?;
+    let project_root = paths::ensure_dir(&PathBuf::from(&project.path))?;
+    if session.worktree.isolated {
+        return paths::ensure_dir(&PathBuf::from(&session.worktree.path));
+    }
+    paths::ensure_within(&project_root, &PathBuf::from(&session.worktree.path))
+}
+
+fn find_session_mut<'a>(data: &'a mut AppData, id: &str) -> Result<&'a mut Session> {
+    data.sessions
+        .iter_mut()
+        .find(|session| session.id == id)
+        .ok_or_else(|| Error::not_found("session not found"))
+}
+
+fn same_run(session: &Session, snapshot: &Session) -> bool {
+    session
+        .messages
+        .last()
+        .zip(snapshot.messages.last())
+        .is_some_and(|(current, previous)| current.id == previous.id)
+}
+
+#[tauri::command]
+pub fn load_state(state: State<Arc<AppState>>) -> Result<AppData> {
+    Ok(state.data.lock().clone())
+}
+
+#[tauri::command]
+pub async fn save_settings(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    settings: AppSettings,
+) -> Result<AppSettings> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let saved = save_settings_native(&state, settings)?;
+        crate::appearance::schedule(&app, state.clone());
+        Ok(saved)
+    })
+    .await
+}
+
+fn save_settings_native(state: &AppState, mut settings: AppSettings) -> Result<AppSettings> {
+    settings.validate_controls()?;
+    crate::sidebar::validate(&settings)?;
+    if settings.developer_logs {
+        crate::diagnostics::prepare(&state.data_path)?;
+    }
+    settings.git_confirm_destructive = true;
+    let mut data = state.data.lock();
+    state.ensure_running()?;
+    crate::sidebar::normalize(&mut settings, &data.projects, &data.sessions);
+    // Admit the new settings only after their persistence succeeds. A failed
+    // write must not become the source of a later appearance callback.
+    let previous = std::mem::replace(&mut data.settings, settings.clone());
+    if let Err(error) = persist::save(&state.data_path, &data) {
+        data.settings = previous;
+        return Err(error);
+    }
+    crate::computer_mcp::set_enabled(settings.computer_use_enabled);
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn save_composer_draft(
+    state: State<'_, Arc<AppState>>,
+    key: String,
+    value: String,
+) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        crate::drafts::apply(&mut data, &key, value)?;
+        let mut checkpoint = state.draft_checkpoint.lock();
+        if checkpoint.is_none_or(|last| last.elapsed() >= std::time::Duration::from_millis(250)) {
+            persist::save(&state.data_path, &data)?;
+            *checkpoint = Some(std::time::Instant::now());
+        }
+        // Shutdown persists the latest admitted edit even between checkpoints.
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn save_context_text(
+    state: State<'_, Arc<AppState>>,
+    key: String,
+    value: String,
+    flush: bool,
+) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || save_context_text_native(&state, &key, value, flush)).await
+}
+
+fn save_context_text_native(state: &AppState, key: &str, value: String, flush: bool) -> Result<()> {
+    let mut data = state.data.lock();
+    state.ensure_running()?;
+    crate::context_text::apply(&mut data, key, value)?;
+    let mut checkpoint = state.draft_checkpoint.lock();
+    if flush
+        || checkpoint.is_none_or(|last| last.elapsed() >= std::time::Duration::from_millis(250))
+    {
+        persist::save(&state.data_path, &data)?;
+        *checkpoint = Some(std::time::Instant::now());
+    }
+    // References stay local metadata; shutdown persists the latest admitted edit.
+    Ok(())
+}
+
+#[tauri::command]
+pub fn add_project(state: State<Arc<AppState>>, path: String) -> Result<Project> {
+    let canonical = paths::ensure_dir(&PathBuf::from(&path))?;
+    let name = canonical
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "Project".into());
+    let now = now_rfc3339();
+    let mut data = state.data.lock();
+    if let Some(existing) = data
+        .projects
+        .iter_mut()
+        .find(|project| project.path == display_path(&canonical))
+    {
+        existing.last_opened_at = now;
+        let project = existing.clone();
+        drop(data);
+        state.persist()?;
+        return Ok(project);
+    }
+    let project = Project {
+        id: Uuid::new_v4().to_string(),
+        name,
+        path: display_path(&canonical),
+        added_at: now.clone(),
+        last_opened_at: now,
+    };
+    data.projects.insert(0, project.clone());
+    drop(data);
+    state.persist()?;
+    Ok(project)
+}
+
+#[tauri::command]
+pub async fn remove_project(state: State<'_, Arc<AppState>>, project_id: String) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || remove_project_native(&state, project_id)).await
+}
+
+fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
+    let mut data = state.data.lock();
+    if data.sessions.iter().any(|session| {
+        session.project_id == project_id
+            && (session.status.is_active() || state.agents.lock().contains_key(&session.id))
+    }) {
+        return Err(Error::agent(
+            "stop running sessions before removing this project",
+        ));
+    }
+    for session in data
+        .sessions
+        .iter()
+        .filter(|session| session.project_id == project_id)
+    {
+        if let Some(pty) = state.ptys.lock().remove(&session.id) {
+            pty.kill()?;
+        }
+    }
+    data.projects.retain(|project| project.id != project_id);
+    data.sessions
+        .retain(|session| session.project_id != project_id);
+    crate::drafts::prune(&mut data);
+    crate::context_text::prune(&mut data);
+    crate::sidebar::prune(&mut data);
+    state.attachments.prune(&data);
+    drop(data);
+    state.persist()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_project(state: State<Arc<AppState>>, project_id: String) -> Result<Project> {
+    let mut data = state.data.lock();
+    let project = data
+        .projects
+        .iter_mut()
+        .find(|project| project.id == project_id)
+        .ok_or_else(|| Error::not_found("project not found"))?;
+    paths::ensure_dir(&PathBuf::from(&project.path))?;
+    project.last_opened_at = now_rfc3339();
+    let clone = project.clone();
+    drop(data);
+    state.persist()?;
+    Ok(clone)
+}
+
+#[tauri::command]
+pub async fn rename_project(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+    name: String,
+) -> Result<Project> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        let project = crate::sidebar::rename_project(&mut data, &project_id, &name)?;
+        persist::save(&state.data_path, &data)?;
+        Ok(project)
+    })
+    .await
+}
+
+// Disk/process work runs off the native event thread. Paths are authorized in Rust,
+// and read-only operations release the state lock before waiting on Git or the FS.
+pub(crate) async fn native_task<T: Send + 'static>(
+    operation: impl FnOnce() -> Result<T> + Send + 'static,
+) -> Result<T> {
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|_| Error::new("native", "Native operation could not complete."))?
+}
+
+pub(crate) fn session_path(state: &AppState, id: &str) -> Result<PathBuf> {
+    let data = state.data.lock();
+    let session = data
+        .sessions
+        .iter()
+        .find(|session| session.id == id)
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    session_cwd(&data, session)
+}
+
+#[tauri::command]
+pub async fn git_identity(path: String) -> Result<crate::models::GitIdentity> {
+    native_task(move || {
+        let canonical = paths::ensure_dir(&PathBuf::from(path))?;
+        git::identity(&canonical)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn git_status(state: State<'_, Arc<AppState>>, session_id: String) -> Result<GitStatus> {
+    let state = state.inner().clone();
+    native_task(move || git::status(&session_path(&state, &session_id)?)).await
+}
+
+#[tauri::command]
+pub async fn git_diff(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    path: String,
+) -> Result<String> {
+    let state = state.inner().clone();
+    native_task(move || git::diff_file(&session_path(&state, &session_id)?, &path)).await
+}
+
+#[tauri::command]
+pub async fn list_branches(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+) -> Result<Vec<crate::models::BranchInfo>> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let path = {
+            let data = state.data.lock();
+            data.projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .map(|project| PathBuf::from(&project.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        git::list_branches(&path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn checkout_branch(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+    branch: String,
+    confirm: bool,
+) -> Result<()> {
+    if !confirm {
+        return Err(Error::new(
+            "confirmation_required",
+            "Switching branches requires confirmation.",
+        ));
+    }
+    let state = state.inner().clone();
+    native_task(move || {
+        let path = {
+            let data = state.data.lock();
+            data.projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .map(|project| PathBuf::from(&project.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        git::checkout_branch(&path, &branch)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn create_branch(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+    branch: String,
+    confirm: bool,
+) -> Result<()> {
+    if !confirm {
+        return Err(Error::new(
+            "confirmation_required",
+            "Creating a branch requires confirmation.",
+        ));
+    }
+    let state = state.inner().clone();
+    native_task(move || {
+        let path = {
+            let data = state.data.lock();
+            data.projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .map(|project| PathBuf::from(&project.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        git::create_branch(&path, &branch)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn git_workspace_action(
+    state: State<'_, Arc<AppState>>,
+    action: crate::git_workspace::Action,
+) -> Result<crate::git_workspace::Response> {
+    let state = state.inner().clone();
+    native_task(move || {
+        use crate::git_workspace::{self as workspace, Action, Response};
+        let session_id = action.session_id().to_owned();
+        let cwd = session_path(&state, &session_id)?;
+        let recheck = || -> Result<()> {
+            state.ensure_running()?;
+            if session_path(&state, &session_id)? != cwd {
+                return Err(Error::invalid_path(
+                    "Workspace changed. Refresh before continuing.",
+                ));
+            }
+            Ok(())
+        };
+        recheck()?;
+        let result = match action {
+            Action::Snapshot { .. } => Response::Snapshot {
+                snapshot: workspace::snapshot(&cwd)?,
+            },
+            Action::Stage {
+                paths,
+                expected_index,
+                ..
+            } => Response::Snapshot {
+                snapshot: workspace::prepare_admitted(
+                    &cwd,
+                    &paths,
+                    true,
+                    &expected_index,
+                    recheck,
+                )?,
+            },
+            Action::Unstage {
+                paths,
+                expected_index,
+                ..
+            } => Response::Snapshot {
+                snapshot: workspace::prepare_admitted(
+                    &cwd,
+                    &paths,
+                    false,
+                    &expected_index,
+                    recheck,
+                )?,
+            },
+            Action::Diff {
+                path,
+                staged,
+                expected_index,
+                ..
+            } => Response::Diff {
+                diff: workspace::diff(&cwd, &path, staged, &expected_index)?,
+            },
+            Action::History { from, skip, .. } => {
+                let (entries, truncated) = workspace::history_from(&cwd, &from, skip)?;
+                Response::History { entries, truncated }
+            }
+        };
+        recheck()?;
+        Ok(result)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn git_commit(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    message: String,
+    expected_index: Option<String>,
+) -> Result<GitCommitResult> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let cwd = session_path(&state, &session_id)?;
+        state.ensure_running()?;
+        let result = git::commit_checked(&cwd, &message, expected_index.as_deref(), || {
+            state.ensure_running()?;
+            if session_path(&state, &session_id)? != cwd {
+                return Err(Error::invalid_path(
+                    "Workspace changed. Refresh before continuing.",
+                ));
+            }
+            Ok(())
+        })?;
+        if session_path(&state, &session_id)? != cwd {
+            return Err(Error::invalid_path(
+                "Workspace changed. Refresh before continuing.",
+            ));
+        }
+        Ok(result)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn git_push(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> Result<GitPushResult> {
+    let state = state.inner().clone();
+    native_task(move || git::push(&session_path(&state, &session_id)?)).await
+}
+
+#[tauri::command]
+pub async fn project_remote_url(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+) -> Result<Option<String>> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let path = {
+            let data = state.data.lock();
+            data.projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .map(|project| PathBuf::from(&project.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        git::remote_web_url(&path)
+    })
+    .await
+}
+
+fn pull_request_context(
+    state: &AppState,
+    session_id: &str,
+) -> Result<crate::pull_requests::Context> {
+    state.ensure_running()?;
+    crate::pull_requests::inspect(session_path(state, session_id)?)
+}
+
+fn validate_pull_request_context(
+    state: &AppState,
+    session_id: &str,
+    expected: &crate::pull_requests::Context,
+) -> Result<()> {
+    if &pull_request_context(state, session_id)? != expected {
+        return Err(Error::new(
+            "stale",
+            "The PR workspace changed. Refresh to load its current state.",
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn session_pull_request(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> Result<crate::pull_requests::PullRequestSnapshot> {
+    let state = state.inner().clone();
+    let initial_state = state.clone();
+    let initial_id = session_id.clone();
+    let context = native_task(move || pull_request_context(&initial_state, &initial_id)).await?;
+    let snapshot = crate::pull_requests::load(session_id.clone(), &context).await;
+    native_task(move || {
+        // Never publish another branch/repository's result after selection or Git changes.
+        validate_pull_request_context(&state, &session_id, &context)?;
+        Ok(snapshot)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn list_worktrees(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+) -> Result<Vec<crate::models::GitWorktree>> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let path = {
+            let data = state.data.lock();
+            data.projects
+                .iter()
+                .find(|project| project.id == project_id)
+                .map(|project| PathBuf::from(&project.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        git::list_worktrees(&path)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn list_dir(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    path: Option<String>,
+) -> Result<Vec<FileEntry>> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let cwd = session_path(&state, &session_id)?;
+        let dir = path.map(PathBuf::from).unwrap_or_else(|| cwd.clone());
+        fs_tree::list_children(&cwd, &dir)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn create_workspace_entry(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    kind: crate::models::WorkspaceEntryKind,
+    name: String,
+    parent_path: Option<String>,
+) -> Result<FileEntry> {
+    let state = state.inner().clone();
+    native_task(move || {
+        create_workspace_entry_native(&state, &session_id, kind, &name, parent_path.as_deref())
+    })
+    .await
+}
+
+/// Moves one session-owned workspace entry to the system Trash (recoverable). Explicit and
+/// confirmed in the UI; never a permanent delete.
+#[tauri::command]
+pub async fn trash_workspace_entry(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    path: String,
+) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let data = state.data.lock();
+        state.ensure_running()?;
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        let root = session_cwd(&data, session)?;
+        crate::workspace_entries::trash_entry(&root, std::path::Path::new(&path))
+    })
+    .await
+}
+
+fn create_workspace_entry_native(
+    state: &AppState,
+    session_id: &str,
+    kind: crate::models::WorkspaceEntryKind,
+    name: &str,
+    parent_path: Option<&str>,
+) -> Result<FileEntry> {
+    // Keep owner metadata stable through this small filesystem mutation. Session
+    // or project deletion must not overtake a worker waiting to create an entry.
+    let data = state.data.lock();
+    state.ensure_running()?;
+    let session = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    let root = session_cwd(&data, session)?;
+    crate::workspace_entries::create_entry(
+        &root,
+        parent_path.map(std::path::Path::new),
+        kind,
+        name,
+        || {
+            state.ensure_running()?;
+            if session_cwd(&data, session)? != root {
+                return Err(Error::invalid_path(
+                    "Workspace destination changed. Try again.",
+                ));
+            }
+            Ok(())
+        },
+    )
+}
+
+fn workspace_files_root(data: &AppData, owner: &crate::skills::Owner) -> Result<PathBuf> {
+    if let Some(id) = &owner.session_id {
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| &session.id == id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        if owner
+            .project_id
+            .as_ref()
+            .is_some_and(|id| id != &session.project_id)
+        {
+            return Err(Error::invalid_path("foreign workspace owner"));
+        }
+        return session_cwd(data, session);
+    }
+    let project = data
+        .projects
+        .iter()
+        .find(|project| Some(&project.id) == owner.project_id.as_ref())
+        .ok_or_else(|| Error::not_found("project not found"))?;
+    paths::ensure_dir(std::path::Path::new(&project.path))
+}
+
+#[tauri::command]
+pub async fn workspace_files(
+    state: State<'_, Arc<AppState>>,
+    owner: crate::skills::Owner,
+    query: String,
+) -> Result<fs_tree::WorkspaceFiles> {
+    let state = state.inner().clone();
+    native_task(move || {
+        state.ensure_running()?;
+        let root = workspace_files_root(&state.data.lock(), &owner)?;
+        let result = fs_tree::suggest_files(&root, &query)?;
+        state.ensure_running()?;
+        if workspace_files_root(&state.data.lock(), &owner)? != root {
+            return Err(Error::invalid_path("workspace changed during file search"));
+        }
+        Ok(result)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn detect_agents(state: State<'_, Arc<AppState>>) -> Result<Vec<AgentInstall>> {
+    let overrides = state.data.lock().settings.provider_paths.clone();
+    let installs =
+        tauri::async_runtime::spawn_blocking(move || detect::detect_with_overrides(&overrides))
+            .await
+            .map_err(|err| Error::agent(err.to_string()))?;
+    let mut tasks = tokio::task::JoinSet::new();
+    for mut install in installs {
+        tasks.spawn(async move {
+            if install.installed {
+                if let Some(path) = &install.path {
+                    install.version = detect::probe_version(path).await;
+                }
+            }
+            install
+        });
+    }
+    let mut result = Vec::new();
+    while let Some(install) = tasks.join_next().await {
+        result.push(install.map_err(|err| Error::agent(err.to_string()))?);
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn create_session(
+    state: State<'_, Arc<AppState>>,
+    request: CreateSessionRequest,
+) -> Result<Session> {
+    let state = state.inner().clone();
+    native_task(move || create_session_native(&state, request)).await
+}
+
+fn create_session_native(state: &AppState, request: CreateSessionRequest) -> Result<Session> {
+    let mut data = state.data.lock();
+    let session = create_session_locked(state, &mut data, request, "HEAD")?;
+    drop(data);
+    state.persist()?;
+    Ok(session)
+}
+
+/// Creates and inserts one session under an already-held data lock. Isolated worktrees start at
+/// `start` (a commit or `HEAD`). The caller persists.
+pub(crate) fn create_session_locked(
+    state: &AppState,
+    data: &mut AppData,
+    request: CreateSessionRequest,
+    start: &str,
+) -> Result<Session> {
+    state.ensure_running()?;
+    let project = data
+        .projects
+        .iter()
+        .find(|project| project.id == request.project_id)
+        .cloned()
+        .ok_or_else(|| Error::not_found("project not found"))?;
+    if data.settings.disabled_providers.contains(&request.agent) {
+        return Err(Error::agent("this provider is disabled in Settings"));
+    }
+    if let Some(model) = &request.model {
+        if data
+            .settings
+            .disabled_models
+            .contains(&format!("{}::{model}", request.agent.key()))
+        {
+            return Err(Error::agent("this model is disabled in Settings"));
+        }
+    }
+    let now = now_rfc3339();
+    let id = Uuid::new_v4().to_string();
+    let title = request
+        .title
+        .map(|title| title.trim().to_string())
+        .filter(|title| !title.trim().is_empty())
+        .unwrap_or_else(|| "New session".into());
+    if title.chars().count() > 200 {
+        return Err(Error::new(
+            "invalid",
+            "session title exceeds 200 characters",
+        ));
+    }
+    paths::ensure_dir(&PathBuf::from(&project.path))?;
+
+    let pattern = data.settings.worktree_branch_pattern.clone();
+    let parent = if matches!(
+        data.settings.worktree_location,
+        WorktreeLocationPref::Custom
+    ) {
+        data.settings
+            .worktree_base_path
+            .as_ref()
+            .map(|path| PathBuf::from(path).join(&project.id))
+    } else {
+        None
+    }
+    .unwrap_or_else(|| state.worktree_root.join(&project.id));
+    let worktree = if request.isolated_worktree {
+        worktree::create_isolated_at(
+            &PathBuf::from(&project.path),
+            &parent,
+            &id,
+            &title,
+            &pattern,
+            start,
+        )?
+    } else {
+        let identity = git::identity(&PathBuf::from(&project.path))?;
+        Worktree {
+            path: project.path.clone(),
+            branch: identity.branch.unwrap_or_else(|| "unknown".into()),
+            isolated: false,
+        }
+    };
+
+    let account_id = crate::provider_accounts::selected(data, &request.agent);
+    let session = Session {
+        goal: None,
+        pinned_message_ids: vec![],
+        fork_origin: None,
+        import_origin: None,
+        handoff: None,
+        account_bindings: HashMap::from([(request.agent.clone(), account_id.clone())]),
+        id,
+        title,
+        project_id: project.id,
+        provider_account_id: account_id,
+        agent: request.agent,
+        status: SessionStatus::Idle,
+        created_at: now.clone(),
+        last_activity_at: now,
+        worktree,
+        messages: vec![],
+        last_error: None,
+        model: request.model.clone(),
+        native_thread: None,
+        execution: Default::default(),
+        pending_requests: vec![],
+        team: None,
+        team_worker: None,
+    };
+    data.sessions.insert(0, session.clone());
+    Ok(session)
+}
+
+#[tauri::command]
+pub async fn fork_session(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    message_id: String,
+) -> Result<Session> {
+    let state = state.inner().clone();
+    native_task(move || fork_session_native(&state, &session_id, &message_id)).await
+}
+
+fn fork_session_native(state: &AppState, session_id: &str, message_id: &str) -> Result<Session> {
+    let mut data = state.data.lock();
+    state.ensure_running()?;
+    let source = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    if state.agents.lock().contains_key(session_id) {
+        return Err(Error::agent(
+            "Stop or finish the source session before forking.",
+        ));
+    }
+    if data.settings.disabled_providers.contains(&source.agent)
+        || source.model.as_ref().is_some_and(|model| {
+            data.settings
+                .disabled_models
+                .contains(&format!("{}::{model}", source.agent.key()))
+        })
+    {
+        return Err(Error::agent(
+            "Enable this provider and model in Settings before forking.",
+        ));
+    }
+    let cwd = session_cwd(&data, source)?;
+    let id = Uuid::new_v4().to_string();
+    // Validate the boundary and budget before any Git/filesystem mutation.
+    let mut fork = crate::transcript::fork_snapshot(
+        source,
+        message_id,
+        &id,
+        &now_rfc3339(),
+        source.worktree.clone(),
+    )?;
+    let identity = git::identity(&cwd)?;
+    fork.worktree = if identity.is_repo {
+        let parent = if matches!(
+            data.settings.worktree_location,
+            WorktreeLocationPref::Custom
+        ) {
+            data.settings
+                .worktree_base_path
+                .as_ref()
+                .map(|path| PathBuf::from(path).join(&source.project_id))
+        } else {
+            None
+        }
+        .unwrap_or_else(|| state.worktree_root.join(&source.project_id));
+        worktree::create_isolated(
+            &cwd,
+            &parent,
+            &id,
+            &fork.title,
+            &data.settings.worktree_branch_pattern,
+        )?
+    } else {
+        // Never give two sessions destructive ownership of the source worktree.
+        if source.worktree.isolated {
+            return Err(Error::git(
+                "The source worktree is no longer a Git repository.",
+            ));
+        }
+        Worktree {
+            path: display_path(&cwd),
+            branch: identity.branch.unwrap_or_else(|| "unknown".into()),
+            isolated: false,
+        }
+    };
+    data.sessions.insert(0, fork.clone());
+    // Keep native identity and transcript together under the admission lock.
+    persist::save(&state.data_path, &data)?;
+    Ok(fork)
+}
+
+#[tauri::command]
+pub async fn handoff_session(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    message_id: String,
+    agent: AgentProviderId,
+    model: Option<String>,
+) -> Result<Session> {
+    let state = state.inner().clone();
+    native_task(move || handoff_session_native(&state, &session_id, &message_id, agent, model))
+        .await
+}
+
+fn handoff_session_native(
+    state: &AppState,
+    session_id: &str,
+    message_id: &str,
+    agent: AgentProviderId,
+    model: Option<String>,
+) -> Result<Session> {
+    let mut data = state.data.lock();
+    state.ensure_running()?;
+    let source = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .cloned()
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    if state.agents.lock().contains_key(session_id) || source.status.is_active() {
+        return Err(Error::agent(
+            "Stop or finish the source session before handing it off.",
+        ));
+    }
+    if data.settings.disabled_providers.contains(&agent) {
+        return Err(Error::agent(
+            "Enable this provider in Settings before handing off.",
+        ));
+    }
+    if let Some(model) = &model {
+        if data
+            .settings
+            .disabled_models
+            .contains(&format!("{}::{model}", agent.key()))
+        {
+            return Err(Error::agent(
+                "Enable this model in Settings before handing off.",
+            ));
+        }
+    }
+    // A handoff continues in the source workspace; uncommitted work is kept.
+    let worktree = source.worktree.clone();
+    let provider_account_id = crate::provider_accounts::selected(&data, &agent);
+    let id = Uuid::new_v4().to_string();
+    let handoff = crate::transcript::handoff_snapshot(
+        &source,
+        message_id,
+        &id,
+        &now_rfc3339(),
+        agent,
+        model,
+        provider_account_id,
+        worktree,
+    )?;
+    data.sessions.insert(0, handoff.clone());
+    persist::save(&state.data_path, &data)?;
+    Ok(handoff)
+}
+
+#[tauri::command]
+pub async fn dismiss_handoff(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> Result<Session> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        let previous = find_session_mut(&mut data, &session_id)?.handoff.take();
+        let session = find_session_mut(&mut data, &session_id)?.clone();
+        if let Err(error) = persist::save(&state.data_path, &data) {
+            find_session_mut(&mut data, &session_id)?.handoff = previous;
+            return Err(error);
+        }
+        Ok(session)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn set_message_pinned(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    message_id: String,
+    pinned: bool,
+) -> Result<Vec<String>> {
+    let state = state.inner().clone();
+    native_task(move || set_message_pinned_native(&state, &session_id, &message_id, pinned)).await
+}
+
+fn set_message_pinned_native(
+    state: &AppState,
+    session_id: &str,
+    message_id: &str,
+    pinned: bool,
+) -> Result<Vec<String>> {
+    let mut data = state.data.lock();
+    state.ensure_running()?;
+    let session = find_session_mut(&mut data, session_id)?;
+    let previous = session.pinned_message_ids.clone();
+    crate::transcript::set_pinned(session, message_id, pinned)?;
+    let result = session.pinned_message_ids.clone();
+    if let Err(error) = persist::save(&state.data_path, &data) {
+        find_session_mut(&mut data, session_id)?.pinned_message_ids = previous;
+        return Err(error);
+    }
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn set_session_agent(
+    state: State<Arc<AppState>>,
+    session_id: String,
+    agent: AgentProviderId,
+) -> Result<Session> {
+    let mut data = state.data.lock();
+    let account_id = crate::provider_accounts::selected(&data, &agent);
+    let session = find_session_mut(&mut data, &session_id)?;
+    if session.status.is_active() {
+        return Err(Error::agent(
+            "cannot change a running session provider or model",
+        ));
+    }
+    if session.agent != agent {
+        let account_id = crate::provider_accounts::bound_account(session, &agent, &account_id);
+        apply_session_selection(session, agent, None);
+        session.provider_account_id = account_id;
+    }
+    let clone = session.clone();
+    drop(data);
+    state.persist()?;
+    Ok(clone)
+}
+
+#[tauri::command]
+pub fn rename_session(
+    state: State<Arc<AppState>>,
+    session_id: String,
+    title: String,
+) -> Result<Session> {
+    let title = title.trim();
+    if title.is_empty() || title.chars().count() > 200 {
+        return Err(Error::new(
+            "invalid",
+            "session title must contain 1–200 characters",
+        ));
+    }
+    let mut data = state.data.lock();
+    let session = find_session_mut(&mut data, &session_id)?;
+    session.title = title.to_string();
+    session.last_activity_at = now_rfc3339();
+    let clone = session.clone();
+    drop(data);
+    state.persist()?;
+    Ok(clone)
+}
+
+#[tauri::command]
+pub async fn delete_session(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    remove_worktree: bool,
+    confirm: bool,
+) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || delete_session_native(&state, session_id, remove_worktree, confirm)).await
+}
+
+pub(crate) fn delete_session_native(
+    state: &AppState,
+    session_id: String,
+    remove_worktree: bool,
+    confirm: bool,
+) -> Result<()> {
+    let mut data = state.data.lock();
+    let session = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .cloned()
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    let project = data
+        .projects
+        .iter()
+        .find(|project| project.id == session.project_id)
+        .cloned();
+    if session.status.is_active() || state.agents.lock().contains_key(&session_id) {
+        return Err(Error::agent("stop the agent before deleting this session"));
+    }
+    if remove_worktree {
+        let project = project.ok_or_else(|| Error::not_found("project not found"))?;
+        worktree::remove(&PathBuf::from(project.path), &session.worktree, confirm)?;
+    }
+    let terminals = {
+        let mut ptys = state.ptys.lock();
+        let owned = ptys
+            .values()
+            .filter(|pty| pty.session_id == session_id)
+            .map(|pty| pty.terminal_id.clone())
+            .collect::<Vec<_>>();
+        owned
+            .into_iter()
+            .filter_map(|terminal_id| ptys.remove(&terminal_id))
+            .collect::<Vec<_>>()
+    };
+    for terminal in terminals {
+        terminal.kill()?;
+    }
+    data.sessions.retain(|item| item.id != session_id);
+    crate::drafts::prune(&mut data);
+    crate::context_text::prune(&mut data);
+    crate::sidebar::prune(&mut data);
+    state.attachments.prune(&data);
+    drop(data);
+    state.persist()?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn send_prompt(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    request: SendPromptRequest,
+) -> Result<Session> {
+    let mut request = request;
+    if request.team {
+        // A team plan is always a read-only planning turn (ADR-043).
+        if request.debugging {
+            return Err(Error::agent("Debug and team modes cannot be combined."));
+        }
+        request.execution.planning = true;
+        if request.execution.approval == Some(crate::models::ApprovalMode::Full) {
+            request.execution.approval = Some(crate::models::ApprovalMode::Ask);
+        }
+    }
+    let prompt = request.prompt.trim().to_string();
+    if request.debugging && request.execution.planning {
+        return Err(Error::agent("Debug and planning modes cannot be combined."));
+    }
+    let admitted_goal = request
+        .goal
+        .as_deref()
+        .map(crate::goals::validate)
+        .transpose()?;
+    if prompt.is_empty() {
+        return Err(Error::new("invalid", "prompt is empty"));
+    }
+    if prompt.len() > 64 * 1024 {
+        return Err(Error::new("invalid", "prompt exceeds the 64 KiB limit"));
+    }
+
+    // Skill discovery/file reads run on workers before any turn mutation.
+    let skill_input = if prompt.starts_with('/') {
+        let state = state.inner().clone();
+        let owner = crate::skills::Owner {
+            project_id: None,
+            session_id: Some(request.session_id.clone()),
+        };
+        let visible_prompt = prompt.clone();
+        Some(native_task(move || crate::skills::prepare(&state, &owner, &visible_prompt)).await?)
+    } else {
+        None
+    };
+
+    let (session_snapshot, cwd, provider, model, overrides, process_prompt, attachments) = {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        let snapshot = data
+            .sessions
+            .iter()
+            .find(|session| session.id == request.session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        crate::execution::validate_queued_context(snapshot, request.queued_after.as_ref())?;
+        let cwd = session_cwd(&data, snapshot)?;
+        if let Some((context, _)) = &skill_input {
+            if context.cwd.as_ref() != Some(&cwd)
+                || context.provider.as_ref() != Some(&snapshot.agent)
+                || context.account_id.as_ref() != Some(&snapshot.provider_account_id)
+                || context.disabled != data.settings.disabled_skills
+            {
+                return Err(Error::new(
+                    "stale",
+                    "Skill context changed. Review the current session and try again.",
+                ));
+            }
+        }
+        let attachments = state.attachments.resolve(
+            &request.attachment_owner,
+            &request.attachment_ids,
+            snapshot,
+        )?;
+        let catalogs = state.catalogs.lock();
+        let catalog = catalogs
+            .get(&snapshot.agent)
+            .filter(|(path, _)| path.as_ref() == data.settings.provider_paths.get(&snapshot.agent))
+            .map(|(_, list)| list);
+        crate::execution::validate(
+            &snapshot.agent,
+            snapshot.model.as_deref(),
+            &request.execution,
+            catalog,
+        )?;
+        let process_model = if snapshot.agent == AgentProviderId::Cursor {
+            crate::execution::cursor_model(snapshot.model.as_deref(), &request.execution, catalog)?
+        } else {
+            snapshot.model.clone()
+        };
+        drop(catalogs);
+        let team_catalog = request.team.then(|| crate::team::catalog(&state, &data));
+        let session = find_session_mut(&mut data, &request.session_id)?;
+        if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {
+            return Err(Error::agent("session already has a running agent"));
+        }
+        if request.team {
+            if !crate::team::TEAM_PROVIDERS.contains(&session.agent) {
+                return Err(Error::agent(
+                    "A team coordinator must be Codex, Claude Code or OpenCode.",
+                ));
+            }
+            if session.team_worker.is_some() {
+                return Err(Error::agent(
+                    "A team worker cannot coordinate another team.",
+                ));
+            }
+            if session
+                .team
+                .as_ref()
+                .is_some_and(crate::team::Team::blocks_new_plan)
+            {
+                return Err(Error::agent(
+                    "Finish, merge or discard the current team before planning another.",
+                ));
+            }
+        }
+        if session.agent == AgentProviderId::Codex {
+            crate::codex::validate_binding(session, &display_path(&cwd))?;
+        } else if session.agent == AgentProviderId::Claude {
+            crate::claude::validate_binding(session, &display_path(&cwd))?;
+        } else if session.agent == AgentProviderId::OpenCode {
+            crate::opencode::validate_binding(session, &display_path(&cwd))?;
+        }
+        let process_prompt = crate::transcript::process_prompt(session, &prompt)?;
+        // A pending handoff recap travels with the first prompt only; the
+        // persisted user message keeps the visible text.
+        let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
+        let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);
+        let process_prompt = match &skill_input {
+            Some((_, instructions)) if !instructions.is_empty() => {
+                format!("{instructions}\n\nUser request:\n{process_prompt}")
+            }
+            _ => process_prompt,
+        };
+        let process_prompt = crate::execution::debug_prompt(request.debugging, process_prompt);
+        let process_prompt = crate::goals::prompt(
+            admitted_goal
+                .as_ref()
+                .map(|goal| goal.as_deref())
+                .unwrap_or(session.goal.as_deref()),
+            process_prompt,
+        )?;
+        let process_prompt = match &team_catalog {
+            Some(catalog) => crate::team::planning_prompt(&process_prompt, catalog),
+            None => process_prompt,
+        };
+        state.attachments.mark_sent(&request.attachment_ids);
+        if let Some(goal) = &admitted_goal {
+            session.goal = goal.clone();
+        }
+        session.execution = request.execution.clone();
+        session.pending_requests.clear();
+        let user = Message {
+            id: Uuid::new_v4().to_string(),
+            session_id: session.id.clone(),
+            role: MessageRole::User,
+            content: prompt.clone(),
+            created_at: now_rfc3339(),
+            streaming: false,
+            activity: None,
+        };
+        session.messages.push(user);
+        session.messages.push(Message {
+            id: Uuid::new_v4().to_string(),
+            session_id: session.id.clone(),
+            role: MessageRole::Agent,
+            content: String::new(),
+            created_at: now_rfc3339(),
+            streaming: true,
+            activity: None,
+        });
+        if let Some(message) = session.messages.last_mut() {
+            message.activity = Some(crate::activity::TurnActivity::new(
+                session.agent.clone(),
+                session.model.clone(),
+            ));
+            if request.team {
+                session.team = Some(crate::team::Team::planning(message.id.clone()));
+            }
+        }
+        session.status = SessionStatus::Starting;
+        session.last_error = None;
+        session.last_activity_at = now_rfc3339();
+        if session.title == "New session" {
+            session.title = prompt.chars().take(42).collect();
+        }
+        let snapshot = session.clone();
+        let provider = snapshot.agent.clone();
+        let model = process_model;
+
+        let overrides = data.settings.provider_paths.clone();
+        (
+            snapshot,
+            display_path(&cwd),
+            provider,
+            model,
+            overrides,
+            process_prompt,
+            attachments,
+        )
+    };
+    if let Err(error) = state.persist() {
+        let mut data = state.data.lock();
+        if let Some(session) = find_session_mut(&mut data, &session_snapshot.id)
+            .ok()
+            .filter(|session| {
+                same_run(session, &session_snapshot) && session.status == SessionStatus::Starting
+            })
+        {
+            session.status = SessionStatus::Failed;
+            crate::activity::sync(session);
+            session.last_error = Some(error.to_string());
+            if let Some(message) = session.messages.last_mut() {
+                message.streaming = false;
+            }
+            let _ = app.emit("session-updated", &*session);
+        }
+        return Err(error);
+    }
+
+    {
+        let data = state.data.lock();
+        let current = data.sessions.iter().find(|session| {
+            session.id == session_snapshot.id
+                && same_run(session, &session_snapshot)
+                && session.status == SessionStatus::Starting
+        });
+        if let Some(session) = current {
+            let _ = app.emit("session-updated", session);
+        } else {
+            return Err(Error::agent(
+                "execution was cancelled before startup completed",
+            ));
+        }
+    }
+    let review_root = PathBuf::from(&cwd);
+    let review_session = session_snapshot.clone();
+    let capture = native_task(move || {
+        Ok(crate::turn_review::Capture::begin(
+            review_root,
+            &review_session,
+        ))
+    })
+    .await;
+    // Every post-admission error travels through the startup failure settlement below.
+    let admission = (|| -> Result<()> {
+        let data = state.data.lock();
+        state.ensure_running()?;
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| {
+                session.id == session_snapshot.id
+                    && same_run(session, &session_snapshot)
+                    && session.status == SessionStatus::Starting
+            })
+            .ok_or_else(|| Error::agent("execution was cancelled during workspace capture"))?;
+        if display_path(&session_cwd(&data, session)?) != cwd {
+            return Err(Error::agent("workspace changed during turn admission"));
+        }
+        Ok(())
+    })();
+    let (review, scope) = match capture {
+        Ok(review) => (
+            Some(review),
+            admission.and_then(|()| {
+                crate::provider_accounts::scope(
+                    &state,
+                    &provider,
+                    &session_snapshot.provider_account_id,
+                )
+            }),
+        ),
+        Err(error) => (None, Err(error)),
+    };
+    let process = if let Err(error) = scope {
+        Err(error)
+    } else if provider == AgentProviderId::Codex {
+        crate::codex::start(
+            session_snapshot.clone(),
+            cwd,
+            process_prompt,
+            overrides,
+            scope.unwrap().home,
+        )
+        .await
+    } else if provider == AgentProviderId::Claude {
+        crate::claude::start(
+            session_snapshot.clone(),
+            cwd,
+            process_prompt,
+            overrides,
+            scope.unwrap().home,
+        )
+        .await
+    } else if provider == AgentProviderId::OpenCode {
+        crate::opencode::start(session_snapshot.clone(), cwd, process_prompt, overrides).await
+    } else {
+        agent::start(
+            provider,
+            cwd,
+            process_prompt,
+            model,
+            overrides,
+            request.execution,
+        )
+        .await
+    };
+
+    match process {
+        Ok((process, mut started)) => {
+            started.review = review;
+            if let Some(run) = &mut started.codex {
+                run.attachments = attachments;
+            }
+            let admitted = {
+                let mut data = state.data.lock();
+                if let Ok(session) = find_session_mut(&mut data, &session_snapshot.id) {
+                    if !state.closing.load(Ordering::Acquire)
+                        && session.status == SessionStatus::Starting
+                        && same_run(session, &session_snapshot)
+                    {
+                        state
+                            .agents
+                            .lock()
+                            .insert(session_snapshot.id.clone(), process);
+                        session.status = SessionStatus::Running;
+                        crate::activity::sync(session);
+                        let _ = app.emit("session-updated", &*session);
+                        None
+                    } else {
+                        Some(process)
+                    }
+                } else {
+                    Some(process)
+                }
+            };
+            if let Some(process) = admitted {
+                process.stop()?;
+                started.reap().await;
+                return Err(Error::agent(
+                    "execution was cancelled before startup completed",
+                ));
+            }
+            started.monitor(app, state.inner().clone(), session_snapshot.id.clone());
+            // A disk failure must not orphan an already-spawned process.
+            state.persist()?;
+            Ok(state
+                .data
+                .lock()
+                .sessions
+                .iter()
+                .find(|session| session.id == session_snapshot.id)
+                .cloned()
+                .unwrap_or(session_snapshot))
+        }
+        Err(err) => {
+            let mut data = state.data.lock();
+            if let Some(session) = find_session_mut(&mut data, &session_snapshot.id)
+                .ok()
+                .filter(|session| {
+                    same_run(session, &session_snapshot)
+                        && session.status == SessionStatus::Starting
+                })
+            {
+                session.status = SessionStatus::Failed;
+                crate::activity::sync(session);
+                session.last_error = Some(err.to_string());
+                if let Some(last) = session.messages.last_mut() {
+                    last.streaming = false;
+                    if last.content.is_empty() {
+                        last.content = err.to_string();
+                    }
+                }
+            }
+            drop(data);
+            let persisted = state.persist();
+            if let Some(session) = state
+                .data
+                .lock()
+                .sessions
+                .iter()
+                .find(|s| s.id == session_snapshot.id)
+            {
+                let _ = app.emit("session-updated", session);
+            }
+            persisted?;
+            Err(err)
+        }
+    }
+}
+
+/// Typed response to an existing callback. Renderer cannot supply vendor protocol IDs or tool inputs.
+#[tauri::command]
+pub async fn respond_agent_request(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    request: crate::models::RespondAgentRequest,
+) -> Result<()> {
+    let (sender, receiver) = {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        let session = find_session_mut(&mut data, &request.session_id)?;
+        if !matches!(
+            session.agent,
+            AgentProviderId::Codex | AgentProviderId::Claude | AgentProviderId::OpenCode
+        ) || !session.status.is_active()
+        {
+            return Err(Error::agent("No live native request for this session"));
+        }
+        let index = session
+            .pending_requests
+            .iter()
+            .position(|pending| {
+                pending.request_id == request.request_id
+                    && pending.generation == request.generation
+                    && pending.turn_id == request.turn_id
+            })
+            .ok_or_else(|| Error::agent("Request is stale, foreign or already answered"))?;
+        if session.agent == AgentProviderId::Claude {
+            crate::claude::validate_response(&session.pending_requests[index], &request.response)?;
+        } else if session.agent == AgentProviderId::OpenCode {
+            crate::opencode::validate_response(
+                &session.pending_requests[index],
+                &request.response,
+            )?;
+        } else {
+            crate::codex::answer(&session.pending_requests[index], &request.response)?;
+        }
+        let agents = state.agents.lock();
+        let process = agents
+            .get(&request.session_id)
+            .filter(|process| process.generation.as_deref() == Some(&request.generation))
+            .ok_or_else(|| Error::agent("Native process generation no longer exists"))?;
+        let sender = process
+            .replies
+            .clone()
+            .ok_or_else(|| Error::agent("Provider does not accept interactive responses"))?;
+        let (result, receiver) = tokio::sync::oneshot::channel();
+        sender
+            .try_send(crate::codex::Reply {
+                request: request.clone(),
+                result,
+            })
+            .map_err(|_| Error::agent("Native response queue is unavailable"))?;
+        // Reserve under the same data lock: duplicate IPC cannot enqueue another authorization.
+        session.pending_requests.remove(index);
+        let _ = app.emit("session-updated", &*session);
+        (sender, receiver)
+    };
+    drop(sender);
+    tokio::time::timeout(std::time::Duration::from_secs(10), receiver)
+        .await
+        .map_err(|_| Error::agent("Native response timed out; stop this turn before retrying"))?
+        .map_err(|_| Error::agent("Native process ended before accepting response"))?
+}
+
+#[tauri::command]
+pub async fn stop_agent(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> Result<()> {
+    let mut data = state.data.lock();
+    if let Some(process) = state.agents.lock().get(&session_id) {
+        process.interrupt()?;
+    }
+    if let Ok(session) = find_session_mut(&mut data, &session_id) {
+        session.pending_requests.clear();
+        session.status = SessionStatus::Stopped;
+        crate::activity::sync(session);
+        session.last_activity_at = now_rfc3339();
+        for message in &mut session.messages {
+            message.streaming = false;
+        }
+    }
+    crate::persist::save(&state.data_path, &data)?;
+    if let Some(session) = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+    {
+        let _ = app.emit("session-updated", session);
+    }
+    Ok(())
+}
+
+const MAX_TERMINALS_PER_SESSION: usize = 8;
+
+fn is_valid_terminal_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn owned_terminal<'a>(
+    ptys: &'a HashMap<String, pty_term::PtySession>,
+    session_id: &str,
+    terminal_id: &str,
+) -> Result<&'a pty_term::PtySession> {
+    ptys.get(terminal_id)
+        .filter(|pty| pty.session_id == session_id)
+        .ok_or_else(|| Error::not_found("terminal is not running"))
+}
+
+#[tauri::command]
+pub fn start_terminal(
+    app: AppHandle,
+    state: State<Arc<AppState>>,
+    session_id: String,
+    terminal_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<()> {
+    if !is_valid_terminal_id(&terminal_id) {
+        return Err(Error::new("invalid", "invalid terminal id"));
+    }
+    let data = state.data.lock();
+    state.ensure_running()?;
+    let session = data
+        .sessions
+        .iter()
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    let cwd = session_cwd(&data, session)?;
+    let mut ptys = state.ptys.lock();
+    if let Some(existing) = ptys.get(&terminal_id) {
+        if existing.session_id != session_id {
+            return Err(Error::not_found("terminal is not running"));
+        }
+        existing.resize(cols, rows)?;
+        return Ok(());
+    }
+    // Bounded per session: a renderer bug cannot spawn unbounded shells.
+    if ptys
+        .values()
+        .filter(|pty| pty.session_id == session_id)
+        .count()
+        >= MAX_TERMINALS_PER_SESSION
+    {
+        return Err(Error::new("invalid", "session reached the terminal limit"));
+    }
+    let pty = pty_term::start(
+        app,
+        session_id,
+        terminal_id.clone(),
+        display_path(&cwd),
+        cols,
+        rows,
+    )?;
+    ptys.insert(terminal_id, pty);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn write_terminal(
+    state: State<Arc<AppState>>,
+    session_id: String,
+    terminal_id: String,
+    data: String,
+) -> Result<()> {
+    let ptys = state.ptys.lock();
+    owned_terminal(&ptys, &session_id, &terminal_id)?.write(&data)
+}
+
+#[tauri::command]
+pub fn resize_terminal(
+    state: State<Arc<AppState>>,
+    session_id: String,
+    terminal_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<()> {
+    let ptys = state.ptys.lock();
+    owned_terminal(&ptys, &session_id, &terminal_id)?.resize(cols, rows)
+}
+
+#[tauri::command]
+pub async fn stop_terminal(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    terminal_id: String,
+) -> Result<()> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let terminal = {
+            let mut ptys = state.ptys.lock();
+            match ptys.get(&terminal_id) {
+                Some(pty) if pty.session_id == session_id => ptys.remove(&terminal_id),
+                _ => None,
+            }
+        };
+        if let Some(terminal) = terminal {
+            terminal.kill()?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn host_info(state: State<'_, Arc<AppState>>) -> Result<HostInfo> {
+    let git_path = which::which("git")
+        .ok()
+        .map(|path| path.display().to_string());
+    let git_version = if let Some(path) = &git_path {
+        detect::probe_version(path).await
+    } else {
+        None
+    };
+    Ok(HostInfo {
+        appearance_support: crate::appearance::support(),
+        profile_default_name: crate::profile::default_name(),
+        git_detected: git_path.is_some(),
+        git_path,
+        git_version,
+        shell: std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into()),
+        data_dir: state
+            .data_path
+            .parent()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| state.data_path.display().to_string()),
+        worktree_root: state.worktree_root.display().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn probe_provider(
+    state: State<'_, Arc<AppState>>,
+    id: AgentProviderId,
+    path: Option<String>,
+) -> Result<ProbeResult> {
+    let overrides = state.data.lock().settings.provider_paths.clone();
+    let install = detect::resolve_with_overrides(&id, &overrides);
+    let target = path
+        .or_else(|| install.as_ref().and_then(|item| item.path.clone()))
+        .or_else(|| install.map(|item| item.binary));
+    let Some(target) = target else {
+        return Ok(ProbeResult {
+            ok: false,
+            version: None,
+            message: "No executable to probe".into(),
+        });
+    };
+    let (ok, version, message) = detect::probe_executable(&target).await;
+    Ok(ProbeResult {
+        ok,
+        version,
+        message,
+    })
+}
+
+fn apply_session_selection(session: &mut Session, agent: AgentProviderId, model: Option<String>) {
+    let model = model.filter(|value| !value.trim().is_empty());
+    if session.agent == agent && session.model == model {
+        return;
+    }
+    session.agent = agent;
+    session.model = model;
+    session.native_thread = None;
+    if let Some(origin) = &mut session.fork_origin {
+        origin.seeded_native_thread_id = None;
+    }
+    session.last_activity_at = now_rfc3339();
+}
+
+#[tauri::command]
+pub fn set_session_model(
+    state: State<Arc<AppState>>,
+    session_id: String,
+    agent: AgentProviderId,
+    model: Option<String>,
+) -> Result<Session> {
+    let mut data = state.data.lock();
+    let account_id = crate::provider_accounts::selected(&data, &agent);
+    let session = find_session_mut(&mut data, &session_id)?;
+    if session.status.is_active() {
+        return Err(Error::agent(
+            "cannot change a running session provider or model",
+        ));
+    }
+    let changed_provider = session.agent != agent;
+    let account_id = if changed_provider {
+        crate::provider_accounts::bound_account(session, &agent, &account_id)
+    } else {
+        session.provider_account_id.clone()
+    };
+    apply_session_selection(session, agent, model);
+    if changed_provider {
+        session.provider_account_id = account_id;
+    }
+    let clone = session.clone();
+    drop(data);
+    state.persist()?;
+    Ok(clone)
+}
+
+#[tauri::command]
+pub async fn list_provider_models(
+    state: State<'_, Arc<AppState>>,
+    id: AgentProviderId,
+) -> Result<crate::provider_models::ProviderModelList> {
+    let overrides = state.data.lock().settings.provider_paths.clone();
+    let catalog = crate::provider_models::list_for_provider(id.clone(), &overrides).await;
+    state
+        .catalogs
+        .lock()
+        .insert(id.clone(), (overrides.get(&id).cloned(), catalog.clone()));
+    Ok(catalog)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn workspace_entry_creation_requires_live_session_project_and_destination() {
+        use crate::models::WorkspaceEntryKind;
+        let root = tempfile::tempdir().unwrap();
+        let foreign = tempfile::tempdir().unwrap();
+        let data: AppData = serde_json::from_value(serde_json::json!({
+            "projects": [{"id":"p","name":"Fixture","path":display_path(root.path()),"addedAt":"time","lastOpenedAt":"time"}],
+            "settings": {},
+            "sessions": [{"id":"s","projectId":"p","title":"Task","agent":"codex","status":"idle","createdAt":"time","lastActivityAt":"time",
+                "worktree":{"path":display_path(root.path()),"branch":"fixture","isolated":false},"messages":[],"lastError":null}]
+        })).unwrap();
+        let state = AppState {
+            data_path: root.path().join("state.json"),
+            worktree_root: root.path().join("trees"),
+            data: Mutex::new(data),
+            agents: Mutex::new(HashMap::new()),
+            ptys: Mutex::new(HashMap::new()),
+            closing: AtomicBool::new(false),
+            attachment_picker: AtomicBool::new(false),
+            attachments: Default::default(),
+            usage: Default::default(),
+            accounts: Default::default(),
+            close_guard: Default::default(),
+            draft_checkpoint: Mutex::new(None),
+            catalogs: Mutex::new(HashMap::new()),
+        };
+        assert!(create_workspace_entry_native(
+            &state,
+            "unknown",
+            WorkspaceEntryKind::File,
+            "nope",
+            None
+        )
+        .is_err());
+        assert!(create_workspace_entry_native(
+            &state,
+            "s",
+            WorkspaceEntryKind::File,
+            "nope",
+            Some(&display_path(foreign.path()))
+        )
+        .is_err());
+        assert!(!foreign.path().join("nope").exists());
+        let created =
+            create_workspace_entry_native(&state, "s", WorkspaceEntryKind::File, "owned", None)
+                .unwrap();
+        assert_eq!(std::fs::read(created.path).unwrap(), b"");
+        state.closing.store(true, Ordering::Release);
+        assert!(
+            create_workspace_entry_native(&state, "s", WorkspaceEntryKind::File, "nope", None)
+                .is_err()
+        );
+        state.closing.store(false, Ordering::Release);
+        state.data.lock().projects.clear();
+        assert!(
+            create_workspace_entry_native(&state, "s", WorkspaceEntryKind::File, "nope", None)
+                .is_err()
+        );
+        state.data.lock().sessions.clear();
+        assert!(
+            create_workspace_entry_native(&state, "s", WorkspaceEntryKind::File, "nope", None)
+                .is_err()
+        );
+        assert!(!root.path().join("nope").exists());
+    }
+
+    fn fork_fixture(repo: &crate::git::tests::Repo) -> AppState {
+        let tree = worktree::create_isolated(
+            &repo.cwd(),
+            &repo.0.join("source-trees"),
+            "aaaaaaaa-source",
+            "Source",
+            "switchyard/{session-name}",
+        )
+        .unwrap();
+        let data: AppData = serde_json::from_value(serde_json::json!({
+            "projects":[{"id":"p","name":"Fixture","path":display_path(&repo.cwd()),"addedAt":"time","lastOpenedAt":"time"}], "settings":{},
+            "sessions":[{"id":"s","projectId":"p","title":"Task","agent":"codex","providerAccountId":"bound-profile","status":"completed","createdAt":"time","lastActivityAt":"time","worktree":tree,
+                "nativeThread":{"threadId":"exact","sessionId":"s","projectId":"p","cwd":tree.path,"model":null},
+                "messages":[{"id":"answer","sessionId":"s","role":"agent","content":"Context","createdAt":"time","streaming":false}]}]
+        })).unwrap();
+        AppState {
+            data_path: repo.0.join("state.json"),
+            worktree_root: repo.0.join("fork-trees"),
+            data: Mutex::new(data),
+            agents: Mutex::new(HashMap::new()),
+            ptys: Mutex::new(HashMap::new()),
+            closing: AtomicBool::new(false),
+            attachment_picker: AtomicBool::new(false),
+            attachments: Default::default(),
+            usage: Default::default(),
+            accounts: Default::default(),
+            close_guard: Default::default(),
+            draft_checkpoint: Mutex::new(None),
+            catalogs: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[test]
+    fn workspace_file_owner_uses_project_or_session_tree_and_rejects_foreign_ids() {
+        let project = tempfile::tempdir().unwrap();
+        let isolated = tempfile::tempdir().unwrap();
+        let mut data: AppData = serde_json::from_value(serde_json::json!({
+            "projects": [{"id":"p","name":"Fixture","path":display_path(project.path()),"addedAt":"time","lastOpenedAt":"time"}],
+            "settings": {},
+            "sessions": [{"id":"s","projectId":"p","title":"Task","agent":"codex","status":"idle","createdAt":"time","lastActivityAt":"time",
+                "worktree":{"path":display_path(isolated.path()),"branch":"fixture","isolated":true},"messages":[],"lastError":null}]
+        })).unwrap();
+        let owner = |project: Option<&str>, session: Option<&str>| crate::skills::Owner {
+            project_id: project.map(String::from),
+            session_id: session.map(String::from),
+        };
+        assert_eq!(
+            workspace_files_root(&data, &owner(Some("p"), None)).unwrap(),
+            project.path().canonicalize().unwrap()
+        );
+        assert_eq!(
+            workspace_files_root(&data, &owner(None, Some("s"))).unwrap(),
+            isolated.path().canonicalize().unwrap()
+        );
+        assert!(workspace_files_root(&data, &owner(Some("foreign"), Some("s"))).is_err());
+        assert!(workspace_files_root(&data, &owner(Some("missing"), None)).is_err());
+        assert!(workspace_files_root(&data, &owner(None, Some("missing"))).is_err());
+        assert!(workspace_files_root(&data, &owner(None, None)).is_err());
+        data.sessions[0].worktree.isolated = false;
+        assert!(workspace_files_root(&data, &owner(None, Some("s"))).is_err());
+        data.projects.clear();
+        assert!(workspace_files_root(&data, &owner(None, Some("s"))).is_err());
+    }
+
+    #[test]
+    fn fork_uses_source_head_in_owned_tree_and_persists_origin_without_copying_dirty_files() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        let source = state.data.lock().sessions[0].clone();
+        let cwd = PathBuf::from(&source.worktree.path);
+        std::fs::write(cwd.join("file.txt"), "source commit\n").unwrap();
+        git::run_ok(&cwd, &["add", "--", "file.txt"]).unwrap();
+        git::run_ok(&cwd, &["commit", "-qm", "source changes"]).unwrap();
+        std::fs::write(cwd.join("file.txt"), "uncommitted\n").unwrap();
+        let fork = fork_session_native(&state, "s", "answer").unwrap();
+        assert!(fork.worktree.isolated);
+        assert_ne!(fork.worktree.path, source.worktree.path);
+        assert_eq!(
+            std::fs::read_to_string(PathBuf::from(&fork.worktree.path).join("file.txt")).unwrap(),
+            "source commit\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(cwd.join("file.txt")).unwrap(),
+            "uncommitted\n"
+        );
+        assert_eq!(fork.provider_account_id, "bound-profile");
+        let loaded = persist::load_or_create(&state.data_path).unwrap();
+        assert_eq!(loaded.sessions.len(), 2);
+        assert_eq!(
+            loaded.sessions[0]
+                .fork_origin
+                .as_ref()
+                .unwrap()
+                .source_session_id,
+            "s"
+        );
+        assert!(loaded.sessions[0].native_thread.is_none());
+        assert_eq!(
+            loaded.sessions[1].native_thread.as_ref().unwrap().thread_id,
+            "exact"
+        );
+        let pins = set_message_pinned_native(&state, "s", "answer", true).unwrap();
+        assert_eq!(pins, vec!["answer"]);
+        assert_eq!(
+            persist::load_or_create(&state.data_path).unwrap().sessions[1].pinned_message_ids,
+            vec!["answer"]
+        );
+        assert!(set_message_pinned_native(&state, &fork.id, "answer", true).is_err());
+    }
+
+    #[test]
+    fn context_flush_and_shutdown_keep_latest_admitted_text_and_refuse_closing() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        save_context_text_native(&state, "session:s", "first".into(), false).unwrap();
+        save_context_text_native(&state, "session:s", "blur flush".into(), true).unwrap();
+        assert_eq!(
+            persist::load_or_create(&state.data_path)
+                .unwrap()
+                .context_texts["session:s"],
+            "blur flush"
+        );
+        save_context_text_native(&state, "session:s", "latest admitted".into(), false).unwrap();
+        state.shutdown().unwrap();
+        assert_eq!(
+            persist::load_or_create(&state.data_path)
+                .unwrap()
+                .context_texts["session:s"],
+            "latest admitted"
+        );
+        assert!(save_context_text_native(&state, "session:s", "after close".into(), true).is_err());
+        assert_eq!(
+            state.data.lock().context_texts["session:s"],
+            "latest admitted"
+        );
+    }
+
+    #[test]
+    fn pr_context_refuses_foreign_removed_changed_and_closing_sessions() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        assert!(pull_request_context(&state, "foreign").is_err());
+        let expected = pull_request_context(&state, "s").unwrap();
+        validate_pull_request_context(&state, "s", &expected).unwrap();
+        git::run_ok(&expected.cwd, &["checkout", "-b", "changed-pr-branch"]).unwrap();
+        assert!(validate_pull_request_context(&state, "s", &expected).is_err());
+        state.closing.store(true, Ordering::Release);
+        assert!(pull_request_context(&state, "s").is_err());
+        state.closing.store(false, Ordering::Release);
+        state.data.lock().sessions.clear();
+        assert!(validate_pull_request_context(&state, "s", &expected).is_err());
+    }
+
+    #[test]
+    fn failed_appearance_save_preserves_latest_successful_settings() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        let mut first = state.data.lock().settings.clone();
+        first.theme = crate::models::ThemePref::Light;
+        let first = save_settings_native(&state, first).unwrap();
+        let original_path = state.data_path.clone();
+        let mut state = state;
+        state.data_path = repo.0.join("blocked-state.json");
+        std::fs::create_dir(&state.data_path).unwrap();
+        let mut rejected = first.clone();
+        rejected.theme = crate::models::ThemePref::Translucent;
+        rejected.dock_icon = crate::models::DockIcon::SmokedGlass;
+        assert!(save_settings_native(&state, rejected).is_err());
+        assert_eq!(
+            serde_json::to_value(&state.data.lock().settings).unwrap(),
+            serde_json::to_value(&first).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(persist::load_or_create(&original_path).unwrap().settings)
+                .unwrap(),
+            serde_json::to_value(first).unwrap()
+        );
+    }
+
+    #[test]
+    fn context_persistence_failure_retains_admitted_text_for_retry() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        // A directory at the target file makes the atomic replacement fail.
+        std::fs::create_dir_all(&state.data_path).unwrap();
+        assert!(
+            save_context_text_native(&state, "project:p", "retain for retry".into(), true).is_err()
+        );
+        assert_eq!(
+            state.data.lock().context_texts["project:p"],
+            "retain for retry"
+        );
+        std::fs::remove_dir(&state.data_path).unwrap();
+        save_context_text_native(&state, "project:p", "retain for retry".into(), true).unwrap();
+        assert_eq!(
+            persist::load_or_create(&state.data_path)
+                .unwrap()
+                .context_texts["project:p"],
+            "retain for retry"
+        );
+    }
+
+    #[test]
+    fn fork_rejects_live_handles_and_invalid_boundaries_before_creating_worktrees() {
+        let repo = crate::git::tests::Repo::new();
+        let state = fork_fixture(&repo);
+        assert!(fork_session_native(&state, "s", "foreign").is_err());
+        assert!(!state.worktree_root.exists());
+        let (cancel, _) = tokio::sync::watch::channel(false);
+        state.agents.lock().insert(
+            "s".into(),
+            AgentProcess {
+                cancel,
+                replies: None,
+                generation: None,
+                #[cfg(unix)]
+                pid: None,
+            },
+        );
+        assert!(fork_session_native(&state, "s", "answer").is_err());
+        assert!(!state.worktree_root.exists());
+    }
+
+    #[test]
+    fn selecting_same_identity_preserves_completed_native_thread() {
+        let mut session: Session = serde_json::from_value(serde_json::json!({
+            "id":"s", "projectId":"p", "title":"Task", "agent":"codex", "model":"model",
+            "status":"completed", "createdAt":"time", "lastActivityAt":"time",
+            "worktree":{"path":"/fixture", "branch":"main", "isolated":false}, "messages":[],
+            "nativeThread":{"threadId":"exact", "sessionId":"s", "projectId":"p", "cwd":"/fixture", "model":"model"}
+        })).unwrap();
+        apply_session_selection(&mut session, AgentProviderId::Codex, Some("model".into()));
+        assert_eq!(session.native_thread.as_ref().unwrap().thread_id, "exact");
+        assert_eq!(session.last_activity_at, "time");
+        let bound = session.clone();
+        apply_session_selection(
+            &mut session,
+            AgentProviderId::Codex,
+            Some("different".into()),
+        );
+        assert!(session.native_thread.is_none());
+        let mut session = bound;
+        apply_session_selection(&mut session, AgentProviderId::Claude, None);
+        assert!(session.native_thread.is_none());
+        assert!(session.model.is_none());
+    }
+
+    #[test]
+    fn shutdown_persists_interruption_and_refuses_new_processes() {
+        let temp = crate::git::tests::Repo::new();
+        let data_path = temp.0.join("state.json");
+        let mut data: AppData = serde_json::from_value(serde_json::json!({
+            "projects": [], "settings": {},
+            "sessions": [{"id":"one","title":"Task","projectId":"project","agent":"codex","status":"running","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/unused","branch":"main","isolated":false},"lastError":null,"messages":[{"id":"message","sessionId":"one","role":"agent","content":"partial output","createdAt":"time","streaming":true},{"id":"diagnostic","sessionId":"one","role":"system","content":"warning","createdAt":"time","streaming":true}]}]
+        })).unwrap();
+        let mut failed = data.sessions[0].clone();
+        failed.id = "failed".into();
+        failed.status = SessionStatus::Failed;
+        failed.last_error = Some("Output limit".into());
+        data.sessions.push(failed);
+        crate::drafts::apply(&mut data, "session:one", "Latest unsent draft".into()).unwrap();
+        let state = AppState {
+            data_path: data_path.clone(),
+            worktree_root: temp.0.join("trees"),
+            data: Mutex::new(data),
+            agents: Mutex::new(HashMap::new()),
+            ptys: Mutex::new(HashMap::new()),
+            closing: AtomicBool::new(false),
+            attachment_picker: AtomicBool::new(false),
+            attachments: Default::default(),
+            usage: crate::provider_usage::UsageState::default(),
+            accounts: crate::provider_accounts::AccountState::default(),
+            close_guard: Mutex::new(crate::close::CloseGuard::default()),
+            draft_checkpoint: Mutex::new(None),
+            catalogs: Mutex::new(HashMap::new()),
+        };
+        assert!(state.ensure_running().is_ok());
+        state.shutdown().unwrap();
+        assert!(state.ensure_running().is_err());
+        let saved: AppData = serde_json::from_slice(&std::fs::read(&data_path).unwrap()).unwrap();
+        assert_eq!(saved.composer_drafts["session:one"], "Latest unsent draft");
+        assert_eq!(saved.sessions[0].status, SessionStatus::Stopped);
+        assert!(saved.sessions[0]
+            .last_error
+            .as_deref()
+            .unwrap()
+            .contains("interrupted"));
+        assert_eq!(saved.sessions[0].messages[0].content, "partial output");
+        assert!(saved.sessions[0]
+            .messages
+            .iter()
+            .all(|message| !message.streaming));
+        assert_eq!(saved.sessions[1].status, SessionStatus::Failed);
+        assert_eq!(
+            saved.sessions[1].last_error.as_deref(),
+            Some("Output limit")
+        );
+        assert!(saved.sessions[1]
+            .messages
+            .iter()
+            .all(|message| !message.streaming));
+        state.shutdown().unwrap();
+        assert_eq!(
+            std::fs::read(&data_path).unwrap(),
+            serde_json::to_vec_pretty(&saved).unwrap()
+        );
+    }
+}

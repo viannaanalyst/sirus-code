@@ -1,0 +1,32 @@
+# ADR-040: Bounded native turn change reviews
+
+**Status:** Accepted.
+
+## Context
+
+The approved compact summary needs a truthful list of files and a stable historical diff. Current `git_status` / `git_diff` describe the checkout now and include work that predates a turn. Provider edit reports do not cover all shell tools or establish that a proposed edit was applied. Several sessions and external editors can write to one local checkout.
+
+## Decision
+
+- `turn_review.rs` takes a read-only in-memory baseline after native turn admission, before provider spawn. Startup rechecks the admitted response and cwd after capture. Both process monitors take the final snapshot only after draining output and stopping owned tools, before unregistering the run. Publication rechecks the session/project/canonical cwd and exact assistant response identity. A stopped or failed process can still retain observed changes; interrupted shutdown/restart has no reconstructed baseline.
+- Git workspaces enumerate cached and unignored untracked names through the existing guarded, bounded fixed `ls-files -z` probe. Initially ignored names/directory prefixes are retained as bounded names only, so a changed ignore policy cannot invent creation. Final capture re-reads baseline paths even when Git stops listing them, so index/ignore membership cannot invent deletion. A confirmed non-Git folder uses a bounded native walk. Non-Git walking does not interpret `.gitignore`; fixed generated/cache directories, `.git`, `.env`/`.env.*` and `.DS_Store` are excluded in both modes. Config refusal or probe failure cannot become a clean capture.
+- Reads admit only regular files, refuse links, compare opened descriptor identity on Unix, verify the descriptor jail and reject contents whose length/modification timestamp changes while reading. Each snapshot permits 4,096 readable names plus 4,096 ignored-name/directory markers, 512 KiB per file, 16 MiB of content and a three-second traversal/read budget. At most four in-flight turn captures hold a baseline. Files outside those bounds remain unavailable, rather than being inferred as added/deleted. OS filesystem calls themselves are not interruptible deadlines.
+- Comparison uses the actual captured dirty text as its baseline. Endpoints omit net-zero edits. Moves appear as additions/deletions, binaries as changed files without invented line counts, and executable-bit-only changes may have an empty textual diff. Capture enumeration failures suppress unknown additions/deletions. At most 128 changed file records are retained. Similar's bounded line comparison emits escaped unified hunks (three context lines), at most 64 KiB per file and 512 KiB total diff bytes per turn, with 100 ms algorithm deadlines and a three-second comparison budget. A valid deadline fallback diff may not be minimal. Omitted diffs preserve available counts and display an explicit limit notice.
+- Optional `TurnActivity.review` is native history on the admitted assistant message, separate from model conversation content. Full diffs survive JSON persistence for the latest 16 nonempty reviews per session. Older file names/counts and acknowledgment remain, with `expired` and no diff text. Forks clear inherited review metadata because the new response IDs/worktree do not own the source observation. No synthetic review is added to old transcripts.
+- The sole new IPC, `keep_turn_changes(sessionId, messageId)`, accepts owned IDs, a settled assistant activity and a nonempty native review. It idempotently persists `keptAt`, restores that field if persistence fails and publishes through existing `session-updated`. It does not accept paths, diff payloads or filesystem operations, stage files, change approvals or create a commit. No capabilities or events are added.
+- The expanded compact summary initially lists three files with per-file textual additions/deletions, Show more, Keep and Review. File clicks and Review open a transient session/message-bound review tab in the existing right dock. That pane consumes retained history, never live `git_diff`, and displays capture/retention/binary limitations. Keep remains separate from continuing execution and does not discard the history. There is no Undo control or rollback API.
+- Non-isolated checkout reviews identify the workspace as shared. The result is an observation over the turn interval, not proof that a particular provider caused every change. Isolated worktrees separate Switchyard sessions but do not prevent an external editor from writing there.
+- Historical Review also offers transient line selection and an editable comment. Add to chat rechecks the active session/project, settled response, retained file and exact diff snapshot, refusing expired/binary/missing/stale content. It quotes the selected lines and their actual old/new coordinates into the existing owner-scoped draft, preserves other draft text and enforces its 64 KiB UTF-8 limit. It neither sends a prompt nor stores annotations in review metadata; no native command, filesystem action or provider permission is added.
+
+## Consequences
+
+Preexisting work is excluded from the observed delta and later turns cannot overwrite its historical diff. Resource bounds keep reads and retained history finite per turn/session while surfacing uncertainty. Native capture adds startup/settlement latency. Large/generated/ignored files, intermediate net-zero edits and abrupt shutdown are outside the capture. The latest 16 full reviews balance historical reading with storage; older counts remain useful.
+
+Deterministic fixtures cover dirty baselines, additions/deletions/binaries, snapshot and diff limits, Git ignores/index preservation, path/link refusal, Keep ownership/idempotency/persistence, fork isolation, retention and acknowledgment races. UI checks cover compact/localized escaped rendering and owned historical dock selection. These checks do not claim live paid-provider integration or exact writer attribution.
+
+## Alternatives considered
+
+- Display current Git status below every response: rejected because old cards change and include preexisting dirty work.
+- Trust tool names or proposed patches as applied file changes: rejected because shell changes and failed edits cannot be inferred reliably.
+- Commit/stash/index checkpoints or automatic rollback: outside the approved scope and unnecessary for read-only review.
+- Arbitrary renderer-supplied paths or native filesystem plugins: rejected by the Client/Transport boundary.

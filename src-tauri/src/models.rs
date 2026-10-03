@@ -1,0 +1,1072 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionStatus {
+    Idle,
+    Starting,
+    Running,
+    Waiting,
+    Completed,
+    Failed,
+    Stopped,
+}
+
+impl SessionStatus {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Starting | Self::Running | Self::Waiting)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentProviderId {
+    Codex,
+    Claude,
+    #[serde(rename = "opencode")]
+    OpenCode,
+    Cursor,
+    Grok,
+    Antigravity,
+    Droid,
+    Pi,
+    Devin,
+}
+
+impl AgentProviderId {
+    pub fn key(&self) -> &'static str {
+        match self {
+            Self::Codex => "codex",
+            Self::Claude => "claude",
+            Self::OpenCode => "opencode",
+            Self::Cursor => "cursor",
+            Self::Grok => "grok",
+            Self::Antigravity => "antigravity",
+            Self::Droid => "droid",
+            Self::Pi => "pi",
+            Self::Devin => "devin",
+        }
+    }
+
+    /// Model-facing title; keep aligned with `provider-registry.ts` names.
+    pub fn title(&self) -> &'static str {
+        match self {
+            Self::Codex => "Codex",
+            Self::Claude => "Claude Code",
+            Self::OpenCode => "OpenCode",
+            Self::Cursor => "Cursor",
+            Self::Grok => "Grok",
+            Self::Antigravity => "Antigravity",
+            Self::Droid => "Droid",
+            Self::Pi => "Pi",
+            Self::Devin => "Devin",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MessageRole {
+    User,
+    Agent,
+    System,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ChangeKind {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Untracked,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub added_at: String,
+    pub last_opened_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Worktree {
+    pub path: String,
+    pub branch: String,
+    pub isolated: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Message {
+    pub id: String,
+    pub session_id: String,
+    pub role: MessageRole,
+    pub content: String,
+    pub created_at: String,
+    pub streaming: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<crate::activity::TurnActivity>,
+}
+
+/// Exact vendor identity bound to the owning native session and validated workspace.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeThread {
+    #[serde(default = "default_account_id")]
+    pub provider_account_id: String,
+    pub thread_id: String,
+    pub session_id: String,
+    pub project_id: String,
+    pub cwd: String,
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InputOption {
+    pub label: String,
+    pub description: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InputQuestion {
+    pub id: String,
+    pub header: String,
+    pub question: String,
+    #[serde(default)]
+    pub is_other: bool,
+    #[serde(default)]
+    pub is_secret: bool,
+    pub options: Option<Vec<InputOption>>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProposedFileChange {
+    pub path: String,
+    pub kind: String,
+    pub diff: String,
+    pub move_path: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum PendingRequestKind {
+    Command {
+        command: String,
+        cwd: Option<String>,
+        reason: Option<String>,
+    },
+    FileChange {
+        reason: Option<String>,
+        changes: Vec<ProposedFileChange>,
+    },
+    UserInput {
+        questions: Vec<InputQuestion>,
+    },
+    Tool {
+        name: String,
+        input: serde_json::Value,
+        reason: Option<String>,
+    },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingRequest {
+    pub request_id: String,
+    pub generation: String,
+    pub turn_id: String,
+    pub item_id: String,
+    pub kind: PendingRequestKind,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalDecision {
+    Accept,
+    Decline,
+    Cancel,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase", deny_unknown_fields)]
+pub enum AgentResponse {
+    Approval {
+        decision: ApprovalDecision,
+    },
+    UserInput {
+        answers: std::collections::BTreeMap<String, Vec<String>>,
+    },
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RespondAgentRequest {
+    pub session_id: String,
+    pub generation: String,
+    pub request_id: String,
+    pub turn_id: String,
+    pub response: AgentResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Session {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub goal: Option<String>,
+    #[serde(default)]
+    pub pinned_message_ids: Vec<String>,
+    #[serde(default)]
+    pub fork_origin: Option<ForkOrigin>,
+    #[serde(default)]
+    pub import_origin: Option<ImportOrigin>,
+    /// Pending turn-level handoff: the target provider receives a recap of the
+    /// source conversation on the first send, then this is consumed.
+    #[serde(default)]
+    pub handoff: Option<HandoffOrigin>,
+    #[serde(default)]
+    pub account_bindings: std::collections::HashMap<AgentProviderId, String>,
+    pub id: String,
+    pub title: String,
+    pub project_id: String,
+    pub agent: AgentProviderId,
+    #[serde(default = "default_account_id")]
+    pub provider_account_id: String,
+    pub status: SessionStatus,
+    pub created_at: String,
+    pub last_activity_at: String,
+    pub worktree: Worktree,
+    pub messages: Vec<Message>,
+    pub last_error: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub native_thread: Option<NativeThread>,
+    #[serde(default)]
+    pub execution: ExecutionOptions,
+    // Pending callbacks belong to a live process only; persisted/UI input cannot restore them.
+    #[serde(default, skip_deserializing)]
+    pub pending_requests: Vec<PendingRequest>,
+    /// Coordinator sessions own their team plan and progress (ADR-043).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team: Option<crate::team::Team>,
+    /// Worker sessions point back to their coordinator task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team_worker: Option<crate::team::TeamWorker>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ForkOrigin {
+    #[serde(default)]
+    pub seeded_native_thread_id: Option<String>,
+    pub source_session_id: String,
+    pub source_message_id: String,
+    pub source_title: String,
+    pub inherited_message_count: usize,
+}
+
+/// Recap a handed-off provider receives on its first turn. `request` is the
+/// last user message at the chosen response, shown on the composer card.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HandoffOrigin {
+    pub from: AgentProviderId,
+    pub brief: String,
+    pub request: String,
+    #[serde(default)]
+    pub pending: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionWorkspacePref {
+    Ask,
+    Checkout,
+    Worktree,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThemePref {
+    Dark,
+    Light,
+    System,
+    /// Retained only for migrating older state; incoming saves reject it.
+    Translucent,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UiFont {
+    Inter,
+    Geist,
+    DmSans,
+    PlexSans,
+    Humanist,
+    Helvetica,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum MonoFont {
+    PlexMono,
+    Jetbrains,
+    Fira,
+    GeistMono,
+    Source,
+    Roboto,
+    Ubuntu,
+    SfMono,
+    Menlo,
+    Cascadia,
+    Hack,
+    Consolas,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DockIcon {
+    Default,
+    SmokedGlass,
+    White,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DensityPref {
+    Compact,
+    Default,
+    Comfortable,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum WorktreeLocationPref {
+    Automatic,
+    Custom,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ComposerLineSpeed {
+    Slow,
+    Smooth,
+    Fast,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SidebarProjectSortOrder {
+    /// Retired "Recent activity" (`updated_at`) values load as Manual.
+    #[serde(alias = "updated_at")]
+    Manual,
+    CreatedAt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SidebarThreadSortOrder {
+    UpdatedAt,
+    CreatedAt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AppSettings {
+    pub notifications: crate::notifications::Preferences,
+    pub profile: crate::profile::LocalProfile,
+    pub usage_providers: Vec<AgentProviderId>,
+    pub custom_shortcuts: std::collections::HashMap<String, String>,
+    pub default_agent: AgentProviderId,
+    pub open_last_project: bool,
+    pub worktree_base_path: Option<String>,
+    pub default_session_workspace: SessionWorkspacePref,
+    pub confirm_close_running: bool,
+    pub restore_previous_sessions: bool,
+    pub check_for_updates: bool,
+    pub disabled_providers: Vec<AgentProviderId>,
+    pub provider_paths: std::collections::HashMap<AgentProviderId, String>,
+    pub theme: ThemePref,
+    pub dark_window_translucent: bool,
+    pub light_window_translucent: bool,
+    pub dark_window_opacity: u32,
+    pub light_window_opacity: u32,
+    pub dark_sidebar_translucent: bool,
+    pub light_sidebar_translucent: bool,
+    pub dark_sidebar_opacity: u32,
+    pub light_sidebar_opacity: u32,
+    pub translucent_opacity: u32,
+    pub system_ui_font: bool,
+    pub ui_font: UiFont,
+    pub code_font: MonoFont,
+    pub code_font_size: u32,
+    pub terminal_font: MonoFont,
+    pub font_smoothing: bool,
+    pub dock_icon: DockIcon,
+    pub density: DensityPref,
+    pub animations: bool,
+    pub composer_line_speed: ComposerLineSpeed,
+    /// Deprecated compatibility preference; native appearance uses the typed controls above.
+    pub glass: bool,
+    pub pointer_glow: bool,
+    pub reduce_motion: bool,
+    pub ui_font_size: u32,
+    pub git_auto_fetch: bool,
+    pub git_show_untracked: bool,
+    pub git_confirm_destructive: bool,
+    pub worktree_location: WorktreeLocationPref,
+    pub worktree_branch_pattern: String,
+    pub terminal_use_system_shell: bool,
+    pub terminal_font_size: u32,
+    pub terminal_cursor_style: String,
+    pub terminal_scrollback: u32,
+    pub developer_logs: bool,
+    /// Offers the app-owned computer-use MCP server to Codex/Claude/OpenCode turns (ADR-038).
+    pub computer_use_enabled: bool,
+    pub experimental: bool,
+    #[serde(default)]
+    pub disabled_models: Vec<String>,
+    pub disabled_skills: Vec<String>,
+    #[serde(default)]
+    pub favorite_models: Vec<String>,
+    #[serde(default)]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub model_execution: std::collections::HashMap<String, ExecutionOptions>,
+    #[serde(default)]
+    pub sidebar_collapsed: bool,
+    pub sidebar_project_order: Vec<String>,
+    pub sidebar_project_sort_order: SidebarProjectSortOrder,
+    pub sidebar_thread_sort_order: SidebarThreadSortOrder,
+    pub pinned_project_ids: Vec<String>,
+    pub pinned_session_ids: Vec<String>,
+    pub archived_session_ids: Vec<String>,
+    #[serde(default)]
+    pub environment_panel_default_open: bool,
+    pub show_environment_usage: bool,
+    pub show_environment_repository: bool,
+    pub show_environment_editor: bool,
+    pub show_environment_pull_request: bool,
+    pub show_environment_pinned: bool,
+    pub show_environment_notepad: bool,
+    pub show_environment_instructions: bool,
+    #[serde(default = "default_true")]
+    pub enable_provider_update_checks: bool,
+    #[serde(default = "default_locale")]
+    pub locale: String,
+}
+
+fn default_locale() -> String {
+    "pt-BR".into()
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            profile: Default::default(),
+            notifications: Default::default(),
+            custom_shortcuts: std::collections::HashMap::new(),
+            usage_providers: vec![AgentProviderId::Codex],
+            default_agent: AgentProviderId::Codex,
+            open_last_project: true,
+            worktree_base_path: None,
+            default_session_workspace: SessionWorkspacePref::Ask,
+            confirm_close_running: true,
+            restore_previous_sessions: true,
+            check_for_updates: false,
+            disabled_providers: Vec::new(),
+            provider_paths: std::collections::HashMap::new(),
+            theme: ThemePref::Dark,
+            dark_window_translucent: false,
+            light_window_translucent: false,
+            dark_window_opacity: 85,
+            light_window_opacity: 85,
+            dark_sidebar_translucent: false,
+            light_sidebar_translucent: false,
+            dark_sidebar_opacity: 72,
+            light_sidebar_opacity: 38,
+            translucent_opacity: 85,
+            system_ui_font: true,
+            ui_font: UiFont::Inter,
+            code_font: MonoFont::PlexMono,
+            code_font_size: 13,
+            terminal_font: MonoFont::PlexMono,
+            font_smoothing: true,
+            dock_icon: DockIcon::Default,
+            density: DensityPref::Default,
+            animations: true,
+            composer_line_speed: ComposerLineSpeed::Slow,
+            glass: false,
+            pointer_glow: true,
+            reduce_motion: false,
+            ui_font_size: 13,
+            git_auto_fetch: false,
+            git_show_untracked: true,
+            git_confirm_destructive: true,
+            worktree_location: WorktreeLocationPref::Automatic,
+            worktree_branch_pattern: "switchyard/{session-name}".into(),
+            terminal_use_system_shell: true,
+            terminal_font_size: 13,
+            terminal_cursor_style: "block".into(),
+            terminal_scrollback: 2000,
+            developer_logs: false,
+            computer_use_enabled: false,
+            experimental: false,
+            disabled_models: Vec::new(),
+            disabled_skills: Vec::new(),
+            favorite_models: Vec::new(),
+            default_model: None,
+            model_execution: Default::default(),
+            sidebar_collapsed: false,
+            sidebar_project_order: Vec::new(),
+            sidebar_project_sort_order: SidebarProjectSortOrder::Manual,
+            sidebar_thread_sort_order: SidebarThreadSortOrder::CreatedAt,
+            pinned_project_ids: Vec::new(),
+            pinned_session_ids: Vec::new(),
+            archived_session_ids: Vec::new(),
+            environment_panel_default_open: false,
+            show_environment_usage: true,
+            show_environment_repository: true,
+            show_environment_editor: true,
+            show_environment_pull_request: true,
+            show_environment_pinned: true,
+            show_environment_notepad: true,
+            show_environment_instructions: true,
+            enable_provider_update_checks: true,
+            locale: default_locale(),
+        }
+    }
+}
+
+impl AppSettings {
+    pub fn validate_controls(&self) -> crate::error::Result<()> {
+        crate::skills::validate_disabled(&self.disabled_skills)?;
+        crate::profile::validate(&self.profile)?;
+        use crate::error::Error;
+        if self.usage_providers.len() > 9
+            || self
+                .usage_providers
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != self.usage_providers.len()
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid usage provider selection.",
+            ));
+        }
+        crate::appearance::validate(self)?;
+        if self.model_execution.len() > 512
+            || self.model_execution.iter().any(|(key, option)| {
+                key.len() > 256
+                    || key.chars().any(char::is_control)
+                    || !key.contains("::")
+                    || option.approval.is_some()
+                    || option
+                        .effort
+                        .as_deref()
+                        .is_some_and(|effort| !crate::execution::EFFORTS.contains(&effort))
+            })
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid model execution preferences.",
+            ));
+        }
+        const BINDINGS: [(&str, &str); 15] = [
+            ("new-session", "meta+n"),
+            ("palette", "meta+k"),
+            ("open-project", "meta+o"),
+            ("settings", "meta+,"),
+            ("toggle-sidebar", "meta+b"),
+            ("toggle-context", "meta+\\"),
+            ("open-terminal", "meta+`"),
+            ("stop-agent", "meta+."),
+            ("back", "meta+["),
+            ("forward", "meta+]"),
+            ("open-files", "meta+alt+o"),
+            ("open-browser", "meta+alt+b"),
+            ("toggle-environment", "meta+alt+e"),
+            ("find-in-conversation", "meta+f"),
+            ("search-conversations", "meta+shift+f"),
+        ];
+        for (id, combo) in &self.custom_shortcuts {
+            let mut parts = combo.split('+').collect::<Vec<_>>();
+            let key = parts.pop().unwrap_or_default();
+            let canonical = ["meta", "alt", "shift"]
+                .into_iter()
+                .filter(|part| parts.contains(part))
+                .chain([key])
+                .collect::<Vec<_>>()
+                .join("+");
+            if !BINDINGS.iter().any(|(known, _)| known == id)
+                || combo.len() > 40
+                || !parts.contains(&"meta")
+                || canonical != *combo
+                || parts
+                    .iter()
+                    .any(|part| !["meta", "alt", "shift"].contains(part))
+                || key.len() != 1
+                || !key.chars().all(|c| {
+                    c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
+                })
+                || [
+                    "q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-",
+                ]
+                .contains(&key)
+            {
+                return Err(Error::new(
+                    "invalid_settings",
+                    "Unsupported shortcut combination.",
+                ));
+            }
+        }
+        let mut used = std::collections::HashSet::new();
+        for (id, fallback) in BINDINGS {
+            if !used.insert(
+                self.custom_shortcuts
+                    .get(id)
+                    .map(String::as_str)
+                    .unwrap_or(fallback),
+            ) {
+                return Err(Error::new(
+                    "invalid_settings",
+                    "Shortcut combinations must be unique.",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+    #[test]
+    fn general_preferences_have_legacy_defaults_and_closed_sort_modes() {
+        let legacy: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(
+            legacy.sidebar_project_sort_order,
+            SidebarProjectSortOrder::Manual
+        );
+        let retired: AppSettings =
+            serde_json::from_str(r#"{"sidebarProjectSortOrder":"updated_at"}"#).unwrap();
+        assert_eq!(
+            retired.sidebar_project_sort_order,
+            SidebarProjectSortOrder::Manual
+        );
+        assert_eq!(
+            legacy.sidebar_thread_sort_order,
+            SidebarThreadSortOrder::CreatedAt
+        );
+        assert!(
+            legacy.show_environment_usage
+                && legacy.show_environment_repository
+                && legacy.show_environment_editor
+                && legacy.show_environment_pull_request
+                && legacy.show_environment_pinned
+                && legacy.show_environment_notepad
+                && legacy.show_environment_instructions
+        );
+        for (field, allowed) in [
+            ("sidebarProjectSortOrder", vec!["manual", "created_at"]),
+            ("sidebarThreadSortOrder", vec!["updated_at", "created_at"]),
+        ] {
+            for mode in allowed {
+                let settings: AppSettings =
+                    serde_json::from_value(serde_json::json!({field: mode})).unwrap();
+                assert_eq!(serde_json::to_value(settings).unwrap()[field], mode);
+            }
+            for invalid in [
+                serde_json::json!("random"),
+                serde_json::json!(100),
+                serde_json::Value::Null,
+            ] {
+                assert!(
+                    serde_json::from_value::<AppSettings>(serde_json::json!({field: invalid}))
+                        .is_err()
+                );
+            }
+        }
+        assert!(serde_json::from_value::<AppSettings>(
+            serde_json::json!({"sidebarThreadSortOrder": "manual"})
+        )
+        .is_err());
+        for field in [
+            "showEnvironmentUsage",
+            "showEnvironmentRepository",
+            "showEnvironmentEditor",
+            "showEnvironmentPullRequest",
+            "showEnvironmentPinned",
+            "showEnvironmentNotepad",
+            "showEnvironmentInstructions",
+        ] {
+            let settings: AppSettings =
+                serde_json::from_value(serde_json::json!({field: false})).unwrap();
+            assert_eq!(serde_json::to_value(settings).unwrap()[field], false);
+            assert!(
+                serde_json::from_value::<AppSettings>(serde_json::json!({field: "false"})).is_err()
+            );
+        }
+    }
+    #[test]
+    fn composer_line_speed_is_backward_compatible_and_closed() {
+        let legacy: AppSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(legacy.composer_line_speed, ComposerLineSpeed::Slow);
+        for speed in ["slow", "smooth", "fast"] {
+            let settings: AppSettings = serde_json::from_value(serde_json::json!({
+                "composerLineSpeed": speed
+            }))
+            .unwrap();
+            let saved = serde_json::to_value(settings).unwrap();
+            assert_eq!(saved["composerLineSpeed"], speed);
+        }
+        for invalid in [
+            serde_json::json!("turbo"),
+            serde_json::json!(100),
+            serde_json::Value::Null,
+        ] {
+            assert!(serde_json::from_value::<AppSettings>(serde_json::json!({
+                "composerLineSpeed": invalid
+            }))
+            .is_err());
+        }
+    }
+    #[test]
+    fn settings_cannot_store_global_approval_grants() {
+        let mut settings = AppSettings::default();
+        settings
+            .model_execution
+            .insert("codex::model".into(), ExecutionOptions::default());
+        assert!(settings.validate_controls().is_ok());
+        for mode in [ApprovalMode::Ask, ApprovalMode::Auto, ApprovalMode::Full] {
+            settings
+                .model_execution
+                .get_mut("codex::model")
+                .unwrap()
+                .approval = Some(mode);
+            assert!(settings.validate_controls().is_err());
+        }
+    }
+    #[test]
+    fn shortcut_controls_reject_collisions_reserved_keys_and_unknown_actions() {
+        let mut settings = AppSettings::default();
+        for (id, combo) in [
+            ("toggle-sidebar", "meta+n"),
+            ("palette", "meta+q"),
+            ("palette", "meta+meta+b"),
+            ("unknown", "meta+shift+b"),
+        ] {
+            settings.custom_shortcuts.clear();
+            settings.custom_shortcuts.insert(id.into(), combo.into());
+            assert!(settings.validate_controls().is_err());
+        }
+        settings.custom_shortcuts.clear();
+        settings
+            .custom_shortcuts
+            .insert("toggle-sidebar".into(), "meta+shift+b".into());
+        assert!(settings.validate_controls().is_ok());
+        for (id, combo) in [
+            ("forward", "meta+shift+]"),
+            ("open-files", "meta+shift+o"),
+            ("open-browser", "meta+shift+b"),
+            ("toggle-environment", "meta+shift+e"),
+            ("find-in-conversation", "meta+alt+f"),
+            ("search-conversations", "meta+alt+s"),
+        ] {
+            settings.custom_shortcuts.clear();
+            settings.custom_shortcuts.insert(id.into(), combo.into());
+            assert!(settings.validate_controls().is_ok(), "{id}");
+        }
+        settings.ui_font_size = 100;
+        assert!(settings.validate_controls().is_err());
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AppData {
+    pub projects: Vec<Project>,
+    pub sessions: Vec<Session>,
+    pub settings: AppSettings,
+    #[serde(default)]
+    pub provider_accounts: Vec<ProviderAccount>,
+    #[serde(default)]
+    pub selected_provider_accounts: std::collections::HashMap<AgentProviderId, String>,
+    #[serde(default)]
+    pub composer_drafts: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    pub context_texts: std::collections::HashMap<String, String>,
+}
+
+pub fn default_account_id() -> String {
+    "default".into()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderAccount {
+    pub id: String,
+    pub provider: AgentProviderId,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitIdentity {
+    pub is_repo: bool,
+    pub root: Option<String>,
+    pub branch: Option<String>,
+    pub detached: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileChange {
+    pub path: String,
+    pub kind: ChangeKind,
+    pub additions: u32,
+    pub deletions: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitWorktree {
+    pub path: String,
+    pub head: Option<String>,
+    pub branch: Option<String>,
+    pub detached: bool,
+    pub bare: bool,
+    pub locked: Option<String>,
+    pub prunable: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    pub identity: GitIdentity,
+    pub dirty: bool,
+    pub ahead: u32,
+    pub behind: u32,
+    pub changes: Vec<FileChange>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceEntryKind {
+    File,
+    Directory,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInstall {
+    pub id: AgentProviderId,
+    pub name: String,
+    pub binary: String,
+    pub installed: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppearanceSupport {
+    pub translucency: bool,
+    pub dock_icon: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostInfo {
+    pub appearance_support: AppearanceSupport,
+    pub profile_default_name: String,
+    pub git_detected: bool,
+    pub git_path: Option<String>,
+    pub git_version: Option<String>,
+    pub shell: String,
+    pub data_dir: String,
+    pub worktree_root: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProbeResult {
+    pub ok: bool,
+    pub version: Option<String>,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentEvent {
+    pub session_id: String,
+    pub message_id: String,
+    pub offset: usize,
+    pub message: Option<Message>,
+    pub stream: String,
+    pub chunk: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentExitEvent {
+    pub session_id: String,
+    pub code: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PtyOutputEvent {
+    pub session_id: String,
+    pub terminal_id: String,
+    pub data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitResult {
+    pub hash: String,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitPushResult {
+    pub branch: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorInstall {
+    pub id: String,
+    pub name: String,
+    pub installed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportOrigin {
+    pub provider: AgentProviderId,
+    pub conversation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchInfo {
+    pub name: String,
+    pub current: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUpdate {
+    pub provider: AgentProviderId,
+    pub installed: bool,
+    pub installed_version: Option<String>,
+    pub latest_version: Option<String>,
+    pub update_available: bool,
+    /// False when this installation has no fixed one-click update command.
+    pub update_supported: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUpdateResult {
+    pub provider: AgentProviderId,
+    pub ok: bool,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorAppIcon {
+    pub id: String,
+    /// Base64 PNG of the real macOS app icon; empty when unavailable.
+    pub png: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFileSnapshot {
+    pub path: String,
+    pub content: String,
+    pub size: u64,
+    pub binary: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionRequest {
+    pub project_id: String,
+    pub title: Option<String>,
+    pub agent: AgentProviderId,
+    pub isolated_worktree: bool,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ApprovalMode {
+    Ask,
+    Auto,
+    Full,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default, deny_unknown_fields)]
+#[derive(Default)]
+pub struct ExecutionOptions {
+    pub effort: Option<String>,
+    pub fast: bool,
+    pub planning: bool,
+    pub approval: Option<ApprovalMode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SendPromptRequest {
+    #[serde(default)]
+    pub queued_after: Option<QueuedPromptContext>,
+    #[serde(default)]
+    pub debugging: bool,
+    #[serde(default)]
+    pub goal: Option<String>,
+    pub session_id: String,
+    #[serde(default)]
+    pub attachment_ids: Vec<String>,
+    #[serde(default)]
+    pub attachment_owner: String,
+    pub prompt: String,
+    #[serde(default)]
+    pub execution: ExecutionOptions,
+    /// Team planning turn: read-only, wrapped with coordinator instructions (ADR-043).
+    #[serde(default)]
+    pub team: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QueuedPromptContext {
+    pub message_id: Option<String>,
+    pub agent: AgentProviderId,
+    pub model: Option<String>,
+    pub provider_account_id: String,
+    pub worktree_path: String,
+}

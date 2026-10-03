@@ -1,0 +1,18 @@
+@layer components {
+  .environment-pr-section { border-top: 1px solid var(--border-subtle); margin-top: 4px; padding-top: 4px; }
+  .environment-pr-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; }
+  .environment-pr-refresh { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius-sm); color: var(--text-muted); }
+  .environment-pr-refresh:disabled { opacity: .45; cursor: default; }
+  .environment-pr-refresh:hover:not(:disabled), .environment-pr-row:hover, button.environment-pr-check:hover { color: var(--text-primary); background: var(--navigation-hover); }
+  .environment-pr-row { display: flex; align-items: center; width: 100%; min-height: 32px; gap: 8px; padding: 4px 8px; border-radius: var(--radius-sm); color: var(--text-secondary); }
+  .environment-pr-row > svg { flex-shrink: 0; }
+  .environment-pr-message { padding: 4px 8px 6px; color: var(--text-muted); overflow-wrap: anywhere; }
+  .environment-pr-message[role="alert"] { color: var(--danger); }
+  .environment-pr-caption { padding: 0 8px 4px 30px; color: var(--text-muted); }
+  .environment-pr-popover { width: 320px; max-width: min(320px, calc(100vw - 24px)); padding: 12px; }
+  .environment-pr-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
+  .environment-pr-check-heading { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+  .environment-pr-checks { max-height: 240px; overflow-y: auto; margin-top: 6px; }
+  .environment-pr-check { display: flex; align-items: center; width: 100%; gap: 8px; padding: 6px 4px; border-radius: var(--radius-sm); color: var(--text-secondary); }
+  .environment-pr-refresh:focus-visible, .environment-pr-row:focus-visible, button.environment-pr-check:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 1px; }
+}

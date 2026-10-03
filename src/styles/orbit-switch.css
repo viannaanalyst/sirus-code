@@ -1,0 +1,51 @@
+@layer components {
+  .orbit-switch {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 42px; min-height: 32px; padding: 0; border: 0; border-radius: 14px;
+    background: transparent; cursor: pointer; flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .orbit-switch-track {
+    display: block; position: relative; isolation: isolate; width: 36px; height: 20px;
+    border-radius: 20px; background: var(--orbit-switch-track);
+    box-shadow: inset 0 0 0 1px var(--orbit-switch-border);
+  }
+  .orbit-switch-fill {
+    position: absolute; inset: 0; border-radius: inherit;
+    background: linear-gradient(110deg, var(--orbit-switch-on-start), var(--orbit-switch-on-end));
+    opacity: 0; transition: opacity var(--motion-normal) var(--ease-out);
+  }
+  .orbit-switch-position {
+    display: block; position: absolute; left: 3px; top: 3px; width: 14px; height: 14px;
+    transform: translateX(0); transition: transform var(--motion-slow) var(--ease-out);
+  }
+  .orbit-switch-pearl {
+    display: block; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 34% 25%, var(--orbit-pearl-highlight), var(--orbit-pearl-body) 36%, var(--orbit-pearl-shade) 72%, var(--orbit-pearl-edge));
+    box-shadow: inset 0 0 0 1px var(--orbit-pearl-border), 0 1px 4px var(--orbit-pearl-shadow);
+    transition: transform var(--motion-fast) var(--ease-out);
+  }
+  .orbit-switch-ring {
+    position: absolute; inset: -2px; width: 18px; height: 18px; transform: rotate(-32deg);
+    opacity: .45; transition: opacity var(--motion-normal);
+  }
+  .orbit-switch-ring-changing { animation: orbit-switch-turn var(--motion-slow) var(--ease-out); }
+  @keyframes orbit-switch-turn { from { transform: rotate(-152deg); } to { transform: rotate(-32deg); } }
+  .orbit-switch-ring svg { display: block; width: 18px; height: 18px; overflow: visible; }
+  .orbit-switch-ring ellipse { fill: none; stroke: var(--orbit-pearl-edge); stroke-width: .8; }
+  .orbit-switch-ring circle { fill: var(--orbit-pearl-highlight); }
+  .orbit-switch-signal {
+    position: absolute; left: 7px; top: 8px; width: 4px; height: 4px; border-radius: 50%;
+    background: var(--orbit-pearl-edge); opacity: 0; transform: scale(.5);
+    transition: opacity var(--motion-normal), transform var(--motion-normal);
+  }
+  .orbit-switch[data-state="checked"] .orbit-switch-position { transform: translateX(16px); }
+  .orbit-switch[data-state="checked"] .orbit-switch-fill { opacity: 1; }
+  .orbit-switch[data-state="checked"] .orbit-switch-ring { opacity: 1; }
+  .orbit-switch[data-state="checked"] .orbit-switch-signal { opacity: .75; transform: scale(1); }
+  .orbit-switch:active:not(:disabled) .orbit-switch-pearl { transform: scale(.9); }
+  .orbit-switch:disabled { opacity: .45; cursor: default; }
+  .orbit-switch:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 1px; }
+  .orbit-switch[data-reduced] *, html[data-animations="off"] .orbit-switch *, html[data-reduce-motion="on"] .orbit-switch * { transition: none; animation: none; }
+  @media (prefers-reduced-motion: reduce) { .orbit-switch * { transition: none; animation: none; } }
+}

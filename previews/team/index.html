@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Switchyard · Equipe (Etapa 2)</title>
+<style>
+  :root {
+    --bg: #070707; --surface: #111; --side: #0c0c0c; --elev: #191919; --control: #242424; --hover: rgb(255 255 255 / .05);
+    --bs: rgb(255 255 255 / .06); --bd: rgb(255 255 255 / .1);
+    --fg: #ececec; --t2: #b4b4b4; --tm: #7d7d7d;
+    --run: #6ea8fe; --wait: #f5a524; --ok: #3dd68c; --bad: #e5484d;
+    --claude: #d87957; --openai: #3b82f6; --opencode: #b3a0f2;
+    --ease: cubic-bezier(.16, 1, .3, 1); --spring: cubic-bezier(.34, 1.32, .64, 1);
+    --k: 1; color-scheme: dark;
+  }
+  [data-theme="light"] { --bg: #e9e9ec; --surface: #fafafa; --side: #f1f1f3; --elev: #f1f1f3; --control: #e4e4e7; --hover: rgb(0 0 0 / .04); --bs: rgb(0 0 0 / .07); --bd: rgb(0 0 0 / .11); --fg: #18181b; --t2: #52525b; --tm: #8a8a93; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, select, input { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  svg.i { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  code, .mono { font: 11.5px/1.5 "SF Mono", ui-monospace, Menlo, monospace; }
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; max-width: 1500px; margin: 0 auto; padding: 24px; align-items: start; }
+  .intro { grid-column: 1 / -1; }
+  .intro h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .intro p { margin: 0; color: var(--tm); max-width: 900px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--run) 55%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .enter { animation: rise calc(420ms * var(--k)) var(--ease) both; }
+  .muted { color: var(--tm); } .t2 { color: var(--t2); } .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--wait); }
+  .live { background: linear-gradient(90deg, var(--tm) 0%, var(--tm) 40%, var(--fg) 50%, var(--tm) 60%, var(--tm) 100%) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer calc(2.4s * var(--k)) linear infinite; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--tm); }
+  .dot[data-s="running"] { background: var(--run); animation: pulse calc(1.6s * var(--k)) ease-out infinite; }
+  .dot[data-s="done"], .dot[data-s="merged"] { background: var(--ok); } .dot[data-s="needs"] { background: var(--wait); } .dot[data-s="blocked"] { background: transparent; border: 1.5px solid var(--tm); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 8px; font-size: 12px; border: 1px solid var(--bd); background: var(--surface); white-space: nowrap; }
+  .btn:hover { border-color: color-mix(in srgb, var(--fg) 25%, transparent); }
+  .btn.primary { background: var(--fg); color: var(--surface); border-color: transparent; }
+  .btn.ghost { border-color: transparent; color: var(--t2); }
+  .btn.ghost:hover { background: var(--hover); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--hover); color: var(--t2); font-size: 11px; white-space: nowrap; }
+  .prov { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .prov.claude { background: var(--claude); } .prov.codex { background: var(--openai); } .prov.opencode { background: var(--opencode); color: #18181b; }
+
+  /* ---------- App frame ---------- */
+  .app { display: grid; grid-template-columns: 228px minmax(0, 1fr); height: 780px; border-radius: 14px; overflow: hidden; border: 1px solid var(--bd); background: var(--surface); box-shadow: 0 30px 80px rgb(0 0 0 / .35); }
+  .app[data-dock] { grid-template-columns: 228px minmax(0, 1fr) 360px; }
+  .side { background: var(--side); border-right: 1px solid var(--bs); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+  .lights { display: flex; gap: 7px; padding: 2px 6px 14px; } .lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+  .side .proj { padding: 6px 8px; color: var(--t2); display: flex; align-items: center; gap: 7px; }
+  .side .row { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 7px; color: var(--t2); }
+  .side .row.sel { background: var(--hover); color: var(--fg); }
+  .side .row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .side .kid { margin-left: 16px; position: relative; }
+  .side .kid::before { content: ""; position: absolute; left: -7px; top: -6px; bottom: 50%; width: 7px; border-left: 1px solid var(--bd); border-bottom: 1px solid var(--bd); border-bottom-left-radius: 6px; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .head { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--bs); color: var(--t2); font-size: 12.5px; }
+  .head .sp { flex: 1; }
+  .chat { flex: 1; overflow: auto; padding: 22px 0 16px; }
+  .col { max-width: 720px; margin: 0 auto; padding: 0 26px; display: flex; flex-direction: column; gap: 16px; }
+  .user { align-self: flex-end; max-width: 80%; padding: 9px 15px; border-radius: 18px; background: var(--control); }
+  .agentline { display: flex; align-items: center; gap: 8px; color: var(--t2); }
+  .agentline b { color: var(--fg); font-weight: 500; }
+  .composer-zone { max-width: 720px; width: 100%; margin: 0 auto; padding: 0 26px 18px; position: relative; }
+  .composer { border: 1px solid var(--bd); border-radius: 16px; background: var(--elev); padding: 11px 13px 9px; color: var(--tm); }
+  .composer .chips { display: flex; gap: 6px; margin-bottom: 8px; }
+  .composer .ctl { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; }
+  .composer .plus { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--bd); display: grid; place-items: center; color: var(--t2); }
+  .composer .send { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fg); color: var(--surface); }
+  .teamchip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; background: color-mix(in srgb, var(--run) 14%, transparent); color: var(--fg); font-size: 11.5px; border: 1px solid color-mix(in srgb, var(--run) 35%, transparent); }
+  .menu { position: absolute; left: 26px; bottom: 112px; width: 260px; padding: 6px; border-radius: 12px; background: var(--elev); border: 1px solid var(--bd); box-shadow: 0 20px 50px rgb(0 0 0 / .45); animation: rise calc(260ms * var(--k)) var(--ease) both; z-index: 5; }
+  .menu .mi { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border-radius: 8px; color: var(--t2); font-size: 12.5px; }
+  .menu .mi.hl { background: var(--hover); color: var(--fg); }
+  .menu .mi small { display: block; color: var(--tm); font-size: 11px; }
+  .menu hr { border: 0; border-top: 1px solid var(--bs); margin: 5px 4px; }
+
+  /* ---------- Plan card ---------- */
+  .card { border: 1px solid var(--bd); border-radius: 14px; background: var(--elev); overflow: hidden; }
+  .card-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--bs); }
+  .card-h h3 { margin: 0; font-size: 13.5px; font-weight: 600; }
+  .card-h .sp { flex: 1; }
+  .task { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 4px 10px; padding: 11px 14px; border-bottom: 1px solid var(--bs); align-items: start; }
+  .task:last-of-type { border-bottom: 0; }
+  .task .n { width: 22px; height: 22px; border-radius: 7px; background: var(--hover); display: grid; place-items: center; color: var(--tm); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .task .title { font-weight: 500; }
+  .task .title[contenteditable]:focus { outline: 1px solid var(--bd); border-radius: 4px; }
+  .task .meta { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .task select { height: 24px; border-radius: 6px; border: 1px solid var(--bd); background: var(--surface); font-size: 11.5px; padding: 0 6px; }
+  .scope { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px dashed var(--bd); color: var(--t2); font: 11px/1 "SF Mono", ui-monospace, Menlo, monospace; }
+  .card-f { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-top: 1px solid var(--bs); background: color-mix(in srgb, var(--surface) 50%, transparent); }
+  .card-f .note { color: var(--tm); font-size: 11.5px; flex: 1; }
+
+  /* ---------- Workers ---------- */
+  .wk { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 2px 10px; padding: 10px 14px; border-bottom: 1px solid var(--bs); align-items: center; }
+  .wk:last-child { border-bottom: 0; }
+  .wk .name { display: flex; align-items: center; gap: 7px; min-width: 0; font-weight: 500; }
+  .wk .name span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wk .sub { grid-column: 2 / 3; color: var(--tm); font-size: 11.5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wk .end { display: flex; align-items: center; gap: 8px; color: var(--tm); font-size: 11.5px; font-variant-numeric: tabular-nums; grid-row: 1 / 3; grid-column: 3; }
+  .ask { margin: 0 14px 10px 34px; padding: 9px 11px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--wait) 45%, var(--bd)); background: color-mix(in srgb, var(--wait) 7%, var(--elev)); font-size: 12px; }
+  .ask .acts { display: flex; gap: 6px; margin-top: 8px; }
+  .bucket { padding: 8px 14px 4px; color: var(--tm); font-size: 11px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; display: flex; gap: 6px; align-items: center; }
+  .bucket b { font-weight: 600; color: var(--t2); }
+  .warnbox { margin: 0 14px 10px 34px; padding: 8px 10px; border-radius: 9px; background: color-mix(in srgb, var(--wait) 8%, transparent); border: 1px solid color-mix(in srgb, var(--wait) 35%, var(--bd)); color: var(--t2); font-size: 11.5px; }
+  .diffline { font-size: 11.5px; color: var(--tm); } .diffline b { color: var(--ok); font-weight: 500; } .diffline s { color: var(--bad); text-decoration: none; }
+
+  /* ---------- Dock (E2) ---------- */
+  .dock { border-left: 1px solid var(--bs); background: var(--side); display: flex; flex-direction: column; min-width: 0; }
+  .dock-h { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--bs); font-size: 12.5px; }
+  .dock-h .tab { padding: 4px 9px; border-radius: 7px; color: var(--tm); } .dock-h .tab.on { background: var(--hover); color: var(--fg); }
+  .dock-body { flex: 1; overflow: auto; }
+  .dock .wk { padding: 9px 12px; }
+  .dock .ask, .dock .warnbox { margin-left: 32px; margin-right: 12px; }
+
+  /* ---------- Board (E3) ---------- */
+  .board { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 16px; overflow: auto; align-content: start; }
+  .lane { border: 1px solid var(--bs); border-radius: 12px; background: var(--elev); display: flex; flex-direction: column; min-height: 420px; }
+  .lane-h { padding: 11px 12px; border-bottom: 1px solid var(--bs); }
+  .lane-h .tt { display: flex; align-items: center; gap: 7px; font-weight: 500; }
+  .lane-h .mm { margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .lane-b { flex: 1; padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
+  .lane-b .st { display: flex; align-items: center; gap: 7px; min-height: 22px; }
+  .lane-b .st .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lane-f { padding: 10px 12px; border-top: 1px solid var(--bs); display: flex; gap: 6px; align-items: center; }
+  .lane[data-s="needs"] { border-color: color-mix(in srgb, var(--wait) 50%, var(--bd)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wait) 10%, transparent); }
+  .lane[data-s="merged"] { opacity: .7; }
+  .boardbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--bs); }
+
+  /* ---------- Controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 24px; }
+  .controls h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tm); }
+  .opts { display: grid; gap: 6px; }
+  .opt-card { display: grid; grid-template-columns: 26px 1fr; gap: 1px 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--bs); background: var(--surface); }
+  .opt-card:hover { border-color: var(--bd); }
+  .opt-card[aria-checked="true"] { border-color: color-mix(in srgb, var(--fg) 30%, transparent); background: var(--elev); }
+  .opt-card b { font-weight: 600; } .opt-card .n { color: var(--tm); } .opt-card small { grid-column: 2; color: var(--tm); font-size: 11.5px; line-height: 1.4; }
+  .seg { display: flex; padding: 3px; border-radius: 9px; background: var(--surface); border: 1px solid var(--bs); }
+  .seg button { flex: 1; height: 26px; border-radius: 6px; color: var(--tm); font-size: 12px; text-align: center; }
+  .seg button[aria-pressed="true"] { background: var(--control); color: var(--fg); }
+  .steps { display: grid; gap: 4px; }
+  .steps button { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 8px; color: var(--tm); font-size: 12px; }
+  .steps button[aria-current="true"] { background: var(--elev); color: var(--fg); }
+  .steps button i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--hover); font-style: normal; font-size: 10.5px; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--t2); font-size: 12px; }
+  .note { color: var(--tm); font-size: 11.5px; line-height: 1.5; margin: 0; }
+  :is(button):focus-visible { outline: 1px solid color-mix(in srgb, var(--fg) 50%, transparent); outline-offset: 2px; }
+  body[data-reduced] *, body[data-reduced] *::before, body[data-reduced] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Equipe · Etapa 2 (Orquestrador V1)</h1>
+    <p>O fluxo completo simulado: escolher “Equipe” no <b>+</b>, o coordenador propõe o plano, você ajusta e confirma, os ajudantes trabalham cada um no seu worktree, e no fim você revisa e junta um por um. As três variações mudam <i>onde</i> a equipe aparece. Use as fases à direita ou ▶ para tocar tudo.</p>
+  </header>
+
+  <div class="app" id="app"></div>
+
+  <aside class="controls">
+    <section>
+      <h4>Modelo</h4>
+      <div class="opts" id="variants">
+        <button class="opt-card" data-v="e1"><span class="n">E1</span><b>Tudo na conversa</b><small>Plano, equipe trabalhando e revisão aparecem como cartões dentro do chat do coordenador. Os ajudantes também ficam aninhados na sidebar. (Inspirado no MonoCode.)</small></button>
+        <button class="opt-card" data-v="e2"><span class="n">E2</span><b>Painel da equipe</b><small>O plano é um cartão no chat; ao confirmar, abre o painel “Equipe” à direita com os grupos Precisa de você / Trabalhando / Pronto para revisar. O chat continua livre para falar com o coordenador. (Inspirado no Synara.)</small></button>
+        <button class="opt-card" data-v="e3"><span class="n">E3</span><b>Quadro</b><small>Ao confirmar, a área principal vira um quadro com uma coluna por ajudante, mostrando os passos ao vivo, e uma barra para juntar no final.</small></button>
+      </div>
+    </section>
+    <section>
+      <h4>Fase</h4>
+      <div class="steps" id="phases">
+        <button data-p="0"><i>1</i>Pedido (+ → Equipe)</button>
+        <button data-p="1"><i>2</i>Plano editável</button>
+        <button data-p="2"><i>3</i>Equipe trabalhando</button>
+        <button data-p="3"><i>4</i>Revisar e juntar</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px"><button class="btn" id="play">▶ Tocar tudo</button><button class="btn" id="restart">↺</button></div>
+    </section>
+    <section>
+      <h4>Situações</h4>
+      <label class="check"><input type="checkbox" id="needs" checked /> Um ajudante pede permissão</label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="conflict" checked /> Dois ajudantes mexem no mesmo arquivo</label>
+    </section>
+    <section>
+      <h4>Tema</h4>
+      <div class="seg" id="theme"><button data-t="dark" aria-pressed="true">Dark</button><button data-t="light">Light</button></div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="reduced" /> Reduzir movimento</label>
+    </section>
+    <section>
+      <p class="note">Regras iguais nas três: no máximo 3 ajudantes; nada roda antes de “Confirmar e iniciar”; permissões dos ajudantes vêm para você (nunca respondidas por outra IA); juntar é sempre um clique seu, um ajudante por vez, nunca automático.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const svg = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const I = {
+  team: svg('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 19c.6-3 3-5 6-5s5.4 2 6 5"/><path d="M15 14.5c2.6-.3 4.8 1.3 5.5 4"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  clip: svg('<path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.4 3.4 0 0 1 4.8 4.8L10.3 17.3a1.7 1.7 0 0 1-2.4-2.4L15.5 7.3"/>'),
+  plan: svg('<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>'),
+  up: svg('<path d="M12 19V5M5 12l7-7 7 7"/>'),
+  folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>'),
+  branch: svg('<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="8" r="2"/><path d="M6 8v8M18 10c0 4-6 3-10 6"/>'),
+  check: svg('<path d="M20 6 9 17l-5-5"/>'),
+  lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  warn: svg('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>'),
+  stop: svg('<rect x="6" y="6" width="12" height="12" rx="2"/>'),
+  open: svg('<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'),
+  read: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+  edit: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+  cmd: svg('<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>'),
+  merge: svg('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 8v4a6 6 0 0 0 6 6h4"/>'),
+  diff: svg('<path d="M12 3v14M5 10h14"/><path d="M5 21h14"/>'),
+};
+const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const PROV = { claude: ["C", "Claude"], codex: ["X", "Codex"], opencode: ["O", "OpenCode"] };
+const MODELS = { claude: ["Sonnet 5.5", "Opus 5.5", "Haiku 4.5"], codex: ["GPT-6.1-Sol", "GPT-6-Luna"], opencode: ["Kimi K3", "DeepSeek V4.1 Flash"] };
+const prov = (p) => `<span class="prov ${p}">${PROV[p][0]}</span>`;
+
+const PLAN = [
+  { id: "ui", title: "Tela de login com botão Google", provider: "claude", model: "Sonnet 5.5", scope: ["src/ui/login/**", "package.json"], after: null, files: [["LoginScreen.tsx", 84, 6], ["GoogleButton.tsx", 41, 0]] },
+  { id: "api", title: "Rota OAuth no backend", provider: "codex", model: "GPT-6.1-Sol", scope: ["src/server/auth/**", "package.json"], after: null, files: [["oauth.ts", 112, 0], ["session.ts", 18, 4]] },
+  { id: "tests", title: "Testes de integração do login", provider: "opencode", model: "Kimi K3", scope: ["tests/auth/**"], after: "api", files: [["google-login.test.ts", 96, 0]] },
+];
+const STEPS = {
+  ui: [["read", "Leituras e buscas"], ["edit", "Alterações de arquivos"], ["edit", "Alterações de arquivos"], ["cmd", "Comando"]],
+  api: [["read", "Leituras e buscas"], ["read", "Leituras e buscas"], ["edit", "Alterações de arquivos"], ["cmd", "Comando"]],
+  tests: [["read", "Leituras e buscas"], ["edit", "Alterações de arquivos"], ["cmd", "Comando"]],
+};
+
+let variant = "e1", phase = 0, plan, run, timers = [], menuOpen = false;
+/* Entrance animation plays once per element key, so live re-renders never restart it. */
+const seen = new Set();
+const ent = (key) => { if (seen.has(key)) return ""; seen.add(key); return " enter"; };
+function fresh() {
+  plan = PLAN.map(t => ({ ...t, scope: [...t.scope] }));
+  run = { workers: Object.fromEntries(plan.map(t => [t.id, { state: t.after ? "blocked" : "queued", step: 0, secs: 0, merged: false }])), ask: null, approved: false };
+}
+fresh();
+const needs = () => $("#needs").checked;
+const conflict = () => $("#conflict").checked;
+const clear = () => { timers.forEach(clearTimeout); timers = []; };
+const later = (ms, fn) => timers.push(setTimeout(fn, ms * K()));
+const K = () => Number(getComputedStyle(document.documentElement).getPropertyValue("--k")) || 1;
+
+/* Phase 3 simulation: workers start, report steps, one asks permission, tests wait for the API task. */
+function startRun() {
+  clear(); fresh();
+  const w = run.workers;
+  w.ui.state = "running"; w.api.state = "running";
+  const tick = setInterval(() => { for (const x of Object.values(w)) if (x.state === "running") x.secs += 1; render(); }, 600);
+  timers.push(tick);
+  const step = (id, at) => later(at, () => { if (w[id].state === "running") { w[id].step = Math.min(STEPS[id].length - 1, w[id].step + 1); render(); } });
+  step("ui", 900); step("api", 1300); step("ui", 2100); step("api", 2600);
+  if (needs()) later(2900, () => { w.ui.state = "needs"; run.ask = "ui"; render(); });
+  else step("ui", 3200);
+  later(3800, () => { w.api.state = "done"; w.api.step = STEPS.api.length - 1; w.tests.state = "running"; render(); });
+  step("tests", 4600); step("tests", 5400);
+  later(needs() ? 999999 : 4400, () => { w.ui.state = "done"; render(); });
+  later(6200, () => { w.tests.state = "done"; render(); });
+}
+function approve() {
+  run.ask = null; run.approved = true; const w = run.workers;
+  w.ui.state = "running"; render();
+  later(700, () => { w.ui.step = STEPS.ui.length - 1; render(); });
+  later(1500, () => { w.ui.state = "done"; render(); });
+}
+function finishedRun() {
+  fresh();
+  for (const w of Object.values(run.workers)) { w.state = "done"; w.step = 3; w.secs = 40 + Math.round(Math.random() * 80); }
+}
+
+/* ---------- Pieces ---------- */
+const sidebar = () => {
+  const teamRows = phase >= 2 ? plan.map(t => { const w = run.workers[t.id]; return `<div class="row kid">${prov(t.provider)}<span class="t">${esc(t.title)}</span><span class="dot" data-s="${w.merged ? "merged" : w.state}"></span></div>`; }).join("") : "";
+  return `<aside class="side"><div class="lights"><i></i><i></i><i></i></div>
+    <div class="proj">${I.folder}<b style="font-weight:500">atlas</b></div>
+    <div class="row sel">${phase >= 1 ? I.team : prov("claude")}<span class="t">${phase >= 1 ? "Login com Google" : "Nova sessão"}</span>${phase >= 2 ? `<span class="pill">${doneCount()}/3</span>` : ""}</div>
+    ${variant === "e1" || variant === "e2" ? teamRows : teamRows}
+    <div class="row">${prov("codex")}<span class="t">Paginar o endpoint de eventos</span></div>
+    <div class="row">${prov("claude")}<span class="t">Refinar o modo escuro</span></div>
+    <div class="proj" style="margin-top:8px">${I.folder}orbit-api</div>
+  </aside>`;
+};
+const doneCount = () => Object.values(run.workers).filter(w => w.state === "done").length;
+const composer = () => `<div class="composer-zone">
+  ${menuOpen ? `<div class="menu"><button class="mi">${I.clip}<span>Anexar arquivos</span></button><button class="mi">${I.plan}<span>Planejar</span></button><button class="mi hl" data-pick-team>${I.team}<span>Equipe<small>Vários agentes, cada um no seu worktree</small></span></button><hr><button class="mi muted">Mais opções…</button></div>` : ""}
+  <div class="composer">
+    ${phase === 0 && !menuOpen && teamPicked ? `<div class="chips"><span class="teamchip">${I.team} Equipe · coordenador Claude Opus 5.5 ✕</span></div>` : ""}
+    <span>${phase === 0 && teamPicked ? "Adicionar login com Google: tela, backend e testes" : "Fale com o coordenador…"}</span>
+    <div class="ctl"><span class="plus" data-plus>${I.plus}</span><span>Pedir aprovação</span><span style="margin-left:auto">Opus 5.5</span><span class="send" style="margin-left:6px" data-send>${I.up}</span></div>
+  </div></div>`;
+let teamPicked = false;
+
+function planCard(readonly) {
+  const tasks = plan.map((t, n) => `<div class="task">
+    <span class="n">${n + 1}</span>
+    <span class="title" ${readonly ? "" : "contenteditable"} data-title="${t.id}">${esc(t.title)}</span>
+    <span>${readonly ? "" : `<button class="btn ghost" style="height:24px;padding:0 6px" title="Remover">✕</button>`}</span>
+    <div class="meta">
+      ${prov(t.provider)}
+      ${readonly ? `<span class="pill">${PROV[t.provider][1]} · ${t.model}</span>` : `<select data-prov="${t.id}">${Object.keys(PROV).map(p => `<option value="${p}"${p === t.provider ? " selected" : ""}>${PROV[p][1]}</option>`).join("")}</select><select data-model="${t.id}">${MODELS[t.provider].map(m => `<option${m === t.model ? " selected" : ""}>${m}</option>`).join("")}</select>`}
+      ${t.scope.map(s => `<span class="scope" title="${s.includes("*") ? "Só pode alterar estes arquivos" : "Arquivo compartilhado: junte na ordem"}">${I.lock}${esc(s)}${s.includes("*") ? "" : " · compartilhado"}</span>`).join("")}
+      ${t.after ? `<span class="pill">depois de ${plan.findIndex(x => x.id === t.after) + 1}</span>` : ""}
+      <span class="pill">${I.branch} worktree próprio</span>
+    </div></div>`).join("");
+  return `<div class="card${ent(readonly ? "plan-ro" : "plan")}">
+    <div class="card-h">${I.team}<h3>Plano da equipe</h3><span class="muted" style="font-size:12px">proposto pelo coordenador · Opus 5.5</span><span class="sp"></span>${readonly ? `<span class="pill">${I.check} Confirmado</span>` : `<span class="pill">3 de 3 ajudantes</span>`}</div>
+    ${tasks}
+    ${readonly ? "" : `<div class="card-f"><span class="note">Nada começa antes de você confirmar. Cada ajudante usa a conta e o limite do próprio provedor. Os passos seguem o modo “Pedir aprovação”.</span><button class="btn ghost">+ Tarefa</button><button class="btn ghost">Descartar</button><button class="btn primary" data-confirm>Confirmar e iniciar</button></div>`}
+  </div>`;
+}
+function stateText(t) {
+  const w = run.workers[t.id];
+  if (w.merged) return `<span class="ok">Juntado</span>`;
+  if (w.state === "blocked") return `Esperando “${esc(plan.find(x => x.id === t.after).title)}”`;
+  if (w.state === "queued") return "Na fila";
+  if (w.state === "needs") return `<span class="warn">Precisa de você · permissão</span>`;
+  if (w.state === "done") return `Pronto para revisar · ${t.files.length} ${t.files.length > 1 ? "arquivos" : "arquivo"}`;
+  return `<span class="live">${STEPS[t.id][w.step][1]}…</span>`;
+}
+/* Merge order: dependencies and shared files merge after the task they build on. */
+const mergeAfter = (t) => t.id === "tests" ? "api" : t.id === "ui" && conflict() ? "api" : null;
+function mergeButton(t, h = 24) {
+  const before = mergeAfter(t);
+  if (before && !run.workers[before].merged) return `<button class="btn" style="height:${h}px" disabled title="Junte “${esc(plan.find(x => x.id === before).title)}” primeiro">${I.merge} Depois de ${before === "api" ? "Rota OAuth" : before}</button>`;
+  return `<button class="btn primary" style="height:${h}px" data-merge="${t.id}">${I.merge} Juntar</button>`;
+}
+const fmt = (s) => s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
+function workerRow(t, compact) {
+  const w = run.workers[t.id];
+  const s = w.merged ? "merged" : w.state;
+  return `<div class="wk"><span class="dot" data-s="${s}"></span>
+    <span class="name">${prov(t.provider)}<span class="t">${esc(t.title)}</span></span>
+    <span class="end">${w.secs ? fmt(w.secs) : ""}${compact ? "" : `<button class="btn ghost" style="height:24px;padding:0 7px" title="Abrir sessão">${I.open}</button>`}</span>
+    <span class="sub">${t.model} · ${stateText(t)}</span>
+  </div>${run.ask === t.id ? `<div class="ask${ent("ask-" + variant)}"><b>${I.lock} Rodar <code>npm install @react-oauth/google</code>?</b><div class="muted" style="margin-top:2px">Pedido pelo ajudante “${esc(t.title)}” · worktree switchyard/login-ui</div><div class="acts"><button class="btn primary" data-approve>Permitir uma vez</button><button class="btn" data-approve>Recusar</button><button class="btn ghost">Abrir sessão</button></div></div>` : ""}`;
+}
+function teamCard() {
+  const running = Object.values(run.workers).some(w => w.state === "running" || w.state === "needs" || w.state === "blocked");
+  return `<div class="card${ent("team")}"><div class="card-h">${I.team}<h3>Equipe</h3><span class="muted" style="font-size:12px">${doneCount()} de 3 prontos</span><span class="sp"></span>${running ? `<button class="btn">${I.stop} Parar todos</button>` : `<button class="btn primary" data-goreview>Revisar e juntar</button>`}</div>
+    ${plan.map(t => workerRow(t)).join("")}</div>`;
+}
+function conflictNote(t) {
+  if (!conflict() || t.id !== "ui") return "";
+  return `<div class="warnbox">${I.warn} ${run.workers.api.merged ? "“Rota OAuth” já entrou e também mudou <code>package.json</code>. Se houver conflito ao juntar, nada é aplicado: o Switchyard mostra o conflito e você decide." : "Também altera <code>package.json</code>, que “Rota OAuth” mudou. Junte “Rota OAuth” primeiro; se houver conflito, você decide antes de continuar."}</div>`;
+}
+function reviewRows(compact) {
+  const order = ["api", "ui", "tests"];
+  return order.map(id => plan.find(t => t.id === id)).map((t, n) => {
+    const w = run.workers[t.id];
+    const files = t.files.concat(conflict() && t.id === "ui" ? [["package.json", 1, 0]] : []);
+    const add = files.reduce((a, f) => a + f[1], 0), del = files.reduce((a, f) => a + f[2], 0);
+    return `<div class="wk"><span class="dot" data-s="${w.merged ? "merged" : "done"}"></span>
+      <span class="name">${prov(t.provider)}<span class="t">${n + 1}. ${esc(t.title)}</span></span>
+      <span class="end">${w.merged ? `<span class="ok">${I.check} Juntado</span>` : `<button class="btn ghost" style="height:24px">${I.diff} Ver diff</button>${mergeButton(t)}`}</span>
+      <span class="sub"><span class="diffline">${files.length} ${files.length === 1 ? "arquivo" : "arquivos"} · <b>+${add}</b> <s>−${del}</s> · switchyard/${t.id === "ui" ? "login-ui" : t.id === "api" ? "login-api" : "login-tests"}</span></span>
+    </div>${w.merged ? "" : conflictNote(t)}`;
+  }).join("");
+}
+function reviewCard() {
+  const left = plan.filter(t => !run.workers[t.id].merged).length;
+  return `<div class="card${ent("review")}"><div class="card-h">${I.merge}<h3>Revisar e juntar</h3><span class="muted" style="font-size:12px">na ordem das dependências · nada é juntado automaticamente</span><span class="sp"></span><span class="pill">${3 - left}/3 juntados</span></div>
+    ${reviewRows()}
+    <div class="card-f"><span class="note">Juntar aplica as mudanças do worktree do ajudante na sua branch atual (merge normal, sem force). Depois você pode apagar os worktrees.</span><button class="btn ghost"${left ? " disabled" : ""}>Apagar worktrees</button></div></div>`;
+}
+const coordinatorIntro = () => `<div class="user">Adicionar login com Google: tela, backend e testes</div>
+  <div class="agentline">${prov("claude")}<b>Opus 5.5</b><span class="muted">Coordenador · investigou 9 arquivos em 24s</span></div>`;
+
+/* ---------- Variants ---------- */
+function mainChat(inner) { return `<section class="main"><div class="head">${phase >= 1 ? I.team : ""}<span>${phase >= 1 ? "Login com Google" : "Nova sessão"}</span>${phase >= 2 ? `<span class="pill">Equipe · ${doneCount()}/3</span>` : ""}<span class="sp"></span></div><div class="chat"><div class="col">${inner}</div></div>${composer()}</section>`; }
+function render() {
+  const app = $("#app");
+  let main = "", dock = "";
+  const intro = phase >= 1 ? coordinatorIntro() : `<div class="muted" style="text-align:center;margin-top:120px">O que vamos construir em atlas?</div>`;
+  if (phase === 0) main = mainChat(intro);
+  else if (phase === 1) main = mainChat(intro + planCard(false));
+  else if (variant === "e1") main = mainChat(intro + planCard(true) + (phase === 2 ? teamCard() : reviewCard()));
+  else if (variant === "e2") {
+    main = mainChat(intro + planCard(true) + `<div class="agentline">${prov("claude")}<b>Opus 5.5</b><span class="muted">${phase === 2 ? "Acompanhando a equipe no painel ao lado." : "Todos prontos. Revise e junte no painel ao lado."}</span></div>`);
+    dock = teamDock();
+  } else main = boardView();
+  app.toggleAttribute("data-dock", Boolean(dock));
+  app.innerHTML = sidebar() + main + dock;
+  wire();
+}
+function teamDock() {
+  const groups = phase === 2
+    ? [["needs", "Precisa de você"], ["running", "Trabalhando"], ["blocked", "Esperando"], ["done", "Pronto para revisar"]]
+    : [];
+  const body = phase === 2
+    ? groups.map(([s, name]) => { const ts = plan.filter(t => (run.workers[t.id].state === s) || (s === "running" && run.workers[t.id].state === "queued")); return ts.length ? `<div class="bucket">${name} <b>${ts.length}</b></div>${ts.map(t => workerRow(t, true)).join("")}` : ""; }).join("")
+    : reviewRows(true);
+  const running = phase === 2 && Object.values(run.workers).some(w => w.state !== "done");
+  return `<aside class="dock${ent("dock")}"><div class="dock-h"><span class="tab">Terminal</span><span class="tab on">${I.team} Equipe</span><span class="sp" style="flex:1"></span>${running ? `<button class="btn" style="height:24px">${I.stop} Parar todos</button>` : phase === 2 ? `<button class="btn primary" style="height:24px" data-goreview>Revisar e juntar</button>` : ""}</div><div class="dock-body">${body}</div>
+    ${phase === 3 ? `<div class="card-f" style="border-top:1px solid var(--bs)"><span class="note">Junte na ordem: “Rota OAuth” → “Tela” → “Testes”.</span></div>` : ""}</aside>`;
+}
+function boardView() {
+  const lanes = plan.map(t => {
+    const w = run.workers[t.id];
+    const s = w.merged ? "merged" : w.state;
+    const steps = STEPS[t.id].slice(0, phase === 3 ? STEPS[t.id].length : (w.state === "blocked" || w.state === "queued") ? 0 : w.step + 1);
+    return `<div class="lane${ent("lane-" + t.id)}" data-s="${s}"><div class="lane-h"><div class="tt"><span class="dot" data-s="${s}"></span>${prov(t.provider)}<span>${esc(t.title)}</span></div><div class="mm"><span class="pill">${t.model}</span>${t.scope.map(x => `<span class="scope">${I.lock}${esc(x)}</span>`).join("")}</div></div>
+      <div class="lane-b">${w.state === "blocked" && phase === 2 ? `<span class="muted">Esperando “${esc(plan.find(x => x.id === t.after).title)}”</span>` : steps.map((st, n) => `<div class="st">${I[st[0]]}<span class="lbl">${st[1]}</span>${n === steps.length - 1 && w.state === "running" ? '<span class="dot" data-s="running"></span>' : `<span class="ok">${I.check}</span>`}</div>`).join("")}
+      ${run.ask === t.id ? `<div class="ask" style="margin:6px 0 0"><b>${I.lock} npm install @react-oauth/google?</b><div class="acts"><button class="btn primary" data-approve>Permitir</button><button class="btn" data-approve>Recusar</button></div></div>` : ""}
+      ${phase === 3 ? `<div class="diffline" style="margin-top:auto">${t.files.length} ${t.files.length === 1 ? "arquivo" : "arquivos"} · <b>+${t.files.reduce((a, f) => a + f[1], 0)}</b> <s>−${t.files.reduce((a, f) => a + f[2], 0)}</s></div>${conflict() && t.id === "ui" && !w.merged ? `<div class="warnbox" style="margin:6px 0 0">${I.warn} ${run.workers.api.merged ? "Também mudou <code>package.json</code>: se conflitar, nada é aplicado e você decide." : "Toca <code>package.json</code> como “Rota OAuth”. Junte aquela primeiro."}</div>` : ""}` : ""}</div>
+      <div class="lane-f"><span class="muted" style="font-size:11.5px;flex:1">${w.secs ? fmt(w.secs) : ""}</span><button class="btn ghost" style="height:24px">${I.open} Abrir</button>${phase === 3 ? (w.merged ? `<span class="ok">${I.check} Juntado</span>` : mergeButton(t)) : ""}</div></div>`;
+  }).join("");
+  const running = phase === 2 && Object.values(run.workers).some(w => w.state !== "done");
+  return `<section class="main"><div class="head">${I.team}<span>Login com Google</span><span class="pill">Quadro da equipe</span><span class="sp"></span><button class="btn ghost" style="height:26px">Conversa do coordenador</button></div>
+    <div class="board">${lanes}</div>
+    <div class="boardbar"><span class="muted" style="flex:1;font-size:12px">${phase === 2 ? `${doneCount()} de 3 prontos · coordenador Opus 5.5 acompanhando` : "Junte na ordem: Rota OAuth → Tela → Testes. Nada é juntado automaticamente."}</span>${running ? `<button class="btn">${I.stop} Parar todos</button>` : phase === 2 ? `<button class="btn primary" data-goreview>Revisar e juntar</button>` : ""}</div></section>`;
+}
+function wire() {
+  $("[data-plus]")?.addEventListener("click", () => { menuOpen = !menuOpen; render(); });
+  $("[data-pick-team]")?.addEventListener("click", () => { menuOpen = false; teamPicked = true; render(); });
+  $("[data-send]")?.addEventListener("click", () => { if (phase === 0 && teamPicked) setPhase(1); });
+  $("[data-confirm]")?.addEventListener("click", () => setPhase(2));
+  document.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", approve));
+  document.querySelectorAll("[data-goreview]").forEach(b => b.addEventListener("click", () => setPhase(3)));
+  document.querySelectorAll("[data-merge]").forEach(b => b.addEventListener("click", () => { run.workers[b.dataset.merge].merged = true; render(); }));
+  document.querySelectorAll("[data-prov]").forEach(sel => sel.addEventListener("change", () => { const t = plan.find(x => x.id === sel.dataset.prov); t.provider = sel.value; t.model = MODELS[sel.value][0]; render(); }));
+  document.querySelectorAll("[data-title]").forEach(el => el.addEventListener("input", () => { plan.find(x => x.id === el.dataset.title).title = el.textContent; }));
+}
+function setPhase(p) {
+  clear(); phase = p; menuOpen = false; seen.clear();
+  if (p === 0) { fresh(); teamPicked = false; }
+  if (p === 1) { fresh(); teamPicked = true; }
+  if (p === 2) startRun();
+  if (p === 3) finishedRun();
+  document.querySelectorAll("#phases button").forEach(b => b.setAttribute("aria-current", String(Number(b.dataset.p) === p)));
+  render();
+}
+function play() {
+  setPhase(0);
+  later(700, () => { menuOpen = true; render(); });
+  later(1700, () => { menuOpen = false; teamPicked = true; render(); });
+  later(2900, () => setPhase(1));
+  later(5600, () => { clear(); phase = 2; startRun(); document.querySelectorAll("#phases button").forEach(b => b.setAttribute("aria-current", String(b.dataset.p === "2"))); render();
+    if (needs()) later(4200, approve);
+    later(9500, () => setPhase(3));
+  });
+}
+document.querySelectorAll("#variants .opt-card").forEach(b => b.onclick = () => { seen.clear(); variant = b.dataset.v; document.querySelectorAll("#variants .opt-card").forEach(x => x.setAttribute("aria-checked", String(x === b))); render(); });
+document.querySelectorAll("#phases button").forEach(b => b.onclick = () => setPhase(Number(b.dataset.p)));
+$("#play").onclick = play;
+$("#restart").onclick = () => setPhase(phase);
+$("#needs").onchange = () => setPhase(phase);
+$("#conflict").onchange = () => render();
+$("#theme").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("#theme").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); document.documentElement.dataset.theme = b.dataset.t; });
+const rm = $("#reduced"); rm.checked = matchMedia("(prefers-reduced-motion: reduce)").matches; rm.onchange = () => document.body.toggleAttribute("data-reduced", rm.checked); rm.onchange();
+document.querySelector('#variants [data-v="e1"]').setAttribute("aria-checked", "true");
+setPhase(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+html,body { margin:0; min-height:100%; }
+body { height:100dvh; min-height:620px; display:flex; flex-direction:column; background:var(--background-0); color:var(--text-primary); }
+button,a,input { -webkit-tap-highlight-color:transparent; }
+button { cursor:pointer; }
+button:disabled { cursor:default; }
+button:focus-visible,a:focus-visible,input:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+.comparison-bar { display:flex; min-height:68px; align-items:center; justify-content:space-between; gap:20px; padding:12px 24px; border-bottom:1px solid var(--border-default); background:var(--background-1); }
+.comparison-brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--text-primary); white-space:nowrap; }
+.comparison-brand img { width:26px; height:26px; object-fit:contain; }
+.comparison-brand > span { color:var(--text-muted); font-weight:400; }
+.effect-picker { display:flex; gap:4px; padding:4px; border:1px solid var(--border-subtle); border-radius:999px; background:var(--background-0); }
+.effect-picker button { display:flex; align-items:center; gap:8px; padding:6px 14px; border:0; border-radius:999px; background:transparent; color:var(--text-muted); transition:background var(--motion-fast),color var(--motion-fast); white-space:nowrap; }
+.effect-picker button > span { opacity:.6; }
+.effect-picker button:hover { color:var(--text-primary); }
+.effect-picker button[aria-pressed="true"] { background:var(--background-3); color:var(--text-primary); box-shadow:inset 0 0 0 1px var(--border-default); }
+.quiet-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:6px 10px; border:1px solid var(--border-subtle); border-radius:999px; color:var(--text-secondary); background:transparent; white-space:nowrap; }
+.quiet-button:hover { background:var(--background-3); color:var(--text-primary); }
+i { display:inline-flex; flex-shrink:0; }
+i svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+[data-icon="chevron"] svg { width:11px; height:11px; }
+.app-frame { flex:1; min-height:0; display:flex; flex-direction:column; }
+.window-header { display:flex; height:42px; min-height:42px; padding:0 20px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-subtle); }
+.window-header > span { display:flex; align-items:center; gap:9px; }
+.window-tools { color:var(--text-muted); }
+.landing { flex:1; min-height:0; position:relative; isolation:isolate; overflow:hidden; display:flex; align-items:center; flex-direction:column; }
+#effect-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.center-shade { position:absolute; inset:0; pointer-events:none; background:radial-gradient(ellipse at 50% 39%,color-mix(in srgb,var(--background-0) 70%,transparent),transparent 44%); }
+.import-banner { position:relative; display:flex; align-items:center; gap:16px; margin:22px 24px 0; flex-shrink:0; }
+.import-icons { display:flex; align-items:center; gap:7px; }
+.import-icons img { width:30px; height:30px; object-fit:contain; }
+.import-icons img:last-child { width:30px; }
+.import-dots { color:var(--brand-claude); letter-spacing:2px; font-weight:700; }
+.import-banner p { margin:0; }
+.import-banner p:first-child { font-weight:500; }
+.import-banner p:last-child { color:var(--text-muted); margin-top:3px; }
+.welcome { position:relative; flex:1; min-height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 24px; }
+.welcome img { height:54px; width:auto; margin-bottom:16px; object-fit:contain; }
+.welcome h1 { margin:0; text-shadow:0 2px 22px var(--background-0); }
+.composer-area { position:relative; width:min(calc(100% - 64px),var(--chat-column-width)); margin:0 auto 22px; }
+.workspace { display:flex; align-items:center; gap:22px; padding:0 10px 12px; color:var(--text-secondary); }
+.workspace > span { display:inline-flex; align-items:center; gap:7px; }
+.workspace i svg { width:13px; height:13px; }
+.agent-composer { position:relative; isolation:isolate; width:100%; border:1px solid var(--border-default); border-radius:var(--composer-radius); background:var(--background-2); box-shadow:0 8px 32px color-mix(in srgb,var(--background-0) 50%,transparent); }
+.agent-composer textarea { display:block; width:100%; min-height:var(--composer-editor-min-height); max-height:160px; padding:var(--composer-editor-padding-top) var(--composer-editor-padding-x-end) var(--composer-editor-padding-bottom) var(--composer-editor-padding-x); resize:none; background:transparent; border:0; border-radius:inherit; color:var(--text-primary); outline:none; }
+.agent-composer textarea::placeholder { color:var(--text-muted); }
+.composer-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; padding:0 var(--composer-footer-padding-end) var(--composer-footer-padding) var(--composer-footer-padding); }
+.footer-group { display:flex; align-items:center; gap:6px; }
+.composer-footer button { position:relative; display:inline-flex; align-items:center; justify-content:center; border:0; background:transparent; color:var(--text-secondary); }
+.composer-footer button:hover { color:var(--text-primary); }
+.composer-metal-button > i { position:relative; z-index:1; }
+.text-control { gap:6px; padding:0 8px; }
+.text-control img { width:15px; height:15px; object-fit:contain; }
+.text-control:hover { background:var(--background-3); }
+.composer-footer .send { background:var(--text-primary); color:var(--background-0); }
+.composer-footer .send:disabled { background:var(--background-3); color:var(--text-muted); }
+.add-menu { position:absolute; left:0; bottom:calc(100% + 10px); width:260px; padding:14px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--background-elevated); box-shadow:var(--shadow-float); }
+.add-menu p { margin:0 0 9px; color:var(--text-muted); }
+.add-menu button { display:flex; align-items:center; gap:8px; padding:5px 0; color:var(--text-secondary); }
+.comparison-footer { display:flex; min-height:64px; align-items:center; justify-content:space-between; gap:16px; padding:12px 24px; border-top:1px solid var(--border-default); background:var(--background-1); }
+.effect-caption { display:flex; align-items:center; gap:16px; min-width:0; }
+.effect-caption > span { color:var(--text-primary); font-family:var(--font-mono); white-space:nowrap; }
+.effect-caption p { margin:0; color:var(--text-muted); }
+.preview-adjustments { display:flex; align-items:center; gap:20px; }
+.intensity-control { display:flex; align-items:center; gap:10px; color:var(--text-muted); }
+.intensity-control input { width:92px; accent-color:var(--text-secondary); cursor:pointer; }
+.intensity-control output { width:32px; text-align:right; font-variant-numeric:tabular-nums; }
+.landing:has(textarea:focus) #effect-canvas { opacity:.55; }
+#effect-canvas { transition:opacity var(--motion-slow) var(--ease-out); }
+@media(prefers-reduced-motion:reduce) { * { transition:none!important; } }
+@media(min-width:1800px) { .welcome img { height:64px; } }
+@media(max-width:980px) { .comparison-brand > span { display:none; } .effect-picker button { padding:6px 10px; } .comparison-bar { gap:12px; padding:12px 16px; } .effect-caption { gap:8px; } .comparison-footer { padding:12px 16px; } .effect-caption p { max-width:320px; } }
+@media(max-width:700px) { body { min-height:700px; } .comparison-bar { flex-wrap:wrap; gap:10px; } .effect-picker { order:3; width:100%; justify-content:center; } .effect-picker button { flex:1; justify-content:center; padding:6px; } .comparison-brand { flex:1; } .import-banner { gap:10px; margin-top:20px; } .import-icons img { width:22px; height:22px; } .import-icons img:last-child { width:24px; } .import-icons { gap:4px; } .import-banner p:first-child { max-width:235px; } .import-banner p:last-child { max-width:215px; } .composer-area { width:calc(100% - 32px); margin-bottom:16px; } .workspace { gap:13px; } .composer-footer .text-control { padding:0 4px; } .composer-footer #model span { max-width:135px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .comparison-footer { flex-wrap:wrap; gap:10px; } .effect-caption { width:100%; } .effect-caption p { max-width:none; } .preview-adjustments { width:100%; justify-content:space-between; } }

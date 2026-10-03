@@ -1,0 +1,35 @@
+@layer components {
+  /* Changes pane: message + commit on top, changed files in the middle, history at the bottom. */
+  .changes-message { position: relative; }
+  .changes-message input { width: 100%; height: 34px; padding: 0 36px 0 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--background-2); color: var(--text-primary); font: inherit; font-size: var(--text-ui-13, 13px); outline: none; transition: border-color var(--motion-fast) var(--ease-out); }
+  .changes-message input::placeholder { color: var(--text-muted); }
+  .changes-message input:focus { border-color: var(--border-default); }
+  .changes-sparkle { position: absolute; top: 4px; right: 4px; display: flex; }
+  .changes-commit { display: flex; height: 32px; overflow: hidden; border-radius: var(--radius-md); background: var(--background-3); }
+  .changes-commit button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: var(--text-primary); transition: background-color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  .changes-commit-main { flex: 1; font-weight: 500; }
+  .changes-commit-more { width: 34px; border-left: 1px solid var(--border-subtle); }
+  .changes-commit button:hover:not(:disabled) { background: var(--navigation-hover); }
+  .changes-commit button:disabled { opacity: .45; cursor: default; }
+  .changes-commit button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .changes-group { padding: 2px 0 6px; }
+  .changes-group-head { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 6px 0 12px; color: var(--text-secondary); }
+  .changes-group-head h3 { margin: 0; font-weight: 500; }
+  .changes-row { position: relative; display: flex; align-items: center; gap: 4px; height: 28px; margin: 0 4px; padding-right: 6px; border-radius: var(--radius-sm); }
+  .changes-row:hover, .changes-row[data-open] { background: var(--navigation-hover); }
+  .changes-row-main { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; height: 100%; padding: 0 0 0 8px; text-align: left; border-radius: var(--radius-sm); }
+  .changes-row-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .changes-row-action { opacity: 0; color: var(--text-muted); }
+  .changes-row:hover .changes-row-action, .changes-row:focus-within .changes-row-action { opacity: 1; }
+  .changes-kind { width: 14px; flex-shrink: 0; text-align: center; font-weight: 600; color: var(--text-muted); }
+  .changes-kind[data-kind="modified"] { color: var(--warning); }
+  .changes-kind[data-kind="added"], .changes-kind[data-kind="untracked"] { color: var(--success); }
+  .changes-kind[data-kind="deleted"], .changes-kind[data-kind="conflicted"] { color: var(--danger); }
+  .changes-diff { position: relative; height: 260px; margin: 2px 8px 6px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--background-1); }
+  .changes-history-head { display: flex; align-items: center; justify-content: space-between; height: 36px; padding: 0 12px; cursor: pointer; list-style: none; color: var(--text-secondary); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .changes-history-head::-webkit-details-marker { display: none; }
+  .changes-history-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .changes-history-chevron { color: var(--text-muted); transform: rotate(-90deg); transition: transform var(--motion-fast) var(--ease-out); }
+  .changes-history[open] .changes-history-chevron { transform: none; }
+  @media (prefers-reduced-motion: reduce) { .changes-message input, .changes-commit button { transition: none; } }
+}

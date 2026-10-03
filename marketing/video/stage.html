@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Switchyard · recording stage</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #050506; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif; -webkit-font-smoothing: antialiased; }
+  /* Wallpaper: deep space, faint orbits, a planet rim — the landing hero's language. */
+  .wall { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(1200px 700px at 50% 120%, #17181d 0%, transparent 70%), radial-gradient(900px 600px at 50% -20%, #121318 0%, transparent 70%), #050506; }
+  .wall .orbit { position: absolute; left: 50%; top: 50%; border: 1px solid rgb(255 255 255 / .05); border-radius: 50%; transform: translate(-50%, -50%) rotate(-12deg); }
+  .wall .star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px 1px rgb(255 255 255 / .6); opacity: .5; animation: twinkle 4s ease-in-out infinite; }
+  @keyframes twinkle { 50% { opacity: .15; } }
+  .planet { position: absolute; left: -260px; bottom: -520px; width: 900px; height: 900px; border-radius: 50%; background: radial-gradient(circle at 65% 25%, #2a2b30 0%, #0d0d10 45%, #050506 70%); box-shadow: inset -30px 20px 80px rgb(255 255 255 / .06), 0 0 120px rgb(255 255 255 / .03); }
+
+  .camera { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+  .window { position: absolute; left: 240px; top: 90px; width: 1440px; height: 900px; border-radius: 14px; overflow: hidden; background: #0c0c0c; box-shadow: 0 0 0 1px rgb(255 255 255 / .09), 0 40px 120px rgb(0 0 0 / .65), 0 12px 40px rgb(0 0 0 / .5); opacity: 0; transform: translateY(24px) scale(.97); }
+  .window iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #0c0c0c; }
+  .lights { position: absolute; left: 16px; top: 15px; display: flex; gap: 8px; z-index: 2; pointer-events: none; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; background: #ff5f57; box-shadow: inset 0 0 0 .5px rgb(0 0 0 / .2); }
+  .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+
+  .cursor { position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 30; pointer-events: none; opacity: 0; filter: drop-shadow(0 2px 4px rgb(0 0 0 / .5)); transition: opacity .3s; }
+  .ripple { position: absolute; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; border: 2px solid rgb(255 255 255 / .8); z-index: 29; pointer-events: none; animation: ripple .55s cubic-bezier(.16, 1, .3, 1) forwards; }
+  @keyframes ripple { from { transform: scale(.3); opacity: .9; } to { transform: scale(1.4); opacity: 0; } }
+
+  .card { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; text-align: center; color: #ececec; pointer-events: none; opacity: 0; }
+  .card img { width: 120px; height: 120px; filter: drop-shadow(0 0 40px rgb(255 255 255 / .18)); }
+  .card h1 { margin: 26px 0 0; font-size: 76px; font-weight: 650; letter-spacing: -.035em; line-height: 1.02; background: linear-gradient(180deg, #fff 0%, #9a9aa2 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .card p { margin: 18px 0 0; font-size: 24px; letter-spacing: .01em; color: #8d8d95; }
+  .card .chips { display: flex; gap: 12px; justify-content: center; margin-top: 30px; }
+  .card .chips span { padding: 8px 16px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .12); background: rgb(255 255 255 / .04); color: #c9c9cf; font-size: 17px; }
+  .caption { position: absolute; left: 50%; bottom: 46px; z-index: 35; transform: translateX(-50%) translateY(8px); padding: 12px 22px; border-radius: 999px; background: rgb(18 18 20 / .78); border: 1px solid rgb(255 255 255 / .1); backdrop-filter: blur(18px); color: #ececec; font-size: 22px; font-weight: 500; letter-spacing: -.01em; opacity: 0; white-space: nowrap; }
+  .caption b { color: #fff; }
+</style>
+</head>
+<body>
+  <div class="wall" id="wall"><div class="planet"></div></div>
+  <div class="camera" id="camera">
+    <div class="window" id="window">
+      <iframe id="app" title="Switchyard"></iframe>
+      <div class="lights"><i></i><i></i><i></i></div>
+    </div>
+  </div>
+  <svg class="cursor" id="cursor" viewBox="0 0 26 26"><path d="M5 3l15 9.5-6.6 1.3 3.9 7.4-3 1.5-3.9-7.4L5 20z" fill="#fff" stroke="#000" stroke-width="1.3" stroke-linejoin="round"/></svg>
+  <div class="caption" id="caption"></div>
+  <div class="card" id="card"></div>
+<script>
+  const wall = document.getElementById("wall");
+  [520, 820, 1180, 1560, 2000].forEach((size, i) => { const o = document.createElement("div"); o.className = "orbit"; o.style.width = `${size * 1.6}px`; o.style.height = `${size * .62}px`; o.style.opacity = 1 - i * .12; wall.appendChild(o); });
+  for (let i = 0; i < 70; i++) { const s = document.createElement("div"); s.className = "star"; s.style.left = `${(i * 137.5) % 1920}px`; s.style.top = `${(i * 263.1) % 1080}px`; s.style.animationDelay = `${(i % 9) * .45}s`; s.style.transform = `scale(${.5 + (i % 4) * .25})`; wall.appendChild(s); }
+
+  const EASE = "cubic-bezier(.65, 0, .35, 1)";
+  const camera = document.getElementById("camera"), cursor = document.getElementById("cursor");
+  let cam = { tx: 0, ty: 0, s: 1 }, cur = { x: 960, y: 980 };
+  const camTransform = ({ tx, ty, s }) => `translate(${tx}px, ${ty}px) scale(${s})`;
+  window.studio = {
+    /** Centers window point (x, y) at scale s. */
+    camera(x, y, s, ms = 1300) {
+      const next = { tx: 960 - s * (240 + x), ty: 540 - s * (90 + y), s };
+      camera.animate([{ transform: camTransform(cam) }, { transform: camTransform(next) }], { duration: ms, easing: EASE, fill: "forwards" });
+      cam = next;
+      return new Promise((r) => setTimeout(r, ms));
+    },
+    reset(ms = 1300) { return this.camera(720, 450, 1, ms); },
+    showWindow(ms = 900) {
+      return document.getElementById("window").animate([{ opacity: 0, transform: "translateY(24px) scale(.97)" }, { opacity: 1, transform: "none" }], { duration: ms, easing: "cubic-bezier(.16, 1, .3, 1)", fill: "forwards" }).finished;
+    },
+    load(src) { document.getElementById("app").src = src; },
+    cursorTo(x, y, ms = 700) {
+      cursor.style.opacity = 1;
+      cursor.animate([{ transform: `translate(${cur.x - 4}px, ${cur.y - 3}px)` }, { transform: `translate(${x - 4}px, ${y - 3}px)` }], { duration: ms, easing: EASE, fill: "forwards" });
+      cur = { x, y };
+      return new Promise((r) => setTimeout(r, ms));
+    },
+    hideCursor() { cursor.style.opacity = 0; },
+    ripple() { const r = document.createElement("div"); r.className = "ripple"; r.style.left = `${cur.x}px`; r.style.top = `${cur.y}px`; document.body.appendChild(r); setTimeout(() => r.remove(), 600); },
+    caption(html) {
+      const el = document.getElementById("caption");
+      if (!html) { el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: "forwards" }); return; }
+      el.innerHTML = html;
+      el.animate([{ opacity: 0, transform: "translateX(-50%) translateY(10px)" }, { opacity: 1, transform: "translateX(-50%)" }], { duration: 600, easing: "cubic-bezier(.16, 1, .3, 1)", fill: "forwards" });
+    },
+    card(html, ms = 900) {
+      const el = document.getElementById("card"); el.innerHTML = html;
+      el.querySelector("img")?.animate([{ opacity: 0, transform: "scale(.85)", filter: "blur(8px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }], { duration: ms, easing: "cubic-bezier(.34, 1.32, .64, 1)", fill: "both" });
+      el.querySelectorAll("h1, p, .chips").forEach((node, i) => node.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }], { duration: ms, delay: 180 + i * 160, easing: "cubic-bezier(.16, 1, .3, 1)", fill: "both" }));
+      return el.animate([{ opacity: 0, filter: "blur(0)" }, { opacity: 1, filter: "blur(0)" }], { duration: 400, fill: "forwards" }).finished;
+    },
+    hideCard(ms = 700) { return document.getElementById("card").animate([{ opacity: 1, filter: "blur(0)" }, { opacity: 0, filter: "blur(10px)" }], { duration: ms, easing: "ease-in", fill: "forwards" }).finished; },
+    dimWindow(on, ms = 700) { return document.getElementById("window").animate([{ opacity: on ? 1 : .15, filter: on ? "blur(0)" : "blur(8px)" }, { opacity: on ? .15 : 1, filter: on ? "blur(8px)" : "blur(0)" }], { duration: ms, fill: "forwards" }).finished; },
+  };
+</script>
+</body>
+</html>

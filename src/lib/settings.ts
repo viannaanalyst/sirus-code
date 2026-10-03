@@ -1,0 +1,232 @@
+import { monoFontFamily, uiFontFamily, UI_FONTS, MONO_FONTS } from "./fonts";
+import { resolveAppearanceMaterial } from "./appearance";
+import { sanitizeShortcuts } from "./keybindings";
+import { defaultProfile, normalizeProfile } from "./profile-stats";
+import { defaultNotifications, normalizeNotifications } from "./notifications";
+import type { AgentProviderId, AppSettings } from "@/client/types";
+import { AGENT_PROVIDER_IDS } from "@/client/types";
+
+export const defaultSettings: AppSettings = {
+  notifications: defaultNotifications,
+  profile: defaultProfile,
+  usageProviders: ["codex"],
+  defaultAgent: "codex",
+  openLastProject: true,
+  worktreeBasePath: null,
+  defaultSessionWorkspace: "ask",
+  confirmCloseRunning: true,
+  restorePreviousSessions: true,
+  checkForUpdates: false,
+  disabledProviders: [],
+  providerPaths: {},
+  theme: "dark",
+  darkWindowTranslucent: false,
+  lightWindowTranslucent: false,
+  darkWindowOpacity: 85,
+  lightWindowOpacity: 85,
+  darkSidebarTranslucent: false,
+  lightSidebarTranslucent: false,
+  darkSidebarOpacity: 72,
+  lightSidebarOpacity: 38,
+  translucentOpacity: 85,
+  systemUiFont: true,
+  uiFont: "inter",
+  codeFont: "plexMono",
+  codeFontSize: 13,
+  terminalFont: "plexMono",
+  fontSmoothing: true,
+  dockIcon: "default",
+  density: "default",
+  animations: true,
+  composerLineSpeed: "slow",
+  glass: false,
+  pointerGlow: true,
+  reduceMotion: false,
+  uiFontSize: 13,
+  gitAutoFetch: false,
+  gitShowUntracked: true,
+  gitConfirmDestructive: true,
+  worktreeLocation: "automatic",
+  worktreeBranchPattern: "switchyard/{session-name}",
+  terminalUseSystemShell: true,
+  terminalFontSize: 13,
+  terminalCursorStyle: "block",
+  terminalScrollback: 2000,
+  developerLogs: false,
+  computerUseEnabled: false,
+  experimental: false,
+  disabledModels: [],
+  disabledSkills: [],
+  favoriteModels: [],
+  defaultModel: null,
+  modelExecution: {},
+  sidebarCollapsed: false,
+  sidebarProjectOrder: [],
+  sidebarProjectSortOrder: "manual",
+  sidebarThreadSortOrder: "created_at",
+  pinnedProjectIds: [],
+  pinnedSessionIds: [],
+  archivedSessionIds: [],
+  environmentPanelDefaultOpen: false,
+  showEnvironmentUsage: true,
+  showEnvironmentRepository: true,
+  showEnvironmentEditor: true,
+  showEnvironmentPullRequest: true,
+  showEnvironmentPinned: true,
+  showEnvironmentNotepad: true,
+  showEnvironmentInstructions: true,
+  enableProviderUpdateChecks: true,
+  locale: "pt-BR",
+  customShortcuts: {},
+};
+
+export function mergeSettings(value: Partial<AppSettings> | null | undefined): AppSettings {
+  return {
+    ...defaultSettings,
+    ...value,
+    notifications: normalizeNotifications(value?.notifications),
+    profile: normalizeProfile(value?.profile),
+    usageProviders: [...new Set((value?.usageProviders ?? defaultSettings.usageProviders).filter((id) => AGENT_PROVIDER_IDS.includes(id)))].slice(0, AGENT_PROVIDER_IDS.length),
+    disabledProviders: value?.disabledProviders ?? [],
+    providerPaths: value?.providerPaths ?? {},
+    modelExecution: value?.modelExecution ?? {},
+    disabledModels: value?.disabledModels ?? [],
+    computerUseEnabled: value?.computerUseEnabled === true,
+    disabledSkills: [...new Set((value?.disabledSkills ?? []).filter(name => typeof name === "string" && /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(name)))].slice(0, 512),
+    favoriteModels: value?.favoriteModels ?? [],
+    sidebarProjectOrder: sidebarIds(value?.sidebarProjectOrder),
+    sidebarProjectSortOrder: value?.sidebarProjectSortOrder === "created_at" ? "created_at" : "manual",
+    sidebarThreadSortOrder: value?.sidebarThreadSortOrder === "updated_at" ? "updated_at" : "created_at",
+    showEnvironmentUsage: typeof value?.showEnvironmentUsage === "boolean" ? value.showEnvironmentUsage : true,
+    showEnvironmentRepository: typeof value?.showEnvironmentRepository === "boolean" ? value.showEnvironmentRepository : true,
+    showEnvironmentEditor: typeof value?.showEnvironmentEditor === "boolean" ? value.showEnvironmentEditor : true,
+    showEnvironmentPullRequest: typeof value?.showEnvironmentPullRequest === "boolean" ? value.showEnvironmentPullRequest : true,
+    showEnvironmentPinned: typeof value?.showEnvironmentPinned === "boolean" ? value.showEnvironmentPinned : true,
+    showEnvironmentNotepad: typeof value?.showEnvironmentNotepad === "boolean" ? value.showEnvironmentNotepad : true,
+    showEnvironmentInstructions: typeof value?.showEnvironmentInstructions === "boolean" ? value.showEnvironmentInstructions : true,
+    pinnedProjectIds: sidebarIds(value?.pinnedProjectIds),
+    pinnedSessionIds: sidebarIds(value?.pinnedSessionIds),
+    archivedSessionIds: sidebarIds(value?.archivedSessionIds),
+    gitConfirmDestructive: true,
+    composerLineSpeed: value?.composerLineSpeed === "smooth" || value?.composerLineSpeed === "fast" ? value.composerLineSpeed : "slow",
+    theme: value?.theme === "light" || value?.theme === "system" ? value.theme : "dark",
+    darkWindowTranslucent: (value?.theme as string) === "translucent" || booleanPreference(value?.darkWindowTranslucent, false),
+    lightWindowTranslucent: booleanPreference(value?.lightWindowTranslucent, false),
+    darkWindowOpacity: boundedInteger((value?.theme as string) === "translucent" ? value?.translucentOpacity : value?.darkWindowOpacity, 25, 100, 85),
+    lightWindowOpacity: boundedInteger(value?.lightWindowOpacity, 25, 100, 85),
+    density: value?.density === "compact" || value?.density === "comfortable" ? value.density : "default",
+    darkSidebarTranslucent: booleanPreference(value?.darkSidebarTranslucent, false),
+    lightSidebarTranslucent: booleanPreference(value?.lightSidebarTranslucent, false),
+    darkSidebarOpacity: boundedInteger(value?.darkSidebarOpacity, 25, 100, 72),
+    lightSidebarOpacity: boundedInteger(value?.lightSidebarOpacity, 25, 100, 38),
+    translucentOpacity: boundedInteger(value?.translucentOpacity, 25, 100, 85),
+    systemUiFont: booleanPreference(value?.systemUiFont, true),
+    uiFont: UI_FONTS.some(font => font.id === value?.uiFont) ? value!.uiFont! : "inter",
+    codeFont: MONO_FONTS.some(font => font.id === value?.codeFont) ? value!.codeFont! : "plexMono",
+    terminalFont: MONO_FONTS.some(font => font.id === value?.terminalFont) ? value!.terminalFont! : "plexMono",
+    uiFontSize: boundedInteger(value?.uiFontSize, 11, 18, 13),
+    codeFontSize: boundedInteger(value?.codeFontSize, 10, 22, 13),
+    terminalFontSize: boundedInteger(value?.terminalFontSize, 10, 22, 13),
+    fontSmoothing: booleanPreference(value?.fontSmoothing, true),
+    dockIcon: value?.dockIcon === "smokedGlass" || value?.dockIcon === "white" ? value.dockIcon : "default",
+    locale: value?.locale === "en" ? "en" : "pt-BR",
+    customShortcuts: sanitizeShortcuts(value?.customShortcuts),
+  };
+}
+
+function sidebarIds(ids: string[] | undefined): string[] {
+  return [...new Set((ids ?? []).filter((id) => typeof id === "string" && id.length > 0 && id.length <= 64))].slice(0, 4096);
+}
+
+export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject",
+  "confirmCloseRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
+  "environmentPanelDefaultOpen", "showEnvironmentUsage", "showEnvironmentRepository", "showEnvironmentEditor", "showEnvironmentPullRequest",
+  "showEnvironmentPinned", "showEnvironmentNotepad", "showEnvironmentInstructions"] as const satisfies readonly (keyof AppSettings)[];
+
+/** A future-session preference, not a change to the selected native Session. */
+export function chooseDefaultProvider(settings: AppSettings, provider: AgentProviderId): AppSettings {
+  const model = parseModelKey(settings.defaultModel);
+  return { ...settings, defaultAgent: provider, defaultModel: model?.provider === provider ? settings.defaultModel : null };
+}
+
+/** Restore this page's preferences while preserving other pages and owned metadata. */
+export function resetGeneralSettings(settings: AppSettings): AppSettings {
+  const restored = chooseDefaultProvider(settings, defaultSettings.defaultAgent);
+  for (const key of GENERAL_SETTING_KEYS) Object.assign(restored, { [key]: defaultSettings[key] });
+  return restored;
+}
+
+export function isProviderEnabled(settings: AppSettings, id: AgentProviderId) {
+  return !settings.disabledProviders.includes(id);
+}
+
+export function modelKey(provider: AgentProviderId, modelId: string) {
+  return `${provider}::${modelId}`;
+}
+
+export function parseModelKey(key: string | null | undefined): { provider: AgentProviderId; id: string } | null {
+  if (!key) return null;
+  const index = key.indexOf("::");
+  if (index <= 0) return null;
+  const candidate = key.slice(0, index);
+  if (!(AGENT_PROVIDER_IDS as readonly string[]).includes(candidate)) return null;
+  const provider = candidate as AgentProviderId;
+  const id = key.slice(index + 2);
+  if (!id) return null;
+  return { provider, id };
+}
+
+export function isModelFavorite(settings: AppSettings, provider: AgentProviderId, modelId: string) {
+  return settings.favoriteModels.includes(modelKey(provider, modelId));
+}
+
+export function applyAppearance(settings: AppSettings, support?: import("@/client/types").AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
+  const normalized = mergeSettings(settings);
+  const root = document.documentElement;
+  const material = resolveAppearanceMaterial(normalized, support, systemPalette);
+  root.dataset.theme = material.palette;
+  root.dataset.appearance = normalized.theme;
+  root.dataset.windowGlass = material.windowGlass ? "on" : "off";
+  root.dataset.sidebarGlass = material.sidebarGlass ? "on" : "off";
+  root.dataset.popupGlass = material.sidebarGlass ? "on" : "off";
+  root.dataset.density = normalized.density;
+  root.dataset.animations = normalized.animations ? "on" : "off";
+  root.dataset.pointerGlow = normalized.pointerGlow ? "on" : "off";
+  root.dataset.reduceMotion = normalized.reduceMotion ? "on" : "off";
+  root.dataset.fontSmoothing = normalized.fontSmoothing ? "on" : "off";
+  root.style.fontSize = "13px";
+  root.style.setProperty("--ui-font-scale", String(normalized.uiFontSize / 13));
+  for (const name of ["--font-sans", "--font-body", "--font-display"]) root.style.setProperty(name, uiFontFamily(normalized));
+  root.style.setProperty("--code-font-family", monoFontFamily(normalized.codeFont));
+  root.style.setProperty("--code-font-size", `${normalized.codeFontSize}px`);
+  root.style.setProperty("--terminal-font-family", monoFontFamily(normalized.terminalFont));
+  root.style.setProperty("--window-opacity", `${material.windowOpacity}%`);
+  root.style.setProperty("--sidebar-opacity", `${material.sidebarOpacity}%`);
+  root.style.setProperty("--popup-opacity", `${Math.max(68, Math.min(95, material.windowGlass ? material.windowOpacity : material.sidebarOpacity))}%`);
+}
+
+function boundedInteger(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+}
+function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
+
+export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
+export function resetAppearanceSettings(settings: AppSettings): AppSettings {
+  const restored = { ...settings };
+  for (const key of APPEARANCE_SETTING_KEYS) Object.assign(restored, { [key]: defaultSettings[key] });
+  return restored;
+}
+
+export type SettingsSectionId =
+  | "notifications"
+  | "general"
+  | "profile"
+  | "providers"
+  | "skills"
+  | "computer"
+  | "appearance"
+  | "git"
+  | "worktrees"
+  | "terminal"
+  | "keybindings"
+  | "advanced";

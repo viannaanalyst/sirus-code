@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "composite": false },
+  "include": ["workspace-tools*.tsx", "workspace-tools*.ts", "../../src/vite-env.d.ts"],
+  "references": []
+}

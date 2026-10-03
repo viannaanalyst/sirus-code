@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Switchyard · Subagentes na trilha</title>
+<style>
+  :root {
+    --bg: #070707; --surface: #111; --elev: #191919; --control: #242424; --hover: rgb(255 255 255 / .05);
+    --bs: rgb(255 255 255 / .06); --bd: rgb(255 255 255 / .1);
+    --fg: #ececec; --t2: #b4b4b4; --tm: #7d7d7d;
+    --run: #6ea8fe; --wait: #f5a524; --ok: #3dd68c; --bad: #e5484d;
+    --ease: cubic-bezier(.16, 1, .3, 1); --spring: cubic-bezier(.34, 1.32, .64, 1);
+    --k: 1; color-scheme: dark;
+  }
+  [data-theme="light"] { --bg: #e9e9ec; --surface: #fafafa; --elev: #f1f1f3; --control: #e4e4e7; --hover: rgb(0 0 0 / .04); --bs: rgb(0 0 0 / .07); --bd: rgb(0 0 0 / .11); --fg: #18181b; --t2: #52525b; --tm: #8a8a93; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  svg.i { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  code, .mono { font: 11.5px/1.5 "SF Mono", ui-monospace, Menlo, monospace; }
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; max-width: 1360px; margin: 0 auto; padding: 28px; align-items: start; }
+  .intro { grid-column: 1 / -1; }
+  .intro h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .intro p { margin: 0; color: var(--tm); max-width: 820px; }
+
+  .window { border-radius: 14px; background: var(--surface); border: 1px solid var(--bd); box-shadow: 0 30px 80px rgb(0 0 0 / .35); overflow: hidden; display: flex; flex-direction: column; min-height: 720px; }
+  .bar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--bs); color: var(--tm); font-size: 12px; }
+  .bar i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; } .bar i:nth-child(2) { background: #febc2e; } .bar i:nth-child(3) { background: #28c840; margin-right: 10px; }
+  .chat { flex: 1; padding: 26px 0 20px; overflow: auto; }
+  .col { max-width: 700px; margin: 0 auto; padding: 0 28px; display: flex; flex-direction: column; gap: 18px; }
+  .user { align-self: flex-end; max-width: 80%; padding: 9px 15px; border-radius: 18px; background: var(--control); }
+  .reply { color: var(--t2); line-height: 1.7; }
+  .reply[hidden] { display: none; }
+  .reply.enter { animation: rise calc(420ms * var(--k)) var(--ease) both; }
+  .composer-zone { max-width: 700px; width: 100%; margin: 0 auto; padding: 0 28px 22px; }
+  .composer { border: 1px solid var(--bd); border-radius: 16px; background: var(--elev); padding: 12px 14px 10px; color: var(--tm); }
+  .composer .ctl { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 12px; }
+  .composer .stop { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fg); color: var(--surface); }
+  .composer .stop i { width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+
+  /* ---------- Orbit (the spinning world) ---------- */
+  .orbit { --c: var(--fg); flex-shrink: 0; overflow: visible; }
+  .orbit .o-ring { fill: none; stroke: var(--c); stroke-width: 1.5; opacity: .9; }
+  .orbit .o-core, .orbit .o-sat { fill: var(--c); }
+  .orbit[data-s="completed"] { --c: var(--ok); }
+  .orbit[data-s="failed"] { --c: var(--bad); }
+  .orbit[data-tint] { --c: var(--tint); }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @keyframes pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--run) 55%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
+
+  .model { color: var(--fg); font-weight: 500; }
+  .muted { color: var(--tm); } .t2 { color: var(--t2); }
+  .elapsed { font-variant-numeric: tabular-nums; color: var(--tm); }
+  .live { background: linear-gradient(90deg, var(--tm) 0%, var(--tm) 40%, var(--fg) 50%, var(--tm) 60%, var(--tm) 100%) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer calc(2.4s * var(--k)) linear infinite; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--tm); }
+  .dot[data-s="running"] { background: var(--run); animation: pulse calc(1.6s * var(--k)) ease-out infinite; }
+  .dot[data-s="completed"] { background: var(--ok); } .dot[data-s="failed"] { background: var(--bad); }
+  .chev { transition: transform calc(240ms * var(--k)) var(--ease); color: var(--tm); }
+  [aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .kind { display: inline-grid; place-items: center; width: 16px; color: var(--tm); }
+  .row { display: flex; align-items: center; gap: 8px; min-height: 26px; color: var(--t2); font-size: 12px; }
+  .row .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .end { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--tm); font-size: 11px; flex-shrink: 0; }
+  .row.enter { animation: rise calc(380ms * var(--k)) var(--ease) both; }
+  .row[data-s="failed"] .lbl { color: var(--bad); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+
+  /* The trail as it ships today (V2). */
+  .head { display: flex; align-items: center; gap: 9px; min-height: 30px; }
+  .trail { position: relative; margin: 8px 0 0 8px; padding-left: 22px; }
+  .trail::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--bd); }
+  .trail > .row::before, .trail > .sa > .sa-row::before { content: ""; position: absolute; left: -25px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--surface); border: 1px solid var(--bd); }
+  .trail > .row, .trail > .sa > .sa-row { position: relative; }
+  .trail > .row[data-s="completed"]::before, .trail > .sa[data-s="completed"] > .sa-row::before { background: var(--tm); border-color: var(--tm); }
+  .trail > .row[data-s="failed"]::before, .trail > .sa[data-s="failed"] > .sa-row::before { background: var(--bad); border-color: var(--bad); }
+  .trail > .sa[data-s="running"] > .sa-row::before { background: var(--tint); border-color: var(--tint); }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0 30px; }
+  .file { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--bs); background: var(--elev); font-size: 11.5px; color: var(--t2); }
+  .file b { font-weight: 500; color: var(--ok); } .file s { text-decoration: none; color: var(--bad); }
+
+  /* Subagent identity: a stable tint per name. */
+  .name { color: var(--fg); font-weight: 500; }
+  .tag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px; background: var(--hover); color: var(--tm); font-size: 10.5px; }
+  .now-step { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+  .err { margin: 4px 0 6px; padding: 7px 9px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--bad) 35%, var(--bd)); background: color-mix(in srgb, var(--bad) 6%, var(--elev)); color: var(--t2); font-size: 11.5px; animation: rise calc(380ms * var(--k)) var(--ease) both; }
+  .err b { color: var(--bad); font-weight: 500; }
+  .collapse { display: grid; grid-template-rows: 0fr; transition: grid-template-rows calc(340ms * var(--k)) var(--ease), opacity calc(240ms * var(--k)); opacity: 0; }
+  .collapse[data-open] { grid-template-rows: 1fr; opacity: 1; }
+  .collapse > div { min-height: 0; overflow: hidden; }
+
+  /* ===== S1 · Ramo ===== */
+  .sa-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 28px; font-size: 12px; color: var(--t2); border-radius: 7px; }
+  .sa-row:hover .name { text-decoration: underline; text-decoration-color: var(--bd); text-underline-offset: 3px; }
+  .sa.enter { animation: rise calc(420ms * var(--k)) var(--spring) both; }
+  .s1-live { margin: -4px 0 4px 24px; color: var(--tm); }
+  .s1-kids { position: relative; margin: 2px 0 6px 7px; padding-left: 17px; }
+  .s1-kids::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--tint) 55%, transparent); }
+  .s1-kids .row { min-height: 23px; font-size: 11.5px; }
+
+  /* ===== S2 · Faixa sobre o composer ===== */
+  .strip { margin-bottom: 8px; border: 1px solid var(--bd); border-radius: 12px; background: var(--elev); overflow: hidden; animation: rise calc(420ms * var(--k)) var(--spring) both; }
+  .strip.leave { animation: stripout calc(380ms * var(--k)) var(--ease) forwards; }
+  @keyframes stripout { to { opacity: 0; transform: translateY(6px); } }
+  .strip-head { display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 12px; font-size: 12px; color: var(--t2); }
+  .strip-head .chev { margin-left: auto; }
+  .strip-list { border-top: 1px solid var(--bs); padding: 4px 6px 6px; }
+  .s2-row { display: grid; grid-template-columns: 8px minmax(0, 140px) minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 0 8px; border-radius: 8px; font-size: 12px; color: var(--t2); }
+  .s2-row:hover { background: var(--hover); }
+  .s2-row .bar-tint { width: 3px; height: 16px; border-radius: 3px; background: var(--tint); }
+  .s2-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s2-kids { padding: 0 8px 4px 28px; }
+  .s2-kids .row { min-height: 22px; font-size: 11.5px; }
+
+  /* ===== S3 · Raias ===== */
+  .lanes { margin: 2px 0 6px; border: 1px solid var(--bs); border-radius: 11px; background: color-mix(in srgb, var(--elev) 70%, transparent); overflow: hidden; }
+  .lanes.enter { animation: rise calc(420ms * var(--k)) var(--spring) both; }
+  .lanes-head { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; font-size: 11.5px; color: var(--tm); border-bottom: 1px solid var(--bs); }
+  .lane { display: grid; grid-template-columns: 16px minmax(0, 150px) minmax(0, 1fr) auto; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 0 11px; font-size: 12px; color: var(--t2); border-bottom: 1px solid var(--bs); }
+  .lane:last-child { border-bottom: 0; }
+  .lane:hover { background: var(--hover); }
+  .lane .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lane .meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--tm); font-variant-numeric: tabular-nums; }
+  .lane-kids { padding: 2px 11px 8px 36px; border-bottom: 1px solid var(--bs); }
+  .lane-kids .row { min-height: 22px; font-size: 11.5px; }
+  .lane-wrap:last-child .lane-kids { border-bottom: 0; }
+
+  /* ---------- Controls ---------- */
+  .controls { display: flex; flex-direction: column; gap: 18px; position: sticky; top: 24px; }
+  .controls h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tm); }
+  .opts { display: grid; gap: 6px; }
+  .opt-card { display: grid; grid-template-columns: 26px 1fr; gap: 1px 8px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--bs); background: var(--surface); }
+  .opt-card:hover { border-color: var(--bd); }
+  .opt-card[aria-checked="true"] { border-color: color-mix(in srgb, var(--fg) 30%, transparent); background: var(--elev); }
+  .opt-card b { font-weight: 600; } .opt-card .n { color: var(--tm); } .opt-card small { grid-column: 2; color: var(--tm); font-size: 11.5px; line-height: 1.4; }
+  .seg { display: flex; padding: 3px; border-radius: 9px; background: var(--surface); border: 1px solid var(--bs); }
+  .seg button { flex: 1; height: 26px; border-radius: 6px; color: var(--tm); font-size: 12px; text-align: center; }
+  .seg button[aria-pressed="true"] { background: var(--control); color: var(--fg); }
+  .acts2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .acts2 button { height: 30px; border-radius: 8px; background: var(--elev); border: 1px solid var(--bs); font-size: 12px; text-align: center; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--t2); font-size: 12px; }
+  .note { color: var(--tm); font-size: 11.5px; line-height: 1.5; margin: 0; }
+  :is(button):focus-visible { outline: 1px solid color-mix(in srgb, var(--fg) 50%, transparent); outline-offset: 2px; }
+  body[data-reduced] *, body[data-reduced] *::before, body[data-reduced] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Subagentes na trilha · Etapa 1</h1>
+    <p>Um turno simulado em que o agente chama ajudantes. A trilha é a V2 que já está no app; muda só como cada ajudante aparece. Clique num ajudante para ver os passos dele. Só usamos dados que o provedor realmente informa: nome, modelo, estado, tempo e os passos do ajudante, sem total inventado.</p>
+  </header>
+
+  <div class="window">
+    <div class="bar"><i></i><i></i><i></i>Limitar tentativas de login</div>
+    <div class="chat"><div class="col">
+      <div class="user">Limite as tentativas de login na API e cubra com testes.</div>
+      <div id="stage"></div>
+      <div class="reply" id="reply" hidden>Pronto. O login agora tem limite com janela deslizante, e os ajudantes cobriram os testes e revisaram as mudanças.</div>
+    </div></div>
+    <div class="composer-zone">
+      <div id="strip"></div>
+      <div class="composer">Descreva o que quer construir…<div class="ctl"><span>Pedir aprovação</span><span id="composer-model">GPT-6.1-Sol</span><span class="stop" id="stop" title="Parar"><i></i></span></div></div>
+    </div>
+  </div>
+
+  <aside class="controls">
+    <section>
+      <h4>Modelo</h4>
+      <div class="opts" id="variants">
+        <button class="opt-card" data-v="s1"><span class="n">S1</span><b>Ramo</b><small>Cada ajudante é uma linha da trilha com cor própria. Enquanto trabalha, mostra o passo atual logo abaixo; clicando abre um ramo com os passos dele. Se falhar, abre sozinho com o erro. (Inspirado no MonoCode.)</small></button>
+        <button class="opt-card" data-v="s2"><span class="n">S2</span><b>Faixa sobre o composer</b><small>A trilha fica enxuta e uma faixa “2 de 3 ajudantes trabalhando” aparece em cima do composer enquanto houver ajudante ativo. Cada linha mostra o passo atual e abre os passos. (Inspirado no Synara.)</small></button>
+        <button class="opt-card" data-v="s3"><span class="n">S3</span><b>Raias</b><small>Os ajudantes do turno ficam juntos num bloco “Ajudantes · 1 de 3 concluídos”, uma raia por ajudante com passo atual, contagem e tempo. Clique numa raia para ver os passos.</small></button>
+      </div>
+    </section>
+    <section>
+      <h4>Provedor</h4>
+      <div class="seg" id="provider"><button data-p="claude" aria-pressed="true">Claude</button><button data-p="codex">Codex</button></div>
+    </section>
+    <section>
+      <h4>Cenário</h4>
+      <div class="seg" id="scenario"><button data-sc="normal" aria-pressed="true">Normal</button><button data-sc="fail">Ajudante falha</button><button data-sc="stop">Parar</button></div>
+    </section>
+    <section>
+      <div class="acts2"><button id="restart">↺ Reiniciar</button><button id="pause">❚❚ Pausar</button></div>
+      <h4 style="margin-top:14px">Velocidade</h4>
+      <div class="seg" id="speed"><button data-k="0.5">2×</button><button data-k="1" aria-pressed="true">1×</button><button data-k="2">½×</button></div>
+      <h4 style="margin-top:14px">Tema</h4>
+      <div class="seg" id="theme"><button data-t="dark" aria-pressed="true">Dark</button><button data-t="light">Light</button></div>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="reduced" /> Reduzir movimento</label>
+    </section>
+    <section>
+      <p class="note">Sem controles por ajudante nesta etapa: o Parar do composer interrompe o turno e todos os ajudantes juntos (cenário “Parar”). Parar um ajudante sozinho e abri-lo como sessão ficam para depois.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const svg = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const ICON = {
+  read: svg('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+  edit: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+  command: svg('<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>'),
+  tool: svg('<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5Z"/>'),
+  agent: svg('<rect x="4" y="7" width="16" height="12" rx="3"/><path d="M12 7V4"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>'),
+  chev: '<svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
+  check: svg('<path d="M20 6 9 17l-5-5"/>'),
+  x: svg('<path d="M18 6 6 18M6 6l12 12"/>'),
+  stop: svg('<rect x="6" y="6" width="12" height="12" rx="2"/>'),
+};
+const VERB = { read: "Lendo", edit: "Editando", command: "Rodando", tool: "Usando" };
+/* Stable tint per subagent name (hash → fixed palette), so the same helper keeps its color. */
+const TINTS = ["#6ea8fe", "#c084fc", "#f472b6", "#2dd4bf", "#fbbf24", "#a3e635"];
+const tint = (name) => TINTS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % TINTS.length];
+const orbit = (s, size = 18, color) => {
+  const moving = s === "running";
+  const sat = moving ? `<circle class="o-sat" r="2"><animateMotion dur="${1.5 * K}s" repeatCount="indefinite" path="M1.5,12 a10.5,4.4 0 1,1 21,0 a10.5,4.4 0 1,1 -21,0"/></circle>` : `<circle class="o-sat" cx="22.5" cy="12" r="2"/>`;
+  return `<svg class="orbit" data-s="${s}"${color && s === "running" ? ` data-tint style="--tint:${color}"` : ""} width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true"><g transform="rotate(-28 12 12)"><ellipse class="o-ring" cx="12" cy="12" rx="10.5" ry="4.4"/></g><circle class="o-core" cx="12" cy="12" r="3.6"/><g transform="rotate(-28 12 12)">${sat}</g></svg>`;
+};
+const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const PROVIDERS = {
+  claude: { model: "Opus 5.5", names: ["Explorar testes de auth", "Escrever testes", "Revisar alterações"], kidModel: ["Haiku 4.5", "Sonnet 5.5", "Sonnet 5.5"], role: ["explore", "worker", "review"] },
+  codex: { model: "GPT-6.1-Sol", names: ["Mapear rotas de login", "Escrever testes", "Revisar o diff"], kidModel: ["GPT-6.1-Sol mini", "GPT-6.1-Sol", "GPT-6.1-Sol"], role: ["explorer", "worker", "default"] },
+};
+
+/* ---------- Simulated turn ---------- */
+function script(sc) {
+  const P = PROVIDERS[provider];
+  const a = (i) => ({ id: `a${i}`, name: P.names[i], model: P.kidModel[i], role: P.role[i] });
+  const s = [
+    [300, { add: { id: "r1", kind: "read", label: "src/server/auth/login.ts" } }], [1000, { done: "r1" }],
+    [1100, { spawn: a(0) }],
+    [1300, { kid: ["a0", "read", "tests/auth/login.test.ts"] }], [1900, { kidDone: "a0" }],
+    [2000, { kid: ["a0", "read", "tests/helpers/request.ts"] }], [2500, { kidDone: "a0" }],
+    [2600, { kid: ["a0", "command", "rg \"loginAttempts\" src tests"] }], [3100, { kidDone: "a0" }],
+    [3300, { finishAgent: ["a0", "completed"] }],
+    [3400, { add: { id: "e1", kind: "edit", label: "src/server/middleware/rateLimit.ts" } }], [4600, { done: "e1" }],
+    [3600, { spawn: a(1) }],
+    [3800, { kid: ["a1", "read", "src/server/middleware/rateLimit.ts"] }], [4300, { kidDone: "a1" }],
+    [4400, { kid: ["a1", "edit", "tests/auth/rateLimit.test.ts"] }], [5600, { kidDone: "a1" }],
+    [4700, { add: { id: "e2", kind: "edit", label: "src/server/auth/login.ts" } }], [5500, { done: "e2" }],
+  ];
+  if (sc === "fail") {
+    s.push([5700, { kid: ["a1", "command", "npm test -- rateLimit"] }], [7000, { kidFail: ["a1", "2 de 6 testes falharam: blocks the sixth attempt with 429"] }], [7100, { finishAgent: ["a1", "failed"] }],
+      [7300, { add: { id: "c1", kind: "command", label: "npm test -- auth" } }], [8400, { done: "c1", state: "failed" }], [8600, { finish: "failed" }]);
+  } else {
+    s.push([5700, { kid: ["a1", "command", "npm test -- rateLimit"] }],
+      [5900, { spawn: a(2) }],
+      [6100, { kid: ["a2", "read", "src/server/middleware/rateLimit.ts"] }], [6600, { kidDone: "a2" }],
+      [6700, { kid: ["a2", "read", "src/server/auth/login.ts"] }], [7200, { kidDone: "a2" }],
+      [7000, { kidDone: "a1" }], [7100, { finishAgent: ["a1", "completed"] }],
+      [7300, { kid: ["a2", "tool", "Comparar com o padrão do projeto"] }], [8100, { kidDone: "a2" }],
+      [8300, { finishAgent: ["a2", "completed"] }],
+      [8400, { add: { id: "c1", kind: "command", label: "npm test -- auth" } }], [9300, { done: "c1" }],
+      [9600, { finish: "completed" }]);
+    if (sc === "stop") s.push([6900, { stop: true }]);
+  }
+  return s.sort((x, y) => x[0] - y[0]);
+}
+
+let state, timers = [], startedAt = 0, pausedAt = null, pausedTotal = 0, tick = null, variant = "s1", scenario = "normal", provider = "claude", K = 1;
+let open = {}, stripOpen = true;
+function reset() {
+  timers.forEach(clearTimeout); timers = []; open = {}; stripOpen = true;
+  state = { status: "running", items: [], byId: {}, fresh: new Set(), files: [], endedAt: null };
+  startedAt = performance.now(); pausedTotal = 0; pausedAt = null; $("#pause").textContent = "❚❚ Pausar";
+  $("#reply").hidden = true; $("#reply").classList.remove("enter"); $("#strip").innerHTML = "";
+  $("#composer-model").textContent = PROVIDERS[provider].model;
+  pending = script(scenario).map(([t, e]) => ({ at: t * K, e }));
+  schedule(); render();
+  clearInterval(tick); tick = setInterval(renderClocks, 250);
+}
+let pending = [];
+function schedule() {
+  timers.forEach(clearTimeout); timers = [];
+  const now = performance.now() - startedAt - pausedTotal;
+  for (const p of pending) timers.push(setTimeout(() => { if (pausedAt !== null) return; pending = pending.filter(x => x !== p); apply(p.e); }, Math.max(0, p.at - now)));
+}
+const now = () => (performance.now() - startedAt - pausedTotal) / K;
+function apply(e) {
+  if (state.status !== "running") return;
+  state.fresh = new Set();
+  if (e.add) { const it = { ...e.add, state: "running" }; state.items.push(it); state.byId[it.id] = it; state.fresh.add(it.id); }
+  if (e.done) state.byId[e.done].state = e.state || "completed";
+  if (e.spawn) { const it = { ...e.spawn, kind: "agent", state: "running", steps: [], started: now(), ended: null, error: null, tint: tint(e.spawn.name) }; state.items.push(it); state.byId[it.id] = it; state.fresh.add(it.id); }
+  if (e.kid) { const [id, kind, label] = e.kid; state.byId[id].steps.push({ kind, label, state: "running" }); }
+  if (e.kidDone) { const st = state.byId[e.kidDone].steps.at(-1); st.state = "completed"; }
+  if (e.kidFail) { const [id, msg] = e.kidFail; const a = state.byId[id]; a.steps.at(-1).state = "failed"; a.error = msg; open[id] = true; }
+  if (e.finishAgent) { const [id, st] = e.finishAgent; const a = state.byId[id]; a.state = st; a.ended = now(); }
+  if (e.stop) { stopAll(); return; }
+  if (e.finish) finish(e.finish);
+  render();
+}
+function finish(status) {
+  state.status = status; state.endedAt = now();
+  if (status === "completed") state.files = [["rateLimit.ts", 64, 0], ["login.ts", 12, 3], ["rateLimit.test.ts", 88, 0]];
+  clearInterval(tick);
+}
+function stopAll() {
+  for (const it of state.items) {
+    if (it.state === "running") { it.state = "stopped"; if (it.kind === "agent") { it.ended = now(); const st = it.steps.at(-1); if (st?.state === "running") st.state = "stopped"; } }
+  }
+  timers.forEach(clearTimeout); timers = []; pending = [];
+  finish("stopped"); render();
+}
+$("#stop").onclick = () => { if (state.status === "running") stopAll(); };
+const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000 * 7)); return s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`; };
+const agentTime = (a) => fmt((a.ended ?? now()) - a.started);
+const agents = () => state.items.filter(i => i.kind === "agent");
+const live = () => agents().filter(a => a.state === "running");
+const statusText = () => ({ running: "Trabalhando", completed: "Trabalhou por", failed: "Parou com erro após", stopped: "Parado após" })[state.status];
+const stepCount = (a) => `${a.steps.length} ${a.steps.length === 1 ? "passo" : "passos"}`;
+const currentStep = (a) => { const st = a.steps.findLast(s => s.state === "running"); return st ? `${VERB[st.kind]} ${st.label}` : a.steps.length ? "Pensando…" : "Começando…"; };
+const statusIcon = (s) => s === "running" ? '<span class="dot" data-s="running"></span>' : s === "failed" ? `<span class="bad">${ICON.x}</span>` : s === "stopped" ? `<span class="muted">${ICON.stop}</span>` : `<span class="ok">${ICON.check}</span>`;
+const stateWord = (a) => a.state === "running" ? "trabalhando" : a.state === "failed" ? "falhou" : a.state === "stopped" ? "parado" : "concluído";
+function rowHTML(it, fresh = state.fresh.has(it.id)) {
+  return `<div class="row${fresh ? " enter" : ""}" data-s="${it.state}"><span class="kind">${ICON[it.kind]}</span><span class="lbl">${it.kind === "command" ? `<code>${esc(it.label)}</code>` : esc(it.label)}</span><span class="end">${statusIcon(it.state)}</span></div>`;
+}
+const kidsHTML = (a) => a.steps.map((st) => rowHTML(st, false)).join("") + (a.error ? `<div class="err"><b>Falhou:</b> ${esc(a.error)}</div>` : "");
+const header = () => `<div class="head">${orbit(state.status === "running" ? "running" : state.status === "completed" ? "completed" : state.status === "failed" ? "failed" : "stopped")}<span class="model">${PROVIDERS[provider].model}</span><span class="muted">${statusText()}</span><span class="elapsed" data-clock></span></div>`;
+const filesHTML = () => state.files.length ? `<div class="files">${state.files.map(([f, a, d]) => `<span class="file">${f} <b>+${a}</b> <s>−${d}</s></span>`).join("")}</div>` : "";
+
+/* ---------- Variants ---------- */
+const V = {
+  s1() {
+    const rows = state.items.map((it) => {
+      if (it.kind !== "agent") return rowHTML(it);
+      const isOpen = open[it.id] ?? false;
+      return `<div class="sa${state.fresh.has(it.id) ? " enter" : ""}" data-s="${it.state}" style="--tint:${it.tint}">
+        <button class="sa-row" data-open="${it.id}" aria-expanded="${isOpen}">${orbit(it.state, 15, it.tint)}<span class="name">${esc(it.name)}</span><span class="tag">${esc(it.model)}</span><span class="end" style="margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--tm);font-size:11px"><span>${stepCount(it)}</span><span class="elapsed" data-agent-clock="${it.id}">${agentTime(it)}</span>${statusIcon(it.state)}${ICON.chev}</span></button>
+        ${it.state === "running" && !isOpen ? `<span class="now-step s1-live"><span class="live">${esc(currentStep(it))}</span></span>` : ""}
+        <div class="collapse"${isOpen ? " data-open" : ""}><div><div class="s1-kids">${kidsHTML(it)}</div></div></div>
+      </div>`;
+    }).join("");
+    return `${header()}<div class="trail">${rows}</div>${filesHTML()}`;
+  },
+  s2() {
+    // The trail keeps one compact row per helper; the live detail lives above the composer.
+    const rows = state.items.map((it) => it.kind === "agent"
+      ? `<div class="row${state.fresh.has(it.id) ? " enter" : ""}" data-s="${it.state}"><span class="kind" style="color:${it.tint}">${ICON.agent}</span><span class="lbl">${esc(it.name)} <span class="muted">· ajudante · ${esc(it.model)}</span></span><span class="end">${statusIcon(it.state)}</span></div>`
+      : rowHTML(it)).join("");
+    return `${header()}<div class="trail">${rows}</div>${filesHTML()}`;
+  },
+  s3() {
+    const ag = agents();
+    let lanesDone = false;
+    const rows = state.items.map((it) => {
+      if (it.kind !== "agent") return rowHTML(it);
+      if (lanesDone) return "";
+      lanesDone = true;
+      const done = ag.filter(a => a.state === "completed").length;
+      return `<div class="lanes${state.fresh.has(ag[0].id) ? " enter" : ""}"><div class="lanes-head">${ICON.agent}<span>Ajudantes</span><span>·</span><span>${done} de ${ag.length} concluídos</span></div>${ag.map((a) => {
+        const isOpen = open[a.id] ?? false;
+        return `<div class="lane-wrap"><button class="lane" data-open="${a.id}" aria-expanded="${isOpen}" style="--tint:${a.tint}">${orbit(a.state, 15, a.tint)}<span class="name">${esc(a.name)}</span><span class="now-step">${a.state === "running" ? `<span class="live">${esc(currentStep(a))}</span>` : a.state === "failed" ? `<span class="bad">${esc(a.error ?? "Falhou")}</span>` : `<span class="muted">${esc(a.model)} · ${stateWord(a)}</span>`}</span><span class="meta"><span>${stepCount(a)}</span><span data-agent-clock="${a.id}">${agentTime(a)}</span>${ICON.chev}</span></button><div class="collapse"${isOpen ? " data-open" : ""}><div><div class="lane-kids">${kidsHTML(a)}</div></div></div></div>`;
+      }).join("")}</div>`;
+    }).join("");
+    return `${header()}<div class="trail">${rows}</div>${filesHTML()}`;
+  },
+};
+function strip() {
+  const box = $("#strip");
+  if (variant !== "s2") { box.innerHTML = ""; return; }
+  const ag = agents();
+  const active = live();
+  if (!ag.length || (state.status !== "running" && !box.innerHTML)) { box.innerHTML = ""; return; }
+  if (state.status !== "running") { const el = box.firstElementChild; if (el && !el.classList.contains("leave")) { el.classList.add("leave"); setTimeout(() => { box.innerHTML = ""; }, 400 * K); } return; }
+  const fresh = !box.innerHTML;
+  box.innerHTML = `<div class="strip"${fresh ? "" : ' style="animation:none"'}><button class="strip-head" data-strip aria-expanded="${stripOpen}">${active.length ? orbit("running", 15) : orbit("completed", 15)}<span>${active.length ? `<b class="name">${active.length} de ${ag.length}</b> ${ag.length === 1 ? "ajudante trabalhando" : "ajudantes trabalhando"}` : `${ag.length} ${ag.length === 1 ? "ajudante concluído" : "ajudantes concluídos"}`}</span>${ICON.chev}</button><div class="collapse"${stripOpen ? " data-open" : ""}><div><div class="strip-list">${ag.map((a) => {
+    const isOpen = open[a.id] ?? false;
+    return `<button class="s2-row" data-open="${a.id}" aria-expanded="${isOpen}" style="--tint:${a.tint}"><span class="bar-tint"></span><span class="name">${esc(a.name)}</span><span class="now-step">${a.state === "running" ? `<span class="live">${esc(currentStep(a))}</span>` : a.state === "failed" ? `<span class="bad">${esc(a.error ?? "Falhou")}</span>` : `<span class="muted">${esc(a.model)} · ${stateWord(a)}</span>`}</span><span class="end" style="display:flex;gap:8px;align-items:center;color:var(--tm);font-size:11px"><span data-agent-clock="${a.id}">${agentTime(a)}</span>${statusIcon(a.state)}</span></button><div class="collapse"${isOpen ? " data-open" : ""}><div><div class="s2-kids">${kidsHTML(a)}</div></div></div>`;
+  }).join("")}</div></div></div></div>`;
+}
+function render() {
+  $("#stage").innerHTML = V[variant]();
+  strip();
+  document.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { open[b.dataset.open] = !(open[b.dataset.open] ?? false); render(); });
+  const s = $("[data-strip]"); if (s) s.onclick = () => { stripOpen = !stripOpen; render(); };
+  if (state.status === "completed") { const r = $("#reply"); if (r.hidden) { r.hidden = false; r.classList.add("enter"); } }
+  renderClocks();
+}
+function renderClocks() {
+  const c = $("#stage [data-clock]"); if (c) c.textContent = fmt((state.endedAt ?? now()));
+  document.querySelectorAll("[data-agent-clock]").forEach((el) => { const a = state.byId[el.dataset.agentClock]; if (a) el.textContent = agentTime(a); });
+}
+
+/* ---------- Controls ---------- */
+document.querySelectorAll("#variants .opt-card").forEach(b => b.onclick = () => { variant = b.dataset.v; document.querySelectorAll("#variants .opt-card").forEach(x => x.setAttribute("aria-checked", String(x === b))); $("#strip").innerHTML = ""; render(); });
+const seg = (id, fn) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $(id).querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); fn(b); });
+seg("#scenario", b => { scenario = b.dataset.sc; reset(); });
+seg("#provider", b => { provider = b.dataset.p; reset(); });
+seg("#speed", b => { K = Number(b.dataset.k); document.documentElement.style.setProperty("--k", b.dataset.k); reset(); });
+seg("#theme", b => { document.documentElement.dataset.theme = b.dataset.t; });
+$("#restart").onclick = reset;
+$("#pause").onclick = () => {
+  if (pausedAt === null) { pausedAt = performance.now(); timers.forEach(clearTimeout); document.querySelectorAll("*").forEach(n => n.getAnimations?.().forEach(a => a.pause())); $("#pause").textContent = "▶ Continuar"; }
+  else { pausedTotal += performance.now() - pausedAt; pausedAt = null; document.querySelectorAll("*").forEach(n => n.getAnimations?.().forEach(a => a.play())); $("#pause").textContent = "❚❚ Pausar"; schedule(); }
+};
+const rm = $("#reduced"); rm.checked = matchMedia("(prefers-reduced-motion: reduce)").matches; rm.onchange = () => document.body.toggleAttribute("data-reduced", rm.checked); rm.onchange();
+document.querySelector('#variants [data-v="s1"]').setAttribute("aria-checked", "true");
+reset();
+</script>
+</body>
+</html>

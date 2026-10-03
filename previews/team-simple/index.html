@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Switchyard · Equipe simples (E1)</title>
+<style>
+  :root {
+    --bg: #070707; --surface: #111; --side: #0c0c0c; --elev: #191919; --control: #242424; --hover: rgb(255 255 255 / .05);
+    --bs: rgb(255 255 255 / .06); --bd: rgb(255 255 255 / .1);
+    --fg: #ececec; --t2: #b4b4b4; --tm: #7d7d7d;
+    --run: #6ea8fe; --wait: #f5a524; --ok: #3dd68c; --bad: #e5484d;
+    --claude: #d87957; --openai: #3b82f6; --opencode: #b3a0f2;
+    --ease: cubic-bezier(.16, 1, .3, 1); --spring: cubic-bezier(.34, 1.32, .64, 1);
+    --k: 1; color-scheme: dark;
+  }
+  [data-theme="light"] { --bg: #e9e9ec; --surface: #fafafa; --side: #f1f1f3; --elev: #f1f1f3; --control: #e4e4e7; --hover: rgb(0 0 0 / .04); --bs: rgb(0 0 0 / .07); --bd: rgb(0 0 0 / .11); --fg: #18181b; --t2: #52525b; --tm: #8a8a93; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, select { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  svg.i { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  code { font: 11.5px/1.5 "SF Mono", ui-monospace, Menlo, monospace; }
+  .page { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; max-width: 1360px; margin: 0 auto; padding: 24px; align-items: start; }
+  .intro { grid-column: 1 / -1; }
+  .intro h1 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .intro p { margin: 0; color: var(--tm); max-width: 860px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--run) 55%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @keyframes pop { 40% { transform: scale(1.25); } }
+  .enter { animation: rise calc(420ms * var(--k)) var(--ease) both; }
+  .muted { color: var(--tm); } .ok { color: var(--ok); } .warn { color: var(--wait); } .bad { color: var(--bad); }
+  .live { background: linear-gradient(90deg, var(--tm) 0%, var(--tm) 40%, var(--fg) 50%, var(--tm) 60%, var(--tm) 100%) 0 0 / 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer calc(2.4s * var(--k)) linear infinite; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--tm); }
+  .dot[data-s="running"] { background: var(--run); animation: pulse calc(1.6s * var(--k)) ease-out infinite; }
+  .dot[data-s="done"] { background: var(--ok); } .dot[data-s="needs"] { background: var(--wait); } .dot[data-s="waiting"] { background: transparent; border: 1.5px solid var(--tm); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 8px; font-size: 12px; border: 1px solid var(--bd); background: var(--surface); white-space: nowrap; }
+  .btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--fg) 25%, transparent); }
+  .btn.primary { background: var(--fg); color: var(--surface); border-color: transparent; }
+  .btn.ghost { border-color: transparent; color: var(--t2); }
+  .btn.ghost:hover { background: var(--hover); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .tag { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 6px; background: var(--hover); color: var(--t2); font-size: 11px; white-space: nowrap; }
+  .prov { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 5px; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .prov.claude { background: var(--claude); } .prov.codex { background: var(--openai); } .prov.opencode { background: var(--opencode); color: #18181b; }
+
+  .app { display: grid; grid-template-columns: 220px minmax(0, 1fr); height: 760px; border-radius: 14px; overflow: hidden; border: 1px solid var(--bd); background: var(--surface); box-shadow: 0 30px 80px rgb(0 0 0 / .35); }
+  .side { background: var(--side); border-right: 1px solid var(--bs); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+  .lights { display: flex; gap: 7px; padding: 2px 6px 14px; } .lights i { width: 11px; height: 11px; border-radius: 50%; background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+  .side .proj { padding: 6px 8px; color: var(--t2); }
+  .side .row { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; border-radius: 7px; color: var(--t2); }
+  .side .row.sel { background: var(--hover); color: var(--fg); }
+  .side .row .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .side .kid { margin-left: 16px; position: relative; }
+  .side .kid::before { content: ""; position: absolute; left: -7px; top: -6px; bottom: 50%; width: 7px; border-left: 1px solid var(--bd); border-bottom: 1px solid var(--bd); border-bottom-left-radius: 6px; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .head { height: 42px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--bs); color: var(--t2); font-size: 12.5px; }
+  .chat { flex: 1; overflow: auto; padding: 22px 0 16px; }
+  .col { max-width: 680px; margin: 0 auto; padding: 0 26px; display: flex; flex-direction: column; gap: 16px; }
+  .user { align-self: flex-end; max-width: 80%; padding: 9px 15px; border-radius: 18px; background: var(--control); }
+  .say { color: var(--t2); line-height: 1.65; }
+  .who { display: flex; align-items: center; gap: 8px; color: var(--t2); margin-bottom: 4px; }
+  .who b { color: var(--fg); font-weight: 500; }
+  .composer-zone { max-width: 680px; width: 100%; margin: 0 auto; padding: 0 26px 18px; position: relative; }
+  .composer { border: 1px solid var(--bd); border-radius: 16px; background: var(--elev); padding: 11px 13px 9px; color: var(--tm); }
+  .composer .chips { margin-bottom: 8px; }
+  .composer .ctl { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12px; }
+  .composer .plus { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--bd); display: grid; place-items: center; color: var(--t2); }
+  .composer .send { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fg); color: var(--surface); }
+  .teamchip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 999px; background: var(--hover); color: var(--fg); font-size: 11.5px; border: 1px solid var(--bd); }
+  .menu { position: absolute; left: 26px; bottom: 112px; width: 250px; padding: 6px; border-radius: 12px; background: var(--elev); border: 1px solid var(--bd); box-shadow: 0 20px 50px rgb(0 0 0 / .45); z-index: 5; }
+  .menu .mi { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 9px; border-radius: 8px; color: var(--t2); font-size: 12.5px; }
+  .menu .mi.hl { background: var(--hover); color: var(--fg); }
+  .menu .mi small { display: block; color: var(--tm); font-size: 11px; }
+
+  /* One card style for plan, team and finish. */
+  .card { border: 1px solid var(--bd); border-radius: 14px; background: var(--elev); overflow: hidden; }
+  .card-h { display: flex; align-items: center; gap: 8px; padding: 11px 14px; }
+  .card-h h3 { margin: 0; font-size: 13px; font-weight: 600; }
+  .card-h .sp { flex: 1; }
+  .line { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--bs); min-height: 46px; }
+  .line .n { width: 20px; height: 20px; border-radius: 6px; background: var(--hover); display: grid; place-items: center; color: var(--tm); font-size: 11px; flex-shrink: 0; }
+  .line .what { flex: 1; min-width: 0; }
+  .line .what .t { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .line .what .t[contenteditable]:focus { outline: 1px solid var(--bd); border-radius: 4px; }
+  .line .what .s { color: var(--tm); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .line .end { display: flex; align-items: center; gap: 8px; color: var(--tm); font-size: 11.5px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .line select { height: 26px; border-radius: 7px; border: 1px solid var(--bd); background: var(--surface); font-size: 11.5px; padding: 0 6px; max-width: 190px; }
+  .details { padding: 0 14px 9px 44px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .scope { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px; border: 1px dashed var(--bd); color: var(--t2); font: 11px/1 "SF Mono", ui-monospace, Menlo, monospace; }
+  .card-f { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--bs); }
+  .card-f .note { color: var(--tm); font-size: 11.5px; flex: 1; }
+  .ask { margin: 0 14px 10px 44px; padding: 9px 11px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--wait) 45%, var(--bd)); background: color-mix(in srgb, var(--wait) 7%, var(--surface)); font-size: 12px; }
+  .ask .acts { display: flex; gap: 6px; margin-top: 8px; }
+  .stopbox { margin: 0 14px 10px 44px; padding: 9px 11px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--wait) 45%, var(--bd)); background: color-mix(in srgb, var(--wait) 7%, var(--surface)); font-size: 12px; color: var(--t2); }
+  .stopbox .acts { display: flex; gap: 6px; margin-top: 8px; }
+  .mark { width: 16px; display: inline-grid; place-items: center; flex-shrink: 0; }
+  .mark.pop { animation: pop calc(380ms * var(--k)) var(--spring); }
+  .sum { color: var(--tm); font-size: 12px; } .sum b { color: var(--ok); font-weight: 500; } .sum s { color: var(--bad); text-decoration: none; }
+
+  .controls { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 24px; }
+  .controls h4 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--tm); }
+  .steps { display: grid; gap: 4px; }
+  .steps button { display: flex; align-items: center; gap: 8px; padding: 6px 9px; border-radius: 8px; color: var(--tm); font-size: 12px; }
+  .steps button[aria-current="true"] { background: var(--elev); color: var(--fg); }
+  .steps button i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--hover); font-style: normal; font-size: 10.5px; }
+  .seg { display: flex; padding: 3px; border-radius: 9px; background: var(--surface); border: 1px solid var(--bs); }
+  .seg button { flex: 1; height: 26px; border-radius: 6px; color: var(--tm); font-size: 12px; text-align: center; }
+  .seg button[aria-pressed="true"] { background: var(--control); color: var(--fg); }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--t2); font-size: 12px; }
+  .note2 { color: var(--tm); font-size: 11.5px; line-height: 1.5; margin: 0; }
+  :is(button):focus-visible { outline: 1px solid color-mix(in srgb, var(--fg) 50%, transparent); outline-offset: 2px; }
+  body[data-reduced] *, body[data-reduced] *::before, body[data-reduced] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Equipe · versão simples (E1)</h1>
+    <p>Tudo acontece na mesma conversa, de cima para baixo: você pede, o coordenador propõe quem faz o quê, você confirma, acompanha a equipe e no fim clica em “Juntar tudo”. Os detalhes técnicos (arquivos de cada um, ordem) ficam escondidos em “Detalhes”.</p>
+  </header>
+  <div class="app" id="app"></div>
+  <aside class="controls">
+    <section>
+      <h4>Fase</h4>
+      <div class="steps" id="phases">
+        <button data-p="0"><i>1</i>Pedido</button>
+        <button data-p="1"><i>2</i>Plano</button>
+        <button data-p="2"><i>3</i>Equipe trabalhando</button>
+        <button data-p="3"><i>4</i>Juntar</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px"><button class="btn" id="play">▶ Tocar tudo</button><button class="btn" id="restart">↺</button></div>
+    </section>
+    <section>
+      <h4>Situações</h4>
+      <label class="check"><input type="checkbox" id="needs" checked /> Um ajudante pede permissão</label>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="conflict" /> Conflito ao juntar</label>
+    </section>
+    <section>
+      <h4>Tema</h4>
+      <div class="seg" id="theme"><button data-t="dark" aria-pressed="true">Dark</button><button data-t="light">Light</button></div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="reduced" /> Reduzir movimento</label>
+    </section>
+    <section><p class="note2">Regras: até 3 ajudantes; nada roda antes de “Confirmar e iniciar”; permissões vêm para você; “Juntar tudo” só acontece quando você clica, na ordem certa, e para no primeiro conflito sem aplicar nada dele.</p></section>
+  </aside>
+</div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const svg = (d) => `<svg class="i" viewBox="0 0 24 24">${d}</svg>`;
+const I = {
+  team: svg('<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 19c.6-3 3-5 6-5s5.4 2 6 5"/><path d="M15 14.5c2.6-.3 4.8 1.3 5.5 4"/>'),
+  plus: svg('<path d="M12 5v14M5 12h14"/>'), up: svg('<path d="M12 19V5M5 12l7-7 7 7"/>'),
+  clip: svg('<path d="m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3.4 3.4 0 0 1 4.8 4.8L10.3 17.3a1.7 1.7 0 0 1-2.4-2.4L15.5 7.3"/>'),
+  plan: svg('<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>'),
+  check: svg('<path d="M20 6 9 17l-5-5"/>'), lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  warn: svg('<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>'),
+  stop: svg('<rect x="6" y="6" width="12" height="12" rx="2"/>'), open: svg('<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>'),
+  merge: svg('<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 8v4a6 6 0 0 0 6 6h4"/>'),
+  chev: svg('<path d="m6 9 6 6 6-6"/>'), x: svg('<path d="M18 6 6 18M6 6l12 12"/>'),
+};
+const esc = (t) => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const WHO = [["claude", "Claude · Sonnet 5.5"], ["claude", "Claude · Opus 5.5"], ["codex", "Codex · GPT-6.1-Sol"], ["codex", "Codex · GPT-6-Luna"], ["opencode", "OpenCode · Kimi K3"]];
+const LETTER = { claude: "C", codex: "X", opencode: "O" };
+const prov = (p) => `<span class="prov ${p}">${LETTER[p]}</span>`;
+const PLAN0 = [
+  { id: "api", title: "Rota OAuth no backend", who: 2, scope: ["src/server/auth/**", "package.json"], after: null, add: 130, del: 4, files: 2 },
+  { id: "ui", title: "Tela de login com botão Google", who: 0, scope: ["src/ui/login/**", "package.json"], after: null, add: 125, del: 6, files: 2 },
+  { id: "tests", title: "Testes de integração do login", who: 4, scope: ["tests/auth/**"], after: "api", add: 96, del: 0, files: 1 },
+];
+const NOW = { api: ["Lendo o código de auth", "Escrevendo a rota", "Rodando os testes"], ui: ["Lendo as telas", "Criando o botão", "Ajustando o layout"], tests: ["Lendo a rota nova", "Escrevendo os testes", "Rodando os testes"] };
+let phase = 0, plan, w, timers = [], menu = false, picked = false, details = false, ask = null, merge = null;
+const seen = new Set(); const ent = (k) => seen.has(k) ? "" : (seen.add(k), " enter");
+const K = () => Number(getComputedStyle(document.documentElement).getPropertyValue("--k")) || 1;
+const later = (ms, fn) => timers.push(setTimeout(fn, ms * K()));
+const clear = () => { timers.forEach(clearTimeout); timers = []; };
+function fresh() { plan = PLAN0.map(t => ({ ...t })); w = Object.fromEntries(plan.map(t => [t.id, { s: t.after ? "waiting" : "running", step: 0, secs: 0 }])); ask = null; merge = null; }
+fresh();
+const fmt = (s) => s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${s}s`;
+const ready = () => plan.filter(t => w[t.id].s === "done").length;
+
+function startRun() {
+  clear(); fresh();
+  timers.push(setInterval(() => { for (const x of Object.values(w)) if (x.s === "running") x.secs++; render(); }, 600));
+  const step = (id, at) => later(at, () => { if (w[id].s === "running") { w[id].step = Math.min(2, w[id].step + 1); render(); } });
+  step("api", 1100); step("ui", 1500); step("api", 2500);
+  if ($("#needs").checked) later(2700, () => { w.ui.s = "needs"; ask = "ui"; render(); }); else { step("ui", 2800); later(4600, () => { w.ui.s = "done"; render(); }); }
+  later(3700, () => { w.api.s = "done"; w.tests.s = "running"; render(); });
+  step("tests", 4600); step("tests", 5600); later(6600, () => { w.tests.s = "done"; render(); });
+}
+function approve() { ask = null; w.ui.s = "running"; render(); later(600, () => { w.ui.step = 2; render(); }); later(1500, () => { w.ui.s = "done"; render(); }); }
+function finished() { clear(); fresh(); for (const t of plan) Object.assign(w[t.id], { s: "done", step: 2, secs: 50 + plan.indexOf(t) * 23 }); }
+/* "Juntar tudo": dependency order, one at a time, stops at the first conflict without applying it. */
+function mergeAll() {
+  merge = { order: ["api", "ui", "tests"], done: [], skipped: [], current: null, conflict: null };
+  const next = (i) => {
+    if (i >= merge.order.length) { merge.current = null; merge.finished = true; render(); return; }
+    merge.current = merge.order[i]; render();
+    later(900, () => {
+      if (merge.order[i] === "ui" && $("#conflict").checked) { merge.conflict = "ui"; merge.current = null; render(); return; }
+      merge.done.push(merge.order[i]); merge.current = null; render(); later(250, () => next(i + 1));
+    });
+  };
+  merge.resume = (i) => next(i);
+  next(0);
+}
+
+/* ---------- Pieces ---------- */
+const sidebar = () => `<aside class="side"><div class="lights"><i></i><i></i><i></i></div><div class="proj">atlas</div>
+  <div class="row sel">${phase >= 1 ? I.team : prov("claude")}<span class="t">${phase >= 1 ? "Login com Google" : "Nova sessão"}</span>${phase >= 2 ? `<span class="tag">${ready()}/3</span>` : ""}</div>
+  ${phase >= 2 ? plan.map(t => `<div class="row kid">${prov(WHO[t.who][0])}<span class="t">${esc(t.title)}</span><span class="dot" data-s="${w[t.id].s}"></span></div>`).join("") : ""}
+  <div class="row">${prov("codex")}<span class="t">Paginar o endpoint de eventos</span></div>
+  <div class="row">${prov("claude")}<span class="t">Refinar o modo escuro</span></div></aside>`;
+const composer = () => `<div class="composer-zone">${menu ? `<div class="menu enter"><button class="mi">${I.clip}<span>Anexar arquivos</span></button><button class="mi">${I.plan}<span>Planejar</span></button><button class="mi hl" data-team>${I.team}<span>Equipe<small>Vários agentes trabalhando juntos</small></span></button></div>` : ""}
+  <div class="composer">${phase === 0 && picked ? `<div class="chips"><span class="teamchip">${I.team} Equipe ✕</span></div>` : ""}<span>${phase === 0 && picked ? "Adicionar login com Google: tela, backend e testes" : phase === 0 ? "Descreva o que quer construir…" : "Fale com o coordenador…"}</span>
+  <div class="ctl"><span class="plus" data-plus>${I.plus}</span><span>Pedir aprovação</span><span style="margin-left:auto">Opus 5.5</span><span class="send" style="margin-left:6px" data-send>${I.up}</span></div></div></div>`;
+const coordinator = (text) => `<div><div class="who">${prov("claude")}<b>Opus 5.5</b><span class="muted">coordenador</span></div><div class="say">${text}</div></div>`;
+
+function planCard(locked) {
+  const rows = plan.map((t, n) => `<div class="line"><span class="n">${n + 1}</span>
+      <div class="what"><div class="t" ${locked ? "" : "contenteditable"} data-title="${t.id}">${esc(t.title)}</div>${locked ? `<div class="s">${WHO[t.who][1]}</div>` : ""}</div>
+      ${locked ? "" : `<span class="end">${prov(WHO[t.who][0])}<select data-who="${t.id}">${WHO.map((x, i) => `<option value="${i}"${i === t.who ? " selected" : ""}>${x[1]}</option>`).join("")}</select><button class="btn ghost" style="height:26px;padding:0 6px" title="Remover tarefa">${I.x}</button></span>`}
+    </div>${details ? `<div class="details">${t.scope.map(s => `<span class="scope">${I.lock}${esc(s)}</span>`).join("")}${t.after ? `<span class="tag">começa depois da 1</span>` : ""}<span class="tag">worktree próprio</span></div>` : ""}`).join("");
+  return `<div class="card${ent(locked ? "plan-l" : "plan")}"><div class="card-h">${I.team}<h3>Plano da equipe</h3><span class="sp"></span>${locked ? `<span class="tag">${I.check} Confirmado</span>` : ""}<button class="btn ghost" style="height:24px" data-details aria-expanded="${details}">Detalhes ${I.chev}</button></div>${rows}
+    ${locked ? "" : `<div class="card-f"><span class="note">Nada começa antes de você confirmar.</span><button class="btn ghost">+ Tarefa</button><button class="btn primary" data-confirm>Confirmar e iniciar</button></div>`}</div>`;
+}
+function teamCard() {
+  const busy = plan.some(t => w[t.id].s !== "done");
+  const rows = plan.map(t => {
+    const x = w[t.id];
+    const status = x.s === "done" ? `<span class="ok">Pronto</span>` : x.s === "needs" ? `<span class="warn">Precisa de você</span>` : x.s === "waiting" ? "Esperando a tarefa 1" : `<span class="live">${NOW[t.id][x.step]}…</span>`;
+    return `<div class="line"><span class="dot" data-s="${x.s}"></span><div class="what"><div class="t">${esc(t.title)}</div><div class="s">${WHO[t.who][1]} · ${status}</div></div><span class="end">${x.secs ? fmt(x.secs) : ""}<button class="btn ghost" style="height:24px;padding:0 6px" title="Abrir a sessão deste ajudante">${I.open}</button></span></div>
+      ${ask === t.id ? `<div class="ask${ent("ask")}"><b>Rodar <code>npm install @react-oauth/google</code>?</b><div class="acts"><button class="btn primary" data-approve>Permitir uma vez</button><button class="btn" data-approve>Recusar</button></div></div>` : ""}`;
+  }).join("");
+  return `<div class="card${ent("team")}"><div class="card-h">${I.team}<h3>Equipe</h3><span class="muted" style="font-size:12px">${ready()} de 3 prontos</span><span class="sp"></span>${busy ? `<button class="btn">${I.stop} Parar todos</button>` : ""}</div>${rows}</div>`;
+}
+function finishCard() {
+  const add = plan.reduce((a, t) => a + t.add, 0), del = plan.reduce((a, t) => a + t.del, 0), files = plan.reduce((a, t) => a + t.files, 0);
+  const order = ["api", "ui", "tests"].map(id => plan.find(t => t.id === id));
+  const rows = order.map(t => {
+    const done = merge?.done.includes(t.id), now = merge?.current === t.id, bad = merge?.conflict === t.id, skipped = merge?.skipped.includes(t.id);
+    const mark = done ? `<span class="mark pop ok">${I.check}</span>` : skipped ? `<span class="mark warn">${I.warn}</span>` : bad ? `<span class="mark warn">${I.warn}</span>` : now ? `<span class="dot" data-s="running"></span>` : `<span class="dot" data-s="done"></span>`;
+    return `<div class="line">${mark}<div class="what"><div class="t">${esc(t.title)}</div><div class="s">${WHO[t.who][1]} · ${t.files} ${t.files === 1 ? "arquivo" : "arquivos"} · <span class="ok">+${t.add}</span> <span class="bad">−${t.del}</span></div></div><span class="end">${done ? `<span class="ok">Juntado</span>` : skipped ? `<span class="warn">Pulada</span><button class="btn ghost" style="height:24px">Ver conflito</button>` : now ? `<span class="live">Juntando…</span>` : `<button class="btn ghost" style="height:24px">Ver mudanças</button>`}</span></div>
+      ${bad ? `<div class="stopbox${ent("conflict")}"><b class="warn">Parei aqui: conflito em <code>package.json</code>.</b><div>Nada desta tarefa foi aplicado. A tarefa 1 já está na sua branch.</div><div class="acts"><button class="btn primary">Ver conflito</button><button class="btn" data-skip>Pular esta e continuar</button><button class="btn ghost">Pedir ao coordenador</button></div></div>` : ""}`;
+  }).join("");
+  const all = merge?.finished;
+  const left = merge?.skipped.length ?? 0;
+  return `<div class="card${ent("finish")}"><div class="card-h">${I.merge}<h3>${all ? (left ? `${3 - left} de 3 juntados` : "Tudo juntado") : "Tudo pronto para juntar"}</h3><span class="sum">${files} arquivos · <b>+${add}</b> <s>−${del}</s></span><span class="sp"></span></div>${rows}
+    <div class="card-f"><span class="note">${all ? (left ? "Uma tarefa ficou de fora por conflito. O worktree dela continua guardado para você resolver ou pedir ao coordenador." : "As mudanças estão na sua branch <code>main</code>. Os worktrees dos ajudantes podem ser apagados.") : "Junta na ordem certa e para no primeiro conflito, sem aplicar nada dele."}</span>${all ? (left ? `<button class="btn">Pedir ao coordenador</button>` : `<button class="btn">Apagar worktrees</button>`) : `<button class="btn primary" data-mergeall${merge && !merge.conflict ? " disabled" : merge?.conflict ? " disabled" : ""}>${I.merge} Juntar tudo</button>`}</div></div>`;
+}
+function render() {
+  let body;
+  if (phase === 0) body = `<div class="muted" style="text-align:center;margin-top:140px">O que vamos construir em atlas?</div>`;
+  else {
+    body = `<div class="user">Adicionar login com Google: tela, backend e testes</div>` + coordinator("Olhei o projeto e dividi em 3 partes. Os testes começam depois da rota do backend. Ajuste se quiser e confirme.") + planCard(phase >= 2);
+    if (phase === 2) body += teamCard();
+    if (phase === 3) body += coordinator("Todos terminaram. Revise se quiser e clique em <b>Juntar tudo</b>.") + finishCard();
+  }
+  $("#app").innerHTML = sidebar() + `<section class="main"><div class="head">${phase >= 1 ? I.team : ""}<span>${phase >= 1 ? "Login com Google" : "Nova sessão"}</span>${phase >= 2 ? `<span class="tag">Equipe · ${ready()}/3</span>` : ""}</div><div class="chat"><div class="col">${body}</div></div>${composer()}</section>`;
+  wire();
+}
+function wire() {
+  $("[data-plus]")?.addEventListener("click", () => { menu = !menu; render(); });
+  $("[data-team]")?.addEventListener("click", () => { menu = false; picked = true; render(); });
+  $("[data-send]")?.addEventListener("click", () => { if (phase === 0 && picked) setPhase(1); });
+  $("[data-confirm]")?.addEventListener("click", () => setPhase(2));
+  $("[data-details]")?.addEventListener("click", () => { details = !details; render(); });
+  document.querySelectorAll("[data-approve]").forEach(b => b.addEventListener("click", approve));
+  $("[data-mergeall]")?.addEventListener("click", mergeAll);
+  $("[data-skip]")?.addEventListener("click", () => { merge.skipped.push(merge.conflict); merge.conflict = null; render(); merge.resume(2); });
+  document.querySelectorAll("[data-who]").forEach(s => s.addEventListener("change", () => { plan.find(t => t.id === s.dataset.who).who = Number(s.value); render(); }));
+  document.querySelectorAll("[data-title]").forEach(el => el.addEventListener("input", () => { plan.find(t => t.id === el.dataset.title).title = el.textContent; }));
+  if (phase === 2 && plan.every(t => w[t.id].s === "done") && !timers.done) { timers.done = true; later(900, () => setPhase(3)); }
+}
+function setPhase(p) {
+  clear(); seen.clear(); phase = p; menu = false; details = false;
+  if (p === 0) { fresh(); picked = false; }
+  if (p === 1) { fresh(); picked = true; }
+  if (p === 2) startRun();
+  if (p === 3) finished();
+  document.querySelectorAll("#phases button").forEach(b => b.setAttribute("aria-current", String(Number(b.dataset.p) === p)));
+  render();
+}
+function play() {
+  setPhase(0);
+  later(700, () => { menu = true; render(); });
+  later(1600, () => { menu = false; picked = true; render(); });
+  later(2700, () => setPhase(1));
+  later(5200, () => {
+    setPhase(2);
+    if ($("#needs").checked) later(4000, approve);
+  });
+}
+document.querySelectorAll("#phases button").forEach(b => b.onclick = () => setPhase(Number(b.dataset.p)));
+$("#play").onclick = play; $("#restart").onclick = () => setPhase(phase);
+$("#needs").onchange = () => setPhase(phase); $("#conflict").onchange = () => setPhase(phase);
+$("#theme").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("#theme").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); document.documentElement.dataset.theme = b.dataset.t; });
+const rm = $("#reduced"); rm.checked = matchMedia("(prefers-reduced-motion: reduce)").matches; rm.onchange = () => document.body.toggleAttribute("data-reduced", rm.checked); rm.onchange();
+setPhase(0);
+</script>
+</body>
+</html>
