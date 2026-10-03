@@ -1,6 +1,6 @@
 # Performance and resource audit
 
-Status: **Stage 3 (streaming and persistence) done**, 2026-10-03. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work.
+Status: **Stage 4a (per-session transcript files) done**, 2026-10-03. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work; Stage 3 made streaming and persistence cheaper.
 
 Switchyard is a desktop app that may stay open for hours. Its goal is to stay clearly lighter than an Electron app and to do almost no work when nothing is happening. This document records what was measured, what was found and what is planned. Numbers are only stated where they were actually measured.
 
@@ -188,12 +188,28 @@ The 6-message profile is now about 70 % idle; most of the remaining script time 
 
 Not measured: real provider CLIs in the native app, and WebKit release-build numbers. Heap readings in the dev probe vary between runs with GC timing and are not used.
 
+## Stage 4a changes
+
+[ADR-047](decisions/ADR-047-per-session-transcript-files.md): `state.json` keeps metadata only and each session's transcript has its own `sessions/<id>.json`. Saves hash every transcript and write only the changed files, then the index. The streaming checkpoint clones the state under the lock and encodes, hashes and writes outside it. A legacy file is backed up to `state.json.pre-split-backup` and split once; the user's real state migrated with identical transcripts.
+
+Synthetic 300 sessions × 60 messages (release build, one message changed per save):
+
+| | Before | After |
+| --- | --- | --- |
+| Bytes written per save | 25.3 MB (whole file) | 216 KB (135 KB index + 81 KB transcript) |
+| Save time (encode, hash, write, fsync) | — | 21–28 ms |
+| Load | — | 19 ms |
+
+Comparable tools keep conversations apart from the index too: Codex CLI and Claude Code use per-session JSONL, MonoCode one SQLite row per session, OpenCode SQLite, Synara event-sourced SQLite (see the ADR).
+
+Not done (Stage 4b): the renderer still receives and keeps every transcript; the native side still encodes every transcript per save (CPU, not disk); a single huge session is rewritten whole per checkpoint.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.
 - Agent streaming was measured only through the demo proxy, not with real provider CLIs.
 - WebKit numbers in the release build may differ from the debug build.
 - Several findings (lock contention, PTY deadlock) come from code reading and were not reproduced.
-- Native `session-updated` still serializes the whole session (all messages) on each published activity change, under the lock. The renderer now absorbs it cheaply, but the native cost grows with transcript length. Stage 4 (session content on demand) is the place to change the event shape.
+- Native `session-updated` still serializes the whole session (all messages) on each published activity change, under the lock. The renderer now absorbs it cheaply, but the native cost grows with transcript length. Stage 4b (renderer transcripts on demand) is the place to change the event shape.
 - Synchronous saves (settings, drafts, metadata, final states) still encode and fsync under the state lock. Only streaming checkpoints moved out.
 - `content-visibility` relies on remembered sizes; a never-rendered old message uses a 160 px placeholder until it is first shown, so a jump far up a never-viewed history can land slightly off before settling.

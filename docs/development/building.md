@@ -43,7 +43,9 @@ Tauri also merges `tauri.macos.conf.json` automatically on macOS. Its main-windo
 
 ## Data on disk
 
-- State: `~/Library/Application Support/com.switchyard.app/state.json`
+- State index: `~/Library/Application Support/com.switchyard.app/state.json` (projects, settings, drafts, session metadata)
+- Transcripts: `…/com.switchyard.app/sessions/<session-id>.json`, one per session ([ADR-047](../decisions/ADR-047-per-session-transcript-files.md))
+- One-time migration backup: `…/com.switchyard.app/state.json.pre-split-backup`
 - Isolated worktrees: `…/com.switchyard.app/worktrees/{project_id}/`
 
 Removing a project from the sidebar deletes metadata only, not the user’s folder.

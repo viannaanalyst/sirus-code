@@ -2283,7 +2283,8 @@ mod tests {
         assert!(state.ensure_running().is_ok());
         state.shutdown().unwrap();
         assert!(state.ensure_running().is_err());
-        let saved: AppData = serde_json::from_slice(&std::fs::read(&data_path).unwrap()).unwrap();
+        let first_shutdown = std::fs::read(&data_path).unwrap();
+        let saved = persist::load_or_create(&data_path).unwrap();
         assert_eq!(saved.composer_drafts["session:one"], "Latest unsent draft");
         assert_eq!(saved.sessions[0].status, SessionStatus::Stopped);
         assert!(saved.sessions[0]
@@ -2306,9 +2307,6 @@ mod tests {
             .iter()
             .all(|message| !message.streaming));
         state.shutdown().unwrap();
-        assert_eq!(
-            std::fs::read(&data_path).unwrap(),
-            serde_json::to_vec(&saved).unwrap()
-        );
+        assert_eq!(std::fs::read(&data_path).unwrap(), first_shutdown);
     }
 }

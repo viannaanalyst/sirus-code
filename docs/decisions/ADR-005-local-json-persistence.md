@@ -1,6 +1,6 @@
 # ADR-005: Local-first atomic JSON persistence
 
-**Status:** Accepted
+**Status:** Accepted. Storage layout superseded by [ADR-047](ADR-047-per-session-transcript-files.md): compact JSON, with one transcript file per session. Local-first ownership, drafts and the no-telemetry rules are retained.
 
 ## Context
 

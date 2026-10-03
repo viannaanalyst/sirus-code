@@ -90,7 +90,7 @@ Pick few. Read them before coding. Never spray twenty skills on a padding change
 | Native | Rust 2021 edition, crate `switchyard` / lib `switchyard_lib` |
 | Git | Git CLI argv + worktrees |
 | Terminal | portable-pty + `@xterm/xterm` |
-| Persistence | JSON file, not SQLite |
+| Persistence | JSON files (metadata index + per-session transcripts), not SQLite |
 
 No Next.js. No Electron. No app login.
 
@@ -119,7 +119,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 | `lib.rs` | Plugins, `AppState`, command allowlist, `pick_folder` |
 | `commands.rs` | IPC handlers + `AppState` |
 | `models.rs` | Serde domain (`camelCase` JSON) |
-| `persist.rs` | Atomic `state.json` |
+| `persist.rs` | Atomic metadata `state.json` plus one `sessions/<id>.json` transcript per session; content-hashed writes, generation-ordered, coalesced streaming checkpoints (ADR-047) |
 | `profile.rs` / `profile_image.rs` | Bounded local display identity, decoded JPEG preferences and closed native PNG Copy/Save/social actions |
 | `notifications.rs` / `notifications_macos.rs` | native-owned successful-turn/permission/question alerts, closed sound presets and explicit OS authorization/test controls |
 | `appearance.rs` | Closed persisted appearance controls, main-thread macOS glass backing, original Dock icon restoration and embedded Smoked Glass/White alternatives |
@@ -357,7 +357,7 @@ Native dictation uses a matching metal mic at rest and a silver orbital recordin
 
 ## Performance
 
-The app may stay open for hours. No polling loops. No global pointer listeners. Lazy `list_dir` — never walk `node_modules`. Agent streaming is events, not timers; the renderer applies `agent-output` deltas once per animation frame. Stream persistence checkpoints are event-driven and coalesced (`persist::checkpoint_soon`: at most one write per second across streams, written outside the state lock; generation-ordered so an older snapshot never replaces a newer save). `state.json` is compact JSON. Views that do not read messages use `selectSessionsMeta` / `selectCurrentSessionMeta`. Blocking Git/filesystem/worktree commands run on native workers. Measurements and findings: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
+The app may stay open for hours. No polling loops. No global pointer listeners. Lazy `list_dir` — never walk `node_modules`. Agent streaming is events, not timers; the renderer applies `agent-output` deltas once per animation frame. Stream persistence checkpoints are event-driven and coalesced (`persist::checkpoint_soon`: at most one write per second across streams, written outside the state lock; generation-ordered so an older snapshot never replaces a newer save). `state.json` is compact JSON without transcripts; only changed `sessions/<id>.json` files are rewritten (ADR-047). Views that do not read messages use `selectSessionsMeta` / `selectCurrentSessionMeta`. Blocking Git/filesystem/worktree commands run on native workers. Measurements and findings: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 ---
 
@@ -407,7 +407,7 @@ cd src-tauri && cargo check
 graphify update .
 ```
 
-Persistence: `~/Library/Application Support/com.switchyard.app/state.json` on macOS.
+Persistence: `~/Library/Application Support/com.switchyard.app/state.json` (metadata) and `sessions/<id>.json` (transcripts) on macOS. See [ADR-047](docs/decisions/ADR-047-per-session-transcript-files.md).
 
 Settings persistence runs on native workers. macOS uses a custom native Quit menu item so Command+Q enters the native exit guard rather than predefined NSApp termination. Closing/Quit with native agent handles or Starting admission can require one native confirmation; decline preserves execution. Session reopening controls automatic selection only, preserving all saved sessions/drafts and never starting processes. Developer diagnostics contains fixed aggregate lifecycle counts only, rotating two private 256 KiB files under app data.
 
