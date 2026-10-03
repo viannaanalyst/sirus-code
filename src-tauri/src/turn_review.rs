@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 use crate::commands::{session_cwd, AppState};
 use crate::error::{Error, Result};
@@ -587,12 +587,18 @@ pub async fn keep_turn_changes(
     let state = state.inner().clone();
     let worker_state = state.clone();
     let owner = session_id.clone();
+    let kept = message_id.clone();
     let review =
-        crate::commands::native_task(move || keep_native(&worker_state, &owner, &message_id))
-            .await?;
+        crate::commands::native_task(move || keep_native(&worker_state, &owner, &kept)).await?;
     let data = state.data.lock();
     if let Some(session) = data.sessions.iter().find(|s| s.id == session_id) {
-        let _ = app.emit("session-updated", session);
+        // The acknowledged message may be older than the current turn.
+        let from = session
+            .messages
+            .iter()
+            .position(|message| message.id == message_id)
+            .unwrap_or_else(|| crate::transcript_view::current_turn(session));
+        crate::transcript_view::emit_from(&app, session, from);
     }
     Ok(review)
 }

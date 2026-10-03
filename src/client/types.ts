@@ -149,6 +149,10 @@ export interface HandoffOrigin {
 }
 
 export interface Session {
+  /** Native count of user/assistant messages, sent with metadata-only sessions (ADR-048). */
+  transcriptLength?: number;
+  /** On session events: `messages` holds only `messages[from..]` of `total` (ADR-048). */
+  transcriptWindow?: { from: number; total: number };
   goal?: string | null;
   pinnedMessageIds?: string[];
   forkOrigin?: { sourceSessionId: string; sourceMessageId: string; sourceTitle: string; inheritedMessageCount: number; seededNativeThreadId?: string | null } | null;
@@ -608,3 +612,13 @@ export type CommitTitleAction =
   | { type: "cancel"; sessionId: string; requestId: string };
 export type CommitTitleResult = { type: "title"; title: string; provider: "codex" | "claude"; partial: boolean };
 export type CommitTitleResponse = CommitTitleResult | { type: "cancelled" };
+
+/** Closed read-only transcript access (ADR-048). */
+export type TranscriptAction =
+  | { type: "load"; sessionId: string }
+  | { type: "search"; query: string }
+  | { type: "activity" };
+export type TranscriptResponse =
+  | { type: "transcript"; sessionId: string; messages: Message[] }
+  | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean }
+  | { type: "activity"; sessions: { sessionId: string; prompts: { id: string; createdAt: string }[] }[] };

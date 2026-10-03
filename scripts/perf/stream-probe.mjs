@@ -13,19 +13,18 @@ async function probe(label, count) {
     if (window === window.top) return;
     window.__outputHandlers = [];
     const code = "```ts\nexport function rateLimit(windowMs = 60_000, max = 5) {\n  const hits = new Map<string, number[]>();\n  return (req: Request, res: Response, next: () => void) => {\n    const now = Date.now();\n    if (hits.size > max) return res.status(429).end();\n    next();\n  };\n}\n```";
+    // The demo IPC owns the fictional data; reshape it before the app loads.
+    const s = window.__demoSessions.find(x => x.id === "darkmode");
+    s.messages = Array.from({ length: count }, (_, n) => ({ id: `big${n}`, sessionId: "darkmode", role: n % 2 ? "agent" : "user", content: n % 2 ? `Resposta ${n} com explicação.\n\n${code}\n\nMais texto.` : `Pergunta ${n}`, createdAt: new Date(Date.now() - 1e6 + n * 1000).toISOString(), streaming: false }));
+    s.messages.push({ id: "ask", sessionId: "darkmode", role: "user", content: "continue", createdAt: new Date().toISOString(), streaming: false });
+    s.messages.push({ id: "live", sessionId: "darkmode", role: "agent", content: "", createdAt: new Date().toISOString(), streaming: true });
+    s.status = "running";
     const wait = setInterval(() => {
       const i = window.__TAURI_INTERNALS__; if (!i || i.__wrapped) return;
       const orig = i.invoke;
       i.invoke = async (c, a) => {
         const r = await orig(c, a);
         if (c === "plugin:event|listen" && a.event === "agent-output") window.__outputHandlers.push(a.handler);
-        if (c === "load_state") {
-          const s = r.sessions.find(x => x.id === "darkmode");
-          s.messages = Array.from({ length: count }, (_, n) => ({ id: `big${n}`, sessionId: "darkmode", role: n % 2 ? "agent" : "user", content: n % 2 ? `Resposta ${n} com explicação.\n\n${code}\n\nMais texto.` : `Pergunta ${n}`, createdAt: new Date(Date.now() - 1e6 + n * 1000).toISOString(), streaming: false }));
-          s.messages.push({ id: "ask", sessionId: "darkmode", role: "user", content: "continue", createdAt: new Date().toISOString(), streaming: false });
-          s.messages.push({ id: "live", sessionId: "darkmode", role: "agent", content: "", createdAt: new Date().toISOString(), streaming: true });
-          s.status = "running";
-        }
         return r;
       };
       i.__wrapped = true; clearInterval(wait);

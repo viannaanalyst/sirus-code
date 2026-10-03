@@ -1,8 +1,9 @@
 import type { AppSettings, AppearanceSupport, Session } from "@/client/types";
+import { hasConversation } from "./transcripts";
 
 /** Landing and pending handoffs retain their own background until conversation starts. */
 export function isConversationStarted(session: Session | null) {
-  return Boolean(session && !session.handoff?.pending && session.messages.some(message => message.role !== "system"));
+  return Boolean(session && !session.handoff?.pending && hasConversation(session));
 }
 /** Native authority decides whether desktop materials are available. Unknown hosts stay opaque. */
 export function resolveAppearanceMaterial(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {

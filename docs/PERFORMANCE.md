@@ -1,6 +1,6 @@
 # Performance and resource audit
 
-Status: **Stage 4a (per-session transcript files) done**, 2026-10-03. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work; Stage 3 made streaming and persistence cheaper.
+Status: **Stage 4 (4a per-session files, 4b transcripts on demand) done**, 2026-10-03. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work; Stage 3 made streaming and persistence cheaper.
 
 Switchyard is a desktop app that may stay open for hours. Its goal is to stay clearly lighter than an Electron app and to do almost no work when nothing is happening. This document records what was measured, what was found and what is planned. Numbers are only stated where they were actually measured.
 
@@ -202,7 +202,27 @@ Synthetic 300 sessions × 60 messages (release build, one message changed per sa
 
 Comparable tools keep conversations apart from the index too: Codex CLI and Claude Code use per-session JSONL, MonoCode one SQLite row per session, OpenCode SQLite, Synara event-sourced SQLite (see the ADR).
 
-Not done (Stage 4b): the renderer still receives and keeps every transcript; the native side still encodes every transcript per save (CPU, not disk); a single huge session is rewritten whole per checkpoint.
+Still open: the native side encodes every transcript per save (CPU, not disk), and a single huge session is rewritten whole per checkpoint.
+
+## Stage 4b changes
+
+[ADR-048](decisions/ADR-048-transcripts-on-demand.md): `load_state` sends metadata only, `session-updated` sends only the current turn, and the closed read-only `transcript_action` loads one transcript, returns bounded search candidates, or returns prompt activity. The renderer loads transcripts when opened and keeps a bounded set.
+
+Native debug build, synthetic 300 sessions × 60 messages (25 MB), separate `HOME`, first 25 s after launch, two runs each:
+
+| | Stage 4a build | Stage 4b build |
+| --- | --- | --- |
+| `load_state` payload | ~25 MB | 165 KB |
+| Native process | 101 MB | 70 MB |
+| Webview (WebContent) | 220–221 MB | 199 MB |
+| CPU (all processes) | 2.0–2.2 s | 1.6 s |
+| Same build, empty state | — | WebContent 81 MB, CPU 0.6 s |
+
+Verified end to end on the demo IPC (same contract): opening and switching sessions, returning to a cached session, all-conversations search and jumping into an unloaded session, sending and streaming a turn, and Profile statistics.
+
+### New finding: the sidebar renders every session
+
+With 305 sessions the sidebar holds about 5,600 DOM nodes and adds about 38 MB of JS heap (no transcripts loaded). That is most of the remaining webview growth above. Bounding visible rows per project (for example "show more") or virtualizing the list is the next lever.
 
 ## Remaining risks and unknowns
 

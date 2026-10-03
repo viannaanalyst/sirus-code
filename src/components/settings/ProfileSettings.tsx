@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Share2 } from "lucide-react";
-import type { AppSettings, HostInfo } from "@/client/types";
-import { useAppStore } from "@/store/app-store";
+import type { AppSettings, HostInfo, Session } from "@/client/types";
+import { client } from "@/client";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
 import { buildProfileStats, profileIdentity } from "@/lib/profile-stats";
 import { PROVIDERS } from "@/lib/provider-registry";
@@ -19,9 +20,18 @@ import "@/styles/profile.css";
 
 export function ProfileSettings({ settings, host }: { settings: AppSettings; host: HostInfo | null }) {
   const t = useTranslation();
-  const projects = useAppStore(state => state.projects), sessions = useAppStore(state => state.sessions), catalogs = useAppStore(state => state.modelsByProvider);
+  const projects = useAppStore(state => state.projects), sessions = useAppStore(selectSessionsMeta), catalogs = useAppStore(state => state.modelsByProvider);
   const today = useProfileDay();
-  const stats = useMemo(() => buildProfileStats(projects, sessions, new Date(), today), [projects, sessions, today]);
+  // Transcripts load per session (ADR-048): native returns owned prompt times only,
+  // already past any fork-inherited prefix.
+  const [prompts, setPrompts] = useState<Map<string, { id: string; createdAt: string }[]> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    client.transcriptActivity().then(rows => { if (!cancelled) setPrompts(new Map(rows.map(row => [row.sessionId, row.prompts]))); }, () => {});
+    return () => { cancelled = true; };
+  }, [sessions]);
+  const stats = useMemo(() => buildProfileStats(projects, sessions.map((session): Session => ({ ...session, forkOrigin: null,
+    messages: (prompts?.get(session.id) ?? []).map(prompt => ({ id: prompt.id, sessionId: session.id, role: "user", content: "", createdAt: prompt.createdAt, streaming: false })) })), new Date(), today), [projects, sessions, prompts, today]);
   const [editOpen, setEditOpen] = useState(false), [shareOpen, setShareOpen] = useState(false);
   const defaultName = host?.profileDefaultName || "Switchyard", identity = profileIdentity(settings.profile, defaultName);
   const number = new Intl.NumberFormat(settings.locale);

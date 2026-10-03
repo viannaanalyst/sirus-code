@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::commands::{native_task, session_cwd, AppState};
 use crate::error::{Error, Result};
@@ -358,7 +358,7 @@ Only change these paths: {}. Do not commit, create or switch branches, push, or 
 /* ---------- Lifecycle ---------- */
 
 fn emit(app: &AppHandle, session: &Session) {
-    let _ = app.emit("session-updated", session);
+    crate::transcript_view::emit(app, session);
 }
 fn coordinator_mut<'a>(data: &'a mut AppData, id: &str) -> Option<&'a mut Session> {
     data.sessions.iter_mut().find(|session| session.id == id)

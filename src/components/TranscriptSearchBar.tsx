@@ -1,6 +1,8 @@
-import { useDeferredValue, useLayoutEffect, useMemo, useRef } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { useAppStore } from "@/store/app-store";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { client } from "@/client";
+import type { Session } from "@/client/types";
 import { searchConversations, type SearchHit } from "@/lib/conversation-search";
 import { useTranslation } from "@/i18n/use-translation";
 import { IconButton } from "@/primitives/IconButton";
@@ -10,14 +12,36 @@ import { cn } from "@/lib/cn";
 export function TranscriptSearchBar({ sessionId }: { sessionId?: string }) {
   const t = useTranslation();
   const search = useAppStore(state => state.transcriptSearch);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
+  const current = useAppStore(state => sessionId ? state.sessions.find(session => session.id === sessionId) : undefined);
   const projects = useAppStore(state => state.projects);
   const jump = useAppStore(state => state.messageJump);
   const update = useAppStore(state => state.updateTranscriptSearch);
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const query = useDeferredValue(search?.query ?? "");
-  const result = useMemo(() => searchConversations(sessions.filter(session => projects.some(project => project.id === session.projectId)), query, search?.scope === "session" ? sessionId ?? "" : undefined), [sessions, projects, query, search?.scope, sessionId]);
+  const all = search?.scope === "all";
+  // All conversations: native returns bounded candidate messages (transcripts may not be
+  // loaded); the exact matching and offsets below stay the same for both scopes.
+  const [remote, setRemote] = useState<{ query: string; sessions: Session[]; truncated: boolean } | null>(null);
+  useEffect(() => {
+    if (!all || !query.trim()) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      client.searchTranscripts(query).then(result => {
+        if (cancelled) return;
+        const known = new Map(useAppStore.getState().sessions.map(session => [session.id, session]));
+        setRemote({ query, truncated: result.truncated, sessions: result.sessions.flatMap(candidate => { const meta = known.get(candidate.sessionId); return meta ? [{ ...meta, messages: candidate.messages }] : []; }) });
+      }, () => { if (!cancelled) setRemote({ query, sessions: [], truncated: false }); });
+    }, 150);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [all, query]);
+  const result = useMemo(() => {
+    if (!all) return searchConversations(current && projects.some(project => project.id === current.projectId) ? [current] : [], query, sessionId ?? "");
+    if (!remote || remote.query !== query) return { hits: [], truncated: false };
+    const found = searchConversations(remote.sessions.filter(session => projects.some(project => project.id === session.projectId)), query);
+    return { hits: found.hits, truncated: found.truncated || remote.truncated };
+  }, [all, current, remote, projects, query, sessionId]);
   const active = result.hits.findIndex(hit => hit.sessionId === jump?.sessionId && hit.messageId === jump?.messageId && hit.start === jump?.searchStart);
   const revision = search?.revision;
   useLayoutEffect(() => { if (revision !== undefined) { input.current?.focus(); input.current?.select(); } }, [revision]);

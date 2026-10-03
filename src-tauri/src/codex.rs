@@ -760,12 +760,13 @@ pub fn monitor(
                 crate::persist::checkpoint_soon(&state);
             }
             if publish {
-                let _ = app.emit(
-                    "session-updated",
-                    data.sessions
-                        .iter()
-                        .find(|session| session.id == session_id),
-                );
+                if let Some(session) = data
+                    .sessions
+                    .iter()
+                    .find(|session| session.id == session_id)
+                {
+                    crate::transcript_view::emit(&app, session);
+                }
             }
             Ok(())
         };
@@ -795,7 +796,7 @@ pub fn monitor(
             {
                 if !session.pending_requests.is_empty() {
                     session.pending_requests.clear();
-                    let _ = app.emit("session-updated", session.clone());
+                    crate::transcript_view::emit(&app, session);
                 }
             }
         }
@@ -833,7 +834,7 @@ pub fn monitor(
             );
             session.pending_requests.clear();
             crate::turn_review::attach(session, review);
-            let _ = app.emit("session-updated", session.clone());
+            crate::transcript_view::emit(&app, session);
             crate::notifications::publish(&app, &state, session);
         }
         if let Err(error) = crate::persist::save(&state.data_path, &data) {

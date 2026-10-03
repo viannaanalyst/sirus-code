@@ -236,8 +236,8 @@ pub struct Session {
     pub created_at: String,
     pub last_activity_at: String,
     pub worktree: Worktree,
-    /// Each transcript has its own file on disk (ADR-047); memory and IPC keep it inline.
-    #[serde(default, skip_serializing_if = "crate::persist::on_disk")]
+    /// Each transcript has its own file and loader (ADR-047); memory keeps it inline.
+    #[serde(default, skip_serializing_if = "crate::persist::omit_transcripts")]
     pub messages: Vec<Message>,
     pub last_error: Option<String>,
     #[serde(default)]

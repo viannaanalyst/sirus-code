@@ -479,7 +479,7 @@ impl StartedAgent {
                 // Keep lifecycle publication ordered with admission of the next run.
                 if let Some(session) = session {
                     crate::notifications::publish(&app, &state, &session);
-                    let _ = app.emit("session-updated", session);
+                    crate::transcript_view::emit(&app, &session);
                 }
             }
             crate::team::settled(&app, &state, &session_id);
@@ -587,7 +587,7 @@ fn fail_stream(app: &AppHandle, state: &AppState, session_id: &str, message: &st
             session.status = SessionStatus::Failed;
             crate::activity::sync(session);
             session.last_error = Some(message.into());
-            let _ = app.emit("session-updated", session.clone());
+            crate::transcript_view::emit(app, session);
         }
     }
     if let Some(process) = state.agents.lock().get(session_id) {

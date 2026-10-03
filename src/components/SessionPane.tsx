@@ -19,6 +19,7 @@ import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
 import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
+import { hasConversation } from "@/lib/transcripts";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
@@ -49,7 +50,8 @@ export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
   const search = useAppStore(state => state.transcriptSearch);
   const searchQuery = useDeferredValue(search?.query ?? "");
   const source = useAppStore((state) => state.sessions.find((item) => item.id === session?.forkOrigin?.sourceSessionId));
-  const empty = !session || !session.messages.some((message) => message.role !== "system");
+  // A transcript that is still loading is not an empty conversation (ADR-048).
+  const empty = !session || !hasConversation(session);
   const transcript = useRef<HTMLDivElement>(null);
   const messageNodes = useRef(new Map<string, HTMLElement>());
   const transcriptContent = useRef<HTMLDivElement>(null);

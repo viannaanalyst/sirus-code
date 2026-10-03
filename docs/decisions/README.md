@@ -64,6 +64,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 
 - [ADR-046: Provider-generated commit titles](ADR-046-provider-generated-commit-titles.md) — explicit isolated inference from the owned prepared index.
 - [ADR-047: Per-session transcript files with content-addressed writes](ADR-047-per-session-transcript-files.md) — `state.json` keeps metadata; only changed transcripts are rewritten.
+- [ADR-048: Transcripts load on demand in the renderer](ADR-048-transcripts-on-demand.md) — metadata-only `load_state`, windowed session events, closed read-only `transcript_action`.
 
 ## Template
 

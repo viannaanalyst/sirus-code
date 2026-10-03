@@ -51,6 +51,7 @@ mod sidebar;
 mod skills;
 mod team;
 mod transcript;
+mod transcript_view;
 mod turn_review;
 mod window_attachment;
 mod workspace_entries;
@@ -193,6 +194,7 @@ pub fn run() {
             commands::create_branch,
             commands::git_commit,
             commands::git_workspace_action,
+            commands::transcript_action,
             commit_title::commit_title_action,
             commands::git_push,
             commands::project_remote_url,

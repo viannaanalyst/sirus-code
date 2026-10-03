@@ -6,7 +6,8 @@ import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openT
 import { retainActivityNotifications } from "@/lib/notifications";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
-import { applyAgentOutput, reuseMessages } from "@/lib/agent-events";
+import { applyAgentOutput } from "@/lib/agent-events";
+import { mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "@/lib/transcripts";
 import { appendAttachments } from "@/lib/composer-attachments";
 import { canReadDocument } from "@/lib/document-reader";
 import { composerContextForOwner, composerPrompt } from "@/lib/composer-context";
@@ -225,7 +226,7 @@ interface AppStore {
   noteBrowserUrl: (sessionId: string, url: string) => void;
   setMessagePinned: (sessionId: string, messageId: string, pinned: boolean) => Promise<boolean>;
   messageJump: { sessionId: string; messageId: string; sequence: number; searchStart?: number } | null;
-  jumpToMessage: (sessionId: string, messageId: string, searchStart?: number) => void;
+  jumpToMessage: (sessionId: string, messageId: string, searchStart?: number) => Promise<void>;
   sendPrompt: (prompt: string, execution?: ExecutionOptions) => Promise<boolean>;
   renameSession: (sessionId: string, title: string) => Promise<boolean>;
   deleteSession: (sessionId: string, removeWorktree: boolean) => Promise<boolean>;
@@ -277,6 +278,10 @@ interface AppStore {
   draftTabByProject: Record<string, boolean>;
   closeDraftTab: (projectId: string) => void;
   unseenSessionIds: string[];
+  /** Sessions whose full transcript is in memory, with a recency tick (ADR-048). */
+  loadedTranscripts: Record<string, number>;
+  /** Loads a session's transcript once; resolves false when it cannot be loaded. */
+  ensureTranscript: (sessionId: string, refresh?: boolean) => Promise<boolean>;
   projectSwitcherOpen: boolean;
   setProjectSwitcherOpen: (open: boolean) => void;
   closeHeaderTab: (projectId: string, sessionId: string) => void;
@@ -414,6 +419,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (!imported.length) return;
     set((state) => ({
       sessions: [...imported, ...state.sessions],
+      loadedTranscripts: { ...state.loadedTranscripts, ...Object.fromEntries(imported.map((session) => [session.id, ++transcriptTick])) },
       selectedProjectId: imported[0].projectId,
       selectedSessionId: imported[0].id,
       mainView: "session",
@@ -641,6 +647,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (onDraft && fallback) void get().selectSession(fallback);
   },
   unseenSessionIds: [],
+  loadedTranscripts: {},
+  ensureTranscript: (sessionId, refresh = false) => {
+    if (!refresh && get().loadedTranscripts[sessionId] !== undefined) {
+      useAppStore.setState((state) => ({ loadedTranscripts: { ...state.loadedTranscripts, [sessionId]: ++transcriptTick } }));
+      return Promise.resolve(true);
+    }
+    const pending = transcriptRequests.get(sessionId);
+    if (pending) return pending;
+    const request = client.loadTranscript(sessionId).then((messages) => {
+      useAppStore.setState((state) => {
+        if (!state.sessions.some((session) => session.id === sessionId)) return {};
+        return {
+          sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, messages: mergeLoadedTranscript(session.messages, messages) } : session),
+          loadedTranscripts: { ...state.loadedTranscripts, [sessionId]: ++transcriptTick },
+        };
+      });
+      releaseTranscripts();
+      return true;
+    }, () => false).finally(() => transcriptRequests.delete(sessionId));
+    transcriptRequests.set(sessionId, request);
+    return request;
+  },
   projectSwitcherOpen: false,
   setProjectSwitcherOpen: (open) => set({ projectSwitcherOpen: open }),
   closeHeaderTab: (projectId, sessionId) => {
@@ -776,6 +804,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         settings.restorePreviousSessions && selectedProjectId
           ? (sessions.find((session) => session.projectId === selectedProjectId && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
           : null;
+      // Only the selected transcript loads before the first paint (ADR-048).
+      const initialTranscript = selectedSessionId ? await client.loadTranscript(selectedSessionId).catch(() => null) : null;
       const identify = async (project: Project) => {
         try { return [project.path, await client.gitIdentity(project.path)] as const; }
         catch (error) { set({ error: formatUnknownError(error) }); return null; }
@@ -786,7 +816,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         ready: true,
         hostInfo,
         projects,
-        sessions,
+        sessions: initialTranscript ? sessions.map((session) => session.id === selectedSessionId ? { ...session, messages: initialTranscript } : session) : sessions,
+        loadedTranscripts: initialTranscript && selectedSessionId ? { [selectedSessionId]: ++transcriptTick } : {},
         settings,
         selectedProjectId,
         selectedSessionId,
@@ -884,6 +915,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       composerDrafts,
       promptQueues: Object.fromEntries(Object.entries(get().promptQueues).filter(([id]) => !removedSessionIds.has(id))),
       unseenSessionIds: get().unseenSessionIds.filter((id) => !removedSessionIds.has(id)),
+      loadedTranscripts: Object.fromEntries(Object.entries(get().loadedTranscripts).filter(([id]) => !removedSessionIds.has(id))),
       contextTexts: normalizeContextTexts(get().contextTexts, projects, sessions),
       pullRequestsBySession: Object.fromEntries(Object.entries(get().pullRequestsBySession).filter(([id]) => !removedSessionIds.has(id))),
       browserBySession: Object.fromEntries(Object.entries(get().browserBySession).filter(([id]) => !removedSessionIds.has(id))),
@@ -924,6 +956,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
       set((state) => ({
         sessions: [session, ...state.sessions],
+        loadedTranscripts: { ...state.loadedTranscripts, [session.id]: ++transcriptTick },
         ...(state.selectedProjectId === projectId ? { selectedSessionId: session.id, mainView: "session" as const } : {}),
         newSessionOpen: false,
         error: null,
@@ -942,7 +975,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().refreshGitStatus();
   },
 
-  jumpToMessage: (sessionId, messageId, searchStart) => {
+  jumpToMessage: async (sessionId, messageId, searchStart) => {
+    // Search results can point into a transcript that is not loaded yet.
+    if (!(await get().ensureTranscript(sessionId))) return;
     const session = get().sessions.find((item) => item.id === sessionId);
     if (!session?.messages.some((message) => message.id === messageId)) return;
     const changed = get().selectedSessionId !== sessionId;
@@ -956,7 +991,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   forkSession: async (sessionId, messageId) => {
     try {
       const fork = await client.forkSession(sessionId, messageId);
-      set((state) => ({ sessions: [fork, ...state.sessions], error: null,
+      set((state) => ({ sessions: [fork, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [fork.id]: ++transcriptTick }, error: null,
         ...(state.selectedSessionId === sessionId ? { selectedSessionId: fork.id, selectedProjectId: fork.projectId,
           mainView: "session" as const, gitStatus: null, selectedDiff: null, diffText: null } : {}),
       }));
@@ -968,7 +1003,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   handoffSession: async (sessionId, messageId, agent, model) => {
     try {
       const handoff = await client.handoffSession(sessionId, messageId, agent, model);
-      set((state) => ({ sessions: [handoff, ...state.sessions], error: null,
+      set((state) => ({ sessions: [handoff, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [handoff.id]: ++transcriptTick }, error: null,
         selectedSessionId: handoff.id, selectedProjectId: handoff.projectId,
         mainView: "session" as const, gitStatus: null, selectedDiff: null, diffText: null,
       }));
@@ -1210,7 +1245,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const transferredContext = stayingOnOrigin ? composerContexts[originKey] : submittedContext;
           if (transferredContext) composerContexts[`session:${session.id}`] = transferredContext;
           if (stayingOnOrigin) delete composerContexts[originKey];
-          return { sessions: [session, ...state.sessions], composerDrafts, composerContexts,
+          return { sessions: [session, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [session.id]: ++transcriptTick }, composerDrafts, composerContexts,
             dockPanes: state.dockPanes.map((pane) => stayingOnOrigin && pane.document?.scope === originKey ? { ...pane, document: { ...pane.document, scope: `session:${session.id}` } } : pane),
             ...(stayingOnOrigin ? { selectedSessionId: session.id } : {}) };
         });
@@ -1293,7 +1328,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const browserBySession = { ...state.browserBySession }; delete browserBySession[sessionId];
         const browserHistoryBySession = { ...state.browserHistoryBySession }; delete browserHistoryBySession[sessionId];
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
-        return { sessions, promptQueues, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
+        const loadedTranscripts = { ...state.loadedTranscripts }; delete loadedTranscripts[sessionId];
+        return { sessions, promptQueues, loadedTranscripts, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
           selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
@@ -1326,7 +1362,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
           const next = returned.get(session.id);
           return next ? { ...next, pinnedMessageIds: session.pinnedMessageIds ?? next.pinnedMessageIds } : session;
         });
-        return { error: null, sessions: [...response.sessions.filter((session) => !known.has(session.id)), ...kept] };
+        // Team actions return complete sessions.
+        const loadedTranscripts = { ...state.loadedTranscripts };
+        for (const session of response.sessions) loadedTranscripts[session.id] = ++transcriptTick;
+        for (const id of removed) delete loadedTranscripts[id];
+        return { error: null, sessions: [...response.sessions.filter((session) => !known.has(session.id)), ...kept], loadedTranscripts };
       });
       return true;
     } catch (error) {
@@ -1853,6 +1893,42 @@ async function advancePromptQueue(sessionId: string) {
   if (!waitingFor && live.status === "completed") void advancePromptQueue(sessionId);
 }
 
+let transcriptTick = 0;
+const transcriptRequests = new Map<string, Promise<boolean>>();
+/** Views that need a transcript while mounted (team helpers, historical reviews). */
+const retainedTranscripts = new Map<string, number>();
+
+/** Keeps a session's transcript loaded until the returned release is called. */
+export function retainTranscript(sessionId: string) {
+  retainedTranscripts.set(sessionId, (retainedTranscripts.get(sessionId) ?? 0) + 1);
+  void useAppStore.getState().ensureTranscript(sessionId);
+  return () => {
+    const count = (retainedTranscripts.get(sessionId) ?? 1) - 1;
+    if (count > 0) retainedTranscripts.set(sessionId, count); else retainedTranscripts.delete(sessionId);
+    releaseTranscripts();
+  };
+}
+
+/** Drops transcripts outside the keep set; their metadata stays. */
+function releaseTranscripts() {
+  useAppStore.setState((state) => {
+    const keep = transcriptsToKeep({
+      loaded: state.loadedTranscripts, sessions: state.sessions, selectedSessionId: state.selectedSessionId,
+      queued: Object.entries(state.promptQueues).filter(([, queue]) => queue.items.length).map(([id]) => id),
+      retained: retainedTranscripts.keys(),
+    });
+    const release = Object.keys(state.loadedTranscripts).filter((id) => !keep.has(id));
+    if (!release.length) return {};
+    const released = new Set(release);
+    return {
+      loadedTranscripts: Object.fromEntries(Object.entries(state.loadedTranscripts).filter(([id]) => !released.has(id))),
+      sessions: state.sessions.map((session) => released.has(session.id)
+        ? { ...session, messages: [], transcriptLength: session.messages.filter((message) => message.role !== "system").length }
+        : session),
+    };
+  });
+}
+
 /**
  * Streamed deltas arrive once per provider token. Applying them once per frame
  * keeps the store, and every subscriber, to at most one update per frame while
@@ -1869,14 +1945,23 @@ const outputBatch = (() => {
     pending = [];
     const bySession = new Map<string, AgentEvent[]>();
     for (const event of events) bySession.set(event.sessionId, [...(bySession.get(event.sessionId) ?? []), event]);
+    const gaps = new Set<string>();
     useAppStore.setState((state) => ({
       sessions: state.sessions.map((session) => {
         const queued = bySession.get(session.id);
-        if (!queued) return session;
-        const messages = queued.reduce(applyAgentOutput, session.messages);
+        // An unloaded transcript is fetched whole when opened; partial text is never kept.
+        if (!queued || state.loadedTranscripts[session.id] === undefined) return session;
+        let messages = session.messages;
+        for (const event of queued) {
+          // A transcript loaded mid-stream can miss text emitted before it arrived.
+          const target = messages.find((message) => message.id === event.messageId);
+          if (!event.message && (!target || target.content.length < event.offset)) gaps.add(session.id);
+          messages = applyAgentOutput(messages, event);
+        }
         return messages === session.messages ? session : { ...session, messages };
       }),
     }));
+    for (const id of gaps) void useAppStore.getState().ensureTranscript(id, true);
   };
   const schedule = () => {
     if (cancelScheduled) return;
@@ -1915,17 +2000,30 @@ export async function bindRealtime() {
     unlisteners.push(await client.onSessionUpdated((session) => {
       // Earlier deltas apply first; the snapshot then supersedes them by offset.
       outputBatch.flush();
-      const admission = directAdmissions.get(session.id);
-      if (admission && observedPromptAdmission(session, admission.previousMessageId, admission.prompt)) {
+      let reload = false;
+      useAppStore.setState((state) => {
+        const loaded = state.loadedTranscripts[session.id] !== undefined;
+        return {
+          // Pins mutate only through serialized metadata acknowledgments. A lifecycle
+          // snapshot captured before that acknowledgment must not undo it.
+          sessions: state.sessions.map((item) => {
+            if (item.id !== session.id) return item;
+            const merged = mergeSessionEvent(item, session, loaded);
+            reload = merged.reload;
+            return merged.session;
+          }),
+        };
+      });
+      if (reload) void useAppStore.getState().ensureTranscript(session.id, true);
+      // Events carry only the current turn: admission and queue checks read the merged transcript.
+      const current = useAppStore.getState().sessions.find((item) => item.id === session.id);
+      if (!current) return;
+      const admission = directAdmissions.get(current.id);
+      if (admission && observedPromptAdmission(current, admission.previousMessageId, admission.prompt)) {
         admission.clear();
-        directAdmissions.delete(session.id);
+        directAdmissions.delete(current.id);
       }
-      useAppStore.setState((state) => ({
-        // Pins mutate only through serialized metadata acknowledgments. A lifecycle
-        // snapshot captured before that acknowledgment must not undo it.
-        sessions: state.sessions.map((item) => item.id === session.id ? { ...session, messages: reuseMessages(item.messages, session.messages), pinnedMessageIds: item.pinnedMessageIds ?? session.pinnedMessageIds } : item),
-      }));
-      observePromptQueue(session);
+      observePromptQueue(current);
     }));
     unlisteners.push(() => outputBatch.cancel());
     unlisteners.push(await client.onAgentOutput((event) => {
@@ -2014,3 +2112,10 @@ export const selectEnabledAgents = (state: AppStore) =>
   state.agents.filter(
     (agent) => agent.installed && !state.settings.disabledProviders.includes(agent.id),
   );
+
+// Opening a session loads its transcript; leaving it lets the cache release older ones.
+useAppStore.subscribe((state, previous) => {
+  if (state.selectedSessionId === previous.selectedSessionId) return;
+  if (state.selectedSessionId) void state.ensureTranscript(state.selectedSessionId);
+  else releaseTranscripts();
+});

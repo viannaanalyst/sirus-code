@@ -104,26 +104,25 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
 }
 
 thread_local! {
-    static ON_DISK: Cell<bool> = const { Cell::new(false) };
+    static OMIT_TRANSCRIPTS: Cell<bool> = const { Cell::new(false) };
 }
 
-/// `skip_serializing_if` for `Session::messages`: transcripts stay in memory and
-/// over IPC, but `state.json` omits them because each has its own file.
-pub fn on_disk<T>(_: &T) -> bool {
-    ON_DISK.with(Cell::get)
+/// `skip_serializing_if` for `Session::messages`. `state.json`, `load_state` and
+/// session events omit transcripts: each has its own file and its own loader.
+pub fn omit_transcripts<T>(_: &T) -> bool {
+    OMIT_TRANSCRIPTS.with(Cell::get)
 }
 
-struct DiskMode;
-impl DiskMode {
-    fn enter() -> Self {
-        ON_DISK.with(|flag| flag.set(true));
-        DiskMode
+/// Runs `serialize` with `Session::messages` omitted on this thread.
+pub fn without_transcripts<R>(serialize: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            OMIT_TRANSCRIPTS.with(|flag| flag.set(self.0));
+        }
     }
-}
-impl Drop for DiskMode {
-    fn drop(&mut self) {
-        ON_DISK.with(|flag| flag.set(false));
-    }
+    let _restore = Restore(OMIT_TRANSCRIPTS.with(|flag| flag.replace(true)));
+    serialize()
 }
 
 #[derive(Serialize)]
@@ -255,10 +254,7 @@ struct Encoded {
 
 /// Compact JSON: the index without messages, and one transcript per session.
 fn encode(data: &AppData, generation: u64) -> Result<Encoded> {
-    let state = {
-        let _disk = DiskMode::enter();
-        serde_json::to_vec(data)?
-    };
+    let state = without_transcripts(|| serde_json::to_vec(data))?;
     let transcripts = data
         .sessions
         .iter()

@@ -41,6 +41,8 @@
     session("landing-1", "landing", pt ? "Hero com vídeo" : "Video hero section", "claude", "opus", "completed", [message("l1", "user", "Build the hero.")], 3e6),
   ];
 
+  // Probes and recordings may reshape the fictional data before the app loads.
+  window.__demoSessions = sessions;
   const emit = (event, payload) => {
     for (const [handler, name] of listeners) if (name === event) window[`_${handler}`]?.({ event, id: handler, payload });
   };
@@ -93,7 +95,16 @@
   const handlers = {
     "plugin:event|listen": ({ event, handler }) => { listeners.set(handler, event); return handler; },
     "plugin:event|unlisten": () => null,
-    load_state: () => clone({ projects, sessions, settings, composerDrafts: {}, contextTexts: {} }),
+    // Same contract as native (ADR-048): metadata only, transcripts through transcript_action.
+    load_state: () => clone({ projects, sessions: sessions.map((s) => ({ ...s, messages: [], transcriptLength: s.messages.filter((m) => m.role !== "system").length })), settings, composerDrafts: {}, contextTexts: {} }),
+    transcript_action: ({ action }) => {
+      if (action.type === "load") return { type: "transcript", sessionId: action.sessionId, messages: clone(sessions.find((s) => s.id === action.sessionId)?.messages ?? []) };
+      if (action.type === "search") {
+        const needle = action.query.trim().toLowerCase();
+        return { type: "candidates", truncated: false, sessions: sessions.map((s) => ({ sessionId: s.id, messages: clone(s.messages.filter((m) => m.role !== "system" && m.content.toLowerCase().includes(needle))) })).filter((c) => c.messages.length) };
+      }
+      return { type: "activity", sessions: sessions.map((s) => ({ sessionId: s.id, prompts: s.messages.filter((m) => m.role === "user").map((m) => ({ id: m.id, createdAt: m.createdAt })) })) };
+    },
     open_project: ({ projectId }) => projects.find((p) => p.id === projectId),
     detect_agents: () => installs,
     list_provider_models: ({ id }) => ({ provider: id, source: "cli", note: "", models: (catalogs[id] ?? []).map(([mid, displayName]) => ({ id: mid, displayName, availability: "available" })) }),

@@ -6,7 +6,7 @@ use std::sync::{
 };
 
 use parking_lot::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::agent::{self, AgentProcess};
@@ -119,8 +119,27 @@ fn same_run(session: &Session, snapshot: &Session) -> bool {
 }
 
 #[tauri::command]
-pub fn load_state(state: State<Arc<AppState>>) -> Result<AppData> {
-    Ok(state.data.lock().clone())
+pub fn load_state(state: State<Arc<AppState>>) -> Result<serde_json::Value> {
+    // Metadata only; transcripts load per session through `transcript_action` (ADR-048).
+    crate::transcript_view::state_meta(&state.data.lock())
+}
+
+#[tauri::command]
+pub async fn transcript_action(
+    state: State<'_, Arc<AppState>>,
+    action: crate::transcript_view::Action,
+) -> Result<crate::transcript_view::Response> {
+    use crate::transcript_view::{self as view, Action};
+    let state = state.inner().clone();
+    native_task(move || match action {
+        Action::Load { session_id } => view::load(&state.data.lock(), &session_id),
+        Action::Activity => Ok(view::activity(&state.data.lock())),
+        Action::Search { query } => {
+            let (sessions, projects) = view::search_snapshot(&state.data.lock());
+            view::search(&sessions, &projects, &query)
+        }
+    })
+    .await
 }
 
 #[tauri::command]
@@ -1432,7 +1451,7 @@ pub async fn send_prompt(
             if let Some(message) = session.messages.last_mut() {
                 message.streaming = false;
             }
-            let _ = app.emit("session-updated", &*session);
+            crate::transcript_view::emit(&app, session);
         }
         return Err(error);
     }
@@ -1445,7 +1464,7 @@ pub async fn send_prompt(
                 && session.status == SessionStatus::Starting
         });
         if let Some(session) = current {
-            let _ = app.emit("session-updated", session);
+            crate::transcript_view::emit(&app, session);
         } else {
             return Err(Error::agent(
                 "execution was cancelled before startup completed",
@@ -1545,7 +1564,7 @@ pub async fn send_prompt(
                             .insert(session_snapshot.id.clone(), process);
                         session.status = SessionStatus::Running;
                         crate::activity::sync(session);
-                        let _ = app.emit("session-updated", &*session);
+                        crate::transcript_view::emit(&app, session);
                         None
                     } else {
                         Some(process)
@@ -1601,7 +1620,7 @@ pub async fn send_prompt(
                 .iter()
                 .find(|s| s.id == session_snapshot.id)
             {
-                let _ = app.emit("session-updated", session);
+                crate::transcript_view::emit(&app, session);
             }
             persisted?;
             Err(err)
@@ -1664,7 +1683,7 @@ pub async fn respond_agent_request(
             .map_err(|_| Error::agent("Native response queue is unavailable"))?;
         // Reserve under the same data lock: duplicate IPC cannot enqueue another authorization.
         session.pending_requests.remove(index);
-        let _ = app.emit("session-updated", &*session);
+        crate::transcript_view::emit(&app, session);
         (sender, receiver)
     };
     drop(sender);
@@ -1699,7 +1718,7 @@ pub async fn stop_agent(
         .iter()
         .find(|session| session.id == session_id)
     {
-        let _ = app.emit("session-updated", session);
+        crate::transcript_view::emit(&app, session);
     }
     Ok(())
 }

@@ -9,6 +9,7 @@ import { taskView, workerChanges, type TaskView } from "@/lib/team";
 import { useAppStore } from "@/store/app-store";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import "@/styles/team.css";
+import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 
 const TEAM_PROVIDERS: AgentProviderId[] = ["codex", "claude", "opencode"];
 const assignmentKey = (provider: AgentProviderId, model: string | null) => `${provider}::${model ?? ""}`;
@@ -124,6 +125,8 @@ function ProgressCard({ session }: { session: Session }) {
   const teamAction = useAppStore(state => state.teamAction);
   const selectSession = useAppStore(state => state.selectSession);
   const done = team.tasks.filter(task => task.state === "done").length;
+  // Live status reads each helper's latest activity.
+  useRetainedTranscripts(team.tasks.map(task => task.workerSessionId));
   return <section className="team-card" aria-label={t("team.title")}>
     <header className="team-card-head"><Users size={14} aria-hidden="true" /><h3 className="ui-control">{team.status === "stopped" ? t("team.stoppedTitle") : t("team.title")}</h3><span className="team-sub ui-caption">{t("team.readyCount", { done, total: team.tasks.length })}</span><span className="team-spacer" />
       {team.status === "running" ? <button type="button" className="team-button" onClick={() => void teamAction({ type: "stop", sessionId: session.id })}><Square size={11} aria-hidden="true" />{t("team.stopAll")}</button> : null}
@@ -155,6 +158,8 @@ function FinishCard({ session }: { session: Session }) {
   const selectSession = useAppStore(state => state.selectSession);
   const [busy, setBusy] = useState(false);
   const finished = team.tasks.filter(task => task.state === "done");
+  // Change summaries read each helper's retained turn review.
+  useRetainedTranscripts(finished.map(task => task.workerSessionId));
   const merged = finished.filter(task => task.merge === "merged").length;
   const skipped = finished.filter(task => task.merge === "skipped").length;
   const stopped = finished.find(task => task.merge === "conflict" || task.merge === "outOfScope");

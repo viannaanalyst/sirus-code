@@ -181,6 +181,27 @@ export class SwitchyardClient {
     return this.transport.invoke<void>("create_branch", { projectId, branch, confirm: true });
   }
 
+  /** One session's full transcript, loaded when a view needs it (ADR-048). */
+  async loadTranscript(sessionId: string) {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "load", sessionId } });
+    if (result.type !== "transcript" || result.sessionId !== sessionId) throw new Error("Unexpected transcript response");
+    return result.messages;
+  }
+
+  /** Bounded candidate messages for the all-conversations search; matching stays in the renderer. */
+  async searchTranscripts(query: string) {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "search", query } });
+    if (result.type !== "candidates") throw new Error("Unexpected transcript search response");
+    return result;
+  }
+
+  /** Owned prompt IDs and times for Profile activity. */
+  async transcriptActivity() {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "activity" } });
+    if (result.type !== "activity") throw new Error("Unexpected transcript activity response");
+    return result.sessions;
+  }
+
   async gitWorkspaceHistory(sessionId: string, from: string, skip: number) {
     const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action: { type: "history", sessionId, from, skip } });
     if (result.type !== "history") throw new Error("Unexpected Git history response");

@@ -2,10 +2,13 @@ import { useState } from "react";
 import { DiffViewer } from "@/components/DiffViewer";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
+import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 
 /** Uses retained turn data, never mutable git_diff/current worktree status. */
 export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: string; messageId: string; path?: string }) {
   const t = useTranslation();
+  // A review tab can outlive the session's selection; its transcript stays loaded.
+  useRetainedTranscripts([sessionId]);
   const review = useAppStore((s) => s.sessions.find((session) => session.id === sessionId)?.messages.find((m) => m.id === messageId && m.sessionId === sessionId)?.activity?.review);
   const [selectedPath, setSelectedPath] = useState(path);
   if (!review) return <p className="p-4 ui-control text-text-muted">{t("review.missing")}</p>;
