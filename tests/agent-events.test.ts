@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyAgentOutput } from "../src/lib/agent-events.ts";
+import { applyAgentOutput, reuseMessages } from "../src/lib/agent-events.ts";
 import type { AgentEvent, Message } from "../src/client/types.ts";
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, sessionId: "session", role, content, createdAt: "time", streaming: true });
 const event = (id: string, offset: number, chunk: string, snapshot: Message | null = null): AgentEvent => ({ sessionId: "session", messageId: id, offset, chunk, stream: "stdout", message: snapshot });
@@ -32,4 +32,18 @@ test("first text snapshot preserves a newer native activity snapshot", () => {
   const first = { ...message("assistant", "agent", "answer"), activity: { ...activity, waitingSince: null, status: "running" as const } };
   const result = applyAgentOutput([current], event("assistant", 0, "answer", first));
   assert.equal(result[0].content, "answer"); assert.equal(result[0].activity, activity);
+});
+
+test("a native snapshot keeps unchanged message objects so memoized rows skip rendering", () => {
+  const previous = [message("u", "user", "Question"), message("a", "agent", "Answer")];
+  const snapshot = previous.map(item => JSON.parse(JSON.stringify(item)) as Message);
+  assert.equal(reuseMessages(previous, snapshot), previous, "an identical snapshot keeps the array");
+  const grown = [...snapshot.slice(0, 1), { ...snapshot[1], content: "Answer, longer", streaming: false }];
+  const merged = reuseMessages(previous, grown);
+  assert.equal(merged[0], previous[0]);
+  assert.notEqual(merged[1], previous[1]);
+  assert.equal(merged[1].content, "Answer, longer");
+  const settled = reuseMessages(previous, [snapshot[0], { ...snapshot[1], activity: { provider: "codex" } as unknown as Message["activity"] }]);
+  assert.notEqual(settled[1], previous[1], "metadata changes replace the object");
+  assert.deepEqual(reuseMessages(previous, [snapshot[1]]).map(item => item.id), ["a"]);
 });

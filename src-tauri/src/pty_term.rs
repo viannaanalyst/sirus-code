@@ -63,7 +63,7 @@ impl Utf8Stream {
 }
 
 #[cfg(unix)]
-fn signal_owned_session(session: libc::pid_t, signal: libc::c_int) -> Result<()> {
+fn signal_owned_sessions(sessions: &[libc::pid_t], signal: libc::c_int) -> Result<()> {
     let output = std::process::Command::new("/bin/ps")
         .args(["-axo", "pid="])
         .output()
@@ -79,6 +79,7 @@ fn signal_owned_session(session: libc::pid_t, signal: libc::c_int) -> Result<()>
             "cannot inspect owned terminal processes safely",
         ));
     }
+    let mut result = Ok(());
     for process in String::from_utf8_lossy(&output.stdout)
         .split_whitespace()
         .filter_map(|value| value.parse::<libc::pid_t>().ok())
@@ -86,26 +87,73 @@ fn signal_owned_session(session: libc::pid_t, signal: libc::c_int) -> Result<()>
     {
         // Recheck immediately before the signal, rejecting other sessions.
         // POSIX still has a small PID check/use window; this is not a pidfd API.
-        if unsafe { libc::getsid(process) } != session {
+        if !sessions.contains(&unsafe { libc::getsid(process) }) {
             continue;
         }
-        let result = unsafe { libc::kill(process, signal) };
-        if result != 0 {
+        let code = unsafe { libc::kill(process, signal) };
+        if code != 0 {
             let error = std::io::Error::last_os_error();
-            if error.raw_os_error() != Some(libc::ESRCH) {
-                return Err(Error::new("pty", error.to_string()));
+            if error.raw_os_error() != Some(libc::ESRCH) && result.is_ok() {
+                result = Err(Error::new("pty", error.to_string()));
             }
         }
     }
-    Ok(())
+    result
 }
 
-impl PtySession {
+/// Closes several terminals with one process scan per signal and one shared
+/// grace period, so cleanup cost does not grow with the number of shells.
+pub fn kill_all(terminals: &[&PtySession]) -> Result<()> {
+    let mut result = Ok(());
+    #[cfg(unix)]
+    let mut sessions = Vec::new();
+    for terminal in terminals {
+        #[cfg(unix)]
+        if let Some(pid) = terminal.pid.filter(|pid| *pid > 0) {
+            sessions.push(pid as libc::pid_t);
+            continue;
+        }
+        if let Err(error) = terminal.killer.lock().kill() {
+            if result.is_ok() {
+                result = Err(Error::new("pty", error.to_string()));
+            }
+        }
+    }
+    #[cfg(unix)]
+    if !sessions.is_empty() {
+        // Job control gives background processes separate groups. Enumerate only
+        // numeric PIDs, then authorize every signal against our owned session IDs.
+        // Detached processes with a different session ID are deliberately excluded.
+        let hangup = signal_owned_sessions(&sessions, libc::SIGHUP);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let forced = signal_owned_sessions(&sessions, libc::SIGKILL);
+        result = result.and(hangup).and(forced);
+    }
+    result
+}
+
+/// Input side of one PTY, usable without holding the terminal map lock: a
+/// blocking write must never stop the reader from draining output.
+#[derive(Clone)]
+pub struct PtyWriter(Arc<Mutex<Box<dyn Write + Send>>>);
+
+impl PtyWriter {
     pub fn write(&self, data: &str) -> Result<()> {
-        self.writer
+        self.0
             .lock()
             .write_all(data.as_bytes())
             .map_err(|err| Error::new("pty", err.to_string()))
+    }
+}
+
+impl PtySession {
+    pub fn writer(&self) -> PtyWriter {
+        PtyWriter(self.writer.clone())
+    }
+
+    #[cfg(test)]
+    pub fn write(&self, data: &str) -> Result<()> {
+        self.writer().write(data)
     }
 
     pub fn resize(&self, cols: u16, rows: u16) -> Result<()> {
@@ -121,21 +169,7 @@ impl PtySession {
     }
 
     pub fn kill(&self) -> Result<()> {
-        #[cfg(unix)]
-        if let Some(pid) = self.pid.filter(|pid| *pid > 0) {
-            let pid = pid as libc::pid_t;
-            // Job control gives background processes separate groups. Enumerate only
-            // numeric PIDs, then authorize every signal against our owned session ID.
-            // Detached processes with a different session ID are deliberately excluded.
-            signal_owned_session(pid, libc::SIGHUP)?;
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            signal_owned_session(pid, libc::SIGKILL)?;
-            return Ok(());
-        }
-        self.killer
-            .lock()
-            .kill()
-            .map_err(|err| Error::new("pty", err.to_string()))
+        kill_all(&[self])
     }
 }
 
@@ -184,35 +218,16 @@ pub fn start(
     let reader_id = id.clone();
     let session_for_read = session_id.clone();
     let terminal_for_read = terminal_id.clone();
+    // The reader only reads; the emitter drains whatever arrived meanwhile into one
+    // event. Heavy output batches itself without timers, idle output stays immediate.
+    let (chunks, received) = std::sync::mpsc::sync_channel::<Vec<u8>>(64);
     thread::spawn(move || {
         let mut buf = [0u8; 4096];
-        let mut decoder = Utf8Stream::default();
         loop {
             match reader.read(&mut buf) {
+                Ok(0) => break,
                 Ok(n) => {
-                    let data = decoder.decode(&buf[..n], n == 0);
-                    let state = app.state::<Arc<crate::commands::AppState>>();
-                    let ptys = state.ptys.lock();
-                    if !ptys
-                        .get(&terminal_for_read)
-                        .is_some_and(|pty| pty.id == reader_id)
-                    {
-                        if n == 0 {
-                            break;
-                        }
-                        continue;
-                    }
-                    if !data.is_empty() {
-                        let _ = app.emit(
-                            "pty-output",
-                            PtyOutputEvent {
-                                session_id: session_for_read.clone(),
-                                terminal_id: terminal_for_read.clone(),
-                                data,
-                            },
-                        );
-                    }
-                    if n == 0 {
+                    if chunks.send(buf[..n].to_vec()).is_err() {
                         break;
                     }
                 }
@@ -220,6 +235,44 @@ pub fn start(
                     tracing::debug!(%error, "PTY reader closed");
                     break;
                 }
+            }
+        }
+    });
+    thread::spawn(move || {
+        let mut decoder = Utf8Stream::default();
+        let mut eof = false;
+        while !eof {
+            let mut bytes = match received.recv() {
+                Ok(bytes) => bytes,
+                Err(_) => {
+                    eof = true;
+                    Vec::new()
+                }
+            };
+            while !eof && bytes.len() < MAX_BATCH {
+                match received.try_recv() {
+                    Ok(more) => bytes.extend_from_slice(&more),
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => eof = true,
+                }
+            }
+            let data = decoder.decode(&bytes, eof);
+            let state = app.state::<Arc<crate::commands::AppState>>();
+            // Check ownership, then emit without holding the terminal map lock.
+            let current = state
+                .ptys
+                .lock()
+                .get(&terminal_for_read)
+                .is_some_and(|pty| pty.id == reader_id);
+            if current && !data.is_empty() {
+                let _ = app.emit(
+                    "pty-output",
+                    PtyOutputEvent {
+                        session_id: session_for_read.clone(),
+                        terminal_id: terminal_for_read.clone(),
+                        data,
+                    },
+                );
             }
         }
         let _ = child.wait();
@@ -256,6 +309,9 @@ pub fn start(
         terminal_id,
     })
 }
+
+/// Largest single `pty-output` payload assembled from queued reads.
+const MAX_BATCH: usize = 64 * 1024;
 
 /// Keyed by terminal id. Each entry is owner-checked against its session.
 pub type PtyMap = HashMap<String, PtySession>;

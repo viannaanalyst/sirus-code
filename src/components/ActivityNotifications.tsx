@@ -4,7 +4,7 @@ import type { ActivityNotification } from "@/client/types";
 import { notificationLifetime, retainActivityNotifications } from "@/lib/notifications";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useTranslation } from "@/i18n/use-translation";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, selectSessionsMeta } from "@/store/app-store";
 
 function dismiss(id: string) { useAppStore.setState(state => ({ activityNotifications: state.activityNotifications.filter(notice => notice.id !== id) })); }
 function NoticeCard({ notice }: { notice: ActivityNotification }) {
@@ -22,7 +22,7 @@ function NoticeCard({ notice }: { notice: ActivityNotification }) {
 export function ActivityNotifications() {
   const t = useTranslation();
   const notices = useAppStore(state => state.activityNotifications);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
   const prefs = useAppStore(state => state.settings.notifications);
   const visible = retainActivityNotifications(notices, prefs).filter(notice => sessions.some(session => session.id === notice.sessionId)).slice(-3);
   return <div aria-label={t("Activity alerts")} className="fixed right-4 bottom-4 z-[100] flex w-[min(26rem,calc(100vw-2rem))] flex-col gap-3">

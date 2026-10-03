@@ -1,6 +1,6 @@
-import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { memo, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Tooltip } from "@/components/arc/tooltip/tooltip";
-import { deriveMessageTrail, observeMessageTrail, type MessageTrailPosition } from "@/lib/message-trail";
+import { deriveMessageTrail, observeMessageTrail, type MessageTrailItem, type MessageTrailPosition } from "@/lib/message-trail";
 import { useTranslation } from "@/i18n/use-translation";
 import type { Message } from "@/client/types";
 
@@ -14,7 +14,16 @@ interface Props {
 
 export const MessageTrail = memo(function MessageTrail({ messages, viewport, content, nodes, onSelect }: Props) {
   const t = useTranslation();
-  const items = useMemo(() => deriveMessageTrail(messages), [messages]);
+  // Streamed output changes `messages` every frame; unchanged ticks keep their objects.
+  const previousItems = useRef(new Map<string, MessageTrailItem>());
+  const items = useMemo(() => {
+    const next = deriveMessageTrail(messages).map((item) => {
+      const old = previousItems.current.get(item.id);
+      return old && old.ordinal === item.ordinal && old.preview === item.preview && old.responsePreview === item.responsePreview ? old : item;
+    });
+    previousItems.current = new Map(next.map((item) => [item.id, item]));
+    return next;
+  }, [messages]);
   const ids = items.map(item => item.id).join("\0");
   const rail = useRef<HTMLDivElement>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
@@ -22,6 +31,18 @@ export const MessageTrail = memo(function MessageTrail({ messages, viewport, con
   const [hovered, setHovered] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [tabStop, setTabStop] = useState<string | null>(null);
+  // Ticks are memoized; handlers reach the latest closures through stable refs.
+  const moveRef = useRef<(event: KeyboardEvent<HTMLButtonElement>, index: number) => void>(() => {});
+  const selectRef = useRef(onSelect);
+  selectRef.current = onSelect;
+  const handlers = useMemo<TickHandlers>(() => ({
+    register: (id, node) => { if (node) buttons.current.set(id, node); else buttons.current.delete(id); },
+    hover: setHovered,
+    focus: (id) => { setFocused(id); setTabStop(id); },
+    blur: () => setFocused(null),
+    key: (event, index) => moveRef.current(event, index),
+    select: (id) => { setHovered(null); selectRef.current(id); },
+  }), []);
 
   useLayoutEffect(() => {
     if (!viewport.current || !content.current) return;
@@ -42,7 +63,7 @@ export const MessageTrail = memo(function MessageTrail({ messages, viewport, con
   const selected = items.some(item => item.id === tabStop) ? tabStop : position.currentId ?? items[0].id;
   const focusedIndex = items.findIndex(item => item.id === (hovered ?? focused));
   const visible = new Set(position.visibleIds);
-  const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  moveRef.current = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const next = event.key === "ArrowDown" ? Math.min(items.length - 1, index + 1)
       : event.key === "ArrowUp" ? Math.max(0, index - 1)
       : event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : null;
@@ -65,18 +86,38 @@ export const MessageTrail = memo(function MessageTrail({ messages, viewport, con
         const emphasis = focusedIndex < 0 ? 0 : Math.exp(-((index - focusedIndex) ** 2) / 4.5);
         const current = item.id === position.currentId;
         const preview = item.preview || t("session.messageWithoutText");
-        return <Tooltip key={item.id} side="right" content={<div className="w-56 max-w-[calc(100vw-6rem)] whitespace-normal text-left ui-control"><p className="line-clamp-2 font-medium text-text-primary">{preview}</p>{item.responsePreview ? <p className="mt-1 line-clamp-3 text-text-muted">{item.responsePreview}</p> : null}</div>}>
-          <button ref={node => { if (node) buttons.current.set(item.id, node); else buttons.current.delete(item.id); }} type="button"
-            data-trail-message={item.id} aria-label={t("session.messageNavigationItem", { number: item.ordinal, preview: preview.slice(0, 80) })}
-            aria-current={current ? "location" : undefined} tabIndex={item.id === selected ? 0 : -1}
-            onPointerEnter={() => setHovered(item.id)}
-            onFocus={() => { setFocused(item.id); setTabStop(item.id); }} onBlur={() => setFocused(null)}
-            onKeyDown={event => move(event, index)} onClick={() => { setHovered(null); onSelect(item.id); }}
-            className="group/trail flex h-3 w-full items-center pl-3 text-text-primary outline-none focus-visible:rounded-[4px] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
-            <span aria-hidden="true" className="block h-0.5 rounded-full motion-safe:transition-[width,opacity] motion-safe:duration-[var(--motion-fast)]" style={{ width: `${(current ? 12 : 6) + emphasis * (30 - (current ? 12 : 6))}px`, opacity: index === focusedIndex ? 1 : current ? 0.9 : visible.has(item.id) ? 0.5 : 0.25, backgroundColor: "currentColor" }} />
-          </button>
-        </Tooltip>;
+        return <TrailTick key={item.id} item={item} index={index} preview={preview} label={t("session.messageNavigationItem", { number: item.ordinal, preview: preview.slice(0, 80) })}
+          current={current} tabbable={item.id === selected} width={(current ? 12 : 6) + emphasis * (30 - (current ? 12 : 6))}
+          opacity={index === focusedIndex ? 1 : current ? 0.9 : visible.has(item.id) ? 0.5 : 0.25} handlers={handlers} />;
       })}
     </div>
   </nav>;
+});
+
+interface TickHandlers {
+  register: (id: string, node: HTMLButtonElement | null) => void;
+  hover: (id: string) => void;
+  focus: (id: string) => void;
+  blur: () => void;
+  key: (event: KeyboardEvent<HTMLButtonElement>, index: number) => void;
+  select: (id: string) => void;
+}
+
+/** One rail tick with its tooltip; re-renders only when its own values change. */
+const TrailTick = memo(function TrailTick({ item, index, preview, label, current, tabbable, width, opacity, handlers }: {
+  item: MessageTrailItem; index: number; preview: string; label: string; current: boolean; tabbable: boolean;
+  width: number; opacity: number; handlers: TickHandlers;
+}) {
+  const content: ReactNode = <div className="w-56 max-w-[calc(100vw-6rem)] whitespace-normal text-left ui-control"><p className="line-clamp-2 font-medium text-text-primary">{preview}</p>{item.responsePreview ? <p className="mt-1 line-clamp-3 text-text-muted">{item.responsePreview}</p> : null}</div>;
+  return <Tooltip side="right" content={content}>
+    <button ref={node => handlers.register(item.id, node)} type="button"
+      data-trail-message={item.id} aria-label={label}
+      aria-current={current ? "location" : undefined} tabIndex={tabbable ? 0 : -1}
+      onPointerEnter={() => handlers.hover(item.id)}
+      onFocus={() => handlers.focus(item.id)} onBlur={handlers.blur}
+      onKeyDown={event => handlers.key(event, index)} onClick={() => handlers.select(item.id)}
+      className="group/trail flex h-3 w-full items-center pl-3 text-text-primary outline-none focus-visible:rounded-[4px] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent">
+      <span aria-hidden="true" className="block h-0.5 rounded-full motion-safe:transition-[width,opacity] motion-safe:duration-[var(--motion-fast)]" style={{ width: `${width}px`, opacity, backgroundColor: "currentColor" }} />
+    </button>
+  </Tooltip>;
 });

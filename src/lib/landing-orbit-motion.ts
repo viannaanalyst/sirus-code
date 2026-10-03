@@ -1,5 +1,6 @@
 import { drawLandingOrbits } from "@/lib/landing-orbits";
 import { motionTokens } from "@/lib/motion";
+import { ambientActive, subscribeAmbient } from "@/lib/ambient-motion";
 
 /** Owns a bounded, 30 fps decorative canvas; no React state or layout reads per frame. */
 export function mountLandingOrbits(canvas: HTMLCanvasElement, owner: HTMLElement, reducedMotion: boolean) {
@@ -19,7 +20,7 @@ export function mountLandingOrbits(canvas: HTMLCanvasElement, owner: HTMLElement
   const frameInterval = motionTokens.normal * 1000 / 6;
   let ink = "226,231,239";
   const editing = () => Boolean(doc.activeElement && owner.contains(doc.activeElement) && doc.activeElement.matches(".agent-composer textarea"));
-  const running = () => !disposed && !reduced && visible && !doc.hidden && !editing();
+  const running = () => !disposed && !reduced && visible && ambientActive() && !editing();
   const draw = () => {
     if (disposed || !width || !height) return;
     ctx.clearRect(0, 0, width, height);
@@ -63,7 +64,7 @@ export function mountLandingOrbits(canvas: HTMLCanvasElement, owner: HTMLElement
   themeObserver.observe(doc.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   owner.addEventListener("focusin", sync);
   owner.addEventListener("focusout", sync);
-  doc.addEventListener("visibilitychange", sync);
+  const unsubscribe = subscribeAmbient(sync);
   theme(); sync();
   return {
     setReduced(value: boolean) { reduced = value; sync(); },
@@ -71,7 +72,7 @@ export function mountLandingOrbits(canvas: HTMLCanvasElement, owner: HTMLElement
       disposed = true; sync();
       resize.disconnect(); intersection.disconnect(); themeObserver.disconnect();
       owner.removeEventListener("focusin", sync); owner.removeEventListener("focusout", sync);
-      doc.removeEventListener("visibilitychange", sync);
+      unsubscribe();
     },
   };
 }

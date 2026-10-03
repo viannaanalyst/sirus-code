@@ -7,7 +7,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
-import { selectCurrentProject, useAppStore } from "@/store/app-store";
+import { selectCurrentProject, useAppStore, selectSessionsMeta } from "@/store/app-store";
 import "@/styles/header-tabs.css";
 
 /** Long titles scroll on hover (there and back) instead of being cut off; short ones stay still. */
@@ -35,7 +35,7 @@ function ProjectSwitcher() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
   const tabs = useAppStore(state => state.openTabsByProject);
   const open = useAppStore(state => state.projectSwitcherOpen);
   const setOpen = useAppStore(state => state.setProjectSwitcherOpen);
@@ -99,7 +99,7 @@ function ProjectSwitcher() {
 export function HeaderTabs() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
   const archived = useAppStore(state => state.settings.archivedSessionIds);
   const tabIds = useAppStore(state => (project ? state.openTabsByProject[project.id] : undefined));
   const selectedSessionId = useAppStore(state => state.selectedSessionId);

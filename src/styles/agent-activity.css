@@ -74,6 +74,7 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 @media (prefers-reduced-motion: no-preference) {
   .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
   .agent-activity[data-status="waiting"] .activity-orbit-core { animation: activity-orbit-beat calc(var(--motion-slow) * 4.4) ease-in-out infinite; }
+  .agent-activity[data-resting] .activity-orbit-core { animation-play-state: paused; }
   .agent-activity[data-status="completed"] .activity-orbit-ring { transform-box: fill-box; transform-origin: center; animation: activity-orbit-settle var(--motion-reveal) var(--ease-spring) both; }
   /* Steps enter only while the turn is live; history renders still. */
   .agent-activity[data-active] .activity-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }

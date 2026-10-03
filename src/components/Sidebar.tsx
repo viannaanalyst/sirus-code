@@ -16,7 +16,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { initialSidebarPanel, SIDEBAR_RAIL_WIDTH, sidebarActivityFeed, sidebarPanelReducer, type SidebarSection } from "@/lib/sidebar-panels";
 import { playSidebarCascade, type SidebarMotion } from "@/lib/sidebar-motion";
 import { useGlidingHover } from "@/lib/use-gliding-hover";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, selectSessionsMeta } from "@/store/app-store";
 import "@/styles/sidebar.css";
 
 const sections = [
@@ -127,7 +127,7 @@ function SidebarActivity({ archived, floating, onPin }: { archived: boolean; flo
   const t = useTranslation();
   const shortcut = useShortcut("new-session");
   const projects = useAppStore(state => state.projects);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
   const drafts = useAppStore(state => state.composerDrafts);
   const settings = useAppStore(state => state.settings);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);

@@ -30,7 +30,9 @@ try {
   const originalDocument = globalThis.document;
   globalThis.document = { hidden: false };
   let pane;
-  try { pane = renderToString(createElement(SessionPane, { session, agents: [], onSend: async () => false, onStop: () => {}, onNewSession: () => {} })); }
+  // SessionPane selects the current session itself; server rendering reads the initial state.
+  Object.assign(useAppStore.getInitialState(), { sessions: [session], selectedSessionId: "s" });
+  try { pane = renderToString(createElement(SessionPane, { agents: [], onSend: async () => false, onStop: () => {}, onNewSession: () => {} })); }
   finally { if (originalDocument === undefined) delete globalThis.document; else globalThis.document = originalDocument; }
   assert.ok(pane.includes('data-message-id="first"') && pane.includes('data-message-id="reply"'));
   assert.ok(pane.includes("transcript-shell") && pane.includes("message-trail"));

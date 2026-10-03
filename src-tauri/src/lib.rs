@@ -125,6 +125,7 @@ pub fn run() {
                 accounts: provider_accounts::AccountState::default(),
                 close_guard: parking_lot::Mutex::new(close::CloseGuard::default()),
                 draft_checkpoint: parking_lot::Mutex::new(None),
+                checkpoint_pending: Default::default(),
                 catalogs: parking_lot::Mutex::new(HashMap::new()),
             }));
             appearance::schedule(app.handle(), app.state::<Arc<AppState>>().inner().clone());

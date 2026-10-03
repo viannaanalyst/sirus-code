@@ -2,7 +2,7 @@
 
 import { useTranslation } from "@/i18n/use-translation";
 import { SearchText } from "@/components/SearchText";
-import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, FileCode2 } from "lucide-react";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -36,21 +36,32 @@ function normaliseLanguage(language: string) {
   return language.toLowerCase().replace(/^\./, "");
 }
 
+// Sticky patterns test the text right after a token without slicing the rest of the
+// source, keeping highlighting linear in the code length.
+const followedByColon = /\s*:/y;
+const followedByCall = /\s*\(/y;
+const followedByAssign = /\s*[:=]/y;
+function followedBy(pattern: RegExp, source: string, position: number) {
+  pattern.lastIndex = position;
+  return pattern.test(source);
+}
+
 function tokenKind(value: string, source: string, index: number, language: string): TokenKind | undefined {
+  const end = index + value.length;
   if (value.startsWith("//") || value.startsWith("/*") || value.startsWith("<!--")) return "comment";
   if (value.startsWith("\"") || value.startsWith("'") || value.startsWith("`")) {
-    return language === "json" && /^\s*:/.test(source.slice(index + value.length)) ? "property" : "string";
+    return language === "json" && followedBy(followedByColon, source, end) ? "property" : "string";
   }
   if (/^\d/.test(value)) return "number";
   if (keywordPattern.test(value) || literalPattern.test(value)) return "keyword";
   if (typePattern.test(value)) return "type";
   if (/^[{}[\]();,.<>:=+*/!?|&-]$/.test(value)) return "punctuation";
 
-  const before = source.slice(0, index);
-  const after = source.slice(index + value.length);
+  // A tag name follows "<" or "</": two characters of context are enough.
+  const before = source.slice(Math.max(0, index - 2), index);
   if ((language === "tsx" || language === "jsx" || language === "html" || language === "vue") && /<\/?$/.test(before)) return "tag";
-  if (/^\s*\(/.test(after) && language !== "json") return "function";
-  if ((language === "css" || language === "tsx" || language === "jsx") && /^\s*[:=]/.test(after)) return "property";
+  if (language !== "json" && followedBy(followedByCall, source, end)) return "function";
+  if ((language === "css" || language === "tsx" || language === "jsx") && followedBy(followedByAssign, source, end)) return "property";
   return undefined;
 }
 
@@ -113,6 +124,8 @@ function FileName({ name, reduced }: { name: string; reduced: boolean }) {
 export function CodeBlock({ code, filename, language = "tsx", maxLines, animateChanges = true, searchQuery = "", searchOffset = 0 }: CodeBlockProps) {
   const t = useTranslation();
   const displayLanguage = normaliseLanguage(language);
+  // Highlighting is the costliest part of a render; recompute only when the code changes.
+  const highlighted = useMemo(() => highlight(code, displayLanguage), [code, displayLanguage]);
   const reduced = useReducedMotion() ?? false;
   const preId = useId();
   const lineCount = code.split("\n").length;
@@ -165,8 +178,8 @@ export function CodeBlock({ code, filename, language = "tsx", maxLines, animateC
       <motion.div className={styles.viewport} style={{ height }}>
         <pre ref={preRef} id={preId} className={styles.pre} tabIndex={0} aria-label={t("Selectable source code")}>
           {animateChanges ? <AnimatePresence initial={false} mode="popLayout">
-            <motion.code key={code} className={styles.code} initial={reduced ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, transition: textExit }} transition={reduced ? { duration: 0 } : textEnter}>{highlight(code, displayLanguage)}</motion.code>
-          </AnimatePresence> : <code className={styles.code}>{searchQuery.trim() ? <SearchText text={code} query={searchQuery} offset={searchOffset} /> : highlight(code, displayLanguage)}</code>}
+            <motion.code key={code} className={styles.code} initial={reduced ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0, transition: { duration: 0 } } : { opacity: 0, transition: textExit }} transition={reduced ? { duration: 0 } : textEnter}>{highlighted}</motion.code>
+          </AnimatePresence> : <code className={styles.code}>{searchQuery.trim() ? <SearchText text={code} query={searchQuery} offset={searchOffset} /> : highlighted}</code>}
         </pre>
       </motion.div>
       {collapsible && <button type="button" className={styles.expand} aria-expanded={expanded} aria-controls={preId} onClick={() => setExpanded(value => !value)}>

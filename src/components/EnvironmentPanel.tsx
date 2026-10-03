@@ -30,11 +30,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { PROVIDERS } from "@/lib/provider-registry";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
-import {
-  selectCurrentProject,
-  selectCurrentSession,
-  useAppStore,
-} from "@/store/app-store";
+import { selectCurrentProject, useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
 
 export function EnvironmentToggle() {
   const t = useTranslation();
@@ -95,7 +91,7 @@ export function EnvironmentPanel() {
 
 function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
   const t = useTranslation();
-  const session = useAppStore(selectCurrentSession);
+  const session = useAppStore(selectCurrentSessionMeta);
   const project = useAppStore(selectCurrentProject);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const openDockPane = useAppStore((state) => state.openDockPane);
@@ -413,7 +409,7 @@ function LocalServersSection({ sessionId }: { sessionId: string }) {
 
 function UsageSection() {
   const t = useTranslation();
-  const session = useAppStore(selectCurrentSession);
+  const session = useAppStore(selectCurrentSessionMeta);
   const settings = useAppStore((state) => state.settings);
   const usage = useAppStore((state) => state.usageByProvider);
   const refresh = useAppStore((state) => state.refreshProviderUsage);

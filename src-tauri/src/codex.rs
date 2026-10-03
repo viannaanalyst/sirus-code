@@ -702,8 +702,7 @@ pub fn monitor(
     });
     tokio::spawn(async move {
         let mut wire = Wire::new(input, output);
-        let mut message_id = None;
-        let mut checkpoint = std::time::Instant::now();
+        let mut cursor = crate::agent::OutputCursor::default();
         let mut emit = |event| -> Result<()> {
             let mut data = state.data.lock();
             let session = data
@@ -731,11 +730,12 @@ pub fn monitor(
                 Event::Model(model) => crate::activity::model(session, &model),
                 Event::Delta(chunk) => {
                     if let Some(event) =
-                        crate::agent::record_output(session, &mut message_id, "stdout", chunk)?
+                        crate::agent::record_output(session, &mut cursor, "stdout", chunk)?
                     {
                         let _ = app.emit("agent-output", event);
                     }
                     publish = false;
+                    persist_immediately = false;
                 }
                 Event::Pending(pending) => {
                     session.pending_requests.push(pending);
@@ -752,20 +752,20 @@ pub fn monitor(
                 }
             }
             crate::activity::sync(session);
+            // Identity, requests and answers are saved now; streamed text and activity
+            // use the coalesced checkpoint written outside the lock.
+            if persist_immediately {
+                crate::persist::save(&state.data_path, &data)?;
+            } else {
+                crate::persist::checkpoint_soon(&state);
+            }
             if publish {
-                if persist_immediately || checkpoint.elapsed() >= Duration::from_secs(1) {
-                    crate::persist::save(&state.data_path, &data)?;
-                    checkpoint = std::time::Instant::now();
-                }
                 let _ = app.emit(
                     "session-updated",
                     data.sessions
                         .iter()
                         .find(|session| session.id == session_id),
                 );
-            } else if checkpoint.elapsed() >= Duration::from_secs(1) {
-                crate::persist::save(&state.data_path, &data)?;
-                checkpoint = std::time::Instant::now();
             }
             Ok(())
         };

@@ -684,6 +684,7 @@ mod tests {
             accounts: Default::default(),
             close_guard: Default::default(),
             draft_checkpoint: Default::default(),
+            checkpoint_pending: Default::default(),
             catalogs: Default::default(),
         })
     }

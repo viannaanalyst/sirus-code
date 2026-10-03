@@ -11,3 +11,26 @@ export function applyAgentOutput(messages: Message[], event: AgentEvent): Messag
   if (index < 0 || messages[index].content.length !== event.offset) return messages;
   return messages.map((message, position) => position === index ? { ...message, content: message.content + event.chunk } : message);
 }
+
+/**
+ * A native snapshot replaces every message object. Keep the previous object when a
+ * message did not change, so memoized transcript rows skip re-rendering. A false
+ * mismatch (for example a different key order) only costs one render.
+ */
+export function reuseMessages(previous: Message[], next: Message[]): Message[] {
+  if (!previous.length) return next;
+  const byId = new Map(previous.map((message) => [message.id, message]));
+  let changed = previous.length !== next.length;
+  const merged = next.map((message, index) => {
+    const old = byId.get(message.id);
+    const keep = old !== undefined && sameMessage(old, message);
+    if (!keep || previous[index] !== old) changed = true;
+    return keep ? old : message;
+  });
+  return changed ? merged : previous;
+}
+
+function sameMessage(a: Message, b: Message) {
+  return a.content === b.content && a.streaming === b.streaming
+    && JSON.stringify({ ...a, content: "" }) === JSON.stringify({ ...b, content: "" });
+}

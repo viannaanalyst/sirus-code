@@ -598,6 +598,7 @@ mod tests {
             accounts: Default::default(),
             close_guard: Default::default(),
             draft_checkpoint: Default::default(),
+            checkpoint_pending: Default::default(),
             catalogs: Default::default(),
         });
         let request = uuid::Uuid::new_v4().to_string();

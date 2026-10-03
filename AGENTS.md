@@ -349,7 +349,7 @@ Launch shows a static splash from `index.html` (tinted glass over the native win
 
 Respect `prefers-reduced-motion`, keyboard use, `focus-visible`. Pointer glow stays **on the control**, never `pointermove` on `window`.
 
-The composer's decorative 2 px chrome rim shares the Add button's liquid-metal shader with a bounded 131,072-pixel render budget. It pauses and dims while its textarea is focused, resumes in place on blur, and stops when offscreen or document-hidden. Appearance persists its typed `composerLineSpeed` (`slow` by default, `smooth`, `fast`); it follows the existing animations/reduced-motion preferences. This setting changes decoration only, never provider execution speed or permissions.
+The composer's decorative 2 px chrome rim shares the Add button's liquid-metal shader with a bounded 131,072-pixel render budget. It pauses and dims while its textarea is focused, resumes in place on blur, and stops when offscreen, document-hidden, while the window lacks focus or while Settings covers it. The landing orbits and the waiting-approval orbit share the same window-focus/Settings gate (`src/lib/ambient-motion.ts`). Appearance persists its typed `composerLineSpeed` (`slow` by default, `smooth`, `fast`); it follows the existing animations/reduced-motion preferences. This setting changes decoration only, never provider execution speed or permissions.
 
 Native dictation uses a matching metal mic at rest and a silver orbital recording strip with Cancel/Finish while listening. The model/approval/send controls yield to that strip, the rim rests and Send is blocked. Cancel discards the recording; Finish transcribes on-device and appends the result once. There is no live transcription, so the strip's caption stays static while recording. The orbital indicator and illustrative waveform follow animation preferences and pause offscreen/document-hidden; they do not measure audio levels. Changing composer draft owners stops dictation.
 
@@ -357,7 +357,7 @@ Native dictation uses a matching metal mic at rest and a silver orbital recordin
 
 ## Performance
 
-The app may stay open for hours. No polling loops. No global pointer listeners. Lazy `list_dir` — never walk `node_modules`. Agent streaming is events, not timers. Stream persistence checkpoints are event-driven. Blocking Git/filesystem/worktree commands run on native workers.
+The app may stay open for hours. No polling loops. No global pointer listeners. Lazy `list_dir` — never walk `node_modules`. Agent streaming is events, not timers; the renderer applies `agent-output` deltas once per animation frame. Stream persistence checkpoints are event-driven and coalesced (`persist::checkpoint_soon`: at most one write per second across streams, written outside the state lock; generation-ordered so an older snapshot never replaces a newer save). `state.json` is compact JSON. Views that do not read messages use `selectSessionsMeta` / `selectCurrentSessionMeta`. Blocking Git/filesystem/worktree commands run on native workers. Measurements and findings: [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md).
 
 ---
 

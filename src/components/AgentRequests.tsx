@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { memo, useState, type FormEvent } from "react";
 import type { AgentResponse, PendingRequest, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
@@ -84,7 +84,7 @@ function ComputerRequestCard({ request }: { request: ComputerRequest }) {
   </div>;
 }
 
-export function AgentRequests({ session }: { session: Session }) {
+function AgentRequestsView({ session }: { session: Session }) {
   const computer = useAppStore((state) => state.computer?.requests);
   const computerRequests = computer?.filter((request) => request.sessionId === session.id) ?? [];
   return session.pendingRequests?.length || computerRequests.length ? <div className="scroll-thin max-h-[40vh] overflow-y-auto px-6 py-3" aria-live="polite">
@@ -92,3 +92,6 @@ export function AgentRequests({ session }: { session: Session }) {
     {session.pendingRequests?.map((request) => <RequestCard key={`${session.id}:${request.generation}:${request.requestId}`} sessionId={session.id} provider={providerById(session.agent).name} request={request} />)}
   </div> : null;
 }
+
+/** Memoized: streamed output re-renders the transcript, not this control. */
+export const AgentRequests = memo(AgentRequestsView);

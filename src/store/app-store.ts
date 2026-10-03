@@ -6,7 +6,7 @@ import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openT
 import { retainActivityNotifications } from "@/lib/notifications";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
-import { applyAgentOutput } from "@/lib/agent-events";
+import { applyAgentOutput, reuseMessages } from "@/lib/agent-events";
 import { appendAttachments } from "@/lib/composer-attachments";
 import { canReadDocument } from "@/lib/document-reader";
 import { composerContextForOwner, composerPrompt } from "@/lib/composer-context";
@@ -25,6 +25,7 @@ import type {
   ComputerAction,
   ComputerSnapshot,
   ExecutionOptions,
+  AgentEvent,
   AgentProviderId,
   AppSettings,
   HostInfo,
@@ -764,7 +765,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   bootstrap: async () => {
     try {
-      const [data, agents, hostInfo] = await Promise.all([client.loadState(), client.detectAgents(), client.hostInfo().catch(() => null)]);
+      // CLI version probes and other projects' Git identities fill in after the first paint.
+      const detection = client.detectAgents().then((agents) => ({ agents }), (error: unknown) => ({ error }));
+      const [data, hostInfo] = await Promise.all([client.loadState(), client.hostInfo().catch(() => null)]);
       const projects = [...data.projects].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
       const settings = mergeSettings(data.settings);
       const selectedProjectId = settings.openLastProject ? (projects[0]?.id ?? null) : null;
@@ -773,19 +776,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
         settings.restorePreviousSessions && selectedProjectId
           ? (sessions.find((session) => session.projectId === selectedProjectId && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
           : null;
-      const identities = await Promise.all(
-        projects.map(async (project) => {
-          try { return [project.path, await client.gitIdentity(project.path)] as const; }
-          catch (error) { set({ error: formatUnknownError(error) }); return null; }
-        }),
-      );
+      const identify = async (project: Project) => {
+        try { return [project.path, await client.gitIdentity(project.path)] as const; }
+        catch (error) { set({ error: formatUnknownError(error) }); return null; }
+      };
+      const selectedProject = projects.find((project) => project.id === selectedProjectId);
+      const identities = selectedProject ? [await identify(selectedProject)] : [];
       set({
         ready: true,
         hostInfo,
         projects,
         sessions,
         settings,
-        agents,
         selectedProjectId,
         selectedSessionId,
         gitByPath: Object.fromEntries(identities.filter((item) => item !== null)),
@@ -800,6 +802,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
         providerAccounts: data.providerAccounts ?? [],
         selectedProviderAccounts: data.selectedProviderAccounts ?? {},
       });
+      void detection.then((result) => set("agents" in result ? { agents: result.agents } : { error: formatUnknownError(result.error) }));
+      void Promise.all(projects.filter((project) => project !== selectedProject).map(identify)).then((rest) => set((state) => ({
+        gitByPath: { ...Object.fromEntries(rest.filter((item) => item !== null)), ...state.gitByPath },
+      })));
       if (settings.enableProviderUpdateChecks) void get().checkProviderUpdates();
       if (selectedSessionId) {
         await get().refreshGitStatus();
@@ -877,6 +883,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       settings: pruneSidebarSettings(get().settings, projects, sessions),
       composerDrafts,
       promptQueues: Object.fromEntries(Object.entries(get().promptQueues).filter(([id]) => !removedSessionIds.has(id))),
+      unseenSessionIds: get().unseenSessionIds.filter((id) => !removedSessionIds.has(id)),
       contextTexts: normalizeContextTexts(get().contextTexts, projects, sessions),
       pullRequestsBySession: Object.fromEntries(Object.entries(get().pullRequestsBySession).filter(([id]) => !removedSessionIds.has(id))),
       browserBySession: Object.fromEntries(Object.entries(get().browserBySession).filter(([id]) => !removedSessionIds.has(id))),
@@ -1286,7 +1293,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const browserBySession = { ...state.browserBySession }; delete browserBySession[sessionId];
         const browserHistoryBySession = { ...state.browserHistoryBySession }; delete browserHistoryBySession[sessionId];
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
-        return { sessions, promptQueues, settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
+        return { sessions, promptQueues, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
           selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
@@ -1846,6 +1853,49 @@ async function advancePromptQueue(sessionId: string) {
   if (!waitingFor && live.status === "completed") void advancePromptQueue(sessionId);
 }
 
+/**
+ * Streamed deltas arrive once per provider token. Applying them once per frame
+ * keeps the store, and every subscriber, to at most one update per frame while
+ * output keeps the exact native order and offsets.
+ */
+const outputBatch = (() => {
+  let pending: AgentEvent[] = [];
+  let cancelScheduled: (() => void) | null = null;
+  const flush = () => {
+    cancelScheduled?.();
+    cancelScheduled = null;
+    if (!pending.length) return;
+    const events = pending;
+    pending = [];
+    const bySession = new Map<string, AgentEvent[]>();
+    for (const event of events) bySession.set(event.sessionId, [...(bySession.get(event.sessionId) ?? []), event]);
+    useAppStore.setState((state) => ({
+      sessions: state.sessions.map((session) => {
+        const queued = bySession.get(session.id);
+        if (!queued) return session;
+        const messages = queued.reduce(applyAgentOutput, session.messages);
+        return messages === session.messages ? session : { ...session, messages };
+      }),
+    }));
+  };
+  const schedule = () => {
+    if (cancelScheduled) return;
+    // Hidden documents get no animation frames; a macrotask still applies output.
+    if (document.hidden) {
+      const timer = setTimeout(flush, 0);
+      cancelScheduled = () => clearTimeout(timer);
+    } else {
+      const frame = requestAnimationFrame(flush);
+      cancelScheduled = () => cancelAnimationFrame(frame);
+    }
+  };
+  return {
+    queue(event: AgentEvent) { pending.push(event); schedule(); },
+    flush,
+    cancel() { cancelScheduled?.(); cancelScheduled = null; pending = []; },
+  };
+})();
+
 export async function bindRealtime() {
   const unlisteners: (() => void)[] = [];
   try {
@@ -1863,6 +1913,8 @@ export async function bindRealtime() {
       void store.selectSession(sessionId);
     }));
     unlisteners.push(await client.onSessionUpdated((session) => {
+      // Earlier deltas apply first; the snapshot then supersedes them by offset.
+      outputBatch.flush();
       const admission = directAdmissions.get(session.id);
       if (admission && observedPromptAdmission(session, admission.previousMessageId, admission.prompt)) {
         admission.clear();
@@ -1871,17 +1923,13 @@ export async function bindRealtime() {
       useAppStore.setState((state) => ({
         // Pins mutate only through serialized metadata acknowledgments. A lifecycle
         // snapshot captured before that acknowledgment must not undo it.
-        sessions: state.sessions.map((item) => item.id === session.id ? { ...session, pinnedMessageIds: item.pinnedMessageIds ?? session.pinnedMessageIds } : item),
+        sessions: state.sessions.map((item) => item.id === session.id ? { ...session, messages: reuseMessages(item.messages, session.messages), pinnedMessageIds: item.pinnedMessageIds ?? session.pinnedMessageIds } : item),
       }));
       observePromptQueue(session);
     }));
+    unlisteners.push(() => outputBatch.cancel());
     unlisteners.push(await client.onAgentOutput((event) => {
-      useAppStore.setState((state) => ({
-        sessions: state.sessions.map((session) => {
-          if (session.id !== event.sessionId) return session;
-          return { ...session, messages: applyAgentOutput(session.messages, event) };
-        }),
-      }));
+      outputBatch.queue(event);
       const servers = scanLocalServers(event.chunk);
       if (servers.length) useAppStore.getState().noteLocalServers(event.sessionId, servers);
     }));
@@ -1907,11 +1955,13 @@ export async function bindRealtime() {
       })();
     }));
     unlisteners.push(await client.onAgentExit((event) => {
+      outputBatch.flush();
       const store = useAppStore.getState();
       void store.refreshGitStatus();
       const provider = store.sessions.find((session) => session.id === event.sessionId)?.agent;
       const currentProvider = selectCurrentSession(store)?.agent ?? store.settings.defaultAgent;
-      if (provider && (store.settings.usageProviders.includes(provider) || provider === currentProvider)) void store.refreshProviderUsage(provider, true);
+      // Not forced: the native 60 s cache bounds probes when many turns finish close together.
+      if (provider && (store.settings.usageProviders.includes(provider) || provider === currentProvider)) void store.refreshProviderUsage(provider);
     }));
     return () => unlisteners.forEach((unlisten) => unlisten());
   } catch (error) {
@@ -1925,6 +1975,37 @@ export const selectCurrentProject = (state: AppStore) =>
 
 export const selectCurrentSession = (state: AppStore) =>
   state.sessions.find((session) => session.id === state.selectedSessionId) ?? null;
+
+/** True when two snapshots of a session differ at most in `messages`. */
+export function sameSessionMeta(a: Session, b: Session) {
+  if (a === b) return true;
+  const left = a as unknown as Record<string, unknown>, right = b as unknown as Record<string, unknown>;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every((key) => key === "messages" || left[key] === right[key]);
+}
+
+let sessionsMeta: Session[] = [];
+/**
+ * Sessions for views that never read `messages` (sidebar, tabs, dock, composer):
+ * the returned array keeps its identity while only streamed text changes, so
+ * those views skip per-frame renders. Its `messages` may be stale; do not read them.
+ */
+export const selectSessionsMeta = (state: AppStore): Session[] => {
+  const next = state.sessions;
+  if (next.length === sessionsMeta.length && next.every((session, index) => sameSessionMeta(sessionsMeta[index], session))) return sessionsMeta;
+  sessionsMeta = next;
+  return next;
+};
+
+let currentMeta: Session | null = null;
+/** The selected session for views that never read `messages`; see {@link selectSessionsMeta}. */
+export const selectCurrentSessionMeta = (state: AppStore): Session | null => {
+  const next = selectCurrentSession(state);
+  if (next && currentMeta && sameSessionMeta(currentMeta, next)) return currentMeta;
+  currentMeta = next;
+  return next;
+};
 
 export const selectProjectSessions = (state: AppStore) =>
   state.sessions.filter((session) => session.projectId === state.selectedProjectId);

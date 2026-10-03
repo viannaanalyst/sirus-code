@@ -1,5 +1,6 @@
 import type { ShaderMount, ShaderMountUniforms } from "@paper-design/shaders";
 import type { AppSettings } from "@/client/types";
+import { ambientActive, subscribeAmbient } from "@/lib/ambient-motion";
 
 /** One material definition for the Add button, composer border and preview. */
 export function composerMetalUniforms(): ShaderMountUniforms {
@@ -17,7 +18,7 @@ export interface ComposerMetalMotion {
   reduced: boolean;
 }
 
-/** ShaderMount owns resize/visibility; focus stops time without resetting it. */
+/** ShaderMount owns resize/visibility; focus, window blur and Settings stop time without resetting it. */
 export function mountComposerMetalBorder(node: HTMLElement, Mount: typeof ShaderMount, fragment: string, initial: ComposerMetalMotion) {
   const composer = node.parentElement;
   if (!composer) throw new Error("Composer metal requires an owning surface");
@@ -29,16 +30,18 @@ export function mountComposerMetalBorder(node: HTMLElement, Mount: typeof Shader
     { alpha: false, antialias: false, powerPreference: "low-power" }, 0, 700, 1, 512 * 256);
   const sync = () => {
     const editing = composer.querySelector("textarea")?.matches(":focus");
-    shader.setSpeed(motion.reduced || editing ? 0 : { slow: .35, smooth: .55, fast: .9 }[motion.speed]);
+    shader.setSpeed(motion.reduced || editing || !ambientActive() ? 0 : { slow: .35, smooth: .55, fast: .9 }[motion.speed]);
   };
   composer.addEventListener("focusin", sync);
   composer.addEventListener("focusout", sync);
+  const unsubscribe = subscribeAmbient(sync);
   sync();
   return {
     setMotion(next: ComposerMetalMotion) { motion = next; sync(); },
     dispose() {
       composer.removeEventListener("focusin", sync);
       composer.removeEventListener("focusout", sync);
+      unsubscribe();
       const gl = shader.canvasElement.getContext("webgl2");
       shader.dispose();
       gl?.getExtension("WEBGL_lose_context")?.loseContext();

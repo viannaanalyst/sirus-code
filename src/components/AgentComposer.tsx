@@ -6,7 +6,7 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { AgentInstall, AgentProviderId, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerContour } from "@/components/ComposerContour";
@@ -43,7 +43,7 @@ function fitComposerHeight(node: HTMLTextAreaElement) {
   node.style.height = `${node.scrollHeight}px`;
 }
 
-export function AgentComposer({ session, disabled, onSend, onStop, onModelChange }: Props) {
+function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }: Props) {
   const t = useTranslation();
   const reducedMotion = useMotionPreferences();
   const draftProjectId = useAppStore((state) => state.selectedProjectId);
@@ -302,3 +302,6 @@ export function AgentComposer({ session, disabled, onSend, onStop, onModelChange
     </>
   );
 }
+
+/** Memoized: streamed output re-renders the transcript, not this control. */
+export const AgentComposer = memo(AgentComposerView);

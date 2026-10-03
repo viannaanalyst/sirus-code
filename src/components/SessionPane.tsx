@@ -13,7 +13,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { motion } from "motion/react";
-import { useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { MessageTrail } from "@/components/MessageTrail";
 import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
@@ -25,12 +25,11 @@ import { AgentComposer } from "@/components/AgentComposer";
 import { UsageFooter } from "@/components/UsageFooter";
 import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
-import type { ExecutionOptions, Session } from "@/client/types";
+import type { ExecutionOptions, Message, Session } from "@/client/types";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
-import { selectCurrentProject, useAppStore } from "@/store/app-store";
+import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
 
 interface Props {
-  session: Session | null;
   agents: AgentInstall[];
   onSend: (prompt: string, execution?: ExecutionOptions) => Promise<boolean>;
   onStop: () => void;
@@ -38,8 +37,11 @@ interface Props {
   onModelChange?: (provider: AgentProviderId, model: string | null) => void;
 }
 
-export function SessionPane({ session, agents, onSend, onStop, onModelChange }: Props) {
+export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
   const t = useTranslation();
+  const session = useAppStore(selectCurrentSession);
+  // Controls below the transcript never read messages: they skip per-frame renders.
+  const sessionMeta = useAppStore(selectCurrentSessionMeta);
   const openProject = useAppStore((state) => state.addProjectFromPicker);
   const project = useAppStore(selectCurrentProject);
   const jump = useAppStore((state) => state.messageJump);
@@ -122,34 +124,7 @@ export function SessionPane({ session, agents, onSend, onStop, onModelChange }: 
                 <div ref={transcriptContent} className="mx-auto flex w-full shrink-0 max-w-[var(--chat-column-width)] flex-col gap-[var(--chat-message-gap)]">
                   {[messages.slice(0, Math.max(0, latestUserIndex)), messages.slice(Math.max(0, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
                   {group.map((message) => (
-                    <article key={message.id} data-message-id={message.id} ref={(node) => { if (node) messageNodes.current.set(message.id, node); else messageNodes.current.delete(message.id); }} tabIndex={-1} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
-                      <p className="sr-only">
-                        {t(message.role === "user" ? "You" : "Agent")}
-                      </p>
-                      {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} /> : null}
-                      <div
-                        data-transcript-text
-                        className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
-                          message.role === "user" ? "rounded-[18px] bg-background-3 px-4 py-2.5 text-text-primary" : "text-text-secondary"
-                        }`}
-                      >
-                        {message.content ? (message.role === "agent" ? (() => {
-                          let offset = 0;
-                          return parseTranscript(session.team?.messageId === message.id ? stripTeamPlan(message.content) : message.content).map((block, index) => {
-                            const start = offset;
-                            offset += block.content.length + 1;
-                            return block.kind === "code" ? <div className="my-3" key={index}><CodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
-                          });
-                        })() : <SearchText text={message.content} query={searchQuery} />) : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
-                      </div>
-                      {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
-                        <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
-                        <MessageTimestamp createdAt={message.createdAt} />
-                      </div> : null}
-                      {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}
-                      {session.team?.messageId === message.id && !message.streaming ? <TeamPanel session={session} /> : null}
-                      {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
-                    </article>
+                    <TranscriptMessage key={message.id} message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} />
                   ))}
                   </div>)}
                 </div>
@@ -162,13 +137,67 @@ export function SessionPane({ session, agents, onSend, onStop, onModelChange }: 
         {!empty && !following ? <button type="button" className="absolute bottom-40 left-1/2 z-20 -translate-x-1/2 rounded-[7px] bg-background-2 px-3 py-1 ui-control text-text-secondary hover:bg-background-3" onClick={() => {
           scrolling.current?.follow();
         }}>{t("session.followLatest")}</button> : null}
-        {session ? <AgentRequests session={session} /> : null}
+        {sessionMeta ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-2">
-          <AgentComposer session={session} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />
+          <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />
         </div>
         <div className="relative z-10 shrink-0 px-6"><UsageFooter composerAligned /></div>
       </div>
     </section>
   );
 }
+
+/** Session fields a message row reads besides its own message. */
+function sameRowSession(a: Session, b: Session) {
+  return a.id === b.id && a.status === b.status && a.agent === b.agent && a.model === b.model && a.pinnedMessageIds === b.pinnedMessageIds && a.team === b.team;
+}
+
+/**
+ * One transcript row. Memoized so a streamed chunk re-renders only the message
+ * it changed, not every earlier message and its parsed code blocks.
+ */
+const TranscriptMessage = memo(function TranscriptMessage({ message, session, searchQuery, nodes }: {
+  message: Message;
+  session: Session;
+  searchQuery: string;
+  nodes: RefObject<Map<string, HTMLElement>>;
+}) {
+  const t = useTranslation();
+  const register = useCallback((node: HTMLElement | null) => {
+    if (node) nodes.current.set(message.id, node); else nodes.current.delete(message.id);
+  }, [nodes, message.id]);
+  const blocks = useMemo(() => message.role === "agent" && message.content
+    ? parseTranscript(session.team?.messageId === message.id ? stripTeamPlan(message.content) : message.content)
+    : null, [message.role, message.content, message.id, session.team?.messageId]);
+  return (
+    <article data-message-id={message.id} ref={register} tabIndex={-1} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
+      <p className="sr-only">
+        {t(message.role === "user" ? "You" : "Agent")}
+      </p>
+      {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} /> : null}
+      <div
+        data-transcript-text
+        className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
+          message.role === "user" ? "rounded-[18px] bg-background-3 px-4 py-2.5 text-text-primary" : "text-text-secondary"
+        }`}
+      >
+        {message.content ? (message.role === "agent" ? (() => {
+          let offset = 0;
+          return (blocks ?? []).map((block, index) => {
+            const start = offset;
+            offset += block.content.length + 1;
+            return block.kind === "code" ? <div className="my-3" key={index}><CodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
+          });
+        })() : <SearchText text={message.content} query={searchQuery} />) : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+      </div>
+      {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+        <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
+        <MessageTimestamp createdAt={message.createdAt} />
+      </div> : null}
+      {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}
+      {session.team?.messageId === message.id && !message.streaming ? <TeamPanel session={session} /> : null}
+      {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
+    </article>
+  );
+}, (previous, next) => previous.message === next.message && previous.searchQuery === next.searchQuery && previous.nodes === next.nodes && sameRowSession(previous.session, next.session));

@@ -14,13 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useTranslation } from "@/i18n/use-translation";
-import {
-  selectCurrentProject,
-  selectCurrentSession,
-  useAppStore,
-  type DockPane,
-  type DockPaneKind,
-} from "@/store/app-store";
+import { selectCurrentProject, useAppStore, type DockPane, type DockPaneKind, selectCurrentSessionMeta } from "@/store/app-store";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { IconButton } from "@/primitives/IconButton";
@@ -64,7 +58,7 @@ const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser"];
 
 export function RightDock() {
   const t = useTranslation();
-  const session = useAppStore(selectCurrentSession);
+  const session = useAppStore(selectCurrentSessionMeta);
   const project = useAppStore(selectCurrentProject);
   const panes = useAppStore((state) => state.dockPanes);
   const activePaneId = useAppStore((state) => state.dockActivePaneId);

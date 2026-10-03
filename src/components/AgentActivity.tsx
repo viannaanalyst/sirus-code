@@ -7,6 +7,7 @@ import { providerById } from "@/lib/providers";
 import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib/agent-activity";
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
+import { useAmbientActive } from "@/lib/ambient-motion";
 
 /** Steps kept visible on the trail; earlier ones fold behind one control. */
 const VISIBLE_STEPS = 7;
@@ -102,6 +103,7 @@ function StepStatus({ item }: { item: Pick<ActivityItem, "state"> }) {
 export function AgentActivity({ activity }: { activity: TurnActivity }) {
   const t = useTranslation();
   const reduced = useArcReducedMotion();
+  const ambient = useAmbientActive();
   const catalog = useAppStore(state => state.modelsByProvider[activity.provider]);
   const modelLabel = (id: string) => modelDisplayName(activity.provider, catalog?.models.find(model => model.id === id)?.displayName ?? id, catalog?.models.map(model => model.displayName));
   const modelName = activity.model ? modelLabel(activity.model) : providerById(activity.provider).name;
@@ -129,6 +131,8 @@ export function AgentActivity({ activity }: { activity: TurnActivity }) {
     return () => { observer.disconnect(); clearInterval(timer); document.removeEventListener("visibilitychange", schedule); };
   }, [active, ticking]);
   const waiting = activity.status === "waiting";
+  // An approval can wait for hours: its orbit only moves while someone can see it.
+  const waitingMotion = waiting && !reduced && clock.visible && ambient;
   const live = ticking && clock.visible && !reduced;
   const label = waiting ? "Waiting for your response" : activity.status === "starting" ? "Starting" : activity.status === "running" ? "Working" : activity.status === "completed" ? "Worked for" : activity.status === "failed" ? "status.failed" : "status.stopped";
   const items = activity.items;
@@ -136,14 +140,14 @@ export function AgentActivity({ activity }: { activity: TurnActivity }) {
   const hasDetails = items.length > 0;
   const subagentNumber = (item: ActivityItem) => items.filter(row => row.kind === "agent").indexOf(item) + 1;
   const chrome = <>
-    <ActivityOrbit moving={live || (waiting && !reduced)} slow={waiting} />
+    <ActivityOrbit moving={live || waitingMotion} slow={waiting} />
     <span className="activity-model">{modelName}</span>
     <span className="activity-state">{t(label)}</span>
     <span className="activity-duration">{formatActivityDuration(activityElapsed(activity, clock.now))}</span>
     {waiting ? <span className="ui-micro text-text-muted">· {t("Paused")}</span> : null}
     {hasDetails ? <ChevronDown size={12} className={view.expanded ? "activity-chevron expanded" : "activity-chevron"} aria-hidden="true" /> : null}
   </>;
-  return <div ref={node} className="agent-activity" data-status={activity.status} data-live={live || undefined} data-active={active || undefined}>
+  return <div ref={node} className="agent-activity" data-status={activity.status} data-live={live || undefined} data-active={active || undefined} data-resting={(waiting && !waitingMotion) || undefined}>
     {hasDetails
       ? <button type="button" className="activity-line ui-control" aria-expanded={view.expanded} aria-controls={bodyId} onClick={() => setView(current => ({ ...current, expanded: !current.expanded }))}>{chrome}</button>
       : <div className="activity-line ui-control">{chrome}</div>}

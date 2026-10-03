@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -37,6 +37,8 @@ pub struct AppState {
     pub accounts: crate::provider_accounts::AccountState,
     pub close_guard: Mutex<crate::close::CloseGuard>,
     pub draft_checkpoint: Mutex<Option<std::time::Instant>>,
+    /// One coalesced background checkpoint is pending (streaming output).
+    pub checkpoint_pending: AtomicBool,
     pub catalogs: Mutex<
         HashMap<AgentProviderId, (Option<String>, crate::provider_models::ProviderModelList)>,
     >,
@@ -62,11 +64,11 @@ impl AppState {
                 tracing::warn!(%error, "agent shutdown failed");
             }
         }
-        for terminal in self.ptys.lock().values() {
-            if let Err(error) = terminal.kill() {
-                tracing::warn!(%error, "terminal shutdown failed");
-            }
+        let terminals = self.ptys.lock();
+        if let Err(error) = crate::pty_term::kill_all(&terminals.values().collect::<Vec<_>>()) {
+            tracing::warn!(%error, "terminal shutdown failed");
         }
+        drop(terminals);
         for session in &mut data.sessions {
             if session.status.is_active() {
                 session.status = SessionStatus::Stopped;
@@ -255,15 +257,24 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
             "stop running sessions before removing this project",
         ));
     }
-    for session in data
+    let owned = data
         .sessions
         .iter()
         .filter(|session| session.project_id == project_id)
-    {
-        if let Some(pty) = state.ptys.lock().remove(&session.id) {
-            pty.kill()?;
-        }
-    }
+        .map(|session| session.id.clone())
+        .collect::<HashSet<_>>();
+    // Terminals are keyed by terminal id; match them by their owning session.
+    let terminals = {
+        let mut ptys = state.ptys.lock();
+        let ids = ptys
+            .values()
+            .filter(|pty| owned.contains(&pty.session_id))
+            .map(|pty| pty.terminal_id.clone())
+            .collect::<Vec<_>>();
+        ids.into_iter()
+            .filter_map(|terminal_id| ptys.remove(&terminal_id))
+            .collect::<Vec<_>>()
+    };
     data.projects.retain(|project| project.id != project_id);
     data.sessions
         .retain(|session| session.project_id != project_id);
@@ -272,8 +283,10 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     crate::sidebar::prune(&mut data);
     state.attachments.prune(&data);
     drop(data);
+    // Shell cleanup scans processes and waits; keep it outside the data lock.
+    let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
-    Ok(())
+    killed
 }
 
 #[tauri::command]
@@ -1192,17 +1205,16 @@ pub(crate) fn delete_session_native(
             .filter_map(|terminal_id| ptys.remove(&terminal_id))
             .collect::<Vec<_>>()
     };
-    for terminal in terminals {
-        terminal.kill()?;
-    }
     data.sessions.retain(|item| item.id != session_id);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
     state.attachments.prune(&data);
     drop(data);
+    // Shell cleanup scans processes and waits; keep it outside the data lock.
+    let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
-    Ok(())
+    killed
 }
 
 #[tauri::command]
@@ -1768,8 +1780,8 @@ pub fn write_terminal(
     terminal_id: String,
     data: String,
 ) -> Result<()> {
-    let ptys = state.ptys.lock();
-    owned_terminal(&ptys, &session_id, &terminal_id)?.write(&data)
+    let writer = owned_terminal(&state.ptys.lock(), &session_id, &terminal_id)?.writer();
+    writer.write(&data)
 }
 
 #[tauri::command]
@@ -1947,6 +1959,7 @@ mod tests {
             accounts: Default::default(),
             close_guard: Default::default(),
             draft_checkpoint: Mutex::new(None),
+            checkpoint_pending: Default::default(),
             catalogs: Mutex::new(HashMap::new()),
         };
         assert!(create_workspace_entry_native(
@@ -2017,6 +2030,7 @@ mod tests {
             accounts: Default::default(),
             close_guard: Default::default(),
             draft_checkpoint: Mutex::new(None),
+            checkpoint_pending: Default::default(),
             catalogs: Mutex::new(HashMap::new()),
         }
     }
@@ -2263,6 +2277,7 @@ mod tests {
             accounts: crate::provider_accounts::AccountState::default(),
             close_guard: Mutex::new(crate::close::CloseGuard::default()),
             draft_checkpoint: Mutex::new(None),
+            checkpoint_pending: Default::default(),
             catalogs: Mutex::new(HashMap::new()),
         };
         assert!(state.ensure_running().is_ok());
@@ -2293,7 +2308,7 @@ mod tests {
         state.shutdown().unwrap();
         assert_eq!(
             std::fs::read(&data_path).unwrap(),
-            serde_json::to_vec_pretty(&saved).unwrap()
+            serde_json::to_vec(&saved).unwrap()
         );
     }
 }

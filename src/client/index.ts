@@ -20,9 +20,43 @@ import type {
   Session,
 } from "./types";
 
+type SharedListener = { handlers: Set<(payload: unknown) => void>; ready: Promise<() => void> };
+
 export class SwitchyardClient {
   private readonly transport: Transport;
+  private readonly shared = new Map<string, SharedListener>();
   constructor(transport: Transport) { this.transport = transport; }
+
+  /**
+   * One native listener per event, fanned out to every handler. Each native
+   * listener receives its own serialized payload, so several terminals listening
+   * separately would multiply the cost of every output chunk.
+   */
+  private listenShared<T>(event: string, handler: (payload: T) => void): Promise<() => void> {
+    let entry = this.shared.get(event);
+    if (!entry) {
+      const handlers = new Set<(payload: unknown) => void>();
+      const created: SharedListener = {
+        handlers,
+        ready: this.transport.listen<unknown>(event, (payload) => { for (const each of [...handlers]) each(payload); }),
+      };
+      created.ready.catch(() => { if (this.shared.get(event) === created) this.shared.delete(event); });
+      this.shared.set(event, created);
+      entry = created;
+    }
+    const current = entry;
+    const own = handler as (payload: unknown) => void;
+    current.handlers.add(own);
+    return current.ready.then(() => () => {
+      current.handlers.delete(own);
+      if (current.handlers.size || this.shared.get(event) !== current) return;
+      this.shared.delete(event);
+      void current.ready.then((unlisten) => unlisten());
+    }, (error: unknown) => {
+      current.handlers.delete(own);
+      throw error;
+    });
+  }
 
   loadState() {
     return this.transport.invoke<AppData>("load_state");
@@ -364,11 +398,11 @@ export class SwitchyardClient {
   }
 
   onPtyOutput(handler: (event: PtyOutputEvent) => void) {
-    return this.transport.listen<PtyOutputEvent>("pty-output", handler);
+    return this.listenShared<PtyOutputEvent>("pty-output", handler);
   }
 
   onPtyExit(handler: (event: PtyOutputEvent) => void) {
-    return this.transport.listen<PtyOutputEvent>("pty-exit", handler);
+    return this.listenShared<PtyOutputEvent>("pty-exit", handler);
   }
 
   dictationStatus() {

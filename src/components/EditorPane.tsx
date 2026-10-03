@@ -27,6 +27,9 @@ function EditorMark({ id, png }: { id: EditorId; png?: string }) {
   </span>;
 }
 
+/** Mounted views per buffer: a clean buffer is released when its last view closes. */
+const openViews = new Map<string, number>();
+
 export function EditorPane({ sessionId, path, onClose }: { sessionId: string; path: string; onClose?: () => void }) {
   const t = useTranslation();
   const key = editorKey(sessionId, path);
@@ -52,6 +55,19 @@ export function EditorPane({ sessionId, path, onClose }: { sessionId: string; pa
   useEffect(() => {
     setView("code");
   }, [path]);
+
+  useEffect(() => {
+    openViews.set(key, (openViews.get(key) ?? 0) + 1);
+    return () => {
+      const remaining = (openViews.get(key) ?? 1) - 1;
+      if (remaining > 0) { openViews.set(key, remaining); return; }
+      openViews.delete(key);
+      // Unsaved edits stay; a clean file is read again from disk when reopened.
+      const state = useAppStore.getState();
+      const buffer = state.editorBuffers[key];
+      if (buffer && buffer.content === buffer.saved) state.discardEditorBuffer(key);
+    };
+  }, [key]);
 
   useEffect(() => {
     let cancelled = false;

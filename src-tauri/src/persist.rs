@@ -1,7 +1,14 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
+use parking_lot::Mutex;
+
+use crate::commands::AppState;
 use crate::error::{Error, Result};
 use crate::models::AppData;
 
@@ -55,24 +62,89 @@ pub fn load_or_create(path: &PathBuf) -> Result<AppData> {
     Ok(data)
 }
 
+/// Snapshot order. Taken while the caller holds the state lock, so a higher
+/// generation is always a newer state.
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Last generation written per state file. Its lock also serializes writers.
+static WRITTEN: OnceLock<Mutex<HashMap<PathBuf, u64>>> = OnceLock::new();
+
+/// Saves synchronously; callers hold the state lock and may roll back on error.
 pub fn save(path: &PathBuf, data: &AppData) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let encoded = serde_json::to_string_pretty(data)?;
-    let mut file = fs::File::create(&tmp)?;
-    file.write_all(encoded.as_bytes())?;
-    file.sync_all()?;
-    drop(file);
-    fs::rename(tmp, path)?;
+    let (generation, encoded) = encode(data)?;
+    write(path, generation, &encoded)?;
     crate::diagnostics::observe(path, data);
     Ok(())
 }
 
+fn encode(data: &AppData) -> Result<(u64, Vec<u8>)> {
+    let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    // Compact JSON: smaller and faster to encode than the old pretty output; both load.
+    Ok((generation, serde_json::to_vec(data)?))
+}
+
+/// Atomic temp-file write. A snapshot older than what is already on disk is
+/// dropped, so a delayed checkpoint can never replace a newer synchronous save.
+fn write(path: &PathBuf, generation: u64, encoded: &[u8]) -> Result<()> {
+    let mut written = WRITTEN.get_or_init(Mutex::default).lock();
+    if written.get(path).is_some_and(|last| *last > generation) {
+        return Ok(());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let mut file = fs::File::create(&tmp)?;
+    file.write_all(encoded)?;
+    file.sync_all()?;
+    drop(file);
+    fs::rename(tmp, path)?;
+    // Production has one state file; keep disposable test roots bounded.
+    if !written.contains_key(path) && written.len() >= 64 {
+        written.clear();
+    }
+    written.insert(path.clone(), generation);
+    Ok(())
+}
+
+/// Coalesced, best-effort checkpoint for streaming output: at most one write per
+/// second across every stream. The state is encoded under the lock; the file
+/// write and fsync happen outside it. Final states keep using [`save`].
+pub fn checkpoint_soon(state: &Arc<AppState>) {
+    if state.checkpoint_pending.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let state = state.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(CHECKPOINT_DELAY);
+        // Cleared before the snapshot, so later output schedules another checkpoint.
+        state.checkpoint_pending.store(false, Ordering::Release);
+        let encoded = encode(&state.data.lock());
+        match encoded.and_then(|(generation, bytes)| write(&state.data_path, generation, &bytes)) {
+            Ok(()) => {}
+            Err(error) => tracing::error!(%error, "cannot checkpoint streamed output"),
+        }
+    });
+}
+
+const CHECKPOINT_DELAY: Duration = Duration::from_secs(1);
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_delayed_older_snapshot_never_replaces_a_newer_save() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let older = encode(&AppData::default()).unwrap();
+        let mut newer_data = AppData::default();
+        newer_data
+            .composer_drafts
+            .insert("session:s".into(), "newer".into());
+        save(&path, &newer_data).unwrap();
+        write(&path, older.0, &older.1).unwrap();
+        let loaded = load_or_create(&path).unwrap();
+        assert_eq!(loaded.composer_drafts["session:s"], "newer");
+    }
     #[test]
     fn general_preferences_survive_native_save_and_reload() {
         let temp = crate::git::tests::Repo::new();

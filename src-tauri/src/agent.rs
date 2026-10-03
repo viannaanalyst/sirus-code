@@ -600,12 +600,22 @@ fn fail_stream(app: &AppHandle, state: &AppState, session_id: &str, message: &st
     }
 }
 
+/// Per-stream position: the message it appends to and its known length, so each
+/// chunk's UTF-16 offset is not recounted over the whole message.
+#[derive(Default)]
+pub(crate) struct OutputCursor {
+    message_id: Option<String>,
+    /// (UTF-8 bytes, UTF-16 units) after the last append by this cursor.
+    known: Option<(usize, usize)>,
+}
+
 pub(crate) fn record_output(
     session: &mut Session,
-    message_id: &mut Option<String>,
+    cursor: &mut OutputCursor,
     stream: &str,
     chunk: String,
 ) -> Result<Option<AgentEvent>> {
+    let message_id = &mut cursor.message_id;
     if matches!(
         session.status,
         SessionStatus::Stopped | SessionStatus::Failed
@@ -635,9 +645,11 @@ pub(crate) fn record_output(
                 .map(|message| message.id.clone());
         }
     }
+    // The streamed message is the newest or close to it.
     let Some(message) = session
         .messages
         .iter_mut()
+        .rev()
         .find(|message| Some(&message.id) == message_id.as_ref())
     else {
         return Ok(None);
@@ -645,8 +657,13 @@ pub(crate) fn record_output(
     if message.content.len() + chunk.len() > MAX_MESSAGE_OUTPUT {
         return Err(Error::agent("Agent output exceeded the 8 MiB limit. Execution was stopped to preserve responsiveness."));
     }
-    let offset = message.content.encode_utf16().count();
+    let offset = match cursor.known {
+        // Streaming only appends; a length mismatch means another writer changed it.
+        Some((bytes, units)) if bytes == message.content.len() => units,
+        _ => message.content.encode_utf16().count(),
+    };
     message.content.push_str(&chunk);
+    cursor.known = Some((message.content.len(), offset + chunk.encode_utf16().count()));
     session.last_activity_at = now_rfc3339();
     Ok(Some(AgentEvent {
         session_id: session.id.clone(),
@@ -677,11 +694,8 @@ where
             .find(|session| session.id == session_id)
             .map(|session| OutputParser::for_provider(&session.agent))
             .unwrap_or_default();
-        let mut message_id = None;
+        let mut cursor = OutputCursor::default();
         let mut lines = BufReader::new(reader);
-        let mut checkpoint = std::time::Instant::now()
-            .checked_sub(std::time::Duration::from_secs(1))
-            .unwrap();
         loop {
             let chunk = match bounded_line(&mut lines).await {
                 Ok(Some(line)) if stream == "stdout" => parser.parse(&line),
@@ -705,7 +719,7 @@ where
                 let mut data = state.data.lock();
                 let event =
                     if let Some(session) = data.sessions.iter_mut().find(|s| s.id == session_id) {
-                        match record_output(session, &mut message_id, stream, chunk) {
+                        match record_output(session, &mut cursor, stream, chunk) {
                             Ok(Some(event)) => event,
                             Ok(None) => continue,
                             Err(error) => {
@@ -717,14 +731,9 @@ where
                     } else {
                         continue;
                     };
-                // Event-driven checkpoints: no polling or background timer. Final output
-                // is always saved by the monitor; crashes retain recently streamed text.
-                if checkpoint.elapsed() >= std::time::Duration::from_secs(1) {
-                    if let Err(error) = crate::persist::save(&state.data_path, &data) {
-                        tracing::error!(%error, "cannot checkpoint agent output");
-                    }
-                    checkpoint = std::time::Instant::now();
-                }
+                // Event-driven, coalesced checkpoint written outside the lock. Final
+                // output is always saved by the monitor; crashes retain recent text.
+                crate::persist::checkpoint_soon(&state);
                 let _ = app.emit("agent-output", event);
             }
         }
@@ -812,8 +821,8 @@ mod tests {
     #[test]
     fn diagnostics_are_native_system_messages_and_never_conversation_context() {
         let mut session: Session = serde_json::from_value(serde_json::json!({"id":"s","title":"Test","projectId":"p","agent":"codex","status":"running","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/unused","branch":"main","isolated":false},"messages":[{"id":"a","sessionId":"s","role":"agent","content":"🚂","createdAt":"time","streaming":true}]})).unwrap();
-        let mut out_id = None;
-        let mut err_id = None;
+        let mut out_id = OutputCursor::default();
+        let mut err_id = OutputCursor::default();
         let err = record_output(&mut session, &mut err_id, "stderr", "CLI warning".into())
             .unwrap()
             .unwrap();
@@ -832,6 +841,24 @@ mod tests {
             .unwrap();
         assert!(next.message.is_none());
         assert_eq!(session.messages.len(), 2);
+    }
+    #[test]
+    fn streamed_offsets_stay_exact_without_recounting_and_after_outside_edits() {
+        let mut session: Session = serde_json::from_value(serde_json::json!({"id":"s","title":"Test","projectId":"p","agent":"codex","status":"running","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/unused","branch":"main","isolated":false},"messages":[{"id":"a","sessionId":"s","role":"agent","content":"","createdAt":"time","streaming":true}]})).unwrap();
+        let mut cursor = OutputCursor::default();
+        let mut expected = 0;
+        for chunk in ["ação ", "🚂🚂", " fim"] {
+            let event = record_output(&mut session, &mut cursor, "stdout", chunk.into())
+                .unwrap()
+                .unwrap();
+            assert_eq!(event.offset, expected);
+            expected += chunk.encode_utf16().count();
+        }
+        session.messages[0].content.push('✓');
+        let event = record_output(&mut session, &mut cursor, "stdout", "!".into())
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.offset, expected + 1, "an outside append is recounted");
     }
     #[test]
     fn a_late_process_exit_preserves_shutdown_interruption() {

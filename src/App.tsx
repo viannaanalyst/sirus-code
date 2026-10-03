@@ -30,6 +30,7 @@ import { ResizeHandle } from "@/primitives/ResizablePanel";
 import { TooltipProvider } from "@/primitives/Tooltip";
 import { IconButton } from "@/primitives/IconButton";
 import { cn } from "@/lib/cn";
+import { setAmbientCovered } from "@/lib/ambient-motion";
 import {
   bindRealtime,
   selectCurrentSession,
@@ -88,7 +89,10 @@ export default function App() {
   const setSessionModel = useAppStore((state) => state.setSessionModel);
   const projects = useAppStore((state) => state.projects);
   const agents = useAppStore((state) => state.agents);
-  const session = useAppStore(selectCurrentSession);
+  // Narrow fields only: streamed output must not re-render the whole window.
+  const sessionAgent = useAppStore((state) => selectCurrentSession(state)?.agent);
+  const sessionTitle = useAppStore((state) => selectCurrentSession(state)?.title);
+  const conversationStarted = useAppStore((state) => isConversationStarted(selectCurrentSession(state)));
 
   const commands: CommandItem[] = useMemo(
     () => [
@@ -141,6 +145,8 @@ export default function App() {
   if (settingsOpen && !settingsMounted) setSettingsMounted(true);
   // Wait for the first ready paint so the splash can find the landing glyph.
   useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
+  // Settings covers the whole window, so decorative loops underneath stop.
+  useEffect(() => setAmbientCovered(settingsOpen), [settingsOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -235,7 +241,7 @@ export default function App() {
           key="main"
           initial={false}
           exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : motionTokens.instant } }}
-          className={cn("flex min-w-0 min-h-0 flex-1 flex-col", mainView !== "kanban" && isConversationStarted(session) ? "sidebar-material" : "main-material")}
+          className={cn("flex min-w-0 min-h-0 flex-1 flex-col", mainView !== "kanban" && conversationStarted ? "sidebar-material" : "main-material")}
         >
           <header
             data-tauri-drag-region
@@ -243,8 +249,8 @@ export default function App() {
           >
             {/* With the sidebar collapsed the header carries the project switcher and its session tabs. */}
             {sidebarCollapsed && mainView !== "kanban" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={session?.agent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "kanban" ? t("Kanban") : session?.title ?? t("session.new")}</span>
+              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "kanban" ? t("Kanban") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               <EnvironmentToggle />
@@ -265,7 +271,6 @@ export default function App() {
             environmentOpen && !dockOpen && "pr-[312px]",
           )}>
             {mainView !== "kanban" ? <SessionPane
-              session={session}
               agents={agents}
               onSend={sendPrompt}
               onStop={() => void stopAgent()}

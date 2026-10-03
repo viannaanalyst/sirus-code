@@ -9,14 +9,14 @@ import { SidebarProjectRow, SidebarSessionRow } from "@/components/SidebarRows";
 import { moveSidebarProject, sidebarGroups } from "@/lib/sidebar-layout";
 import { formatUnknownError } from "@/lib/format-error";
 import { useTranslation } from "@/i18n/use-translation";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, selectSessionsMeta } from "@/store/app-store";
 
 export function SidebarProjects({ floating = false, query = "", draftsOnly = false }: { floating?: boolean; query?: string; draftsOnly?: boolean }) {
   const t = useTranslation();
   const projects = useAppStore(state => state.projects);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
-  const sessions = useAppStore(state => state.sessions);
+  const sessions = useAppStore(selectSessionsMeta);
   const settings = useAppStore(state => state.settings);
   const drafts = useAppStore(state => state.composerDrafts);
   const groups = useMemo(() => {

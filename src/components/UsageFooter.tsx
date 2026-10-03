@@ -1,5 +1,5 @@
 import { Check, Plus, RefreshCw, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { AgentProviderId, ProviderUsage } from "@/client/types";
 import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
 import { activeProviderAccount, supportsProviderAccounts } from "@/lib/provider-accounts";
@@ -8,12 +8,12 @@ import { useTranslation } from "@/i18n/use-translation";
 import { PROVIDERS } from "@/lib/provider-registry";
 import { primaryUsageWindow, resetDuration, resetOutcomeMessage, usageWindowLabel } from "@/lib/provider-usage";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
-import { selectCurrentSession, useAppStore } from "@/store/app-store";
+import { useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
 import { cn } from "@/lib/cn";
 
 const control = "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[6px] px-1.5 text-text-muted hover:bg-background-3 hover:text-text-secondary focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50";
 
-export function UsageFooter({ composerAligned = false }: { composerAligned?: boolean }) {
+function UsageFooterView({ composerAligned = false }: { composerAligned?: boolean }) {
   const t = useTranslation();
   const settings = useAppStore((state) => state.settings);
   const selections = useAppStore((state) => state.selectedProviderAccounts);
@@ -21,7 +21,7 @@ export function UsageFooter({ composerAligned = false }: { composerAligned?: boo
   const usage = useAppStore((state) => state.usageByProvider);
   const loading = useAppStore((state) => state.usageLoading);
   const refresh = useAppStore((state) => state.refreshProviderUsage);
-  const session = useAppStore(selectCurrentSession);
+  const session = useAppStore(selectCurrentSessionMeta);
   const active = session?.agent ?? settings.defaultAgent;
   const eligible = PROVIDERS.filter((provider) => provider.id === active || (!settings.disabledProviders.includes(provider.id) && agents.some((agent) => agent.id === provider.id && agent.installed)));
   const visible = eligible.filter((provider) => settings.usageProviders.includes(provider.id) || provider.id === active);
@@ -128,3 +128,6 @@ function UsageChip({ provider, name, active, currentId, usage, loading }: { prov
     </PopoverContent>
   </Popover>;
 }
+
+/** Memoized: streamed output re-renders the transcript, not this control. */
+export const UsageFooter = memo(UsageFooterView);

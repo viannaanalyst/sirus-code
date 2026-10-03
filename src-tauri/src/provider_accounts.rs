@@ -453,6 +453,7 @@ mod tests {
             accounts: AccountState::default(),
             close_guard: Mutex::new(crate::close::CloseGuard::default()),
             draft_checkpoint: Mutex::new(None),
+            checkpoint_pending: Default::default(),
             catalogs: Mutex::new(HashMap::new()),
         })
     }
