@@ -458,6 +458,8 @@ async fn execute(
     };
     let mut items: HashMap<String, String> = HashMap::new();
     let mut item_key_bytes = 0;
+    // Separate consecutive assistant message items in the one transcript message.
+    let mut last_text_item: Option<String> = None;
     let mut file_changes: HashMap<String, Value> = HashMap::new();
     let mut file_change_bytes = 0;
     let mut seen_requests = std::collections::HashSet::new();
@@ -619,12 +621,16 @@ async fn execute(
                 let delta = params["delta"]
                     .as_str()
                     .ok_or_else(|| Error::agent("Invalid Codex text delta"))?;
+                if delta.is_empty() {
+                    continue;
+                }
+                let separator = item_separator(&mut last_text_item, &item);
                 let text = bounded_item(&mut items, &mut item_key_bytes, item)?;
                 if text.len() + delta.len() > 8 * 1024 * 1024 {
                     return Err(Error::agent("Codex output exceeded the 8 MiB limit"));
                 }
                 text.push_str(delta);
-                emit(Event::Delta(delta.into()))?;
+                emit(Event::Delta(format!("{separator}{delta}")))?;
             }
             "item/completed"
                 if params["turnId"] == turn_id && params["item"]["type"] == "agentMessage" =>
@@ -633,10 +639,15 @@ async fn execute(
                 let text = params["item"]["text"]
                     .as_str()
                     .ok_or_else(|| Error::agent("Invalid Codex assistant text"))?;
+                let separator = if text.len() > items.get(&item).map_or(0, String::len) {
+                    item_separator(&mut last_text_item, &item)
+                } else {
+                    ""
+                };
                 let previous = bounded_item(&mut items, &mut item_key_bytes, item)?;
                 if let Some(rest) = text.strip_prefix(previous.as_str()) {
                     if !rest.is_empty() {
-                        emit(Event::Delta(rest.into()))?;
+                        emit(Event::Delta(format!("{separator}{rest}")))?;
                     }
                 } else {
                     return Err(Error::agent(
@@ -655,6 +666,19 @@ async fn execute(
             _ => {}
         }
     }
+}
+
+/// A blank line before the first text of a new assistant message item, so
+/// consecutive Codex messages in one turn do not run together.
+fn item_separator(last: &mut Option<String>, item: &str) -> &'static str {
+    let separator = match last.as_deref() {
+        Some(previous) if previous != item => "\n\n",
+        _ => "",
+    };
+    if last.as_deref() != Some(item) {
+        *last = Some(item.to_owned());
+    }
+    separator
 }
 
 fn bounded_item<'a>(
@@ -884,6 +908,14 @@ async fn cleanup(child: &mut Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn consecutive_assistant_items_are_separated_once() {
+        let mut last = None;
+        assert_eq!(item_separator(&mut last, "a"), "");
+        assert_eq!(item_separator(&mut last, "a"), "");
+        assert_eq!(item_separator(&mut last, "b"), "\n\n");
+        assert_eq!(item_separator(&mut last, "b"), "");
+    }
     #[test]
     fn empty_output_items_have_count_and_retained_key_bounds() {
         let mut items = HashMap::new();
