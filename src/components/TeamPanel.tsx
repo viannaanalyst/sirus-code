@@ -206,7 +206,8 @@ function FinishCard({ session }: { session: Session }) {
     <footer className="team-card-foot">
       <span className="team-note ui-caption">{team.status === "done" ? t(skipped ? "team.partialNote" : "team.doneNote") : t("team.mergeNote")}</span>
       {team.status === "done" || (team.status === "stopped" && !finished.some(task => task.merge !== "merged" && task.merge !== "skipped"))
-        ? <button type="button" className="team-button" disabled={busy} onClick={() => setConfirmCleanup(true)}>{t("team.cleanup")}</button>
+        // Cleanup is offered only while helper worktrees remain.
+        ? (team.tasks.some(task => task.workerSessionId) ? <button type="button" className="team-button" disabled={busy} onClick={() => setConfirmCleanup(true)}>{t("team.cleanup")}</button> : null)
         : <button type="button" className="team-button team-button-primary" disabled={busy || Boolean(stopped)} onClick={() => void run({ type: "merge", sessionId: session.id })}><GitMerge size={12} aria-hidden="true" />{busy ? t("team.merging") : t("team.mergeAll")}</button>}
     </footer>
     <ConfirmDialog open={confirmCleanup} onOpenChange={setConfirmCleanup} title={t("team.cleanup")} description={t("team.cleanupConfirm")} confirmLabel={t("team.cleanup")} onConfirm={() => teamAction({ type: "cleanup", sessionId: session.id, confirm: true })} />

@@ -194,7 +194,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 - before applying, it checks planned paths, then runs `git apply --check` against the current files;
 - it stops at the first conflict without applying that task, offering skip, merge anyway (only for out-of-area changes) or Resolve with AI (only for conflicts). Resolve three-way-merges the current checkout snapshot into the helper's own worktree; leftover conflicts go back to that helper for one turn. Patches that still contain conflict markers are refused.
 
-Cleanup of helper worktrees is confirmed. Helpers nest under the coordinator in the sidebar.
+Cleanup of helper worktrees is confirmed; it first commits each helper's remaining edits to its own branch so worktrees are removed without force and nothing is lost. Helpers nest under the coordinator in the sidebar.
 - **GitWorktree inventory** — real porcelain `-z` entries with path, HEAD, branch, detached/bare state, lock and prunable reasons.
 - **Worktree** — `{ path, branch, isolated }`. Isolated trees live under app-data `worktrees/{projectId}/` with branch `switchyard/<slug>-<id>`. Non-isolated uses the project checkout.
 - **AgentProviderId** — `codex` | `claude` | `opencode` | `cursor` | `grok` | `antigravity` | `droid` | `pi` | `devin`. Session is an **agent** process; Settings lists **Providers** (the CLIs). Do not name the Settings section “Agents”.

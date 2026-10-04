@@ -49,7 +49,7 @@ const strings: Record<string, [string, string]> = {
   "team.doneNote": ["The changes are in your working copy. Review them in Changes and commit when you are ready.", "As mudanças estão na sua cópia de trabalho. Revise em Alterações e faça o commit quando quiser."],
   "team.partialNote": ["A task was left out. Its worktree is kept so you can resolve it.", "Uma tarefa ficou de fora. O worktree dela continua guardado para você resolver."],
   "team.cleanup": ["Remove worktrees", "Apagar worktrees"],
-  "team.cleanupConfirm": ["Remove the helpers' worktrees and sessions? Merged changes stay in your working copy.", "Apagar os worktrees e as sessões dos ajudantes? As mudanças já juntadas continuam na sua cópia de trabalho."],
+  "team.cleanupConfirm": ["Remove the helpers' worktrees and sessions? Merged changes stay in your working copy, and each helper's work is kept in a commit on its own branch.", "Apagar os worktrees e as sessões dos ajudantes? As mudanças já juntadas continuam na sua cópia de trabalho, e o trabalho de cada ajudante fica salvo num commit na branch dele."],
   "team.conflictTitle": ["Stopped here: this task does not apply cleanly.", "Parei aqui: esta tarefa não encaixa."],
   "team.outsideTitle": ["Stopped here: it changed files outside its planned paths.", "Parei aqui: ela mudou arquivos fora da área combinada."],
   "team.nothingApplied": ["Nothing from this task was applied.", "Nada desta tarefa foi aplicado."],

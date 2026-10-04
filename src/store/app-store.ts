@@ -1243,7 +1243,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
           if (stayingOnOrigin) delete composerDrafts[originKey];
           const composerContexts = { ...state.composerContexts };
           const transferredContext = stayingOnOrigin ? composerContexts[originKey] : submittedContext;
-          if (transferredContext) composerContexts[`session:${session.id}`] = transferredContext;
+          // Team mode is one-shot: the plan request does not carry it into the new session.
+          if (transferredContext) composerContexts[`session:${session.id}`] = transferredContext.team ? { ...transferredContext, team: false } : transferredContext;
           if (stayingOnOrigin) delete composerContexts[originKey];
           return { sessions: [session, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [session.id]: ++transcriptTick }, composerDrafts, composerContexts,
             dockPanes: state.dockPanes.map((pane) => stayingOnOrigin && pane.document?.scope === originKey ? { ...pane, document: { ...pane.document, scope: `session:${session.id}` } } : pane),

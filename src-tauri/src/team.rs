@@ -864,14 +864,28 @@ pub async fn team_action(
                 }
                 team.tasks
                     .iter()
-                    .filter_map(|task| task.worker_session_id.clone())
+                    .filter_map(|task| {
+                        let worker = task.worker_session_id.clone()?;
+                        let path = data
+                            .sessions
+                            .iter()
+                            .find(|session| session.id == worker)
+                            .filter(|session| session.worktree.isolated)
+                            .map(|session| PathBuf::from(&session.worktree.path));
+                        Some((worker, path, task.title.clone()))
+                    })
                     .collect::<Vec<_>>()
             };
             let mut removed = vec![];
-            for worker in workers {
+            for (worker, path, title) in workers {
                 let shared = state.clone();
                 let id = worker.clone();
                 native_task(move || {
+                    // Merges leave helper edits uncommitted; keep them on the helper's own
+                    // branch so the worktree is clean and is removed without force.
+                    if let Some(path) = path.filter(|path| path.is_dir()) {
+                        preserve_helper_work(&path, &title)?;
+                    }
                     crate::commands::delete_session_native(&shared, id, true, true)
                 })
                 .await?;
@@ -895,6 +909,54 @@ pub async fn team_action(
             Ok(TeamActionResponse { sessions, removed })
         }
     }
+}
+
+/// Commits a helper's remaining changes to its own app-owned branch (hooks and signing
+/// disabled, fixed Switchyard identity). Nothing is discarded: the branch keeps the work
+/// after its worktree is removed. Fails if the worktree is still dirty afterwards.
+fn preserve_helper_work(path: &Path, title: &str) -> Result<()> {
+    if !crate::git::status(path)?.dirty {
+        return Ok(());
+    }
+    let added = crate::git::run(path, &["add", "-A"])?;
+    if !added.status.success() {
+        return Err(Error::git("Cannot save a helper's changes before cleanup."));
+    }
+    let identity = [
+        ("GIT_AUTHOR_NAME", std::ffi::OsStr::new("Switchyard")),
+        (
+            "GIT_AUTHOR_EMAIL",
+            std::ffi::OsStr::new("team@switchyard.local"),
+        ),
+        ("GIT_COMMITTER_NAME", std::ffi::OsStr::new("Switchyard")),
+        (
+            "GIT_COMMITTER_EMAIL",
+            std::ffi::OsStr::new("team@switchyard.local"),
+        ),
+    ];
+    let message = format!(
+        "Switchyard team task: {}",
+        title.chars().take(120).collect::<String>()
+    );
+    let committed = crate::git::run_env(
+        path,
+        &[
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--no-verify",
+            "-q",
+            "-m",
+            &message,
+        ],
+        &identity,
+    )?;
+    if !committed.status.success() || crate::git::status(path)?.dirty {
+        return Err(Error::git(
+            "A helper's changes could not be saved, so its worktree was kept.",
+        ));
+    }
+    Ok(())
 }
 
 /// Confirms a proposal: validates edits, creates one isolated worktree session per task and
@@ -1467,6 +1529,49 @@ mod tests {
     }
     fn plan(tasks: &str) -> String {
         format!("I split it in two.\n{PLAN_OPEN}\n{{\"summary\":\"Two parts\",\"tasks\":{tasks}}}\n{PLAN_CLOSE}")
+    }
+
+    #[test]
+    fn cleanup_preserves_merged_helper_edits_on_the_helper_branch() {
+        let repo = crate::git::tests::Repo::new();
+        let root = repo.cwd();
+        let tree = repo.0.join("helper");
+        crate::git::run_ok(
+            &root,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "switchyard/helper-1",
+                tree.to_str().unwrap(),
+            ],
+        )
+        .unwrap();
+        std::fs::write(tree.join("file.txt"), "after\n").unwrap();
+        std::fs::write(tree.join("new.md"), "notes\n").unwrap();
+        preserve_helper_work(&tree, "Paginate orders").unwrap();
+        assert!(!crate::git::status(&tree).unwrap().dirty);
+        let log = crate::git::run_ok(
+            &root,
+            &["log", "-1", "--format=%an %s", "switchyard/helper-1"],
+        )
+        .unwrap();
+        assert_eq!(log, "Switchyard Switchyard team task: Paginate orders");
+        let files = crate::git::run_ok(
+            &root,
+            &["show", "--name-only", "--format=", "switchyard/helper-1"],
+        )
+        .unwrap();
+        assert!(files.contains("file.txt") && files.contains("new.md"));
+        // A clean worktree is left alone; the normal non-force removal now succeeds.
+        preserve_helper_work(&tree, "unchanged").unwrap();
+        let removed =
+            crate::git::run(&root, &["worktree", "remove", "--", tree.to_str().unwrap()]).unwrap();
+        assert!(removed.status.success());
+        assert!(
+            crate::git::run_ok(&root, &["rev-parse", "--verify", "switchyard/helper-1"]).is_ok()
+        );
     }
 
     /// Live contract check: the real CLI, read-only in a disposable repository, must

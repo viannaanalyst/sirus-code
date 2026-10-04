@@ -54,7 +54,7 @@ A **Team** is an opt-in, one-shot composer mode (`+` → Equipe). It is memory-o
    `stash` joined the native filter guards. Merge refuses any patch that still adds conflict markers.
 
    Merged work is reviewed and committed with the existing Changes/Commit flow.
-5. **Cleanup.** `cleanup { confirm: true }` removes the helpers' sessions and worktrees through the existing confirmed removal, once the team is done or stopped.
+5. **Cleanup.** `cleanup { confirm: true }` removes the helpers' sessions and worktrees through the existing confirmed removal, once the team is done or stopped. Merges apply patches without commits, so each helper worktree still holds its edits; cleanup first commits them to the helper's own `switchyard/...` branch (fixed Switchyard identity, hooks and signing disabled) so the worktree is clean and is removed without force. Nothing is discarded, and the branches stay for inspection or manual deletion.
 
 ### Recovery and limits
 

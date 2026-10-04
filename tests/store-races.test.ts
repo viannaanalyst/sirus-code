@@ -261,6 +261,15 @@ test("failed first turn retains the transferred attachments and goal for retry",
   assert.equal(useAppStore.getState().composerContexts["session:created"],reference);assert.equal(useAppStore.getState().composerContexts["project:p"],undefined);
 });
 
+test("a team request does not carry team mode into the created session", async (context) => {
+  context.mock.method(client,"saveComposerDraft",async()=>undefined);
+  context.mock.method(client,"createSession",async()=>ownedSession("team-created", "p"));
+  context.mock.method(client,"sendPrompt",async()=>{throw new Error("Unavailable");});
+  useAppStore.setState({selectedSessionId:null,selectedProjectId:"p",sessions:[],settings:defaultSettings,composerDrafts:{"project:p":"Split this"},composerContexts:{"project:p":{attachments:[],goal:"",planning:false,team:true}}});
+  await useAppStore.getState().sendPrompt("Split this");
+  assert.equal(useAppStore.getState().composerContexts["session:team-created"]?.team,false);
+});
+
 test("rapid model presets serialize per session and clear native identity and pending admission", async (context) => {
   const first=deferred<import("../src/client/types.ts").Session>();
   const calls:string[]=[];
