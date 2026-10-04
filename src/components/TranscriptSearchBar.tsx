@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { client } from "@/client";
@@ -9,11 +9,12 @@ import { IconButton } from "@/primitives/IconButton";
 import { SearchText } from "@/components/SearchText";
 import { cn } from "@/lib/cn";
 
-export function TranscriptSearchBar({ sessionId }: { sessionId?: string }) {
+function TranscriptSearchBarView({ sessionId }: { sessionId?: string }) {
   const t = useTranslation();
   const search = useAppStore(state => state.transcriptSearch);
   const sessions = useAppStore(selectSessionsMeta);
-  const current = useAppStore(state => sessionId ? state.sessions.find(session => session.id === sessionId) : undefined);
+  // Only an open search reads the current transcript, so streaming does not re-render a closed bar.
+  const current = useAppStore(state => state.transcriptSearch && sessionId ? state.sessions.find(session => session.id === sessionId) : undefined);
   const projects = useAppStore(state => state.projects);
   const jump = useAppStore(state => state.messageJump);
   const update = useAppStore(state => state.updateTranscriptSearch);
@@ -87,3 +88,6 @@ export function TranscriptSearchBar({ sessionId }: { sessionId?: string }) {
     })}</ol> : null}
   </div>;
 }
+
+/** Memoized so the parent transcript re-rendering per frame does not re-run the search. */
+export const TranscriptSearchBar = memo(TranscriptSearchBarView);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import { useTranslation } from "@/i18n/use-translation";
 import { appendTranscriptQuote, readTranscriptSelection, type TranscriptSelection } from "@/lib/transcript-selection";
@@ -6,7 +6,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverAnchor, PopoverContent } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 
-export function TranscriptSelectionMenu({ sessionId, viewport }: { sessionId: string; viewport: RefObject<HTMLDivElement | null> }) {
+function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: string; viewport: RefObject<HTMLDivElement | null> }) {
   const t = useTranslation();
   const [selection, setSelection] = useState<TranscriptSelection | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,3 +106,6 @@ export function TranscriptSelectionMenu({ sessionId, viewport }: { sessionId: st
     </PopoverContent>
   </Popover>;
 }
+
+/** Memoized: streamed output re-renders the transcript, not this idle menu. */
+export const TranscriptSelectionMenu = memo(TranscriptSelectionMenuView);

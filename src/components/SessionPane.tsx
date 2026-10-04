@@ -1,4 +1,7 @@
 import { CodeBlock } from "@/components/arc/code-block/code-block";
+
+/** Finished code blocks in a streaming message keep their render (and their header motion). */
+const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
 import { GitFork, Search } from "lucide-react";
@@ -189,7 +192,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           return (blocks ?? []).map((block, index) => {
             const start = offset;
             offset += block.content.length + 1;
-            return block.kind === "code" ? <div className="my-3" key={index}><CodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
+            return block.kind === "code" ? <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
           });
         })() : <SearchText text={message.content} query={searchQuery} />) : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
