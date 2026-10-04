@@ -1258,6 +1258,16 @@ mod tests {
     #[test]
     #[ignore]
     fn live_calculator() {
+        // ScreenCaptureKit needs the window-server connection the app's NSApplication
+        // owns. Run with `--test-threads=1` so the test is on the main thread.
+        if let Some(mtm) = objc2::MainThreadMarker::new() {
+            let _ = objc2_app_kit::NSApplication::sharedApplication(mtm);
+        }
+        extern "C" {
+            fn CGMainDisplayID() -> u32;
+        }
+        // Opens the window-server connection when the test is not on the main thread.
+        let _ = unsafe { CGMainDisplayID() };
         let started = std::time::Instant::now();
         println!("permissions: {:?}", permissions());
         let app = running_apps()
@@ -1269,6 +1279,15 @@ mod tests {
         let observed = with_driver(move |driver| driver.observe("live", &target, None, 200))
             .unwrap()
             .unwrap();
+        println!(
+            "buttons: {:?}",
+            observed
+                .elements
+                .iter()
+                .filter(|element| element.role == "Button")
+                .map(|element| element.label.as_str())
+                .collect::<Vec<_>>()
+        );
         println!(
             "observe: {} elements in {:?}; window {:?}",
             observed.elements.len(),
@@ -1284,8 +1303,17 @@ mod tests {
                 })
                 .map(|element| element.reference.clone())
         };
+        // English or Portuguese (pt-BR) Calculator labels.
+        fn localized(label: &str) -> &str {
+            match label {
+                "All Clear" => "Limpar Tudo",
+                "Add" => "Adicionar",
+                "Equals" => "Igual a",
+                other => other,
+            }
+        }
         for label in ["All Clear", "7", "Add", "8", "Equals"] {
-            let Some(reference) = find(label).or_else(|| {
+            let Some(reference) = find(label).or_else(|| find(localized(label))).or_else(|| {
                 if label == "All Clear" {
                     find("Clear")
                 } else {
