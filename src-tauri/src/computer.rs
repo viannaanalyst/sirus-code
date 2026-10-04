@@ -993,7 +993,7 @@ mod platform {
 
         thread_local! {
             static OVERLAY: RefCell<Option<Overlay>> = const { RefCell::new(None) };
-            static MONITOR: RefCell<Option<Retained<AnyObject>>> = const { RefCell::new(None) };
+            static MONITOR: RefCell<Vec<Retained<AnyObject>>> = const { RefCell::new(Vec::new()) };
         }
 
         fn panel(
@@ -1203,20 +1203,36 @@ mod platform {
         }
 
         /// Physical Escape anywhere stops computer control. Installed once; needs Accessibility.
+        /// A global monitor never sees keys sent to Switchyard itself, so a local monitor
+        /// covers Escape pressed in the app; it passes the event on to the app's own shortcuts.
         pub fn install_escape_monitor() {
             MONITOR.with(|cell| {
-                if cell.borrow().is_some() {
+                if !cell.borrow().is_empty() {
                     return;
                 }
-                let block = RcBlock::new(|event: std::ptr::NonNull<NSEvent>| {
+                let global = RcBlock::new(|event: std::ptr::NonNull<NSEvent>| {
                     if unsafe { event.as_ref() }.keyCode() == 53 {
                         crate::computer_mcp::escape_pressed();
                     }
                 });
-                *cell.borrow_mut() = NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
+                let local = RcBlock::new(|event: std::ptr::NonNull<NSEvent>| -> *mut NSEvent {
+                    if unsafe { event.as_ref() }.keyCode() == 53 {
+                        crate::computer_mcp::escape_pressed();
+                    }
+                    event.as_ptr()
+                });
+                let mut monitors = cell.borrow_mut();
+                monitors.extend(NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
                     NSEventMask::KeyDown,
-                    &block,
-                );
+                    &global,
+                ));
+                // SAFETY: the handler returns the event it received, unchanged.
+                monitors.extend(unsafe {
+                    NSEvent::addLocalMonitorForEventsMatchingMask_handler(
+                        NSEventMask::KeyDown,
+                        &local,
+                    )
+                });
             });
         }
     }
