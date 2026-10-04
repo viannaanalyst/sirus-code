@@ -1,6 +1,6 @@
 # Performance and resource audit
 
-Status: **Stage 4 (4a per-session files, 4b transcripts on demand) done**, 2026-10-03. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work; Stage 3 made streaming and persistence cheaper.
+Status: **Stages 1–5 done**, 2026-10-03. Stage 5 repeated the measurements on the real app with real provider output. Stage 1 recorded the baseline without changing product code; Stage 2 removed idle work; Stage 3 made streaming and persistence cheaper.
 
 Switchyard is a desktop app that may stay open for hours. Its goal is to stay clearly lighter than an Electron app and to do almost no work when nothing is happening. This document records what was measured, what was found and what is planned. Numbers are only stated where they were actually measured.
 
@@ -237,6 +237,42 @@ The remaining webview growth came from the sidebar, not transcripts. It rendered
 | 305, scrolled to the middle | — | 1,215 nodes · 34 MB (47 rows, the correct ones) |
 
 Selecting a windowed row, collapsing (rows unmount after the transition) and reopening were verified.
+
+## Stage 5: before and after
+
+Native debug build on the owner's machine with the display on, the owner's real state (3 sessions) and the restored session view. CPU is cumulative CPU time over 20 s for the app and its WebKit helpers; the window was driven through Accessibility.
+
+| Metric | Stage 1 baseline | Stage 5 |
+| --- | --- | --- |
+| Idle CPU, window focused | 22.3 % | **12.5 %** (composer rim still animates, option B) |
+| Idle CPU, window in background | 21.3 % | **0.0 %** |
+| Footprint, app process | 33–37 MB | 23 MB |
+| Footprint, WebKit GPU | 76 MB | 19 MB |
+| Footprint, WebContent | 117–118 MB | 151 MB (not reduced; see below) |
+| Launch to visible window | — | 1.75 s |
+
+A real Codex turn (40-line answer, no tools) streamed and settled in the app. The app processes averaged 31.6 % of a core over the 30 s turn, excluding the provider CLI. The turn's own transcript file was the only one rewritten, and `state.json` held no messages.
+
+The 300-session synthetic history is covered in the Stage 4b table above (`load_state` 25 MB → 165 KB, native process 101 → 70 MB, startup CPU 2.0–2.2 → 1.6 s).
+
+Chromium probes, same scripts, compared with the Stage 1 baseline:
+
+| Probe | Stage 1 | Stage 5 |
+| --- | --- | --- |
+| Session view, window blurred | 16 % · 60 rAF/s | 0.3 % · 0 rAF/s |
+| Settings open | 6 % · 120 rAF/s | 0.5 % · 0 rAF/s |
+| Landing / session, focused | 20 % / 16 % | 24 % / 20 % (kept animating, option B) |
+| Realistic streaming, 6 messages | 97 %, fell behind | 36–37 %, keeps up |
+| Realistic streaming, 300 messages | 98 %, froze (168 chars in 10 s) | 55–57 %, keeps up |
+| Sidebar with 305 sessions | 5,817 DOM nodes · 65 MB heap | 972 nodes · 32 MB |
+
+Notes:
+
+- The streaming probe now keeps its fictional data in the same JS heap as the app (about 290 MB in the 300-message case). That raises GC work against the Stage 3 figures (30 % / 41 %), which used a different setup, so compare those with care.
+- Render counting during streaming found finished code blocks, the selection menu and a closed search bar re-rendering per frame. They are now memoized, which cut per-frame motion presence work about 6×.
+- WebContent did not shrink on this small state. Its size is dominated by the engine, styles and fonts rather than data, and Stage 1 sampled it after a different view had loaded.
+
+Computer use (ADR-038) was verified live through its driver: Accessibility and Screen Recording are recognized, Calculator was observed (26 elements), 7 + 8 = 15 was pressed through Accessibility, and a window screenshot was captured in 2.7 s. The end-to-end agent flow (approval card, control pill, Escape) still needs an agent turn in the app.
 
 ## Remaining risks and unknowns
 
