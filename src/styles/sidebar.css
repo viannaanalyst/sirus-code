@@ -15,6 +15,9 @@
   .sidebar-disclosure .sidebar-nested-sessions { transform: translateY(-4px); transition: transform var(--motion-normal) var(--ease-out); }
   .sidebar-disclosure[data-open="true"] .sidebar-nested-sessions { transform: none; }
   .sidebar-nested-sessions { display: grid; gap: 2px; margin: 2px 0 0 20px; }
+  /* Windowed rows keep the nested grid rhythm; padding stands in for unrendered rows. */
+  .sidebar-window { display: grid; gap: 2px; min-width: 0; }
+  .sidebar-window > [data-sidebar-row] { min-width: 0; }
   .sidebar-card-anchor { min-width: 0; }
   .sidebar-project-row, .sidebar-session-row { position: relative; isolation: isolate; min-width: 0; border-radius: 6px; color: color-mix(in srgb, var(--text-primary) 89%, transparent); transition: color var(--motion-fast) var(--ease-out); }
   .sidebar-project-row:is(:hover,:focus-within), .sidebar-session-row:is(:hover,:focus-within) { color: var(--text-primary); }

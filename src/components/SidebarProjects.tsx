@@ -6,6 +6,7 @@ import { useMemo, useRef, useState, type DragEvent } from "react";
 import { FolderHero } from "@/components/FolderHero";
 import { NewSessionButton } from "@/components/NewSessionButton";
 import { SidebarProjectRow, SidebarSessionRow } from "@/components/SidebarRows";
+import { SidebarDisclosure, SidebarWindowedRows } from "@/components/SidebarWindow";
 import { moveSidebarProject, sidebarGroups } from "@/lib/sidebar-layout";
 import { formatUnknownError } from "@/lib/format-error";
 import { useTranslation } from "@/i18n/use-translation";
@@ -88,16 +89,16 @@ export function SidebarProjects({ floating = false, query = "", draftsOnly = fal
                   setExpanded((state) => ({ ...state, [item.id]: !open }));
                   void selectProject(item.id).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) }));
                 }} />
-                <div className="sidebar-disclosure" data-open={open} inert={!open} aria-hidden={!open}>
-                  <div className="sidebar-disclosure-inner"><div className="sidebar-nested-sessions">
+                <SidebarDisclosure open={open}><div className="sidebar-nested-sessions">
                   {count === 0 && <div className="flex flex-col items-center px-2 py-3 text-center">
                     <FolderHero /><p className="mt-2 max-w-[140px] ui-caption text-text-muted">{t("Sessions you start will show up here")}</p>
                     <div className="mt-3"><NewSessionButton compact onClick={() => { void selectProject(item.id).then(() => requestNewSession()).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }} /></div>
                   </div>}
-                  {nestTeamSessions(nested).map(({ session, child }) => child
-                    ? <div key={session.id} className="sidebar-team-child"><SidebarSessionRow session={session} project={item} active={mainView === "session" && session.id === selectedSessionId} /></div>
-                    : <SidebarSessionRow key={session.id} session={session} project={item} active={mainView === "session" && session.id === selectedSessionId} />)}
-                </div></div></div>
+                  {/* Hundreds of sessions render as a viewport window (rows outside it are padding). */}
+                  <SidebarWindowedRows items={nestTeamSessions(nested)} rowKey={({ session }) => session.id} renderRow={({ session, child }) => child
+                    ? <div className="sidebar-team-child"><SidebarSessionRow session={session} project={item} active={mainView === "session" && session.id === selectedSessionId} /></div>
+                    : <SidebarSessionRow session={session} project={item} active={mainView === "session" && session.id === selectedSessionId} />} />
+                </div></SidebarDisclosure>
               </section>;
             })}
 

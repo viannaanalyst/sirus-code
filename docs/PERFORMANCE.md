@@ -220,9 +220,23 @@ Native debug build, synthetic 300 sessions × 60 messages (25 MB), separate `HOM
 
 Verified end to end on the demo IPC (same contract): opening and switching sessions, returning to a cached session, all-conversations search and jumping into an unloaded session, sending and streaming a turn, and Profile statistics.
 
-### New finding: the sidebar renders every session
+### Sidebar rows
 
-With 305 sessions the sidebar holds about 5,600 DOM nodes and adds about 38 MB of JS heap (no transcripts loaded). That is most of the remaining webview growth above. Bounding visible rows per project (for example "show more") or virtualizing the list is the next lever.
+The remaining webview growth came from the sidebar, not transcripts. It rendered every session row, including those of collapsed folders: about 18 DOM nodes and 125 KB of JS heap per row, each with its hover card, context menu and store subscriptions.
+
+- Collapsed folders now unmount their rows once the close transition ends.
+- An open folder with more than 60 sessions renders only the rows near the visible area (12 rows of overscan), with padding standing in for the rest. Rows keep one measured height.
+- The visible design is unchanged.
+
+`scripts/perf/sidebar-probe.mjs`, Chromium, one open project:
+
+| Sessions | Before | After |
+| --- | --- | --- |
+| 5 | 417 DOM nodes · 27 MB heap | 383 nodes · 27 MB |
+| 305 | 5,817 nodes · 65 MB heap | **972 nodes · 32 MB** (34 rows rendered) |
+| 305, scrolled to the middle | — | 1,215 nodes · 34 MB (47 rows, the correct ones) |
+
+Selecting a windowed row, collapsing (rows unmount after the transition) and reopening were verified.
 
 ## Remaining risks and unknowns
 
