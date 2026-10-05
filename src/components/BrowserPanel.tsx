@@ -211,10 +211,13 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
           onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); void browserSelectTab(sessionId, tab.id); } }}
           className={cn("group flex h-7 min-w-0 max-w-[132px] flex-none cursor-pointer items-center gap-1.5 rounded-[10px] border px-2 transition-colors duration-[var(--motion-fast)]",
             selected ? "border-border-subtle bg-background-2 text-text-primary" : "border-transparent text-text-secondary hover:bg-background-2/60")}>
-          <TabFavicon tab={tab} />
+          {/* The close button takes the favicon's place while the tab is hovered or focused. */}
+          <span className="relative flex size-4 shrink-0 items-center justify-center">
+            <span className="flex transition-opacity duration-[var(--motion-fast)] group-hover:opacity-0 group-focus-within:opacity-0"><TabFavicon tab={tab} /></span>
+            <button type="button" title={t("Close tab")} aria-label={t("Close tab")} onClick={(event) => { event.stopPropagation(); void browserCloseTab(sessionId, tab.id); }}
+              className="absolute inset-0 flex items-center justify-center rounded-[4px] text-text-muted opacity-0 transition-opacity duration-[var(--motion-fast)] hover:bg-background-3 hover:text-text-primary group-hover:opacity-100 focus-visible:opacity-100"><X size={11} aria-hidden="true" /></button>
+          </span>
           <span className="min-w-0 flex-1 truncate ui-caption">{tab.title || t("New tab")}</span>
-          <button type="button" title={t("Close tab")} aria-label={t("Close tab")} onClick={(event) => { event.stopPropagation(); void browserCloseTab(sessionId, tab.id); }}
-            className="flex size-4 shrink-0 items-center justify-center rounded text-text-muted hover:text-text-primary"><X size={11} aria-hidden="true" /></button>
         </div>;
       })}
       <button type="button" title={t("New tab")} aria-label={t("New tab")} disabled={!browser.open} onClick={() => void browserNewTab(sessionId)}

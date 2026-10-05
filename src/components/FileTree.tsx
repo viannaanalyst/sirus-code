@@ -118,7 +118,7 @@ function WorkspaceTree({ sessionId, rootLabel, workspacePath, onOpenFile }: Prop
   } : null;
 
   return <div className="flex h-full min-h-0 flex-col">
-    <div role="group" aria-label={t("explorer.actions")} className="flex h-8 shrink-0 items-center justify-end gap-px border-b border-border-subtle px-1.5">
+    <div role="group" aria-label={t("explorer.actions")} className="flex h-8 shrink-0 items-center justify-between gap-px border-b border-border-subtle px-1.5">
       <IconButton label={t("explorer.newFile")} disabled={pending} className="size-6 min-h-0 rounded-[6px] p-0" onClick={(event) => startCreation("file", event.currentTarget)}><FilePlus size={14} aria-hidden="true" /></IconButton>
       <IconButton label={t("explorer.newFolder")} disabled={pending} className="size-6 min-h-0 rounded-[6px] p-0" onClick={(event) => startCreation("directory", event.currentTarget)}><FolderPlus size={14} aria-hidden="true" /></IconButton>
       <IconButton label={t("explorer.collapseAll")} disabled={pending} className="size-6 min-h-0 rounded-[6px] p-0" onClick={() => { if (pendingRef.current) return; setExpanded(new Set([ROOT])); setSelected(null); closeForm(); restoreFocus.current = false; rootRow.current?.focus(); }}><FoldVertical size={14} aria-hidden="true" /></IconButton>

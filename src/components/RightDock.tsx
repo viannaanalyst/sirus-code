@@ -24,6 +24,7 @@ import { FileTree } from "@/components/FileTree";
 import { ChangesPane } from "@/components/ChangesPane";
 import { SideChatPane } from "@/components/SideChatPane";
 import { editorKey } from "@/lib/editor-state";
+import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 
@@ -62,6 +63,8 @@ const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser", "si
 export function RightDock() {
   const t = useTranslation();
   const session = useAppStore(selectCurrentSessionMeta);
+  // Same surface as the chat column beside it (App.tsx), so the dock never reads as a separate block.
+  const conversationStarted = isConversationStarted(session);
   const project = useAppStore(selectCurrentProject);
   const panes = useAppStore((state) => state.dockPanes);
   const activePaneId = useAppStore((state) => state.dockActivePaneId);
@@ -102,7 +105,7 @@ export function RightDock() {
   };
 
   return (
-    <aside className="main-material flex h-full min-w-0 flex-col border-l border-border-subtle bg-background-0" aria-label={t("Right panel")}>
+    <aside className={cn("flex h-full min-w-0 flex-col border-l border-border-subtle", conversationStarted ? "sidebar-material" : "main-material")} aria-label={t("Right panel")}>
       <div data-tauri-drag-region className="flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 px-1.5">
         <div className="scroll-thin flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           {visible.map((pane) => (

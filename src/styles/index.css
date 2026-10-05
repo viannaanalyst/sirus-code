@@ -396,3 +396,7 @@ html[data-density="comfortable"] {
 
 /* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */
 html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
+
+/* xterm paints its viewport #000 by default; the terminal container already carries the
+   window material (opaque, or glass in translucent mode), so the viewport stays clear. */
+[data-terminal] .xterm .xterm-viewport { background-color: transparent !important; }

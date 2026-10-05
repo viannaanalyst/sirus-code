@@ -81,7 +81,8 @@ function theme(dark: boolean): Extension {
     {
       "&": {
         height: "100%",
-        backgroundColor: "var(--background-2)",
+        // The editor shares its pane's material (the chat surface), never a lighter block.
+        backgroundColor: "transparent",
         color: "var(--text-primary)",
         fontSize: "var(--code-font-size)",
       },
@@ -96,12 +97,12 @@ function theme(dark: boolean): Extension {
         backgroundColor: "color-mix(in srgb, var(--accent) 24%, transparent)",
       },
       ".cm-gutters": {
-        backgroundColor: "var(--background-1)",
+        backgroundColor: "transparent",
         color: "var(--text-muted)",
         border: "none",
       },
-      ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--background-3) 55%, transparent)" },
-      ".cm-activeLineGutter": { backgroundColor: "var(--background-3)" },
+      ".cm-activeLine": { backgroundColor: "color-mix(in srgb, var(--text-primary) 3%, transparent)" },
+      ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--text-secondary)" },
       ".cm-panels": { backgroundColor: "var(--background-1)", color: "var(--text-primary)" },
       ".cm-tooltip": { backgroundColor: "var(--background-1)", border: "1px solid var(--border-subtle)" },
       ".cm-searchMatch": { backgroundColor: "color-mix(in srgb, var(--accent) 22%, transparent)" },

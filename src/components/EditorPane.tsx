@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Eye, FileCode2, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, Save, X } from "@/components/icons/phosphor";
+import { ChevronDown, Eye, FileCode2, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { EditorId, TextFileSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -95,6 +95,9 @@ export function EditorPane({ sessionId, path, onClose }: { sessionId: string; pa
   }, [sessionId, path, key, attempt, setEditorBuffer]);
 
   const content = buffer?.content ?? "";
+  // Paths read relative to the session workspace; the full disk path stays in the tooltip.
+  const root = useAppStore((state) => state.sessions.find((session) => session.id === sessionId)?.worktree.path);
+  const displayPath = root && path.startsWith(`${root.replace(/\/$/, "")}/`) ? path.slice(root.replace(/\/$/, "").length + 1) : path;
   const dirty = !!buffer && buffer.content !== buffer.saved;
 
   const persist = async () => {
@@ -136,9 +139,8 @@ export function EditorPane({ sessionId, path, onClose }: { sessionId: string; pa
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
       <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-border-subtle px-2">
-        <span className="min-w-0 flex-1 truncate font-mono ui-micro text-text-muted" title={path}>{path}</span>
+        <span className="min-w-0 flex-1 truncate font-mono ui-micro text-text-muted" title={path}>{displayPath}</span>
         {saving || dirty ? <span role="status" className="shrink-0 ui-caption text-text-muted">{t(saving ? "Saving…" : "Unsaved changes")}</span> : null}
-        <InteractiveButton variant="toolbar" disabled={!dirty || saving} onClick={() => void persist()} aria-label={t("Save file")} className="h-6 min-h-0 gap-1 px-2"><Save size={12} />{t("common.save")}</InteractiveButton>
         {isMarkdown ? <>
           <button type="button" title={t("Code")} aria-label={t("Code")} aria-pressed={view === "code"} onClick={() => setView("code")}
             className={`flex size-6 shrink-0 items-center justify-center rounded-[6px] text-text-muted transition-colors duration-[var(--motion-fast)] hover:bg-background-3 hover:text-text-primary ${view === "code" ? "bg-background-3 text-text-primary" : ""}`}>

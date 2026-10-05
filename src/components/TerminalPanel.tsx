@@ -39,7 +39,7 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
   const atLimit = terminalCount(workspace) >= MAX_TERMINALS_PER_SESSION;
   if (!workspace || workspace.panes.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-background-0" data-terminal>
+      <div className="flex h-full items-center justify-center bg-[var(--main-material)]" data-terminal>
         <button type="button" className="ui-control text-text-muted transition-colors duration-[var(--motion-fast)] hover:text-text-primary" onClick={() => ensureTerminal(sessionId)}>
           {t("New terminal")}
         </button>
@@ -47,7 +47,7 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
     );
   }
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background-0" data-terminal>
+    <div className="flex h-full min-h-0 flex-col bg-[var(--main-material)]" data-terminal>
       <div className={cn("flex h-full min-h-0", workspace.split === "columns" ? "flex-row" : "flex-col")}>
         {workspace.panes.map((pane, index) => (
           <div
