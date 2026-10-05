@@ -273,6 +273,9 @@ interface AppStore {
   automations: import("@/client/types").AutomationSnapshot | null;
   /** Closed `automation_action`; failures land in `error` and resolve null. */
   automationAction: (action: import("@/client/types").AutomationAction) => Promise<import("@/client/types").AutomationSnapshot | null>;
+  /** CI auto-fix progress per session (ADR-064), refreshed by native events. */
+  ciAutoFix: import("@/client/types").CiFixState[];
+  ciAutofixAction: (action: import("@/client/types").CiFixAction) => Promise<void>;
   /** Closed `pull_request_action`; failures land in `error` and resolve null. */
   pullRequestAction: (action: import("@/client/types").PullRequestAction) => Promise<import("@/client/types").PullRequestResponse | null>;
   /** Opens (or reuses) the parent's side chat in the right dock (ADR-049); `quote` starts its draft. */
@@ -799,6 +802,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   unseenSessionIds: [],
   githubInbox: {},
   automations: null,
+  ciAutoFix: [],
   tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
@@ -1566,6 +1570,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) { set({ error: formatUnknownError(error) }); return null; }
   },
 
+  ciAutofixAction: async (action) => {
+    try {
+      set({ ciAutoFix: await client.ciAutofixAction(action) });
+    } catch (error) { set({ error: formatUnknownError(error) }); }
+  },
+
   automationAction: async (action) => {
     try {
       const snapshot = await client.automationAction(action);
@@ -2288,6 +2298,8 @@ export async function bindRealtime() {
       void store.selectSession(sessionId);
     }));
     unlisteners.push(await client.onWindowSnap((event) => { void receiveWindowSnap(event); }));
+    unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
+    void useAppStore.getState().ciAutofixAction({ type: "status" });
     unlisteners.push(await client.onAutomationsChanged(() => {
       if (useAppStore.getState().automations) void useAppStore.getState().automationAction({ type: "list" });
     }));

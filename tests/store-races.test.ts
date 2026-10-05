@@ -30,6 +30,8 @@ test("pin acknowledgments serialize without replacing newer output and old snaps
   let snapshot!: (session: import("../src/client/types.ts").Session) => void;
   context.mock.method(client, "onSessionUpdated", async (handler: typeof snapshot) => { snapshot = handler; return () => {}; });
   context.mock.method(client, "onAutomationsChanged", async () => () => {});
+  context.mock.method(client, "onCiAutofixChanged", async () => () => {});
+  context.mock.method(client, "ciAutofixAction", async () => []);
   context.mock.method(client, "onWindowSnap", async () => () => {});
   context.mock.method(client, "onAgentOutput", async () => () => {});
   context.mock.method(client, "onAgentExit", async () => () => {});

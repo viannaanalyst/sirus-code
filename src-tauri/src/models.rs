@@ -463,6 +463,9 @@ pub struct AppSettings {
     pub sidebar_activity_view: bool,
     /// Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue.
     pub steer_while_running: bool,
+    /// Owner-authorized CI auto-fix: failing PR checks start an automatic fix turn,
+    /// then Switchyard commits and pushes the session branch (ADR-064).
+    pub ci_auto_fix: bool,
     /// Sessions marked Done in the Activity view and when; newer activity reopens them.
     pub done_sessions: Vec<DoneSession>,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
@@ -572,6 +575,7 @@ impl Default for AppSettings {
             sidebar_usage_providers: Vec::new(),
             sidebar_activity_view: false,
             steer_while_running: false,
+            ci_auto_fix: false,
             done_sessions: Vec::new(),
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),
@@ -1036,6 +1040,9 @@ pub struct AppData {
     pub automations: Vec<crate::automations::Automation>,
     #[serde(default)]
     pub automation_runs: Vec<crate::automations::Run>,
+    /// Per-session CI auto-fix progress and explicit per-PR opt-outs (ADR-064).
+    #[serde(default)]
+    pub ci_auto_fix: Vec<crate::ci_autofix::FixState>,
     /// Personal tasks, optionally handed to an agent session (ADR-052).
     #[serde(default)]
     pub tasks: Vec<crate::tasks::Task>,

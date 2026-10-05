@@ -113,6 +113,9 @@ export function SettingsPanels({
           <SettingsRow title={t("Automatically fetch when opening project")} description={t("Automatic fetch is unavailable while project Git configuration can execute helpers or disclose credentials. Fetch manually in your terminal.")} comingSoon>
             <Switch checked={false} onChange={() => undefined} disabled />
           </SettingsRow>
+          <SettingsRow title={t("ciFix.setting")} description={t("ciFix.settingHelp")}>
+            <Switch checked={settings.ciAutoFix} label={t("ciFix.setting")} onChange={(ciAutoFix) => onSave({ ...settings, ciAutoFix })} />
+          </SettingsRow>
           <SettingsRow title={t("Show untracked files")}>
             <Switch checked={settings.gitShowUntracked} onChange={(gitShowUntracked) => onSave({ ...settings, gitShowUntracked })} />
           </SettingsRow>

@@ -915,7 +915,11 @@ const FAILURES_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){r
 ... on CheckRun{databaseId name status conclusion detailsUrl title summary checkSuite{app{slug}} annotations(first:10){nodes{path message location{start{line}}}}} \
 ... on StatusContext{context state targetUrl description}}}}}}}}}}";
 
-async fn failures(binary: &OsStr, repo: &str, number: u32) -> Result<(Vec<FailedCheck>, bool)> {
+pub(crate) async fn failures(
+    binary: &OsStr,
+    repo: &str,
+    number: u32,
+) -> Result<(Vec<FailedCheck>, bool)> {
     let (owner, name) = repo.split_once('/').expect("validated repository");
     let data = graphql(
         binary,

@@ -593,7 +593,7 @@ pub async fn project_remote_url(
     .await
 }
 
-fn pull_request_context(
+pub(crate) fn pull_request_context(
     state: &AppState,
     session_id: &str,
 ) -> Result<crate::pull_requests::Context> {

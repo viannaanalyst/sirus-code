@@ -9,6 +9,14 @@
   .environment-pr-message { padding: 4px 8px 6px; color: var(--text-muted); overflow-wrap: anywhere; }
   .environment-pr-message[role="alert"] { color: var(--danger); }
   .environment-pr-caption { padding: 0 8px 4px 30px; color: var(--text-muted); }
+  /* CI auto-fix status under the PR row (ADR-064). */
+  .environment-ci-fix { margin: 2px 8px 4px 30px; padding: 5px 8px; border-radius: 8px; background: var(--surface); color: var(--text-secondary); }
+  .environment-ci-fix-line { display: flex; align-items: center; gap: 6px; }
+  .environment-ci-fix[data-tone="fixing"] { background: color-mix(in srgb, var(--orbit-switch-on-end) 14%, transparent); color: var(--text-primary); }
+  .environment-ci-fix[data-tone="green"] { color: var(--success); }
+  .environment-ci-fix[data-tone="paused"] { color: var(--warning); }
+  .environment-ci-fix-action { flex: none; border: 0; background: none; padding: 0; color: var(--text-muted); cursor: pointer; }
+  @media (hover: hover) and (pointer: fine) { .environment-ci-fix-action:hover { color: var(--text-primary); } }
   .environment-pr-popover { width: 320px; max-width: min(320px, calc(100vw - 24px)); padding: 12px; }
   .environment-pr-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
   .environment-pr-check-heading { display: flex; align-items: center; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }

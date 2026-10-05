@@ -1015,6 +1015,7 @@ pub fn monitor(
             tracing::error!(%error,"cannot persist native completion");
         }
         crate::team::settled(&app, &state, &session_id);
+        crate::ci_autofix::settled(&state, &session_id);
         let _ = app.emit(
             "agent-exit",
             AgentExitEvent {

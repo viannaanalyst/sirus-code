@@ -185,6 +185,40 @@ fn bounded_label(value: &str) -> String {
 
 /// Called only at fresh native request admission and settled completion, never
 /// on bootstrap, metadata edits or renderer snapshots.
+/// A native-originated status alert that is not tied to a pending request
+/// (CI auto-fix green/paused). It honours the person's channel preferences.
+pub fn announce(app: &AppHandle, state: &Arc<AppState>, title: String, body: String) {
+    let (prefs, foreground) = {
+        let data = state.data.lock();
+        let foreground = app
+            .get_webview_window("main")
+            .is_some_and(|window| window.is_focused().unwrap_or(true));
+        (data.settings.notifications.clone(), foreground)
+    };
+    let notice = Notice {
+        created_at: chrono::Utc::now().timestamp_millis(),
+        id: uuid::Uuid::new_v4().to_string(),
+        session_id: String::new(),
+        kind: Kind::Completion,
+        title: bounded_label(&title),
+        body: bounded_label(&body),
+    };
+    if prefs.toasts {
+        let _ = app.emit("notification-activity", &notice);
+    }
+    #[cfg(target_os = "macos")]
+    if prefs.system && (!foreground || prefs.foreground) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = platform::show(&app, &notice).await {
+                tracing::debug!(%error, "system status alert unavailable");
+            }
+        });
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = foreground;
+}
+
 pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
     let expected = candidates(snapshot);
     if expected.is_empty() {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, RefreshCw, XCircle } from "@/components/icons/phosphor";
+import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, Pause, RefreshCw, XCircle, Zap } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { PullRequest, PullRequestCheckStatus, Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -39,12 +39,41 @@ export function EnvironmentPullRequestSection({ session }: { session: Session })
           <CheckIcon status={checkSummary(pr).status} /><ChevronRight size={12} aria-hidden="true" className="text-text-muted" />
         </button></PopoverTrigger>
         <p className="environment-pr-caption ui-caption">{t(pullRequestState(pr))} · {t(checkSummary(pr).label)}</p>
+        {pr.state === "open" ? <CiFixRow sessionId={session.id} /> : null}
         <PopoverContent side="left" align="start" aria-label={t("Pull request details")} className="environment-pr-popover">
           <PullRequestDetails pr={pr} checkedAt={snapshot.checkedAt} onOpen={url => void open(url)} />
           {actionError && <p role="alert" className="ui-caption text-danger mt-2">{t(actionError)}</p>}
         </PopoverContent>
       </Popover> : <p className="environment-pr-message ui-description">{t(snapshot && snapshot.status !== "ready" ? lookupLabels[snapshot.status] : lookupLabels.unavailable)}</p>}
   </section>;
+}
+
+/** CI auto-fix status for this session's open PR, with a per-PR off switch (ADR-064). */
+function CiFixRow({ sessionId }: { sessionId: string }) {
+  const t = useTranslation();
+  const enabled = useAppStore(store => store.settings.ciAutoFix);
+  const fix = useAppStore(store => store.ciAutoFix.find(item => item.sessionId === sessionId));
+  const action = useAppStore(store => store.ciAutofixAction);
+  if (!enabled) return null;
+  const status = fix?.status ?? "watching";
+  const toggle = (on: boolean) => void action({ type: "setEnabled", sessionId, enabled: on });
+  const tone = status === "fixing" ? "fixing" : status === "paused" ? "paused" : status === "off" ? "off" : fix?.fixedIn ? "green" : "watching";
+  const Icon = tone === "fixing" ? LoaderCircle : tone === "paused" ? Pause : tone === "green" ? CheckCircle2 : Zap;
+  const label = tone === "fixing" ? t("ciFix.fixing", { attempt: fix?.attempts ?? 1 })
+    : tone === "paused" ? t("ciFix.paused")
+    : tone === "off" ? t("ciFix.off")
+    : tone === "green" ? t("ciFix.green", { count: fix?.fixedIn ?? 1 })
+    : t("ciFix.watching");
+  return <div className="environment-ci-fix" data-tone={tone}>
+    <div className="environment-ci-fix-line">
+      <Icon size={12} aria-hidden="true" className={tone === "fixing" ? "animate-spin" : undefined} />
+      <span className="min-w-0 flex-1 truncate ui-caption" role="status">{label}</span>
+      {tone === "paused" || tone === "off"
+        ? <button type="button" className="environment-ci-fix-action ui-caption" onClick={() => toggle(true)}>{t("ciFix.turnOn")}</button>
+        : tone !== "fixing" ? <button type="button" className="environment-ci-fix-action ui-caption" onClick={() => toggle(false)}>{t("ciFix.turnOff")}</button> : null}
+    </div>
+    {tone === "paused" && fix?.reason ? <p className="ui-caption text-text-muted">{t(`ciFix.reason.${fix.reason}`)}</p> : null}
+  </div>;
 }
 
 export function PullRequestDetails({ pr, checkedAt, onOpen }: { pr: PullRequest; checkedAt: string; onOpen: (url: string) => void }) {

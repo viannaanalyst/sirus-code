@@ -255,6 +255,8 @@ export interface AppSettings {
   sidebarActivityView: boolean;
   /** Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue (ADR-062). */
   steerWhileRunning: boolean;
+  /** Owner-authorized CI auto-fix (ADR-064). */
+  ciAutoFix: boolean;
   /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
   doneSessions: { id: string; at: string }[];
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */
@@ -813,3 +815,19 @@ export type TaskAction =
   | { type: "setDone"; id: string; done: boolean }
   | { type: "unlink"; id: string }
   | { type: "delegate"; id: string; agent: AgentProviderId; model: string | null; approval: ApprovalMode; planning: boolean; isolatedWorktree: boolean };
+
+/** CI auto-fix progress for one session's pull request (ADR-064). */
+export interface CiFixState {
+  sessionId: string;
+  pullRequest: number;
+  url: string;
+  status: "watching" | "fixing" | "paused" | "off";
+  reason?: "attemptLimit" | "noChange" | "interrupted" | "pushFailed" | "stagedChanges" | null;
+  detail?: string | null;
+  attempts: number;
+  handledHead?: string | null;
+  checks: string[];
+  fixedIn?: number | null;
+  updatedAt: string;
+}
+export type CiFixAction = { type: "status" } | { type: "setEnabled"; sessionId: string; enabled: boolean };

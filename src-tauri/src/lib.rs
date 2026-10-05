@@ -12,6 +12,7 @@ mod attachments;
 mod automations;
 mod browser;
 mod browser_mcp;
+mod ci_autofix;
 mod claude;
 mod cli_output;
 mod close;
@@ -138,6 +139,7 @@ pub fn run() {
             appearance::schedule(app.handle(), app.state::<Arc<AppState>>().inner().clone());
             notifications::install(app.handle());
             automations::start(app.handle().clone());
+            ci_autofix::start(app.handle().clone());
             {
                 let state = app.state::<Arc<AppState>>().inner().clone();
                 let settings = state.data.lock().settings.clone();
@@ -160,6 +162,7 @@ pub fn run() {
             side_chat::side_chat_action,
             github_inbox::pull_request_action,
             automations::automation_action,
+            ci_autofix::ci_autofix_action,
             tasks::task_action,
             window_snap::window_snap_action,
             project_look::project_look_action,

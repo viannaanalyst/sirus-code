@@ -80,6 +80,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-061: Undo a turn's changes](ADR-061-undo-turn-changes.md) — per-file `git apply -R` of retained turn diffs after a check; later edits are never overwritten.
 - [ADR-062: Steer a running reply](ADR-062-steer-running-replies.md) — Codex `turn/steer` and Claude in-turn input, recorded in place on the reply.
 - [ADR-063: Usage-limit notice and resume at reset](ADR-063-usage-limit-notice.md) — provider-reported limits, reset countdown and an explicitly armed continue.
+- [ADR-064: CI auto-fix](ADR-064-ci-auto-fix.md) — owner-enabled loop that fixes failing PR checks with an automatic turn, then commits and pushes the session branch.
 
 ## Template
 

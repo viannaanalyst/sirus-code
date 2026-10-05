@@ -278,8 +278,9 @@ fn refuse_project_network_helpers(cwd: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Explicit push of the current branch to origin. Never forced, never called
-/// automatically, and refused on a detached HEAD.
+/// Push of the current branch to origin. Never forced and refused on a
+/// detached HEAD. Only explicit actions call it, plus the owner-enabled CI
+/// auto-fix after its own fix commit (ADR-064).
 pub fn push(cwd: &Path) -> Result<GitPushResult> {
     refuse_project_network_helpers(cwd)?;
     let branch = {

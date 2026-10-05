@@ -384,6 +384,14 @@ export class SwitchyardClient {
     return this.transport.invoke<import("./types").AutomationSnapshot>("automation_action", { action });
   }
 
+  ciAutofixAction(action: import("./types").CiFixAction) {
+    return this.transport.invoke<import("./types").CiFixState[]>("ci_autofix_action", { action });
+  }
+
+  onCiAutofixChanged(handler: () => void) {
+    return this.transport.listen<unknown>("ci-autofix-changed", () => handler());
+  }
+
   onAutomationsChanged(handler: () => void) {
     return this.transport.listen<unknown>("automations-changed", () => handler());
   }
