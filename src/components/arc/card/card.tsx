@@ -6,7 +6,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { HTMLMotionProps, MotionProps, Transition, Variants } from "motion/react";
-import { X } from "lucide-react";
+import { X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./card.module.css";
 

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus, MessagesSquare } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { appendTranscriptQuote, readTranscriptSelection, type TranscriptSelection } from "@/lib/transcript-selection";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -86,6 +86,17 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
     composer.setSelectionRange(next.length, next.length);
   };
 
+  // Asks about the passage in the side chat without touching this session's draft (ADR-049).
+  const askSide = () => {
+    const root = viewport.current, state = useAppStore.getState();
+    const live = root ? readTranscriptSelection(root, window.getSelection()) : null;
+    const text = live?.messageId === selection?.messageId ? live?.text ?? selection?.text : selection?.text;
+    if (!text || state.selectedSessionId !== sessionId || state.mainView !== "session") { dismiss(); return; }
+    window.getSelection()?.removeAllRanges();
+    dismiss();
+    void state.openSideChat(sessionId, text);
+  };
+
   return <Popover open={selection !== null} onOpenChange={open => { if (!open) dismiss(); }}>
     <PopoverAnchor virtualRef={anchor} />
     <PopoverContent ref={popup} role="toolbar" aria-label={t("Selected text actions")} side="top" align="start" className="min-w-0"
@@ -101,6 +112,9 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
       onEscapeKeyDown={() => { window.getSelection()?.removeAllRanges(); dismiss(); }}>
       <InteractiveButton variant="ghost" onMouseDown={event => event.preventDefault()} onClick={add}>
         <MessageSquarePlus aria-hidden="true" size={16} />{t("Add to chat")}
+      </InteractiveButton>
+      <InteractiveButton variant="ghost" onMouseDown={event => event.preventDefault()} onClick={askSide}>
+        <MessagesSquare aria-hidden="true" size={16} />{t("sideChat.ask")}
       </InteractiveButton>
       {error ? <p role="alert" className="max-w-64 px-2 py-1 ui-description text-danger">{error}</p> : null}
     </PopoverContent>

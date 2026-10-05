@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, RefObject } from "react";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { TargetAndTransition, Variants } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./action-button.module.css";
 

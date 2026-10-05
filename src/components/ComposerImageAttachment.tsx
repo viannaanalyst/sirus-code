@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Check, Pencil, Trash2, Undo2, X } from "lucide-react";
+import { Check, Pencil, Trash2, Undo2, X } from "@/components/icons/phosphor";
 import { Dialog, DialogClose, DialogTrigger } from "@/components/arc/dialog/dialog";
 import type { PromptAttachment } from "@/client/types";
 import { client } from "@/client";

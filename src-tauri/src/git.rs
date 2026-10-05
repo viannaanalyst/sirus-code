@@ -1,5 +1,6 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::sync::OnceLock;
 
 use crate::error::{Error, Result};
 use crate::models::{
@@ -7,11 +8,26 @@ use crate::models::{
     GitWorktree,
 };
 
+/// The Git executable. A Finder-launched app has PATH `/usr/bin:/bin`, where
+/// `git` is Apple's shim: it resolves the real tool through `xcrun` first and
+/// can stall for seconds when that lookup is cold. A real binary in a fixed
+/// install location is preferred; the shim remains the fallback.
+pub(crate) fn git_binary() -> &'static Path {
+    static BINARY: OnceLock<PathBuf> = OnceLock::new();
+    BINARY.get_or_init(|| {
+        ["/opt/homebrew/bin/git", "/usr/local/bin/git"]
+            .into_iter()
+            .map(PathBuf::from)
+            .find(|path| path.is_file())
+            .unwrap_or_else(|| PathBuf::from("git"))
+    })
+}
+
 /// GIT_CONFIG selects an alternate source only for `git config`, so retaining
 /// it would make inspectors observe different configuration from operations.
 /// All native Git commands share the same cwd, environment and safe overrides.
 fn git_command(cwd: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = Command::new(git_binary());
     command
         .env_remove("GIT_CONFIG")
         // A native command has no stdin UI; fail instead of waiting on a prompt.
@@ -27,8 +43,10 @@ fn git_command(cwd: &Path) -> Command {
     command
 }
 
+/// Bounded so a hostile configuration cannot stall operations, with headroom
+/// for a slow first Git start on a busy machine.
 fn inspect_config(cwd: &Path, args: &[&str]) -> Result<Output> {
-    capture_git(cwd, args, std::time::Duration::from_secs(2))
+    capture_git(cwd, args, std::time::Duration::from_secs(4))
 }
 
 fn capture_git(cwd: &Path, args: &[&str], duration: std::time::Duration) -> Result<Output> {
@@ -895,7 +913,7 @@ pub(crate) mod tests {
             .success());
         let started = std::time::Instant::now();
         let error = run(&repo.cwd(), &["status", "--porcelain"]).unwrap_err();
-        assert!(started.elapsed() < std::time::Duration::from_secs(5));
+        assert!(started.elapsed() < std::time::Duration::from_secs(7));
         assert_eq!(error.to_string(), "cannot inspect Git configuration safely");
     }
 

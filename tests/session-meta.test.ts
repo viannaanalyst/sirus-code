@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { sameSessionMeta, selectCurrentSessionMeta, selectSessionsMeta, useAppStore } from "../src/store/app-store.ts";
 import type { Session } from "../src/client/types.ts";
 
-const session = (id: string, title = "Title"): Session => ({ id, projectId: "p", title, agent: "codex", status: "running", createdAt: "t", lastActivityAt: "t", worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [] });
+const session = (id: string, title = "Title"): Session => ({ id, projectId: "p", title, agent: "codex", status: "running", createdAt: "t", lastActivityAt: "t", worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null });
 
 test("streamed text alone keeps metadata selections stable; any other field updates them", () => {
   const first = session("a");

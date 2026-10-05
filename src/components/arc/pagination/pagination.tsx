@@ -1,6 +1,6 @@
 "use client";
 import { useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft as NavArrowLeft, ChevronRight as NavArrowRight } from "lucide-react";
+import { ChevronLeft as NavArrowLeft, ChevronRight as NavArrowRight } from "@/components/icons/phosphor";
 import { AnimatePresence, animate, motion, useMotionValue, type Variants } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { motionTokens } from "../lib/motion-tokens";

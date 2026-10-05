@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, PanelLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, PanelLeft } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { IconButton } from "@/primitives/IconButton";
 import { useAppStore } from "@/store/app-store";

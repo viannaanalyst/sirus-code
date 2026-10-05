@@ -5,7 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import { AnimatePresence, animate, motion, motionValue, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, MotionValue, TargetAndTransition } from "motion/react";
-import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./carousel.module.css";
 

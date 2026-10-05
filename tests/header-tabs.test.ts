@@ -25,6 +25,8 @@ test("closing a tab selects its right neighbour, else the left one, and never to
 test("reordering moves the dragged tab onto the target position", () => {
   assert.deepEqual(moveTab(["a", "b", "c"], "c", "a"), ["c", "a", "b"]);
   assert.deepEqual(moveTab(["a", "b", "c"], "a", "c"), ["b", "c", "a"]);
+  assert.deepEqual(moveTab(["a", "b", "c"], "a", "c", "before"), ["b", "a", "c"]);
+  assert.deepEqual(moveTab(["a", "b", "c"], "c", "a", "after"), ["a", "c", "b"]);
 });
 
 test("only owned, unarchived sessions of the current project are shown", () => {

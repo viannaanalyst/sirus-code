@@ -11,11 +11,13 @@ import {
   Globe,
   Hammer,
   Laptop,
+  MessagesSquare,
   MousePointer2,
   RefreshCw,
   Settings2,
   SquareTerminal,
-} from "lucide-react";
+  Trash2,
+} from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { AgentProviderId, EditorId, GitWorktree } from "@/client/types";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
@@ -30,6 +32,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { PROVIDERS } from "@/lib/provider-registry";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { selectCurrentProject, useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
 
 export function EnvironmentToggle() {
@@ -129,6 +132,7 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
         <Row
           icon={<GitCompareArrows size={14} />}
           label={t("Changes")}
+          trailing={<ChangeTotals />}
           onClick={() => {
             openDockPane("changes");
             onClose();
@@ -138,6 +142,7 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
         <BranchRow projectId={project.id} branch={session.worktree.branch} />
         <CommitAndPushSection sessionId={session.id} projectPath={project.path} />
         <LocalServersSection sessionId={session.id} />
+        <SideChatRow parentSessionId={session.id} onClose={onClose} />
         {showUsage && <><Divider />
         <Section title={t("Usage")}>
           <UsageSection />
@@ -233,9 +238,28 @@ function Expandable({
         {trailing}
         <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
       </button>
-      {open ? <div className="flex flex-col gap-[4px] px-[8px] pb-[4px] pt-[2px]">{children}</div> : null}
+      <Reveal open={open}><div className="flex flex-col gap-[4px] px-[8px] pb-[4px] pt-[2px]">{children}</div></Reveal>
     </>
   );
+}
+
+/** Opens and closes a section by animating its height (reduced motion makes it instant). */
+function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
+  return <AnimatePresence initial={false}>
+    {open ? <motion.div key="reveal" className="overflow-hidden" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: motionTokens.normal, ease: motionTokens.ease }}>{children}</motion.div> : null}
+  </AnimatePresence>;
+}
+
+/** Real added/removed line totals of the selected session's working tree, when Git reports changes. */
+function ChangeTotals() {
+  const changes = useAppStore((state) => state.gitStatus?.changes);
+  if (!changes?.length) return null;
+  const added = changes.reduce((sum, change) => sum + change.additions, 0);
+  const removed = changes.reduce((sum, change) => sum + change.deletions, 0);
+  return <span className="flex shrink-0 items-center gap-1.5 ui-caption tabular-nums">
+    {added || removed ? <><span className="text-success">+{added}</span><span className="text-danger">−{removed}</span></> : <span className="text-text-muted">{changes.length}</span>}
+  </span>;
 }
 
 function LocalRow({ sessionId }: { sessionId: string }) {
@@ -376,6 +400,28 @@ function CommitAndPushSection({ sessionId, projectPath }: { sessionId: string; p
   );
 }
 
+/** The session's side chat (ADR-049): open it, or remove an idle one. */
+function SideChatRow({ parentSessionId, onClose }: { parentSessionId: string; onClose: () => void }) {
+  const t = useTranslation();
+  const side = useAppStore((state) => state.sessions.find((session) => session.sideChat?.parentSessionId === parentSessionId));
+  const shortcut = useAppStore((state) => shortcutLabel(effectiveShortcut(state.settings.customShortcuts, "toggle-side-chat")));
+  const running = side ? ["starting", "running", "waiting"].includes(side.status) : false;
+  const open = () => { onClose(); void useAppStore.getState().openSideChat(parentSessionId); };
+  const count = side?.transcriptLength ?? side?.messages.filter((message) => message.role !== "system").length ?? 0;
+  return <div className="group flex w-full items-center rounded-[8px] hover:bg-background-3">
+    <button type="button" onClick={open} className="flex min-w-0 flex-1 items-center gap-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:text-text-primary">
+      <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true"><MessagesSquare size={14} /></span>
+      <span className="min-w-0 flex-1 truncate">{t(side ? "sideChat.title" : "sideChat.open")}</span>
+      {running ? <span className="ui-caption text-text-muted">{t("sideChat.working")}</span>
+        : side && count ? <span className="ui-caption tabular-nums text-text-muted">{t("sideChat.messages", { count })}</span>
+        : <kbd className="ui-caption text-text-muted">{shortcut}</kbd>}
+    </button>
+    {side && !running ? <button type="button" aria-label={t("sideChat.delete")} title={t("sideChat.delete")}
+      className="mr-1 rounded-[6px] p-1 text-text-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
+      onClick={() => void useAppStore.getState().deleteSession(side.id, false)}><Trash2 size={13} /></button> : null}
+  </div>;
+}
+
 function LocalServersSection({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
   const servers = useAppStore((state) => state.localServersBySession[sessionId]) ?? [];
@@ -384,7 +430,7 @@ function LocalServersSection({ sessionId }: { sessionId: string }) {
     <Expandable
       icon={<Globe size={14} />}
       label={t("Local Servers")}
-      trailing={servers.length ? <span className="mr-1 size-1.5 rounded-full bg-success" aria-hidden="true" /> : undefined}
+      trailing={servers.length ? <span className="mr-1 flex items-center gap-1.5 ui-caption tabular-nums text-text-muted"><span className="size-1.5 rounded-full bg-success shadow-[0_0_6px_var(--success)]" aria-hidden="true" />{servers.length}</span> : undefined}
     >
       {servers.length === 0 ? (
         <p className="ui-caption text-text-muted">{t("No local servers detected.")}</p>
@@ -432,10 +478,10 @@ function UsageSection() {
       >
         <ProviderIcon id={provider} size={16} className="shrink-0 bg-transparent" />
         <span className="min-w-0 flex-1 truncate">{name}</span>
-        {used != null ? <span className="tabular-nums text-text-muted">{Math.round(used)}%</span> : <span className="text-text-muted">{t("Usage unavailable")}</span>}
+        {used != null ? <span className="flex items-center gap-2 tabular-nums text-text-muted"><span className="h-1 w-10 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text-primary)_14%,transparent)]" aria-hidden="true"><span className={cn("block h-full rounded-full", used >= 90 ? "bg-danger" : "bg-text-secondary")} style={{ width: `${Math.min(100, used)}%` }} /></span>{Math.round(used)}%</span> : <span className="text-text-muted">{t("Usage unavailable")}</span>}
         <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
       </button>
-      {open ? (
+      <Reveal open={open}>
         <div className="flex flex-col gap-[4px] px-[8px] pb-[4px] pt-[2px]">
           {current?.windows.map((window) => (
             <div key={window.id} className="mb-1.5">
@@ -455,7 +501,7 @@ function UsageSection() {
             <RefreshCw size={12} /> {t("Refresh usage")}
           </InteractiveButton>
         </div>
-      ) : null}
+      </Reveal>
     </>
   );
 }

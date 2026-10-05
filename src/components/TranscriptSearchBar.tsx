@@ -1,6 +1,6 @@
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { ChevronDown, ChevronUp, Search, X } from "@/components/icons/phosphor";
+import { selectListedSessions, useAppStore } from "@/store/app-store";
 import { client } from "@/client";
 import type { Session } from "@/client/types";
 import { searchConversations, type SearchHit } from "@/lib/conversation-search";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
 function TranscriptSearchBarView({ sessionId }: { sessionId?: string }) {
   const t = useTranslation();
   const search = useAppStore(state => state.transcriptSearch);
-  const sessions = useAppStore(selectSessionsMeta);
+  const sessions = useAppStore(selectListedSessions);
   // Only an open search reads the current transcript, so streaming does not re-render a closed bar.
   const current = useAppStore(state => state.transcriptSearch && sessionId ? state.sessions.find(session => session.id === sessionId) : undefined);
   const projects = useAppStore(state => state.projects);

@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Variants } from "motion/react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, X } from "@/components/icons/phosphor";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./multi-select.module.css";

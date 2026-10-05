@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
-import { Box } from "lucide-react";
+import { Box } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { fileIconFor, folderIconFor } from "@/lib/file-icons";
 import type { useComposerSuggestions } from "@/lib/use-composer-suggestions";

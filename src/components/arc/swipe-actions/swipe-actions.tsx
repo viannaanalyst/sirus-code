@@ -6,7 +6,7 @@ import * as Menu from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, MotionValue } from "motion/react";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./swipe-actions.module.css";
 

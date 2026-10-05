@@ -5,7 +5,7 @@ import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent a
 import { AnimatePresence, Reorder, animate, motion, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { Check, Pipette, Plus } from "lucide-react";
+import { Check, Pipette, Plus } from "@/components/icons/phosphor";
 import { TextMorph } from "../text-morph/text-morph";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./color-picker.module.css";

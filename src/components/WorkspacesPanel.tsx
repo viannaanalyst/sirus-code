@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderGit2, GitBranch, RefreshCw } from "lucide-react";
+import { FolderGit2, GitBranch, RefreshCw } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { GitWorktree } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
-import { selectCurrentProject, useAppStore } from "@/store/app-store";
+import { selectCurrentProject, selectListedSessions, useAppStore } from "@/store/app-store";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { Badge } from "@/components/arc/badge/badge";
@@ -14,7 +14,7 @@ export function WorkspacesPanel() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const gitByPath = useAppStore((state) => state.gitByPath);
-  const sessions = useAppStore((state) => state.sessions);
+  const sessions = useAppStore(selectListedSessions);
   const selectSession = useAppStore((state) => state.selectSession);
   const requestNewSession = useAppStore((state) => state.requestNewSession);
   const [result, setResult] = useState<{ projectId: string; entries: GitWorktree[]; error: string | null } | null>(null);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, RefreshCw, XCircle } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { PullRequest, PullRequestCheckStatus, Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

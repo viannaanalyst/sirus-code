@@ -14,6 +14,7 @@ export const KEYBINDINGS = [
   { id: "toggle-environment", label: "Toggle Environment", combo: "meta+alt+e", group: "View" },
   { id: "find-in-conversation", label: "Find in conversation", combo: "meta+f", group: "Session" },
   { id: "search-conversations", label: "Search all conversations", combo: "meta+shift+f", group: "Session" },
+  { id: "toggle-side-chat", label: "Toggle side chat", combo: "meta+alt+s", group: "Session" },
 ] as const;
 export type ShortcutId = (typeof KEYBINDINGS)[number]["id"];
 export type CustomShortcuts = Partial<Record<ShortcutId, string>>;

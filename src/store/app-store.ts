@@ -4,13 +4,17 @@ import { acknowledgeEditorSave, editorKey } from "@/lib/editor-state";
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openTab as openTabRule, TAB_LIMIT, visibleTabSessions } from "@/lib/header-tabs";
 import { retainActivityNotifications } from "@/lib/notifications";
+import { initialSplit, leafShowing, splitDrop, splitLeaves, splitRemove, splitResize, splitSync, type SplitEdge, type SplitLayout, type SplitTarget } from "@/lib/split-layout";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
 import { applyAgentOutput } from "@/lib/agent-events";
 import { mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "@/lib/transcripts";
 import { appendAttachments } from "@/lib/composer-attachments";
 import { canReadDocument } from "@/lib/document-reader";
-import { composerContextForOwner, composerPrompt } from "@/lib/composer-context";
+import { composerContextForOwner, composerPrompt, emptyComposerContext } from "@/lib/composer-context";
+import { supportsPlanning } from "@/lib/execution-options";
+import { secondOpinionPrompt, secondOpinionTurn } from "@/lib/second-opinion";
+import { appendTranscriptQuote } from "@/lib/transcript-selection";
 import { createDraftWriter } from "@/lib/draft-persistence";
 import { CONTEXT_TEXT_LIMIT, hasContextOwner, normalizeContextTexts } from "@/lib/context-text";
 import { newId } from "@/lib/ids";
@@ -37,6 +41,7 @@ import type {
   ProviderModelList,
   ProviderUsage,
   Session,
+  WindowSnapEvent,
 } from "@/client/types";
 import { formatUnknownError } from "@/lib/format-error";
 import { providerById, PROVIDERS } from "@/lib/provider-registry";
@@ -48,7 +53,7 @@ import {
   type SettingsSectionId,
 } from "@/lib/settings";
 
-export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review";
+export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review" | "sidechat";
 export interface DockPane {
   id: string;
   kind: DockPaneKind;
@@ -89,9 +94,11 @@ function withWorkspace(
 ) {
   return { terminalWorkspacesBySession: { ...state.terminalWorkspacesBySession, [sessionId]: workspace } };
 }
+/** Main column: conversation, Kanban board or the review inbox (ADR-050). */
+export type MainView = "session" | "kanban" | "pulls" | "automations" | "inbox" | "tasks";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
-  mainView: "session" | "kanban";
+  mainView: MainView;
   projectId: string | null;
   sessionId: string | null;
 }
@@ -141,11 +148,16 @@ interface AppStore {
   modelChangesPending: Record<string, number>;
   selectedProjectId: string | null;
   selectedSessionId: string | null;
-  mainView: "session" | "kanban";
-  setMainView: (view: "session" | "kanban") => void;
+  mainView: MainView;
+  setMainView: (view: MainView) => void;
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   draftIsolated: boolean;
+  /** The landing's Temporary toggle: the session its first send creates is deleted once left. */
+  draftTemporary: boolean;
+  setDraftTemporary: (temporary: boolean) => void;
+  /** Temporary sessions (memory-only); each is deleted after the person leaves it and it settles. */
+  temporarySessionIds: string[];
   composerDrafts: Record<string, string>;
   contextTexts: Record<string, string>;
   contextTextStatus: Record<string, { saving: boolean; error: string | null }>;
@@ -192,6 +204,8 @@ interface AppStore {
   selectProject: (projectId: string) => Promise<void>;
   removeProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, name: string) => Promise<boolean>;
+  /** Folder colour, emoji or logo of a project (ADR-059); applied at once. */
+  updateProjectLook: (action: import("@/client/types").ProjectLookAction) => Promise<boolean>;
   createSession: (
     agent: AgentProviderId,
     isolatedWorktree: boolean,
@@ -202,6 +216,11 @@ interface AppStore {
   forkSession: (sessionId: string, messageId: string) => Promise<boolean>;
   handoffSession: (sessionId: string, messageId: string, agent: import("@/client/types").AgentProviderId, model: string | null) => Promise<boolean>;
   dismissHandoff: (sessionId: string) => Promise<boolean>;
+  /**
+   * Second opinion (ADR-056): a new session for `agent`/`model` in the same
+   * workspace, opened beside the source, reviews the settled turn read-only.
+   */
+  secondOpinion: (sessionId: string, messageId: string, agent: AgentProviderId, model: string | null) => Promise<boolean>;
   browserBySession: Record<string, BrowserSessionState>;
   /** Native computer-use state (permissions, pending approvals, grants, history); memory-only. */
   computer: ComputerSnapshot | null;
@@ -227,11 +246,29 @@ interface AppStore {
   setMessagePinned: (sessionId: string, messageId: string, pinned: boolean) => Promise<boolean>;
   messageJump: { sessionId: string; messageId: string; sequence: number; searchStart?: number } | null;
   jumpToMessage: (sessionId: string, messageId: string, searchStart?: number) => Promise<void>;
-  sendPrompt: (prompt: string, execution?: ExecutionOptions) => Promise<boolean>;
+  /** Sends to the selected session, or to `sessionId` (a side chat) when given. */
+  sendPrompt: (prompt: string, execution?: ExecutionOptions, sessionId?: string) => Promise<boolean>;
+  /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
+  githubInbox: Record<string, { data: import("@/client/types").GithubInbox | null; loading: boolean; error: string | null }>;
+  loadGithubInbox: (kind: import("@/client/types").GithubItemKind, state: import("@/client/types").GithubItemState) => Promise<void>;
+  /** Personal tasks (ADR-052); null until first loaded. */
+  tasks: import("@/client/types").Task[] | null;
+  /** Closed `task_action`; failures land in `error` and resolve null. */
+  taskAction: (action: import("@/client/types").TaskAction) => Promise<import("@/client/types").Task[] | null>;
+  /** Scheduled automations and recent runs (ADR-051); refreshed on `automations-changed`. */
+  automations: import("@/client/types").AutomationSnapshot | null;
+  /** Closed `automation_action`; failures land in `error` and resolve null. */
+  automationAction: (action: import("@/client/types").AutomationAction) => Promise<import("@/client/types").AutomationSnapshot | null>;
+  /** Closed `pull_request_action`; failures land in `error` and resolve null. */
+  pullRequestAction: (action: import("@/client/types").PullRequestAction) => Promise<import("@/client/types").PullRequestResponse | null>;
+  /** Opens (or reuses) the parent's side chat in the right dock (ADR-049); `quote` starts its draft. */
+  openSideChat: (parentSessionId: string, quote?: string) => Promise<boolean>;
+  /** ⌥⌘S: shows the selected session's side chat, or hides it when it is showing. */
+  toggleSideChat: () => void;
   renameSession: (sessionId: string, title: string) => Promise<boolean>;
   deleteSession: (sessionId: string, removeWorktree: boolean) => Promise<boolean>;
   respondAgentRequest: (request: import("@/client/types").RespondAgentRequest) => Promise<boolean>;
-  stopAgent: () => Promise<void>;
+  stopAgent: (sessionId?: string) => Promise<void>;
   /** Closed team actions (ADR-043); upserts returned sessions and drops removed workers. */
   teamAction: (action: import("@/client/types").TeamAction) => Promise<boolean>;
   refreshGitStatus: () => Promise<void>;
@@ -270,6 +307,19 @@ interface AppStore {
   setSettingsOpen: (open: boolean) => void;
   setSettingsSection: (section: SettingsSection) => void;
   requestNewSession: () => void;
+  /** Outcome of the latest global window snap, shown as a toast (ADR-054). */
+  windowSnapNotice: { id: number; kind: "added" | "permission" | "own" | "failed" | "noComposer"; app?: string } | null;
+  /** Side-by-side conversations (memory-only); the active pane always shows the selected session. */
+  splitLayout: SplitLayout;
+  /** The conversation being dragged toward the panes and where it would land. */
+  splitDrag: { sessionId: string; drop: SplitTarget | null; state: "ok" | "full" | "none" } | null;
+  setSplitDrag: (drag: AppStore["splitDrag"]) => void;
+  dropOnSplit: (sessionId: string, drop: SplitTarget) => void;
+  /** Opens a conversation beside the active pane (keyboard and menu alternative to dragging). */
+  openInSplit: (sessionId: string, edge: Exclude<SplitEdge, "center">) => void;
+  activateSplitPane: (leafId: string) => void;
+  closeSplitPane: (leafId: string) => void;
+  resizeSplit: (branchId: string, ratio: number) => void;
   /** Header tabs (memory-only): a per-project view over sessions; closing a tab never changes the session. */
   openTabsByProject: Record<string, string[]>;
   lastActiveTabByProject: Record<string, string>;
@@ -288,12 +338,13 @@ interface AppStore {
   closeOtherHeaderTabs: (projectId: string, sessionId: string) => void;
   closeHeaderTabsToRight: (projectId: string, sessionId: string) => void;
   reopenHeaderTab: () => void;
-  moveHeaderTab: (projectId: string, sessionId: string, targetId: string) => void;
+  moveHeaderTab: (projectId: string, sessionId: string, targetId: string, edge?: "before" | "after") => void;
   switchProject: (projectId: string) => Promise<void>;
   setNewSessionOpen: (open: boolean) => void;
   saveSettings: (settings: AppSettings) => Promise<void>;
   setSessionAgent: (agent: AgentProviderId) => Promise<void>;
-  setSessionModel: (provider: AgentProviderId, model: string | null) => Promise<void>;
+  /** Changes the selected session's model, or `sessionId`'s (a side chat, which leaves the defaults alone). */
+  setSessionModel: (provider: AgentProviderId, model: string | null, sessionId?: string) => Promise<void>;
   loadProviderModels: (id: AgentProviderId, force?: boolean) => Promise<void>;
 
   loadAllModels: (force?: boolean) => Promise<void>;
@@ -542,6 +593,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   sidebarWidth: SIDEBAR_MIN_WIDTH,
   sidebarCollapsed: false,
   draftIsolated: false,
+  draftTemporary: false,
+  setDraftTemporary: (draftTemporary) => set({ draftTemporary }),
+  temporarySessionIds: [],
   composerDrafts: {},
   contextTexts: {},
   contextTextStatus: {},
@@ -631,6 +685,40 @@ export const useAppStore = create<AppStore>((set, get) => ({
   localServersBySession: {},
   selectedFileBySession: {},
   browserBySession: {},
+  windowSnapNotice: null,
+  splitLayout: initialSplit(),
+  splitDrag: null,
+  setSplitDrag: (splitDrag) => set({ splitDrag }),
+  dropOnSplit: (sessionId, drop) => {
+    const state = get();
+    const next = splitDrop(state.splitLayout, sessionId, drop);
+    if (next === state.splitLayout) return;
+    set({ splitLayout: next });
+    get().activateSplitPane(next.activeLeafId);
+  },
+  openInSplit: (sessionId, edge) => {
+    const layout = get().splitLayout;
+    const from = leafShowing(layout, sessionId);
+    // A conversation shown in the active pane moves beside the pane that was open before it.
+    const target = from?.id === layout.activeLeafId ? splitLeaves(layout.root).find((leaf) => leaf.id !== from.id)?.id : layout.activeLeafId;
+    if (target) get().dropOnSplit(sessionId, { target, edge });
+  },
+  activateSplitPane: (leafId) => {
+    const state = get();
+    const leaf = splitLeaves(state.splitLayout.root).find((item) => item.id === leafId);
+    if (!leaf) return;
+    if (state.splitLayout.activeLeafId !== leafId) set({ splitLayout: { ...state.splitLayout, activeLeafId: leafId } });
+    if (leaf.sessionId) { if (state.selectedSessionId !== leaf.sessionId || state.mainView !== "session") void get().selectSession(leaf.sessionId); }
+    else if (state.selectedSessionId) get().requestNewSession();
+  },
+  closeSplitPane: (leafId) => {
+    const state = get();
+    const next = splitRemove(state.splitLayout, leafId);
+    if (next === state.splitLayout) return;
+    set({ splitLayout: next });
+    if (next.activeLeafId !== state.splitLayout.activeLeafId) get().activateSplitPane(next.activeLeafId);
+  },
+  resizeSplit: (branchId, ratio) => set((state) => ({ splitLayout: splitResize(state.splitLayout, branchId, ratio) })),
   openTabsByProject: {},
   lastActiveTabByProject: {},
   closedTabs: [],
@@ -647,6 +735,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (onDraft && fallback) void get().selectSession(fallback);
   },
   unseenSessionIds: [],
+  githubInbox: {},
+  automations: null,
+  tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
     if (!refresh && get().loadedTranscripts[sessionId] !== undefined) {
@@ -721,9 +812,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ openTabsByProject: { ...get().openTabsByProject, [entry.projectId]: tabs } });
     void get().selectSession(entry.sessionId);
   },
-  moveHeaderTab: (projectId, sessionId, targetId) => {
+  moveHeaderTab: (projectId, sessionId, targetId, edge) => {
     const tabs = get().openTabsByProject[projectId] ?? [];
-    set({ openTabsByProject: { ...get().openTabsByProject, [projectId]: moveTabRule(tabs, sessionId, targetId) } });
+    set({ openTabsByProject: { ...get().openTabsByProject, [projectId]: moveTabRule(tabs, sessionId, targetId, edge) } });
   },
   switchProject: async (projectId) => {
     set({ projectSwitcherOpen: false });
@@ -802,7 +893,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const sessions = data.sessions;
       const selectedSessionId =
         settings.restorePreviousSessions && selectedProjectId
-          ? (sessions.find((session) => session.projectId === selectedProjectId && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
+          ? (sessions.find((session) => session.projectId === selectedProjectId && !session.sideChat && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
           : null;
       // Only the selected transcript loads before the first paint (ADR-048).
       const initialTranscript = selectedSessionId ? await client.loadTranscript(selectedSessionId).catch(() => null) : null;
@@ -866,7 +957,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       projects: state.projects.some((item) => item.id === project.id) ? state.projects.map((item) => item.id === project.id ? project : item) : [project, ...state.projects],
       selectedProjectId: project.id,
-      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
       gitStatus: null, selectedDiff: null, diffText: null,
       gitByPath: { ...state.gitByPath, [project.path]: identity },
     }));
@@ -876,7 +967,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const sequence = ++projectRequestSequence;
     const project = await client.openProject(projectId);
     if (sequence !== projectRequestSequence) return;
-    const sessions = get().sessions.filter((session) => session.projectId === projectId && !get().settings.archivedSessionIds.includes(session.id));
+    const sessions = get().sessions.filter((session) => session.projectId === projectId && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id));
     set({
       selectedProjectId: projectId,
       selectedSessionId: sessions[0]?.id ?? null,
@@ -923,7 +1014,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       contextTextStatus: Object.fromEntries(Object.entries(get().contextTextStatus).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       composerContexts: Object.fromEntries(Object.entries(get().composerContexts).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       selectedProjectId: nextProject,
-      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
       terminalWorkspacesBySession,
       localServersBySession,
       selectedFileBySession,
@@ -935,6 +1026,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().refreshGitStatus();
   },
 
+  updateProjectLook: async (action) => {
+    try {
+      const updated = await client.projectLookAction(action);
+      if (updated) set((state) => ({ error: null, projects: state.projects.map((project) => project.id === updated.id ? { ...project, look: updated.look } : project) }));
+      return Boolean(updated);
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
   renameProject: async (projectId, name) => {
     try {
       const updated = await client.renameProject(projectId, name.trim());
@@ -971,6 +1069,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     ++projectRequestSequence;
     const session = get().sessions.find((item) => item.id === sessionId);
     if (!session) return;
+    // A side chat lives beside its main session (notifications can name it).
+    if (session.sideChat) {
+      await get().selectSession(session.sideChat.parentSessionId);
+      void get().openSideChat(session.sideChat.parentSessionId);
+      return;
+    }
     set({ mainView: "session", selectedSessionId: sessionId, selectedProjectId: session.projectId, gitStatus: null, selectedDiff: null, diffText: null });
     await get().refreshGitStatus();
   },
@@ -1009,6 +1113,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
       }));
       await get().refreshGitStatus();
       return true;
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
+
+  secondOpinion: async (sessionId, messageId, agent, model) => {
+    if (!(await get().ensureTranscript(sessionId))) return false;
+    const source = get().sessions.find((session) => session.id === sessionId);
+    if (!source) return false;
+    const portuguese = get().settings.locale !== "en";
+    const prompt = secondOpinionPrompt(secondOpinionTurn(source, messageId), providerById(source.agent).name, portuguese);
+    try {
+      // Handoff provides the same-workspace session; its recap is dropped for the review prompt.
+      const created = await client.handoffSession(sessionId, messageId, agent, model);
+      const dismissed = await client.dismissHandoff(created.id);
+      const titled = await client.renameSession(created.id, `${portuguese ? "Segunda opinião" : "Second opinion"} · ${source.title}`.slice(0, 200));
+      set((state) => ({ error: null, sessions: [{ ...created, handoff: dismissed.handoff, title: titled.title, lastActivityAt: titled.lastActivityAt }, ...state.sessions],
+        loadedTranscripts: { ...state.loadedTranscripts, [created.id]: ++transcriptTick } }));
+      if (get().selectedSessionId !== sessionId) await get().selectSession(sessionId);
+      const before = get().splitLayout;
+      get().openInSplit(created.id, "right");
+      if (get().splitLayout === before) await get().selectSession(created.id);
+      return await get().sendPrompt(prompt, supportsPlanning(agent, model) ? { planning: true } : undefined, created.id);
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
 
@@ -1170,13 +1295,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return request;
   },
 
-  sendPrompt: async (prompt, execution) => {
-    const originKey = get().selectedSessionId ? `session:${get().selectedSessionId}` : `project:${get().selectedProjectId}`;
+  sendPrompt: async (prompt, execution, targetSessionId) => {
+    const selectedId = targetSessionId ?? get().selectedSessionId;
+    const originKey = selectedId ? `session:${selectedId}` : `project:${get().selectedProjectId}`;
     const submittedDraft = get().composerDrafts[originKey];
     const originalContext = get().composerContexts[originKey];
     const restoredContext = composerContextForOwner(originKey, get().composerContexts, get().sessions);
     let submittedContext = originalContext;
-    const initialSessionId = get().selectedSessionId;
+    const initialSessionId = selectedId;
     const initialSession = get().sessions.find(session => session.id === initialSessionId);
     const initialBinding = initialSession ? queueBinding(initialSession) : null;
     const initialMessageId = initialSession ? lastAssistantId(initialSession) : null;
@@ -1228,7 +1354,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (!sessionId) {
         const projectId = get().selectedProjectId;
         if (!projectId) return false;
-        const { settings, draftIsolated } = get();
+        const { settings, draftIsolated, draftTemporary } = get();
         const parsed = parseModelKey(settings.defaultModel);
         const session = await client.createSession({ projectId, agent: settings.defaultAgent,
           isolatedWorktree: draftIsolated,
@@ -1246,7 +1372,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           // Team mode is one-shot: the plan request does not carry it into the new session.
           if (transferredContext) composerContexts[`session:${session.id}`] = transferredContext.team ? { ...transferredContext, team: false } : transferredContext;
           if (stayingOnOrigin) delete composerContexts[originKey];
-          return { sessions: [session, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [session.id]: ++transcriptTick }, composerDrafts, composerContexts,
+          return { ...(draftTemporary ? { temporarySessionIds: [...state.temporarySessionIds, session.id], draftTemporary: false } : {}), sessions: [session, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [session.id]: ++transcriptTick }, composerDrafts, composerContexts,
             dockPanes: state.dockPanes.map((pane) => stayingOnOrigin && pane.document?.scope === originKey ? { ...pane, document: { ...pane.document, scope: `session:${session.id}` } } : pane),
             ...(stayingOnOrigin ? { selectedSessionId: session.id } : {}) };
         });
@@ -1313,7 +1439,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
       browserBoundsSignatures.delete(sessionId);
       void client.browserClose(sessionId).catch(() => undefined);
       set((state) => {
-        const sessions = state.sessions.filter((session) => session.id !== sessionId);
+        // Native deletes the parent's side chats with it (ADR-049).
+        const sideChats = new Set(state.sessions.filter((session) => session.sideChat?.parentSessionId === sessionId).map((session) => session.id));
+        const sessions = state.sessions.filter((session) => session.id !== sessionId && !sideChats.has(session.id));
         const composerDrafts = { ...state.composerDrafts };
         delete composerDrafts[`session:${sessionId}`];
         const composerContexts = { ...state.composerContexts }; delete composerContexts[`session:${sessionId}`];
@@ -1322,7 +1450,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const terminalWorkspacesBySession = { ...state.terminalWorkspacesBySession }; delete terminalWorkspacesBySession[sessionId];
         const localServersBySession = { ...state.localServersBySession }; delete localServersBySession[sessionId];
         const selectedFileBySession = { ...state.selectedFileBySession }; delete selectedFileBySession[sessionId];
-        const dockPanes = state.dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review") && pane.sessionId === sessionId) && (!pane.document || (pane.document.scope !== `session:${sessionId}` && pane.document.owner !== `session:${sessionId}`)));
+        const sideParent = state.sessions.find((session) => session.id === sessionId)?.sideChat?.parentSessionId;
+        const dockPanes = state.dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review" || pane.kind === "sidechat") && pane.sessionId === sessionId) &&
+          !(pane.kind === "sidechat" && pane.sessionId === sideParent) && (!pane.document || (pane.document.scope !== `session:${sessionId}` && pane.document.owner !== `session:${sessionId}`)));
         const dockActivePaneId = dockPanes.some((pane) => pane.id === state.dockActivePaneId) ? state.dockActivePaneId : (dockPanes[dockPanes.length - 1]?.id ?? null);
         const editorBuffers = Object.fromEntries(Object.entries(state.editorBuffers).filter(([key]) => !key.startsWith(`${sessionId}:`)));
         const pullRequestsBySession = { ...state.pullRequestsBySession }; delete pullRequestsBySession[sessionId];
@@ -1331,7 +1461,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
         const loadedTranscripts = { ...state.loadedTranscripts }; delete loadedTranscripts[sessionId];
         return { sessions, promptQueues, loadedTranscripts, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
-          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
       });
@@ -1345,11 +1475,66 @@ export const useAppStore = create<AppStore>((set, get) => ({
     catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
 
-  stopAgent: async () => {
-    const sessionId = get().selectedSessionId;
+  stopAgent: async (target) => {
+    const sessionId = target ?? get().selectedSessionId;
     if (!sessionId) return;
     get().pausePromptQueue(sessionId);
     try { await client.stopAgent(sessionId); } catch (error) { set({ error: formatUnknownError(error) }); }
+  },
+
+  loadGithubInbox: async (kind, state) => {
+    const key = `${kind}:${state}`;
+    if (get().githubInbox[key]?.loading) return;
+    set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data: current.githubInbox[key]?.data ?? null, loading: true, error: null } } }));
+    try {
+      const response = await client.pullRequestAction({ type: "list", kind, state });
+      const data = response.type === "inbox" ? response : null;
+      set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data, loading: false, error: null } } }));
+    } catch (error) {
+      set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data: current.githubInbox[key]?.data ?? null, loading: false, error: formatUnknownError(error) } } }));
+    }
+  },
+
+  taskAction: async (action) => {
+    try {
+      const tasks = await client.taskAction(action);
+      set({ tasks });
+      return tasks;
+    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  automationAction: async (action) => {
+    try {
+      const snapshot = await client.automationAction(action);
+      set({ automations: snapshot });
+      return snapshot;
+    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  pullRequestAction: async (action) => {
+    try { return await client.pullRequestAction(action); }
+    catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  openSideChat: async (parentSessionId, quote) => {
+    try {
+      const side = await client.sideChatAction({ type: "open", parentSessionId });
+      showSideChat(parentSessionId, side, quote);
+      return true;
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
+
+  toggleSideChat: () => {
+    const state = get();
+    const parent = state.selectedSessionId;
+    if (!parent || state.mainView !== "session") return;
+    const pane = state.dockPanes.find((item) => item.kind === "sidechat" && item.sessionId === parent);
+    if (pane && state.dockOpen && state.dockActivePaneId === pane.id) {
+      state.closeDockPane(pane.id);
+      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="session:${parent}"]`)?.focus());
+      return;
+    }
+    void state.openSideChat(parent);
   },
 
   teamAction: async (action) => {
@@ -1456,6 +1641,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   openDockPane: (kind, path) => {
     if (kind === "document" || kind === "review") return;
+    if (kind === "sidechat") {
+      const parent = get().selectedSessionId;
+      if (parent) void get().openSideChat(parent);
+      return;
+    }
     const sessionId = get().selectedSessionId ?? undefined;
     let created: string | null = null;
     set((state) => {
@@ -1677,6 +1867,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       selectedSessionId: null,
       mainView: "session",
       draftIsolated: settings.defaultSessionWorkspace === "worktree",
+      draftTemporary: false,
     });
   },
   setNewSessionOpen: (open) => set({ newSessionOpen: open }),
@@ -1703,9 +1894,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().setSessionModel(agent, null);
   },
 
-  setSessionModel: async (provider, model) => {
+  setSessionModel: async (provider, model, target) => {
     const sequence = ++modelSelectionSequence;
-    const sessionId = get().selectedSessionId;
+    const sessionId = target ?? get().selectedSessionId;
     const defaultModel = model ? modelKey(provider, model) : null;
     if (!sessionId) {
       await get().saveSettings({ ...get().settings, defaultAgent: provider, defaultModel });
@@ -1718,7 +1909,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         set((state) => ({
           sessions: state.sessions.map((item) => item.id === session.id ? { ...item, agent: session.agent, model: session.model, providerAccountId: session.providerAccountId, accountBindings: session.accountBindings, forkOrigin: session.forkOrigin, nativeThread: session.nativeThread, pendingRequests: session.pendingRequests, lastActivityAt: session.lastActivityAt } : item),
         }));
-        if (sequence === modelSelectionSequence) await get().saveSettings({ ...get().settings, defaultAgent: provider, defaultModel });
+        if (!target && sequence === modelSelectionSequence) await get().saveSettings({ ...get().settings, defaultAgent: provider, defaultModel });
       } catch (error) {
         set({ error: formatUnknownError(error) });
       } finally {
@@ -1821,6 +2012,36 @@ async function captureBrowserAttachment(prompt: string, sessionId: string | null
   } catch {
     return null;
   }
+}
+
+/**
+ * Shows a side chat in the right dock beside its parent (ADR-049). Without a
+ * remembered composer mode it starts read-only (planning) where supported.
+ */
+function showSideChat(parentSessionId: string, side: Session, quote?: string) {
+  const owner = `session:${side.id}`;
+  useAppStore.setState((state) => {
+    const known = state.sessions.some((session) => session.id === side.id);
+    // Composer modes are memory-only, so a side chat reopens read-only after a restart too.
+    const composerContexts = !state.composerContexts[owner]
+      ? { ...state.composerContexts, [owner]: { ...emptyComposerContext, planning: supportsPlanning(side.agent, side.model ?? null) } }
+      : state.composerContexts;
+    const existing = state.dockPanes.find((pane) => pane.kind === "sidechat" && pane.sessionId === parentSessionId);
+    const pane: DockPane = existing ?? { id: newId(), kind: "sidechat", sessionId: parentSessionId };
+    return { sessions: known ? state.sessions : [side, ...state.sessions], composerContexts,
+      dockPanes: existing ? state.dockPanes : [...state.dockPanes, pane], dockOpen: true, dockActivePaneId: pane.id, dockWidth: clampDockWidth(state.dockWidth, state) };
+  });
+  const store = useAppStore.getState();
+  if (quote) {
+    const next = appendTranscriptQuote(store.composerDrafts[owner] ?? "", quote);
+    if (next !== null) store.setComposerDraft(owner, next);
+  }
+  void store.ensureTranscript(side.id);
+  requestAnimationFrame(() => {
+    const area = document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="${owner}"]`);
+    area?.focus({ preventScroll: true });
+    area?.setSelectionRange(area.value.length, area.value.length);
+  });
 }
 
 function releaseUnusedQueueAttachments(files: import("@/client/types").PromptAttachment[], owner: string) {
@@ -1998,12 +2219,20 @@ export async function bindRealtime() {
       store.setSettingsOpen(false);
       void store.selectSession(sessionId);
     }));
+    unlisteners.push(await client.onWindowSnap((event) => { void receiveWindowSnap(event); }));
+    unlisteners.push(await client.onAutomationsChanged(() => {
+      if (useAppStore.getState().automations) void useAppStore.getState().automationAction({ type: "list" });
+    }));
     unlisteners.push(await client.onSessionUpdated((session) => {
       // Earlier deltas apply first; the snapshot then supersedes them by offset.
       outputBatch.flush();
       let reload = false;
       useAppStore.setState((state) => {
         const loaded = state.loadedTranscripts[session.id] !== undefined;
+        // Native-created sessions (automation runs) arrive first as an event.
+        if (!state.sessions.some((item) => item.id === session.id)) {
+          return { sessions: [mergeSessionEvent({ ...session, messages: [] }, session, false).session, ...state.sessions] };
+        }
         return {
           // Pins mutate only through serialized metadata acknowledgments. A lifecycle
           // snapshot captured before that acknowledgment must not undo it.
@@ -2058,9 +2287,8 @@ export async function bindRealtime() {
       const store = useAppStore.getState();
       void store.refreshGitStatus();
       const provider = store.sessions.find((session) => session.id === event.sessionId)?.agent;
-      const currentProvider = selectCurrentSession(store)?.agent ?? store.settings.defaultAgent;
       // Not forced: the native 60 s cache bounds probes when many turns finish close together.
-      if (provider && (store.settings.usageProviders.includes(provider) || provider === currentProvider)) void store.refreshProviderUsage(provider);
+      if (provider && store.settings.sidebarUsageProviders.includes(provider)) void store.refreshProviderUsage(provider);
     }));
     return () => unlisteners.forEach((unlisten) => unlisten());
   } catch (error) {
@@ -2097,6 +2325,18 @@ export const selectSessionsMeta = (state: AppStore): Session[] => {
   return next;
 };
 
+let listedFrom: Session[] | null = null;
+let listed: Session[] = [];
+/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049). */
+export const selectListedSessions = (state: AppStore): Session[] => {
+  const meta = selectSessionsMeta(state);
+  if (meta !== listedFrom) {
+    listedFrom = meta;
+    listed = meta.some((session) => session.sideChat) ? meta.filter((session) => !session.sideChat) : meta;
+  }
+  return listed;
+};
+
 let currentMeta: Session | null = null;
 /** The selected session for views that never read `messages`; see {@link selectSessionsMeta}. */
 export const selectCurrentSessionMeta = (state: AppStore): Session | null => {
@@ -2113,6 +2353,55 @@ export const selectEnabledAgents = (state: AppStore) =>
   state.agents.filter(
     (agent) => agent.installed && !state.settings.disabledProviders.includes(agent.id),
   );
+
+let windowSnapSequence = 0;
+/**
+ * A global window snap joins the composer that is open: the selected session,
+ * or the selected project's new-chat landing. Nothing is sent (ADR-054).
+ */
+async function receiveWindowSnap(event: WindowSnapEvent) {
+  const notice = (kind: NonNullable<AppStore["windowSnapNotice"]>["kind"], app?: string) => useAppStore.setState({ windowSnapNotice: { id: ++windowSnapSequence, kind, app } });
+  if (event.status !== "ready") { notice(event.status === "needsPermission" ? "permission" : event.status === "ownWindow" ? "own" : "failed"); return; }
+  const state = useAppStore.getState();
+  const owner = state.selectedSessionId ? `session:${state.selectedSessionId}` : state.selectedProjectId ? `project:${state.selectedProjectId}` : null;
+  if (!owner) { void client.windowSnapAction({ type: "discard", nonce: event.nonce }); notice("noComposer"); return; }
+  try {
+    const attachments = await client.windowSnapAction({ type: "claim", nonce: event.nonce, owner });
+    const current = useAppStore.getState();
+    const context = composerContextForOwner(owner, current.composerContexts, current.sessions);
+    try { current.setComposerContext(owner, { ...context, attachments: appendAttachments(context.attachments, attachments) }); }
+    catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
+    notice("added", event.app);
+  } catch (error) { useAppStore.setState({ error: formatUnknownError(error) }); }
+}
+
+// A temporary session is deleted once it is no longer open in any pane and has
+// settled; a running turn finishes first. Its worktree is kept (never removed
+// without an explicit confirmation).
+const deletingTemporary = new Set<string>();
+useAppStore.subscribe((state, previous) => {
+  if (!state.temporarySessionIds.length) return;
+  if (state.selectedSessionId === previous.selectedSessionId && state.sessions === previous.sessions && state.splitLayout === previous.splitLayout && state.temporarySessionIds === previous.temporarySessionIds) return;
+  const open = new Set([state.selectedSessionId, ...splitLeaves(state.splitLayout.root).map((leaf) => leaf.sessionId)]);
+  for (const id of state.temporarySessionIds) {
+    if (open.has(id) || deletingTemporary.has(id)) continue;
+    const session = state.sessions.find((item) => item.id === id);
+    const forget = () => useAppStore.setState((current) => ({ temporarySessionIds: current.temporarySessionIds.filter((item) => item !== id) }));
+    if (!session) { queueMicrotask(forget); continue; }
+    if (["starting", "running", "waiting"].includes(session.status)) continue;
+    deletingTemporary.add(id);
+    void state.deleteSession(id, false).finally(() => { deletingTemporary.delete(id); forget(); });
+  }
+});
+
+// The active pane follows the selection; panes of deleted sessions close.
+useAppStore.subscribe((state, previous) => {
+  if (state.selectedSessionId === previous.selectedSessionId && state.sessions === previous.sessions) return;
+  const layout = state.splitLayout;
+  if (state.sessions !== previous.sessions && state.selectedSessionId === previous.selectedSessionId && splitLeaves(layout.root).length < 2) return;
+  const next = splitSync(layout, state.selectedSessionId, new Set(state.sessions.map((session) => session.id)));
+  if (next !== layout) useAppStore.setState({ splitLayout: next });
+});
 
 // Opening a session loads its transcript; leaving it lets the cache release older ones.
 useAppStore.subscribe((state, previous) => {

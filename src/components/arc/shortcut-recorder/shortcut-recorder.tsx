@@ -5,7 +5,7 @@ import type { HTMLAttributes, KeyboardEvent as ReactKeyboardEvent, ReactNode } f
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Variants } from "motion/react";
-import { RotateCcw, Search, X } from "lucide-react";
+import { RotateCcw, Search, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./shortcut-recorder.module.css";
 

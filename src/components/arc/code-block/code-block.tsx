@@ -3,7 +3,7 @@
 import { useTranslation } from "@/i18n/use-translation";
 import { SearchText } from "@/components/SearchText";
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronDown, FileCode2 } from "lucide-react";
+import { ChevronDown, FileCode2 } from "@/components/icons/phosphor";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { motionTokens } from "../lib/motion-tokens";

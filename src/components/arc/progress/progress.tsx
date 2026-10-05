@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useTransform, type HTMLMotionProps, type TargetAndTransition, type Transition } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Check } from "lucide-react";
+import { Check } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./progress.module.css";
 

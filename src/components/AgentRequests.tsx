@@ -2,7 +2,7 @@ import { memo, useState, type FormEvent } from "react";
 import type { AgentResponse, PendingRequest, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
-import { MessageCircle, MousePointerClick, ShieldCheck } from "lucide-react";
+import { MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons/phosphor";
 import type { ComputerRequest } from "@/client/types";
 import "@/styles/computer.css";
 import { providerById } from "@/lib/provider-registry";

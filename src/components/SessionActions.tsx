@@ -5,12 +5,13 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Checkbox } from "@/components/arc/checkbox/checkbox";
 import { Input } from "@/components/arc/input/input";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "@/components/icons/phosphor";
 import { useState } from "react";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { leafShowing, splitLeaves, SPLIT_MAX_PANES } from "@/lib/split-layout";
 import { useAppStore } from "@/store/app-store";
 
 export function SessionActions({ session, children }: { session: Session; children?: ReactNode }) {
@@ -23,6 +24,11 @@ export function SessionActions({ session, children }: { session: Session; childr
   useSidebarPanelHold(menuOpen || action !== null);
   useSidebarHoverCardHold(menuOpen || action !== null);
   const active = ["starting", "running", "waiting"].includes(session.status);
+  // Opening beside needs a free pane slot unless the conversation is already open in a pane.
+  const canSplit = useAppStore((state) => {
+    const leaves = splitLeaves(state.splitLayout.root);
+    return leafShowing(state.splitLayout, session.id) ? leaves.length > 1 : leaves.length < SPLIT_MAX_PANES && Boolean(state.selectedSessionId);
+  });
   const submit = async () => {
     if (busy) return;
     setBusy(true);
@@ -34,6 +40,8 @@ export function SessionActions({ session, children }: { session: Session; childr
   };
   return <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !busy) setAction(null); }}>
     {children ? <ContextMenu onOpenChange={setMenuOpen} activation="context-only" label={t("session.actions")} items={[
+      { id: "split-right", label: t("split.openRight"), disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "right") },
+      { id: "split-down", label: t("split.openDown"), disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "bottom") },
       { id: "rename", label: t("session.rename"), onSelect: () => { setTitle(session.title); setAction("rename"); } },
       { id: "delete", label: t("session.delete"), disabled: active, destructive: true, onSelect: () => { setRemoveWorktree(false); setAction("delete"); } },
     ]}>{children}</ContextMenu> : <Dropdown onOpenChange={setMenuOpen}>

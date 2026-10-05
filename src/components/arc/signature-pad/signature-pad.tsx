@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import { AnimatePresence, animate, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { Check, Download, Eraser, Play, Redo2, Square, Undo2, X } from "lucide-react";
+import { Check, Download, Eraser, Play, Redo2, Square, Undo2, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./signature-pad.module.css";
 

@@ -1,15 +1,24 @@
 import { monoFontFamily, uiFontFamily, UI_FONTS, MONO_FONTS } from "./fonts";
 import { resolveAppearanceMaterial } from "./appearance";
 import { sanitizeShortcuts } from "./keybindings";
-import { defaultProfile, normalizeProfile } from "./profile-stats";
 import { defaultNotifications, normalizeNotifications } from "./notifications";
 import type { AgentProviderId, AppSettings } from "@/client/types";
 import { AGENT_PROVIDER_IDS } from "@/client/types";
+import { SIDEBAR_USAGE_LIMIT, USAGE_PROVIDER_IDS } from "./provider-usage";
+import { RAIL_ITEMS } from "./rail";
 
 export const defaultSettings: AppSettings = {
   notifications: defaultNotifications,
-  profile: defaultProfile,
   usageProviders: ["codex"],
+  sidebarUsageProviders: [],
+  sidebarActivityView: false,
+  doneSessions: [],
+  windowSnapEnabled: false,
+  windowSnapShortcut: "controlOptionCommandS",
+  githubPins: [],
+  railItemOrder: [],
+  hiddenRailItems: [],
+  railProjectShortcuts: [],
   defaultAgent: "codex",
   openLastProject: true,
   worktreeBasePath: null,
@@ -85,8 +94,16 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     ...defaultSettings,
     ...value,
     notifications: normalizeNotifications(value?.notifications),
-    profile: normalizeProfile(value?.profile),
     usageProviders: [...new Set((value?.usageProviders ?? defaultSettings.usageProviders).filter((id) => AGENT_PROVIDER_IDS.includes(id)))].slice(0, AGENT_PROVIDER_IDS.length),
+    sidebarUsageProviders: [...new Set((value?.sidebarUsageProviders ?? []).filter((id) => USAGE_PROVIDER_IDS.includes(id)))].slice(0, SIDEBAR_USAGE_LIMIT),
+    sidebarActivityView: value?.sidebarActivityView === true,
+    windowSnapEnabled: value?.windowSnapEnabled === true,
+    windowSnapShortcut: (["controlOptionCommandS", "optionShiftS", "controlShiftS"] as const).find((id) => id === value?.windowSnapShortcut) ?? "controlOptionCommandS",
+    doneSessions: (value?.doneSessions ?? []).filter((row, index, rows) => typeof row?.id === "string" && row.id.length > 0 && row.id.length <= 64 && typeof row.at === "string" && /^[0-9A-Za-z:.+-]{1,40}$/.test(row.at) && rows.findIndex((other) => other.id === row.id) === index).slice(0, 4096),
+    railItemOrder: [...new Set((value?.railItemOrder ?? []).filter((id) => (RAIL_ITEMS as readonly string[]).includes(id)))],
+    hiddenRailItems: [...new Set((value?.hiddenRailItems ?? []).filter((id) => id !== "home" && (RAIL_ITEMS as readonly string[]).includes(id)))],
+    railProjectShortcuts: [...new Set((value?.railProjectShortcuts ?? []).filter((id) => typeof id === "string" && id.length > 0 && id.length <= 128))].slice(0, 12),
+    githubPins: [...new Set((value?.githubPins ?? []).filter((pin) => typeof pin === "string" && /^[A-Za-z0-9-]{1,100}\/[A-Za-z0-9._-]{1,100}#[1-9]\d{0,7}$/.test(pin)))].slice(0, 200),
     disabledProviders: value?.disabledProviders ?? [],
     providerPaths: value?.providerPaths ?? {},
     modelExecution: value?.modelExecution ?? {},
@@ -220,7 +237,6 @@ export function resetAppearanceSettings(settings: AppSettings): AppSettings {
 export type SettingsSectionId =
   | "notifications"
   | "general"
-  | "profile"
   | "providers"
   | "skills"
   | "computer"

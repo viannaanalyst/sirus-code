@@ -1,5 +1,5 @@
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, Search, Star, X, Zap } from "lucide-react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Check, ChevronDown, ChevronLeft, Search, Star, X, Zap } from "@/components/icons/phosphor";
 import { motion } from "motion/react";
 import type { AgentProviderId } from "@/client/types";
 import { ModelEffortPanel } from "@/components/ModelEffortPanel";
@@ -42,6 +42,7 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
   const rail = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const panelId = useId();
+  const glide = useRef<HTMLSpanElement>(null);
   const enabledProviders = useMemo(() => PROVIDERS.filter((definition) =>
     installs.some((item) => item.id === definition.id && item.installed) && isProviderEnabled(settings, definition.id)
   ).map((definition) => definition.id), [installs, settings]);
@@ -102,12 +103,15 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
     if (!(target instanceof HTMLButtonElement)) return;
     const buttons = target.hasAttribute("data-provider-option") ? providers : target.hasAttribute("data-model-option") ? models : [];
     if (!buttons.length) return;
-    if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+    // Provider tabs run left to right above the list; models run top to bottom.
+    const tab = providers.includes(target);
+    const back = tab ? "ArrowLeft" : "ArrowUp", forward = tab ? "ArrowRight" : "ArrowDown";
+    if ([back, forward, "Home", "End"].includes(event.key)) {
       event.preventDefault();
       const index = buttons.indexOf(target);
-      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === back ? -1 : 1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
-    } else if (event.key === "ArrowRight" && providers.includes(target)) {
+    } else if (event.key === "ArrowDown" && tab) {
       event.preventDefault();
       (models[0] ?? search.current)?.focus();
     } else if (event.key === "ArrowLeft" && models.includes(target)) {
@@ -115,10 +119,19 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
       providers.find((button) => button.dataset.providerOption === scope)?.focus();
     }
   };
-  const railClass = "relative flex size-7 shrink-0 items-center justify-center rounded-[7px] text-text-muted transition-colors duration-[var(--motion-fast)] hover:bg-background-3 hover:text-text-primary disabled:opacity-40";
 
   const execution = modelExecutionControls(currentProvider, currentModel, catalogs[currentProvider]?.models ?? [], settings.modelExecution[modelKey(currentProvider, currentModel ?? "")]);
   useEffect(() => { if (open && page === "catalog") search.current?.focus(); }, [open, page]);
+  // The highlight glides to the chosen provider tab; the first placement is instant.
+  useLayoutEffect(() => {
+    const mark = glide.current, tab = rail.current?.querySelector<HTMLElement>(`[data-provider-option="${scope}"]`);
+    if (!mark || !tab) return;
+    const first = !mark.dataset.placed;
+    if (first) mark.style.transition = "none";
+    mark.style.transform = `translateX(${tab.offsetLeft}px)`;
+    mark.style.width = `${tab.offsetWidth}px`;
+    if (first) { void mark.offsetWidth; mark.style.transition = ""; mark.dataset.placed = "1"; }
+  });
 
   return (
     <Popover open={open} onOpenChange={(next) => {
@@ -140,23 +153,22 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
         onOpenAutoFocus={(event) => { event.preventDefault(); if (executionControls && currentModel) browseButton.current?.focus(); else search.current?.focus(); }}>
         {executionControls && page === "effort" ? <ModelEffortPanel provider={currentProvider} model={currentModel} label={currentLabel} disabled={disabled} onSelect={onSelect} onBrowse={() => setPage("catalog")} /> : <>
         {executionControls && currentModel ? <button ref={browseButton} type="button" onClick={() => setPage("effort")} className="flex w-full items-center gap-1 border-b border-border-subtle px-3 py-2 text-text-secondary hover:bg-background-3"><ChevronLeft size={14} />{t("composer.backEffort")}</button> : null}
-        <div className="flex h-[360px] max-h-[var(--radix-popover-content-available-height,360px)]">
-          <div ref={rail} role="group" aria-label={t("providers.title")} className="scroll-thin flex w-10 shrink-0 flex-col items-center gap-3 overflow-y-auto border-r border-border-subtle px-1 py-3">
+        <div className="flex h-[400px] max-h-[var(--radix-popover-content-available-height,400px)] flex-col">
+          <div ref={rail} role="group" aria-label={t("providers.title")} className="model-tabs">
+            <span ref={glide} className="model-tabs-glide" aria-hidden="true" />
             <button type="button" data-provider-option="favorites" disabled={disabled} aria-label={t("models.favorites")} aria-pressed={scope === "favorites"} aria-controls={panelId}
-              className={cn(railClass, scope === "favorites" && "bg-background-3 text-text-primary")}
-              onPointerEnter={() => browse("favorites")} onFocus={() => browse("favorites")} onClick={() => browse("favorites")}>
-              <Star size={16} aria-hidden="true" />
+              className="model-tab" onPointerEnter={() => browse("favorites")} onFocus={() => browse("favorites")} onClick={() => browse("favorites")}>
+              <Star size={17} aria-hidden="true" fill={scope === "favorites" ? "currentColor" : "none"} className="model-tab-star" />
             </button>
-            <div className="my-1 h-px w-6 shrink-0 bg-border-subtle" />
             {enabledProviders.map((provider) => (
               <button key={provider} type="button" data-provider-option={provider} disabled={disabled}
                 aria-label={providerById(provider).name} aria-pressed={scope === provider} aria-controls={panelId}
-                className={cn(railClass, scope === provider && "bg-background-3 text-text-primary")}
-                onPointerEnter={() => browse(provider)} onFocus={() => browse(provider)} onClick={() => browse(provider)}>
+                className="model-tab" onPointerEnter={() => browse(provider)} onFocus={() => browse(provider)} onClick={() => browse(provider)}>
                 <ProviderIcon id={provider} size={18} className="bg-transparent" />
               </button>
             ))}
           </div>
+          <p className="px-4 pb-0.5 ui-caption text-text-muted">{scope === "favorites" ? t("models.favorites") : providerById(scope).name}</p>
           <div id={panelId} className="flex min-h-0 min-w-0 flex-1 flex-col" role="group" aria-label={scope === "favorites" ? t("models.favorites") : providerById(scope).name}>
             <div className="mx-2 mb-1 mt-2 flex h-8 shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-background-1 px-2 text-text-muted transition-colors duration-[var(--motion-fast)] focus-within:border-text-muted focus-within:ring-2 focus-within:ring-[var(--accent-muted)]">
               <Search size={14} aria-hidden="true" className="shrink-0" />

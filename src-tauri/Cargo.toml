@@ -31,7 +31,6 @@ reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] 
 base64 = "0.22"
 sha2 = "0.10"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
-crc32fast = "1"
 tempfile = "3.27"
 objc2-avf-audio = { version = "0.3.2", default-features = false, features = ["AVAudioEngine", "AVAudioNode", "AVAudioFormat", "AVAudioBuffer", "AVAudioFile", "AVAudioTime", "AVAudioTypes", "AVAudioIONode", "AVAudioApplication", "block2"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
@@ -41,6 +40,7 @@ similar = "3.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
+global-hotkey = "0.8"
 objc2-user-notifications = { version = "0.3.2", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger", "UNNotificationResponse", "UNNotificationSettings", "UNNotificationSound"] }
 speech = "0.9"
 block2 = "0.6.2"
@@ -50,7 +50,7 @@ objc2-foundation = { version = "0.3.2", default-features = false, features = ["N
 # Computer use: Accessibility, per-process input, window screenshots.
 objc2-application-services = { version = "0.3.2", default-features = false, features = ["std", "HIServices", "AXUIElement", "AXError", "AXValue", "AXValueConstants", "AXAttributeConstants", "AXActionConstants", "AXRoleConstants", "libc", "objc2"] }
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString", "CFArray", "CFNumber", "CFData", "CFDictionary", "CFCGTypes", "CFBase"] }
-objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventSource", "CGEventTypes", "CGImage", "CGDataProvider", "CGWindow", "CGRemoteOperation", "libc"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std", "CGEvent", "CGEventSource", "CGEventTypes", "CGImage", "CGDataProvider", "CGGeometry", "CGWindow", "CGRemoteOperation", "libc"] }
 objc2-screen-capture-kit = { version = "0.3.2", default-features = false, features = ["std", "SCShareableContent", "SCScreenshotManager", "SCStream", "SCContentSharingPicker", "block2", "objc2-core-graphics", "objc2-core-foundation", "libc"] }
 
 [target.'cfg(unix)'.dependencies]

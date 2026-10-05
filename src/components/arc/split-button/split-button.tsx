@@ -6,7 +6,7 @@ import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { TargetAndTransition } from "motion/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./split-button.module.css";
 

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Check, ChevronDown, ChevronUp, FileDiff } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileDiff } from "@/components/icons/phosphor";
 import type { TurnReview } from "@/client/types";
 import { fileIconFor } from "@/lib/file-icons";
 import { useTranslation } from "@/i18n/use-translation";

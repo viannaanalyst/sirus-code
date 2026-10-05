@@ -5,7 +5,7 @@ import type { ComponentPropsWithoutRef, CSSProperties, KeyboardEvent, ReactNode 
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition, Variants } from "motion/react";
-import { ChevronDown as NavArrowDown } from "lucide-react";
+import { ChevronDown as NavArrowDown } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./expandable-card.module.css";
 

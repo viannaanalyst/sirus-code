@@ -1,4 +1,15 @@
-import type { ProviderUsage, UsageWindow } from "@/client/types";
+import type { AgentProviderId, ProviderUsage, UsageWindow } from "@/client/types";
+
+/** Providers whose quota native code can read (matches `provider_usage::reports_usage`). */
+export const USAGE_PROVIDER_IDS: readonly AgentProviderId[] = ["codex", "claude", "cursor", "opencode"];
+/** The sidebar rail follows at most this many providers (native validation agrees). */
+export const SIDEBAR_USAGE_LIMIT = 2;
+
+/** The most constrained window: the ring shows how close the provider is to any limit. */
+export function tightestUsageWindow(usage: ProviderUsage | undefined): UsageWindow | undefined {
+  return usage?.windows.reduce<UsageWindow | undefined>((chosen, row) =>
+    row.usedPercent != null && (chosen?.usedPercent == null || row.usedPercent > chosen.usedPercent) ? row : chosen, undefined);
+}
 
 /** Prefer the longer quota window for the compact footer; the popup shows every window. */
 export function primaryUsageWindow(usage: ProviderUsage | undefined): UsageWindow | undefined {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, RotateCcw } from "lucide-react";
+import { Play, RotateCcw } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { AppSettings, NotificationAction, NotificationPermission } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

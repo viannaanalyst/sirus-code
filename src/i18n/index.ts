@@ -1,13 +1,19 @@
 import { gitWorkspaceEnglish, gitWorkspacePortuguese } from "./git-workspace-strings";
 import { messages, uiEnglish, uiPortuguese } from "./ui-strings";
-import { profileEnglish, profilePortuguese } from "./profile-strings";
 import { skillEnglish, skillPortuguese } from "./skill-strings";
 import { documentEnglish, documentPortuguese } from "./document-strings";
 import { keybindingEnglish, keybindingPortuguese } from "./keybinding-strings";
 import { computerEnglish, computerPortuguese } from "./computer-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
+import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
+import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
+import { activityEnglish, activityPortuguese } from "./activity-strings";
+import { reviewInboxEnglish, reviewInboxPortuguese } from "./review-inbox-strings";
+import { automationsEnglish, automationsPortuguese } from "./automations-strings";
+import { workspacePagesEnglish, workspacePagesPortuguese } from "./workspace-pages-strings";
 import { queueEnglish, queuePortuguese } from "./queue-strings";
+import { splitEnglish, splitPortuguese } from "./split-strings";
 import { reviewEnglish, reviewPortuguese } from "./review-strings";
 import { explorerEnglish, explorerPortuguese } from "./explorer-strings";
 export type Locale = "pt-BR" | "en";
@@ -17,7 +23,6 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...uiPortuguese,
     ...explorerPortuguese,
     ...gitWorkspacePortuguese,
-    ...profilePortuguese,
     ...skillPortuguese,
     ...documentPortuguese,
     ...reviewPortuguese,
@@ -26,6 +31,13 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...computerPortuguese,
     ...tabsPortuguese,
     ...teamPortuguese,
+    ...sidebarUsagePortuguese,
+    ...sideChatPortuguese,
+    ...activityPortuguese,
+    ...reviewInboxPortuguese,
+    ...automationsPortuguese,
+    ...workspacePagesPortuguese,
+    ...splitPortuguese,
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[1]])),
     "common.search": "Buscar",
     "Add to chat": "Adicionar ao chat",
@@ -71,7 +83,6 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...uiEnglish,
     ...explorerEnglish,
     ...gitWorkspaceEnglish,
-    ...profileEnglish,
     ...skillEnglish,
     ...documentEnglish,
     ...reviewEnglish,
@@ -80,6 +91,13 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...computerEnglish,
     ...tabsEnglish,
     ...teamEnglish,
+    ...sidebarUsageEnglish,
+    ...sideChatEnglish,
+    ...activityEnglish,
+    ...reviewInboxEnglish,
+    ...automationsEnglish,
+    ...workspacePagesEnglish,
+    ...splitEnglish,
     "shortcut.unsupported": "Use Command with a letter, number or punctuation. System and editing shortcuts are reserved.",
     "shortcut.conflict": "This combination belongs to another action. Choose another.",
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[0]])),

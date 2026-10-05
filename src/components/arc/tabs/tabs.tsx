@@ -3,7 +3,7 @@
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ComponentPropsWithoutRef, RefObject } from "react";
-import { ChevronLeft as NavArrowLeft, ChevronRight as NavArrowRight } from "lucide-react";
+import { ChevronLeft as NavArrowLeft, ChevronRight as NavArrowRight } from "@/components/icons/phosphor";
 import { AnimatePresence, LayoutGroup, animate, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, Variants } from "motion/react";

@@ -3,7 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react";
 import { AnimatePresence, animate, cancelFrame, frame, motion, motionValue, useInView, useMotionValue, useTransform, type AnimationPlaybackControls, type MotionValue, type Variants } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { CircleAlert, TriangleAlert } from "lucide-react";
+import { CircleAlert, TriangleAlert } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./usage-meter.module.css";
 

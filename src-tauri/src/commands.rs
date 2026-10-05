@@ -133,7 +133,6 @@ pub async fn transcript_action(
     let state = state.inner().clone();
     native_task(move || match action {
         Action::Load { session_id } => view::load(&state.data.lock(), &session_id),
-        Action::Activity => Ok(view::activity(&state.data.lock())),
         Action::Search { query } => {
             let (sessions, projects) = view::search_snapshot(&state.data.lock());
             view::search(&sessions, &projects, &query)
@@ -152,6 +151,7 @@ pub async fn save_settings(
     native_task(move || {
         let saved = save_settings_native(&state, settings)?;
         crate::appearance::schedule(&app, state.clone());
+        crate::window_snap::apply(&app, &saved);
         Ok(saved)
     })
     .await
@@ -253,6 +253,7 @@ pub fn add_project(state: State<Arc<AppState>>, path: String) -> Result<Project>
         path: display_path(&canonical),
         added_at: now.clone(),
         last_opened_at: now,
+        look: Default::default(),
     };
     data.projects.insert(0, project.clone());
     drop(data);
@@ -297,6 +298,8 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     data.projects.retain(|project| project.id != project_id);
     data.sessions
         .retain(|session| session.project_id != project_id);
+    crate::automations::prune(&mut data);
+    crate::tasks::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
@@ -898,6 +901,7 @@ pub(crate) fn create_session_locked(
 
     let account_id = crate::provider_accounts::selected(data, &request.agent);
     let session = Session {
+        context_usage: None,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -921,6 +925,7 @@ pub(crate) fn create_session_locked(
         pending_requests: vec![],
         team: None,
         team_worker: None,
+        side_chat: None,
     };
     data.sessions.insert(0, session.clone());
     Ok(session)
@@ -1208,6 +1213,24 @@ pub(crate) fn delete_session_native(
     if session.status.is_active() || state.agents.lock().contains_key(&session_id) {
         return Err(Error::agent("stop the agent before deleting this session"));
     }
+    // Side chats share their parent's workspace and go away with it (ADR-049).
+    if remove_worktree && session.side_chat.is_some() {
+        return Err(Error::agent(
+            "A side chat uses its main session's workspace; it cannot remove it.",
+        ));
+    }
+    let side_chats = crate::side_chat::children(&data.sessions, &session_id);
+    {
+        let agents = state.agents.lock();
+        if data.sessions.iter().any(|item| {
+            side_chats.contains(&item.id)
+                && (item.status.is_active() || agents.contains_key(&item.id))
+        }) {
+            return Err(Error::agent(
+                "Stop this session's side chat before deleting it.",
+            ));
+        }
+    }
     if remove_worktree {
         let project = project.ok_or_else(|| Error::not_found("project not found"))?;
         worktree::remove(&PathBuf::from(project.path), &session.worktree, confirm)?;
@@ -1216,7 +1239,7 @@ pub(crate) fn delete_session_native(
         let mut ptys = state.ptys.lock();
         let owned = ptys
             .values()
-            .filter(|pty| pty.session_id == session_id)
+            .filter(|pty| pty.session_id == session_id || side_chats.contains(&pty.session_id))
             .map(|pty| pty.terminal_id.clone())
             .collect::<Vec<_>>();
         owned
@@ -1224,7 +1247,9 @@ pub(crate) fn delete_session_native(
             .filter_map(|terminal_id| ptys.remove(&terminal_id))
             .collect::<Vec<_>>()
     };
-    data.sessions.retain(|item| item.id != session_id);
+    data.sessions
+        .retain(|item| item.id != session_id && !side_chats.contains(&item.id));
+    crate::tasks::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
@@ -1327,6 +1352,23 @@ pub async fn send_prompt(
         };
         drop(catalogs);
         let team_catalog = request.team.then(|| crate::team::catalog(&state, &data));
+        // A side chat's turn carries the main session as it is right now (ADR-049).
+        let side_recap = match &snapshot.side_chat {
+            Some(origin) => {
+                if request.team {
+                    return Err(Error::agent("A side chat cannot coordinate a team."));
+                }
+                let parent = data
+                    .sessions
+                    .iter()
+                    .find(|item| item.id == origin.parent_session_id)
+                    .ok_or_else(|| {
+                        Error::not_found("The main session of this side chat was removed.")
+                    })?;
+                Some(crate::side_chat::recap(parent))
+            }
+            None => None,
+        };
         let session = find_session_mut(&mut data, &request.session_id)?;
         if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {
             return Err(Error::agent("session already has a running agent"));
@@ -1363,6 +1405,10 @@ pub async fn send_prompt(
         // A pending handoff recap travels with the first prompt only; the
         // persisted user message keeps the visible text.
         let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
+        let process_prompt = match &side_recap {
+            Some(recap) => crate::side_chat::wrap(recap, &process_prompt),
+            None => process_prompt,
+        };
         let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);
         let process_prompt = match &skill_input {
             Some((_, instructions)) if !instructions.is_empty() => {
@@ -1840,7 +1886,8 @@ pub async fn stop_terminal(
 
 #[tauri::command]
 pub async fn host_info(state: State<'_, Arc<AppState>>) -> Result<HostInfo> {
-    let git_path = which::which("git")
+    // Report the Git binary native operations actually run.
+    let git_path = which::which(crate::git::git_binary())
         .ok()
         .map(|path| path.display().to_string());
     let git_version = if let Some(path) = &git_path {
@@ -1850,7 +1897,6 @@ pub async fn host_info(state: State<'_, Arc<AppState>>) -> Result<HostInfo> {
     };
     Ok(HostInfo {
         appearance_support: crate::appearance::support(),
-        profile_default_name: crate::profile::default_name(),
         git_detected: git_path.is_some(),
         git_path,
         git_version,
@@ -1897,6 +1943,8 @@ fn apply_session_selection(session: &mut Session, agent: AgentProviderId, model:
     }
     session.agent = agent;
     session.model = model;
+    // Another model has another window; the next turn reports it again.
+    session.context_usage = None;
     session.native_thread = None;
     if let Some(origin) = &mut session.fork_origin {
         origin.seeded_native_thread_id = None;

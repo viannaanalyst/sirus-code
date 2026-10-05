@@ -5,17 +5,17 @@ import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Columns3, PanelRight, PanelRightOpen } from "lucide-react";
+import { Clock3, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
+import { WindowSnapToast } from "@/components/WindowSnapToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
 import { CommandPalette } from "@/components/CommandPalette";
 import { EnvironmentPanel, EnvironmentToggle } from "@/components/EnvironmentPanel";
 import { RightDock } from "@/components/RightDock";
-import { SessionPane } from "@/components/SessionPane";
+import { SplitWorkspace } from "@/components/SplitWorkspace";
 import { AgentIcon } from "@/components/AgentIcon";
-import { UsageFooter } from "@/components/UsageFooter";
 import { WindowNavigationControls } from "@/components/WindowNavigationControls";
 import { HeaderTabs } from "@/components/HeaderTabs";
 import { visibleTabSessions } from "@/lib/header-tabs";
@@ -34,12 +34,17 @@ import { setAmbientCovered } from "@/lib/ambient-motion";
 import {
   bindRealtime,
   selectCurrentSession,
+  selectListedSessions,
   useAppStore,
 } from "@/store/app-store";
 
 const SettingsPage = lazy(() => import("@/components/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then((module) => ({ default: module.NewSessionDialog })));
 const SessionBoard = lazy(() => import("@/components/SessionBoard").then((module) => ({ default: module.SessionBoard })));
+const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
+const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
+const AutomationsPage = lazy(() => import("@/components/automations/AutomationsPage").then((module) => ({ default: module.AutomationsPage })));
+const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
 /** Header tabs are on screen only with the sidebar collapsed, outside Settings, overlays and Kanban. */
 function headerTabsVisible() {
@@ -51,7 +56,7 @@ function selectHeaderTab(pick: (tabs: string[], current: number) => string | und
   const state = useAppStore.getState();
   const projectId = state.selectedProjectId;
   if (!projectId) return;
-  const tabs = visibleTabSessions(state.openTabsByProject[projectId] ?? [], state.sessions, projectId, state.settings.archivedSessionIds).map((session) => session.id);
+  const tabs = visibleTabSessions(state.openTabsByProject[projectId] ?? [], selectListedSessions(state), projectId, state.settings.archivedSessionIds).map((session) => session.id);
   if (!tabs.length) return;
   const target = pick(tabs, Math.max(0, tabs.indexOf(state.selectedSessionId ?? "")));
   if (target && target !== state.selectedSessionId) void state.selectSession(target);
@@ -95,47 +100,27 @@ export default function App() {
   const conversationStarted = useAppStore((state) => isConversationStarted(selectCurrentSession(state)));
 
   const commands: CommandItem[] = useMemo(
-    () => [
-      { id: "toggle-sidebar", label: t("Toggle Sidebar"), group: t("View"), shortcut: shortcutLabel(effectiveShortcut(settings.customShortcuts, "toggle-sidebar")), run: toggleSidebar },
-      { id: "kanban", label: t("Kanban"), group: t("View"), run: () => setMainView("kanban") },
-      { id: "find-in-conversation", label: t("Find in conversation"), group: t("Session"), shortcut: shortcutLabel(effectiveShortcut(settings.customShortcuts, "find-in-conversation")), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
-      { id: "search-conversations", label: t("Search all conversations"), group: t("Session"), shortcut: shortcutLabel(effectiveShortcut(settings.customShortcuts, "search-conversations")), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch("all"); } },
-      ...projects.map((project) => ({ id: `project-${project.id}`, label: project.name, group: t("Projects"), run: () => void useAppStore.getState().selectProject(project.id) })),
-      {
-        id: "new-session",
-        label: t("New Session"),
-        group: t("Session"),
-        shortcut: shortcutLabel(effectiveShortcut(settings.customShortcuts, "new-session")),
-        run: () => requestNewSession(),
-      },
-      {
-        id: "open-project",
-        label: t("Open Project"),
-        group: t("Project"),
-        run: () => void addProjectFromPicker(),
-      },
-      {
-        id: "toggle-context",
-        label: t("Toggle right panel"),
-        group: t("View"),
-        run: () => toggleDock(),
-      },
-      {
-        id: "open-terminal",
-        label: t("Open Terminal"),
-        group: t("View"),
-        run: () => {
-          useAppStore.getState().openDockPane("terminal");
-        },
-      },
-      {
-        id: "settings",
-        label: t("Open Settings"),
-        group: t("App"),
-        shortcut: shortcutLabel(effectiveShortcut(settings.customShortcuts, "settings")),
-        run: () => setSettingsOpen(true),
-      },
-    ],
+    () => {
+      const shortcut = (id: Parameters<typeof effectiveShortcut>[1]) => shortcutLabel(effectiveShortcut(settings.customShortcuts, id));
+      const actions = t("palette.quickActions");
+      return [
+        { id: "new-session", label: t("New thread"), group: actions, icon: <SquarePen />, shortcut: shortcut("new-session"), run: () => requestNewSession() },
+        { id: "open-project", label: t("Open Project"), group: actions, icon: <FolderPlus />, shortcut: shortcut("open-project"), run: () => void addProjectFromPicker() },
+        { id: "toggle-side-chat", label: t("Toggle side chat"), group: actions, icon: <MessagesSquare />, shortcut: shortcut("toggle-side-chat"), run: () => { setMainView("session"); useAppStore.getState().toggleSideChat(); } },
+        { id: "search-conversations", label: t("Search all conversations"), group: actions, icon: <Search />, shortcut: shortcut("search-conversations"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch("all"); } },
+        { id: "find-in-conversation", label: t("Find in conversation"), group: actions, icon: <TextSearch />, shortcut: shortcut("find-in-conversation"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
+        { id: "kanban", label: t("Kanban"), group: actions, icon: <Columns3 />, run: () => setMainView("kanban") },
+        { id: "pull-requests", label: t("pulls.title"), group: actions, icon: <GitPullRequest />, run: () => setMainView("pulls") },
+        { id: "automations", label: t("automations.title"), group: actions, icon: <Clock3 />, run: () => setMainView("automations") },
+        { id: "inbox", label: t("inbox.title"), group: actions, icon: <Inbox />, run: () => setMainView("inbox") },
+        { id: "tasks", label: t("tasks.title"), group: actions, icon: <ListTodo />, run: () => setMainView("tasks") },
+        { id: "open-terminal", label: t("Open Terminal"), group: actions, icon: <SquareTerminal />, shortcut: shortcut("open-terminal"), run: () => useAppStore.getState().openDockPane("terminal") },
+        { id: "toggle-context", label: t("Toggle right panel"), group: actions, icon: <PanelRight />, shortcut: shortcut("toggle-context"), run: () => toggleDock() },
+        { id: "toggle-sidebar", label: t("Toggle Sidebar"), group: actions, icon: <PanelLeft />, shortcut: shortcut("toggle-sidebar"), run: toggleSidebar },
+        ...projects.map((project) => ({ id: `project-${project.id}`, label: project.name, group: t("Projects"), icon: <Folder />, run: () => void useAppStore.getState().selectProject(project.id) })),
+        { id: "settings", label: t("Open Settings"), group: t("Settings"), icon: <Settings />, shortcut: shortcut("settings"), run: () => setSettingsOpen(true) },
+      ];
+    },
     [addProjectFromPicker, requestNewSession, setSettingsOpen, setMainView, toggleDock, toggleSidebar, t, projects, settings.customShortcuts],
   );
 
@@ -173,6 +158,7 @@ export default function App() {
       { id: "open-files", combo: "Meta+alt+o", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().openDockPane("files") },
       { id: "open-browser", combo: "Meta+alt+b", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().openDockPane("browser") },
       { id: "toggle-environment", combo: "Meta+alt+e", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().toggleEnvironment() },
+      { id: "toggle-side-chat", combo: "Meta+alt+s", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().toggleSideChat() },
       ...(["find-in-conversation", "search-conversations"] as const).map(id => ({ id, combo: id === "find-in-conversation" ? "Meta+f" : "Meta+shift+f", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session"; }, run: () => useAppStore.getState().openTranscriptSearch(id === "find-in-conversation" ? "session" : "all") })),
       { id: "stop-agent", combo: "Meta+.", run: () => void stopAgent() },
       { id: "toggle-sidebar", combo: "Meta+b", run: () => toggleSidebar() },
@@ -241,16 +227,16 @@ export default function App() {
           key="main"
           initial={false}
           exit={{ opacity: 0, transition: { duration: reducedMotion ? 0 : motionTokens.instant } }}
-          className={cn("flex min-w-0 min-h-0 flex-1 flex-col", mainView !== "kanban" && conversationStarted ? "sidebar-material" : "main-material")}
+          className={cn("flex min-w-0 min-h-0 flex-1 flex-col", mainView === "session" && conversationStarted ? "sidebar-material" : "main-material")}
         >
           <header
             data-tauri-drag-region
             className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px-52px)]" : "pl-2"}`}
           >
             {/* With the sidebar collapsed the header carries the project switcher and its session tabs. */}
-            {sidebarCollapsed && mainView !== "kanban" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "kanban" ? t("Kanban") : sessionTitle ?? t("session.new")}</span>
+            {sidebarCollapsed && mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
+              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "automations" ? <Clock3 size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "kanban" ? t("Kanban") : mainView === "pulls" ? t("pulls.title") : mainView === "automations" ? t("automations.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               <EnvironmentToggle />
@@ -270,7 +256,7 @@ export default function App() {
             "relative flex min-h-0 flex-1 transition-[padding] duration-[var(--motion-normal)] ease-[var(--ease-out)] motion-reduce:transition-none",
             environmentOpen && !dockOpen && "pr-[312px]",
           )}>
-            {mainView !== "kanban" ? <SessionPane
+            {mainView === "session" ? <SplitWorkspace
               agents={agents}
               onSend={sendPrompt}
               onStop={() => void stopAgent()}
@@ -278,10 +264,13 @@ export default function App() {
               onModelChange={(provider, model) => void setSessionModel(provider, model)}
             /> : null}
             {mainView === "kanban" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><SessionBoard /></Suspense> : null}
+            {mainView === "inbox" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><InboxPage /></Suspense> : null}
+            {mainView === "tasks" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><TasksPage /></Suspense> : null}
+            {mainView === "automations" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><AutomationsPage /></Suspense> : null}
+            {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}
             <EnvironmentPanel />
           </div>
 
-          {mainView === "kanban" ? <UsageFooter /> : null}
         </motion.div>
         )}
         </AnimatePresence>
@@ -321,6 +310,7 @@ export default function App() {
           {settingsMounted ? <SettingsPage /> : null}
         </Suspense>
         {!settingsOpen ? <ErrorToast /> : null}
+        {!settingsOpen ? <WindowSnapToast /> : null}
         {!settingsOpen ? <ActivityNotifications /> : null}
         {!settingsOpen ? <ProviderUpdateToast /> : null}
       </div>

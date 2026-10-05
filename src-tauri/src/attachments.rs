@@ -521,6 +521,20 @@ fn validate_owner(state: &crate::commands::AppState, owner: &str) -> Result<()> 
     }
     Ok(())
 }
+/// Admits a native window snapshot (ADR-054) into an owner's unsent draft.
+/// The bytes and name come from native capture, never from the renderer.
+pub(crate) fn admit_native_capture(
+    state: &crate::commands::AppState,
+    owner: &str,
+    name: String,
+    bytes: Vec<u8>,
+) -> Result<Vec<PromptAttachment>> {
+    validate_owner(state, owner)?;
+    let file = from_bytes(name, bytes)?;
+    state
+        .attachments
+        .insert(owner, vec![file], &state.data.lock())
+}
 /// Selection is made in the OS picker. The renderer cannot name a window or app.
 #[tauri::command]
 pub async fn capture_prompt_window(

@@ -1,5 +1,5 @@
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
-import { ChevronRight, Copy, File, FilePlus, Folder, FolderPlus, FoldVertical, Trash2 } from "lucide-react";
+import { ChevronRight, Copy, File, FilePlus, Folder, FolderPlus, FoldVertical, Trash2 } from "@/components/icons/phosphor";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";

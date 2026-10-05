@@ -17,6 +17,20 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
             ));
         }
     }
+    if settings.done_sessions.len() > 4096
+        || settings.done_sessions.iter().any(|row| {
+            row.id.is_empty()
+                || row.id.len() > 64
+                || row.at.is_empty()
+                || row.at.len() > 40
+                || !row
+                    .at
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"-:.+".contains(&byte))
+        })
+    {
+        return Err(Error::new("invalid", "done sessions exceed their bounds"));
+    }
     Ok(())
 }
 
@@ -34,6 +48,11 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
     settings
         .pinned_session_ids
         .retain(|id| !settings.archived_session_ids.contains(id));
+    let mut seen = HashSet::new();
+    settings
+        .done_sessions
+        .retain(|row| session_ids.contains(row.id.as_str()) && seen.insert(row.id.clone()));
+    settings.done_sessions.truncate(4096);
 }
 
 fn retain_unique(ids: &mut Vec<String>, owned: &HashSet<&str>) {
@@ -82,9 +101,16 @@ mod tests {
         data.settings.pinned_project_ids = vec!["p".into(), "foreign".into(), "p".into()];
         data.settings.pinned_session_ids = vec!["s".into(), "missing".into()];
         data.settings.archived_session_ids = vec!["s".into(), "missing".into(), "s".into()];
+        data.settings.done_sessions = ["s", "missing", "s"]
+            .map(|id| crate::models::DoneSession {
+                id: id.into(),
+                at: "2026-10-04T12:00:00.000Z".into(),
+            })
+            .to_vec();
         prune(&mut data);
         assert_eq!(data.settings.pinned_project_ids, ["p"]);
         assert_eq!(data.settings.archived_session_ids, ["s"]);
+        assert_eq!(data.settings.done_sessions.len(), 1);
         assert!(data.settings.pinned_session_ids.is_empty());
         assert!(data.sessions[0].status.is_active());
         assert_eq!(data.sessions[0].worktree.path, "/owned");

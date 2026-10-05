@@ -671,6 +671,7 @@ mod tests {
             path: crate::paths::display_path(root),
             added_at: "time".into(),
             last_opened_at: "time".into(),
+            look: Default::default(),
         };
         let data = crate::models::AppData {
             projects: vec![project],

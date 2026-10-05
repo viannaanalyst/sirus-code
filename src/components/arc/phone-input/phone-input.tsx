@@ -5,7 +5,7 @@ import type { ClipboardEvent as ReactClipboardEvent, CSSProperties, FocusEvent a
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition, Variants } from "motion/react";
-import { Check, ChevronDown, Search, X } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./phone-input.module.css";
 

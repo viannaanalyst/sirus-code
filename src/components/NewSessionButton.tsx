@@ -1,5 +1,5 @@
 import { useTranslation } from "@/i18n/use-translation";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/icons/phosphor";
 import { cn } from "@/lib/cn";
 
 interface Props {

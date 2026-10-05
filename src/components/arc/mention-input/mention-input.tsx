@@ -5,7 +5,7 @@ import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode, UIEve
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { Hash } from "lucide-react";
+import { Hash } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./mention-input.module.css";
 

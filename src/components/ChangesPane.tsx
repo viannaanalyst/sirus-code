@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Sparkles } from "lucide-react";
+import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Sparkles } from "@/components/icons/phosphor";
 import { client, type SwitchyardClient } from "@/client";
 import type { FileChange, GitWorkspaceEntry, GitWorkspaceSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

@@ -10,7 +10,7 @@ import {
   RotateCw,
   SquareDashedMousePointer,
   X,
-} from "lucide-react";
+} from "@/components/icons/phosphor";
 import { client } from "@/client";
 import ArcToast from "@/components/arc/toast/toast";
 import { appendAttachments } from "@/lib/composer-attachments";

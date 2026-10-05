@@ -5,7 +5,7 @@ import type { ChangeEvent, FocusEvent as ReactFocusEvent, KeyboardEvent as React
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { TargetAndTransition, Variants } from "motion/react";
-import { Check, CircleAlert, Pencil, X } from "lucide-react";
+import { Check, CircleAlert, Pencil, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./inline-edit.module.css";
 

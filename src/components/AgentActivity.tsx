@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { Bot, Check, ChevronDown, CircleHelp, FilePenLine, Search, Square, Terminal, Wrench, X } from "lucide-react";
+import { Bot, Check, ChevronDown, CircleHelp, FilePenLine, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, TurnActivity } from "@/client/types";
 import { modelDisplayName } from "@/lib/model-registry";
 import { useAppStore } from "@/store/app-store";

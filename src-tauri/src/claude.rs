@@ -354,6 +354,12 @@ pub(crate) async fn execute(
         if !items.is_empty() {
             emit(Event::Activity(items))?;
         }
+        // A manual compaction's result reports the summarizer call, not the rebuilt context.
+        if !(value["type"] == "result" && crate::codex::is_compact(&run.prompt)) {
+            if let Some(usage) = context_usage(&value) {
+                emit(Event::Context(usage))?;
+            }
+        }
         if value["type"] == "system" && value["subtype"] == "init" {
             if let Some(model) = value["model"].as_str() {
                 emit(Event::Model(model.into()))?;
@@ -434,9 +440,72 @@ pub(crate) async fn execute(
     }
 }
 
+/// Context reading from stream-json (ADR-057). Main-agent `assistant` events report
+/// what the request carried; `result` adds the window the CLI knows for the model.
+fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
+    let total = |usage: &Value| -> Option<u64> {
+        let field = |name: &str| usage[name].as_u64().unwrap_or(0);
+        usage["input_tokens"].as_u64()?;
+        Some(
+            field("input_tokens")
+                + field("cache_creation_input_tokens")
+                + field("cache_read_input_tokens")
+                + field("output_tokens"),
+        )
+    };
+    match value["type"].as_str()? {
+        "assistant" if value["parent_tool_use_id"].is_null() => Some(crate::models::ContextUsage {
+            used: total(&value["message"]["usage"])?,
+            window: None,
+        }),
+        "result" if value["subtype"] == "success" => {
+            let usage = value["usage"]["iterations"]
+                .as_array()
+                .and_then(|rows| rows.last())
+                .unwrap_or(&value["usage"]);
+            let window = value["modelUsage"]
+                .as_object()?
+                .values()
+                .filter_map(|model| model["contextWindow"].as_u64())
+                .max();
+            Some(crate::models::ContextUsage {
+                used: total(usage)?,
+                window,
+            })
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_readings_follow_the_main_agent_and_the_result_window() {
+        let assistant = json!({"type":"assistant","parent_tool_use_id":null,"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":1000,"cache_creation_input_tokens":5,"output_tokens":20}}});
+        assert_eq!(
+            context_usage(&assistant),
+            Some(crate::models::ContextUsage {
+                used: 1035,
+                window: None
+            })
+        );
+        let child = json!({"type":"assistant","parent_tool_use_id":"tool","message":{"usage":{"input_tokens":10}}});
+        assert_eq!(context_usage(&child), None);
+        let result = json!({"type":"result","subtype":"success","usage":{"input_tokens":1,"iterations":[{"input_tokens":50,"output_tokens":7}]},"modelUsage":{"a":{"contextWindow":200000},"b":{"contextWindow":1000000}}});
+        assert_eq!(
+            context_usage(&result),
+            Some(crate::models::ContextUsage {
+                used: 57,
+                window: Some(1000000)
+            })
+        );
+        assert_eq!(
+            context_usage(&json!({"type":"result","subtype":"error"})),
+            None
+        );
+    }
     #[test]
     fn rejects_secret_questions_and_permission_mutation_tools() {
         for name in ["AskUserQuestion", "ExitPlanMode", "mcp__auth", "unknown"] {
@@ -742,7 +811,7 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                         })
                         .map_err(|_| Error::agent("Fixture response unavailable"))?;
                 }
-                Event::Answered(_) | Event::Activity(_) | Event::Model(_) => {}
+                Event::Answered(_) | Event::Activity(_) | Event::Model(_) | Event::Context(_) => {}
             }
             Ok(())
         };

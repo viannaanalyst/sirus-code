@@ -1,5 +1,5 @@
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
-import { Star } from "lucide-react";
+import { Star } from "@/components/icons/phosphor";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";

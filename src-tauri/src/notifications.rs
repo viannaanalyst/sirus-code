@@ -487,6 +487,7 @@ mod tests {
             path: "/workspace".into(),
             added_at: "time".into(),
             last_opened_at: "time".into(),
+            look: Default::default(),
         });
         let mut session = session();
         session.status = SessionStatus::Completed;

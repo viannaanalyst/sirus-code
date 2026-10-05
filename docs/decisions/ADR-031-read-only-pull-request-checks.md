@@ -1,6 +1,6 @@
 # ADR-031: Branch-owned read-only pull requests and checks
 
-**Status:** Accepted
+**Status:** Accepted. Amended by [ADR-050](ADR-050-review-inbox.md): the review inbox may change GitHub through four confirmed actions.
 
 ## Context
 

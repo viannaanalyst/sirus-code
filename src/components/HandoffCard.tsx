@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, X } from "@/components/icons/phosphor";
 import { HandoffIcon } from "@/components/icons/HandoffIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { IconButton } from "@/primitives/IconButton";

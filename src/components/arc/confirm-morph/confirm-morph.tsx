@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref } from "react"
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, Transition, Variants } from "motion/react";
-import { CircleAlert, LoaderCircle } from "lucide-react";
+import { CircleAlert, LoaderCircle } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./confirm-morph.module.css";
 

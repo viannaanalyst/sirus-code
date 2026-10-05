@@ -1,7 +1,7 @@
 import type { SettingsSectionId } from "@/lib/settings";
 
 /** Menu order of the Settings sidebar; content enters from the direction of travel. */
-export const SETTINGS_SECTION_ORDER: readonly SettingsSectionId[] = ["general", "profile", "appearance", "notifications", "keybindings", "providers", "skills", "computer", "git", "worktrees", "terminal", "advanced"];
+export const SETTINGS_SECTION_ORDER: readonly SettingsSectionId[] = ["general", "appearance", "notifications", "keybindings", "providers", "skills", "computer", "git", "worktrees", "terminal", "advanced"];
 
 /** Arbitrate at the dialog's capture boundary before a shortcut recorder bubbles. */
 export function settingsEscapeAction(recording: boolean) {

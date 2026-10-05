@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ChevronDown, FolderPlus, Plus, Search, X } from "lucide-react";
+import { ChevronDown, FolderPlus, Plus, Search, X } from "@/components/icons/phosphor";
 import type { Session } from "@/client/types";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -7,7 +7,8 @@ import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
-import { selectCurrentProject, useAppStore, selectSessionsMeta } from "@/store/app-store";
+import { selectCurrentProject, useAppStore, selectListedSessions } from "@/store/app-store";
+import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import "@/styles/header-tabs.css";
 
 /** Long titles scroll on hover (there and back) instead of being cut off; short ones stay still. */
@@ -35,7 +36,7 @@ function ProjectSwitcher() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
-  const sessions = useAppStore(selectSessionsMeta);
+  const sessions = useAppStore(selectListedSessions);
   const tabs = useAppStore(state => state.openTabsByProject);
   const open = useAppStore(state => state.projectSwitcherOpen);
   const setOpen = useAppStore(state => state.setProjectSwitcherOpen);
@@ -99,7 +100,7 @@ function ProjectSwitcher() {
 export function HeaderTabs() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
-  const sessions = useAppStore(selectSessionsMeta);
+  const sessions = useAppStore(selectListedSessions);
   const archived = useAppStore(state => state.settings.archivedSessionIds);
   const tabIds = useAppStore(state => (project ? state.openTabsByProject[project.id] : undefined));
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
@@ -116,7 +117,7 @@ export function HeaderTabs() {
   const list = useRef<HTMLDivElement>(null);
   const glider = useRef<HTMLSpanElement>(null);
   const placed = useRef(false);
-  const dragId = useRef<string | null>(null);
+  const reorder = usePointerReorder({ axis: "x", onDrop: (source, target, edge) => { if (project) useAppStore.getState().moveHeaderTab(project.id, source, target, edge); } });
   const [leaving, setLeaving] = useState<string | null>(null);
   const [menuTab, setMenuTab] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -170,13 +171,14 @@ export function HeaderTabs() {
       { id: "right", label: t("tabs.closeRight"), disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
       { id: "reopen", label: t("tabs.reopen"), disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
     ] : []}>
-      <div ref={list} className="header-tabs-list" role="tablist" aria-label={t("tabs.label")}
+      <div ref={list} className="header-tabs-list" data-reorder-scope="" role="tablist" aria-label={t("tabs.label")}
         onContextMenuCapture={event => setMenuTab((event.target as HTMLElement).closest<HTMLElement>("[data-tab]")?.dataset.tab ?? null)}>
         <span ref={glider} className="header-tabs-glider" aria-hidden="true" />
         {shown.map((session, index) => {
           const status = tabStatus(session, unseen, computer);
           return <div key={session.id} role="tab" tabIndex={session.id === active ? 0 : -1} aria-selected={session.id === active} data-tab={session.id}
-            data-leaving={leaving === session.id || undefined} draggable title={`${session.title}${index < 9 ? `  ⌘${index + 1}` : ""}`}
+            data-leaving={leaving === session.id || undefined} {...reorder.bind(session.id)}
+            data-dragging={reorder.dragging === session.id || undefined} data-drop-edge={reorder.over?.id === session.id ? reorder.over.edge : undefined} title={`${session.title}${index < 9 ? `  ⌘${index + 1}` : ""}`}
             className="header-tab" style={{ "--tab-index": index } as CSSProperties}
             onClick={() => { if (session.id !== active) void store().selectSession(session.id); }}
             onAuxClick={event => { if (event.button === 1) { event.preventDefault(); close(session.id); } }}
@@ -188,15 +190,12 @@ export function HeaderTabs() {
                 list.current?.querySelector<HTMLElement>(`[data-tab="${next.id}"]`)?.focus();
               }
               if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); close(session.id); }
-            }}
-            onDragStart={event => { dragId.current = session.id; event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("application/x-switchyard-tab", session.id); }}
-            onDragOver={event => { if (dragId.current && dragId.current !== session.id) { event.preventDefault(); store().moveHeaderTab(project.id, dragId.current, session.id); } }}
-            onDragEnd={() => { dragId.current = null; }}>
+            }}>
             <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
             <StatusDot status={status} />
             <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
             <span className="sr-only">{status !== "idle" ? label(session) : ""}</span>
-            <button type="button" className="header-tab-close" tabIndex={-1} aria-label={t("tabs.closeNamed", { title: session.title })} onClick={event => { event.stopPropagation(); close(session.id); }}><X size={11} aria-hidden="true" /></button>
+            <button type="button" className="header-tab-close" data-no-reorder="" tabIndex={-1} aria-label={t("tabs.closeNamed", { title: session.title })} onClick={event => { event.stopPropagation(); close(session.id); }}><X size={11} aria-hidden="true" /></button>
           </div>;
         })}
         {draft && <div role="tab" tabIndex={onDraft ? 0 : -1} aria-selected={onDraft} data-draft className="header-tab" style={{ "--tab-index": shown.length } as CSSProperties}
@@ -204,7 +203,7 @@ export function HeaderTabs() {
           onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); store().requestNewSession(); } }}>
           <ProviderIcon id={defaultAgent} size={13} className="rounded-none bg-transparent" />
           <span className="header-tab-title"><span>{t("session.new")}</span></span>
-          {(tabs.length > 0 || !onDraft) && <button type="button" className="header-tab-close" tabIndex={-1} aria-label={t("tabs.closeNamed", { title: t("session.new") })} onClick={event => { event.stopPropagation(); store().closeDraftTab(project.id); }}><X size={11} aria-hidden="true" /></button>}
+          {(tabs.length > 0 || !onDraft) && <button type="button" className="header-tab-close" data-no-reorder="" tabIndex={-1} aria-label={t("tabs.closeNamed", { title: t("session.new") })} onClick={event => { event.stopPropagation(); store().closeDraftTab(project.id); }}><X size={11} aria-hidden="true" /></button>}
         </div>}
       </div>
     </ContextMenu>

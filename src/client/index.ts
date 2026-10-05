@@ -109,10 +109,6 @@ export class SwitchyardClient {
     return this.transport.invoke<AppSettings>("save_settings", { settings });
   }
 
-  profileImageAction(data: string, action: import("./types").ProfileImageAction) {
-    return this.transport.invoke<import("./types").ProfileImageResult>("profile_image_action", { data, action });
-  }
-
   saveComposerDraft(key: string, value: string) {
     return this.transport.invoke<void>("save_composer_draft", { key, value });
   }
@@ -151,6 +147,10 @@ export class SwitchyardClient {
 
   openProject(projectId: string) {
     return this.transport.invoke<Project>("open_project", { projectId });
+  }
+
+  projectLookAction(action: import("./types").ProjectLookAction) {
+    return this.transport.invoke<Project | null>("project_look_action", { action });
   }
 
   renameProject(projectId: string, name: string) {
@@ -193,13 +193,6 @@ export class SwitchyardClient {
     const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "search", query } });
     if (result.type !== "candidates") throw new Error("Unexpected transcript search response");
     return result;
-  }
-
-  /** Owned prompt IDs and times for Profile activity. */
-  async transcriptActivity() {
-    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "activity" } });
-    if (result.type !== "activity") throw new Error("Unexpected transcript activity response");
-    return result.sessions;
   }
 
   async gitWorkspaceHistory(sessionId: string, from: string, skip: number) {
@@ -368,6 +361,26 @@ export class SwitchyardClient {
     return this.transport.invoke<Session>("send_prompt", { request });
   }
 
+  taskAction(action: import("./types").TaskAction) {
+    return this.transport.invoke<import("./types").Task[]>("task_action", { action });
+  }
+
+  automationAction(action: import("./types").AutomationAction) {
+    return this.transport.invoke<import("./types").AutomationSnapshot>("automation_action", { action });
+  }
+
+  onAutomationsChanged(handler: () => void) {
+    return this.transport.listen<unknown>("automations-changed", () => handler());
+  }
+
+  pullRequestAction(action: import("./types").PullRequestAction) {
+    return this.transport.invoke<import("./types").PullRequestResponse>("pull_request_action", { action });
+  }
+
+  sideChatAction(action: import("./types").SideChatAction) {
+    return this.transport.invoke<Session>("side_chat_action", { action });
+  }
+
   teamAction(action: import("./types").TeamAction) {
     return this.transport.invoke<import("./types").TeamActionResponse>("team_action", { action });
   }
@@ -505,6 +518,14 @@ export class SwitchyardClient {
 
   computerAction(action: import("./types").ComputerAction) {
     return this.transport.invoke<import("./types").ComputerSnapshot>("computer_action", { action });
+  }
+
+  windowSnapAction(action: import("./types").WindowSnapAction) {
+    return this.transport.invoke<import("./types").PromptAttachment[]>("window_snap_action", { action });
+  }
+
+  onWindowSnap(handler: (event: import("./types").WindowSnapEvent) => void) {
+    return this.transport.listen<import("./types").WindowSnapEvent>("window-snap", handler);
   }
 
   onComputerState(handler: (state: import("./types").ComputerSnapshot) => void) {

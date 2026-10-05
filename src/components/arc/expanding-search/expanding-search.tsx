@@ -6,7 +6,7 @@ import { flushSync } from "react-dom";
 import { AnimatePresence, animate, motion, useMotionValue, useMotionValueEvent } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { MotionValue } from "motion/react";
-import { Search, X } from "lucide-react";
+import { Search, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./expanding-search.module.css";
 

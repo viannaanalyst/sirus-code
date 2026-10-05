@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Check, ChevronDown, GitMerge, Lock, Square, SquareArrowOutUpRight, Users, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, GitMerge, Lock, Square, SquareArrowOutUpRight, Users, X } from "@/components/icons/phosphor";
 import type { AgentProviderId, Session, TeamTask } from "@/client/types";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";

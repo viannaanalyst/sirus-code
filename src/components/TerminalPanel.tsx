@@ -3,7 +3,7 @@ import { terminalAppearance } from "@/lib/appearance";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Plus, SquareTerminal, Trash2, X } from "lucide-react";
+import { Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import { queueTerminalOperation } from "@/lib/terminal-lifecycle";

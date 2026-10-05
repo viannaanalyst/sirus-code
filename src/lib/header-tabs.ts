@@ -22,9 +22,14 @@ export function closeTab(tabs: readonly string[], sessionId: string): { tabs: st
   return { tabs: next, neighbor: next[Math.min(index, next.length - 1)] ?? null, index };
 }
 
-export function moveTab(tabs: readonly string[], sessionId: string, targetId: string): string[] {
+export function moveTab(tabs: readonly string[], sessionId: string, targetId: string, edge?: "before" | "after"): string[] {
   const from = tabs.indexOf(sessionId), to = tabs.indexOf(targetId);
   if (from < 0 || to < 0 || from === to) return [...tabs];
+  if (edge) {
+    const rest = tabs.filter(id => id !== sessionId);
+    rest.splice(rest.indexOf(targetId) + (edge === "after" ? 1 : 0), 0, sessionId);
+    return rest;
+  }
   const next = [...tabs];
   next.splice(from, 1);
   next.splice(to, 0, sessionId);

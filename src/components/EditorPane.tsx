@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Eye, FileCode2, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, Save, X } from "lucide-react";
+import { ChevronDown, Eye, FileCode2, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, Save, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { EditorId, TextFileSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

@@ -90,6 +90,28 @@ pub struct Project {
     pub path: String,
     pub added_at: String,
     pub last_opened_at: String,
+    /// Display-only folder colour, emoji or logo (ADR-059); empty means the plain folder.
+    #[serde(default, skip_serializing_if = "ProjectLook::is_empty")]
+    pub look: ProjectLook,
+}
+
+/// How a project's sidebar icon looks. A logo wins over an emoji; the colour tints the folder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProjectLook {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emoji: Option<String>,
+    /// `data:image/png;base64,…` of a 96×96 PNG made natively from a picked image.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
+}
+
+impl ProjectLook {
+    pub fn is_empty(&self) -> bool {
+        self.color.is_none() && self.emoji.is_none() && self.logo.is_none()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,6 +231,15 @@ pub struct RespondAgentRequest {
     pub response: AgentResponse,
 }
 
+/// Tokens the conversation occupies and the model's window, as the provider reports them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextUsage {
+    pub used: u64,
+    #[serde(default)]
+    pub window: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Session {
@@ -226,6 +257,9 @@ pub struct Session {
     pub handoff: Option<HandoffOrigin>,
     #[serde(default)]
     pub account_bindings: std::collections::HashMap<AgentProviderId, String>,
+    /// Latest context-window reading the provider reported (ADR-057); not inferred.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_usage: Option<ContextUsage>,
     pub id: String,
     pub title: String,
     pub project_id: String,
@@ -255,6 +289,9 @@ pub struct Session {
     /// Worker sessions point back to their coordinator task.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team_worker: Option<crate::team::TeamWorker>,
+    /// A side chat points back to the main session it answers about (ADR-049).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_chat: Option<crate::side_chat::SideChatOrigin>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -373,12 +410,45 @@ pub enum SidebarThreadSortOrder {
     CreatedAt,
 }
 
+/// Closed choices for the global window snap shortcut.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowSnapShortcut {
+    #[default]
+    ControlOptionCommandS,
+    OptionShiftS,
+    ControlShiftS,
+}
+
+/// A session marked Done in the Activity view; `at` is the RFC 3339 time it was marked.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DoneSession {
+    pub id: String,
+    pub at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub notifications: crate::notifications::Preferences,
-    pub profile: crate::profile::LocalProfile,
     pub usage_providers: Vec<AgentProviderId>,
+    /// Providers whose quota ring shows in the sidebar rail (at most two).
+    pub sidebar_usage_providers: Vec<AgentProviderId>,
+    /// The sidebar shows the time-grouped Activity view instead of project folders.
+    pub sidebar_activity_view: bool,
+    /// Sessions marked Done in the Activity view and when; newer activity reopens them.
+    pub done_sessions: Vec<DoneSession>,
+    /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
+    pub window_snap_enabled: bool,
+    pub window_snap_shortcut: WindowSnapShortcut,
+    /// Pinned pull requests/issues in the review inbox, as `owner/repo#number` (ADR-050).
+    pub github_pins: Vec<String>,
+    /// Rail item order and hidden items (closed IDs; Home cannot be hidden).
+    pub rail_item_order: Vec<String>,
+    pub hidden_rail_items: Vec<String>,
+    /// Project IDs pinned as rail shortcuts.
+    pub rail_project_shortcuts: Vec<String>,
     pub custom_shortcuts: std::collections::HashMap<String, String>,
     pub default_agent: AgentProviderId,
     pub open_last_project: bool,
@@ -470,10 +540,18 @@ fn default_true() -> bool {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            profile: Default::default(),
             notifications: Default::default(),
             custom_shortcuts: std::collections::HashMap::new(),
             usage_providers: vec![AgentProviderId::Codex],
+            sidebar_usage_providers: Vec::new(),
+            sidebar_activity_view: false,
+            done_sessions: Vec::new(),
+            window_snap_enabled: false,
+            window_snap_shortcut: WindowSnapShortcut::default(),
+            github_pins: Vec::new(),
+            rail_item_order: Vec::new(),
+            hidden_rail_items: Vec::new(),
+            rail_project_shortcuts: Vec::new(),
             default_agent: AgentProviderId::Codex,
             open_last_project: true,
             worktree_base_path: None,
@@ -545,10 +623,33 @@ impl Default for AppSettings {
     }
 }
 
+/// Customizable rail items (Settings is fixed at the bottom).
+pub const RAIL_ITEMS: [&str; 8] = [
+    "home",
+    "inbox",
+    "kanban",
+    "tasks",
+    "archived",
+    "pulls",
+    "automations",
+    "drafts",
+];
+
+/// `owner/repo#number`, with the same repository charset as GitHub web URLs.
+fn valid_github_pin(pin: &str) -> bool {
+    let Some((repo, number)) = pin.split_once('#') else {
+        return false;
+    };
+    pin.len() <= 220
+        && number
+            .parse::<u32>()
+            .is_ok_and(|n| n > 0 && n <= 10_000_000)
+        && crate::pull_requests::repository(&format!("https://github.com/{repo}")).is_some()
+}
+
 impl AppSettings {
     pub fn validate_controls(&self) -> crate::error::Result<()> {
         crate::skills::validate_disabled(&self.disabled_skills)?;
-        crate::profile::validate(&self.profile)?;
         use crate::error::Error;
         if self.usage_providers.len() > 9
             || self
@@ -561,6 +662,51 @@ impl AppSettings {
             return Err(Error::new(
                 "invalid_settings",
                 "Invalid usage provider selection.",
+            ));
+        }
+        if self.sidebar_usage_providers.len() > 2
+            || self
+                .sidebar_usage_providers
+                .iter()
+                .any(|id| !crate::provider_usage::reports_usage(id))
+            || (self.sidebar_usage_providers.len() == 2
+                && self.sidebar_usage_providers[0] == self.sidebar_usage_providers[1])
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Choose at most two providers with usage for the sidebar.",
+            ));
+        }
+        if self.github_pins.len() > 200 || self.github_pins.iter().any(|pin| !valid_github_pin(pin))
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid pinned pull requests.",
+            ));
+        }
+        let unique = |items: &[String]| {
+            items.iter().collect::<std::collections::HashSet<_>>().len() == items.len()
+        };
+        if self.rail_item_order.len() > RAIL_ITEMS.len()
+            || self.hidden_rail_items.len() > RAIL_ITEMS.len()
+            || !unique(&self.rail_item_order)
+            || !unique(&self.hidden_rail_items)
+            || self
+                .rail_item_order
+                .iter()
+                .chain(&self.hidden_rail_items)
+                .any(|item| !RAIL_ITEMS.contains(&item.as_str()))
+            || self.hidden_rail_items.iter().any(|item| item == "home")
+            || self.rail_project_shortcuts.len() > 12
+            || !unique(&self.rail_project_shortcuts)
+            || self
+                .rail_project_shortcuts
+                .iter()
+                .any(|id| id.is_empty() || id.len() > 128 || id.chars().any(char::is_control))
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid rail customization.",
             ));
         }
         crate::appearance::validate(self)?;
@@ -581,7 +727,7 @@ impl AppSettings {
                 "Invalid model execution preferences.",
             ));
         }
-        const BINDINGS: [(&str, &str); 15] = [
+        const BINDINGS: [(&str, &str); 16] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
@@ -597,6 +743,7 @@ impl AppSettings {
             ("toggle-environment", "meta+alt+e"),
             ("find-in-conversation", "meta+f"),
             ("search-conversations", "meta+shift+f"),
+            ("toggle-side-chat", "meta+alt+s"),
         ];
         for (id, combo) in &self.custom_shortcuts {
             let mut parts = combo.split('+').collect::<Vec<_>>();
@@ -650,6 +797,57 @@ impl AppSettings {
 #[cfg(test)]
 mod settings_tests {
     use super::*;
+    #[test]
+    fn github_pins_are_bounded_owner_repo_numbers() {
+        for good in ["owner/repo#1", "my-org/a.b_c#9999"] {
+            assert!(valid_github_pin(good), "{good}");
+        }
+        for bad in [
+            "owner/repo",
+            "owner/repo#0",
+            "owner#1",
+            "o/../x#1",
+            "o/r#1#2",
+            "o/r#-1",
+            "https://x#1",
+        ] {
+            assert!(!valid_github_pin(bad), "{bad}");
+        }
+        let settings = AppSettings {
+            github_pins: vec!["owner/repo#1".into(); 201],
+            ..AppSettings::default()
+        };
+        assert!(settings.validate_controls().is_err());
+    }
+
+    #[test]
+    fn sidebar_usage_accepts_at_most_two_providers_that_report_usage() {
+        let with = |ids: Vec<AgentProviderId>| AppSettings {
+            sidebar_usage_providers: ids,
+            ..AppSettings::default()
+        };
+        assert!(serde_json::from_str::<AppSettings>("{}")
+            .unwrap()
+            .sidebar_usage_providers
+            .is_empty());
+        assert!(with(vec![AgentProviderId::Codex, AgentProviderId::Claude])
+            .validate_controls()
+            .is_ok());
+        assert!(with(vec![
+            AgentProviderId::Codex,
+            AgentProviderId::Claude,
+            AgentProviderId::Cursor
+        ])
+        .validate_controls()
+        .is_err());
+        assert!(with(vec![AgentProviderId::Codex, AgentProviderId::Codex])
+            .validate_controls()
+            .is_err());
+        assert!(with(vec![AgentProviderId::Grok])
+            .validate_controls()
+            .is_err());
+    }
+
     #[test]
     fn general_preferences_have_legacy_defaults_and_closed_sort_modes() {
         let legacy: AppSettings = serde_json::from_str("{}").unwrap();
@@ -780,7 +978,8 @@ mod settings_tests {
             ("open-browser", "meta+shift+b"),
             ("toggle-environment", "meta+shift+e"),
             ("find-in-conversation", "meta+alt+f"),
-            ("search-conversations", "meta+alt+s"),
+            ("search-conversations", "meta+alt+g"),
+            ("toggle-side-chat", "meta+shift+s"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());
@@ -805,6 +1004,14 @@ pub struct AppData {
     pub composer_drafts: std::collections::HashMap<String, String>,
     #[serde(default)]
     pub context_texts: std::collections::HashMap<String, String>,
+    /// Scheduled automations and their bounded run history (ADR-051).
+    #[serde(default)]
+    pub automations: Vec<crate::automations::Automation>,
+    #[serde(default)]
+    pub automation_runs: Vec<crate::automations::Run>,
+    /// Personal tasks, optionally handed to an agent session (ADR-052).
+    #[serde(default)]
+    pub tasks: Vec<crate::tasks::Task>,
 }
 
 pub fn default_account_id() -> String {
@@ -896,7 +1103,6 @@ pub struct AppearanceSupport {
 #[serde(rename_all = "camelCase")]
 pub struct HostInfo {
     pub appearance_support: AppearanceSupport,
-    pub profile_default_name: String,
     pub git_detected: bool,
     pub git_path: Option<String>,
     pub git_version: Option<String>,

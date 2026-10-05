@@ -122,6 +122,7 @@ pub fn fork_snapshot(
         inherited_message_count: messages.len(),
     };
     Ok(Session {
+        context_usage: None,
         goal: source.goal.clone(),
         import_origin: None,
         handoff: None,
@@ -145,6 +146,7 @@ pub fn fork_snapshot(
         fork_origin: Some(origin),
         team: None,
         team_worker: None,
+        side_chat: None,
     })
 }
 
@@ -269,6 +271,7 @@ pub fn handoff_snapshot(
         ));
     }
     Ok(Session {
+        context_usage: None,
         goal: source.goal.clone(),
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -297,6 +300,7 @@ pub fn handoff_snapshot(
         pending_requests: vec![],
         team: None,
         team_worker: None,
+        side_chat: None,
     })
 }
 

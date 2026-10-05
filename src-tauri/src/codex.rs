@@ -132,6 +132,8 @@ pub enum Event {
     Answered(String),
     Activity(Vec<crate::activity::ActivityItem>),
     Model(String),
+    /// Context-window reading reported by the provider (ADR-057).
+    Context(crate::models::ContextUsage),
 }
 
 /// Each turn owns one server process. Follow-ups resume the exact persisted thread.
@@ -295,7 +297,7 @@ impl Wire {
                     if value.get("error").is_some() { return Err(Error::agent(format!("Codex rejected {method}; check CLI compatibility and native thread availability"))); }
                     return value.get("result").cloned().ok_or_else(|| Error::agent("Codex response lacks result"));
                 }
-                if method == "turn/start" && value.get("method").is_some() {
+                if matches!(method, "turn/start" | "thread/compact/start") && value.get("method").is_some() {
                     let size=value.to_string().len();
                     if self.deferred.len() >= 256 || self.deferred_bytes + size > 8*1024*1024 {return Err(Error::agent("Too many early Codex turn events"));}
                     self.deferred_bytes+=size;
@@ -441,15 +443,29 @@ async fn execute(
     if let Some(model) = thread["model"].as_str() {
         emit(Event::Model(model.into()))?;
     }
-    let mut turn_params = json!({"threadId":thread_id,"cwd":run.cwd,"approvalPolicy":"on-request","approvalsReviewer":"user","sandboxPolicy":{"type":"workspaceWrite","writableRoots":[run.cwd],"networkAccess":false,"excludeTmpdirEnvVar":true,"excludeSlashTmp":true},"input":[{"type":"text","text":run.prompt,"text_elements":[]} ]});
-    turn_params["input"] = crate::attachments::codex_input(&run.prompt, &run.attachments);
-    crate::execution::codex_turn(
-        &mut turn_params,
-        &run.session.execution,
-        run.session.model.as_deref(),
-    )?;
-    let turn = wire.request("turn/start", turn_params, cancel).await?;
-    let turn_id = string(&turn["turn"], "id")?;
+    // `/compact` on an existing thread compacts its context instead of starting a turn (ADR-057).
+    let compact = is_compact(&run.prompt)
+        && run.session.native_thread.is_some()
+        && run.attachments.is_empty();
+    let turn_id = if compact {
+        wire.request(
+            "thread/compact/start",
+            json!({"threadId":thread_id}),
+            cancel,
+        )
+        .await?;
+        compaction_turn(wire, &thread_id, cancel).await?
+    } else {
+        let mut turn_params = json!({"threadId":thread_id,"cwd":run.cwd,"approvalPolicy":"on-request","approvalsReviewer":"user","sandboxPolicy":{"type":"workspaceWrite","writableRoots":[run.cwd],"networkAccess":false,"excludeTmpdirEnvVar":true,"excludeSlashTmp":true},"input":[{"type":"text","text":run.prompt,"text_elements":[]} ]});
+        turn_params["input"] = crate::attachments::codex_input(&run.prompt, &run.attachments);
+        crate::execution::codex_turn(
+            &mut turn_params,
+            &run.session.execution,
+            run.session.model.as_deref(),
+        )?;
+        let turn = wire.request("turn/start", turn_params, cancel).await?;
+        string(&turn["turn"], "id")?
+    };
     let mut ledger = PendingLedger {
         session_id: run.session.id.clone(),
         generation: run.generation.clone(),
@@ -656,6 +672,11 @@ async fn execute(
                 }
                 *previous = text.into();
             }
+            "thread/tokenUsage/updated" => {
+                if let Some(usage) = context_usage(params) {
+                    emit(Event::Context(usage))?;
+                }
+            }
             "turn/completed" if params["turn"]["id"] == turn_id => {
                 return match params["turn"]["status"].as_str() {
                     Some("completed") => Ok(false),
@@ -666,6 +687,60 @@ async fn execute(
             _ => {}
         }
     }
+}
+
+/// The standalone `/compact` command.
+pub(crate) fn is_compact(prompt: &str) -> bool {
+    prompt.trim() == "/compact"
+}
+
+/// `thread/tokenUsage/updated`: the last request's total is what the context holds now;
+/// the running total keeps growing across compactions and is ignored.
+fn context_usage(params: &Value) -> Option<crate::models::ContextUsage> {
+    let usage = &params["tokenUsage"];
+    Some(crate::models::ContextUsage {
+        used: usage["last"]["totalTokens"].as_u64()?,
+        window: usage["modelContextWindow"]
+            .as_u64()
+            .filter(|window| *window > 0),
+    })
+}
+
+/// A compaction runs as its own turn; its id arrives with `turn/started`.
+/// Other early events stay queued for the turn loop, within the same bounds.
+async fn compaction_turn(
+    wire: &mut Wire,
+    thread_id: &str,
+    cancel: &mut watch::Receiver<bool>,
+) -> Result<String> {
+    let started = |value: &Value| {
+        (value["method"] == "turn/started" && value["params"]["threadId"] == thread_id)
+            .then(|| value["params"]["turn"]["id"].as_str().map(str::to_owned))
+            .flatten()
+    };
+    if let Some(id) = wire.deferred.iter().find_map(started) {
+        return Ok(id);
+    }
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let value = tokio::select! {
+                value = wire.read() => value?,
+                _ = cancel.changed() => return Err(Error::agent("Codex compaction cancelled")),
+            };
+            let id = started(&value);
+            let size = value.to_string().len();
+            if wire.deferred.len() >= 256 || wire.deferred_bytes + size > 8 * 1024 * 1024 {
+                return Err(Error::agent("Too many early Codex turn events"));
+            }
+            wire.deferred_bytes += size;
+            wire.deferred.push_back(value);
+            if let Some(id) = id {
+                return Ok(id);
+            }
+        }
+    })
+    .await
+    .map_err(|_| Error::agent("Codex did not start the compaction"))?
 }
 
 /// A blank line before the first text of a new assistant message item, so
@@ -752,6 +827,19 @@ pub fn monitor(
                     }
                 }
                 Event::Model(model) => crate::activity::model(session, &model),
+                Event::Context(usage) => {
+                    // A reading without a window keeps the last window known for this model.
+                    let window = usage
+                        .window
+                        .or(session.context_usage.and_then(|known| known.window));
+                    let next = crate::models::ContextUsage {
+                        used: usage.used,
+                        window,
+                    };
+                    publish = session.context_usage != Some(next);
+                    persist_immediately = false;
+                    session.context_usage = Some(next);
+                }
                 Event::Delta(chunk) => {
                     if let Some(event) =
                         crate::agent::record_output(session, &mut cursor, "stdout", chunk)?
@@ -908,6 +996,20 @@ async fn cleanup(child: &mut Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_usage_reads_the_last_request_and_window() {
+        let params = json!({"threadId":"t","turnId":"u","tokenUsage":{"last":{"totalTokens":176000,"inputTokens":1,"cachedInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0},"total":{"totalTokens":900000,"inputTokens":1,"cachedInputTokens":0,"outputTokens":0,"reasoningOutputTokens":0},"modelContextWindow":256000}});
+        assert_eq!(
+            context_usage(&params),
+            Some(crate::models::ContextUsage {
+                used: 176000,
+                window: Some(256000)
+            })
+        );
+        assert_eq!(context_usage(&json!({"tokenUsage":{"last":{}}})), None);
+        assert!(is_compact(" /compact ") && !is_compact("/compact now"));
+    }
     #[test]
     fn consecutive_assistant_items_are_separated_once() {
         let mut last = None;
@@ -1133,7 +1235,10 @@ else:
                     Event::Pending(_) => {
                         return Err(Error::agent("Unexpected approval in harmless native smoke"))
                     }
-                    Event::Answered(_) | Event::Activity(_) | Event::Model(_) => {}
+                    Event::Answered(_)
+                    | Event::Activity(_)
+                    | Event::Model(_)
+                    | Event::Context(_) => {}
                 }
                 Ok(())
             };

@@ -54,6 +54,9 @@
   --danger: #e5484d;
   --success: #3dd68c;
   --warning: #f5a524;
+  --draft: #3b82f6;
+  --info: #3b82f6;
+  --merged: #a371f7;
   --glass: #141414;
   --shadow-float: 0 12px 40px rgb(0 0 0 / 0.45);
   --motion-instant: 80ms;
@@ -322,6 +325,9 @@ html[data-theme="light"] {
   --text-muted: #71717a;
   --sidebar-rail-icon-active: #000000;
   --accent: #18181b;
+  --draft: #1f5fd1;
+  --info: #1f5fd1;
+  --merged: #8250df;
   --switch-track-off: rgb(0 0 0 / 0.12);
   --switch-track-on: rgb(24 24 27 / 0.55);
   --switch-thumb-on: var(--background-0);

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, FocusEvent, KeyboardEvent, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Check, Copy, MoreHorizontal, Trash2 } from "lucide-react";
+import { Check, Copy, MoreHorizontal, Trash2 } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./context-menu.module.css";
 

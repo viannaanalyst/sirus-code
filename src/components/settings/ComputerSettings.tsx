@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { Hand, OctagonX, ShieldCheck, Telescope } from "lucide-react";
-import type { AppSettings } from "@/client/types";
+import { Hand, OctagonX, ShieldCheck, Telescope } from "@/components/icons/phosphor";
+import type { AppSettings, WindowSnapShortcut } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { Select } from "@/primitives/Select";
 import { Switch } from "@/primitives/Switch";
 import { useAppStore } from "@/store/app-store";
 import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
@@ -37,6 +38,19 @@ export function ComputerSettings({ settings, onSave }: { settings: AppSettings; 
 
   return <SettingsSection title={t("computer.title")} description={t("computer.intro")}>
     <div className="general-settings">
+      <SettingsGroup title={t("windowSnap.title")} card>
+        <SettingsRow title={t("windowSnap.enable")} description={t("windowSnap.enableHelp")}>
+          <Switch checked={settings.windowSnapEnabled} onChange={value => onSave({ ...settings, windowSnapEnabled: value })} label={t("windowSnap.enable")} />
+        </SettingsRow>
+        <SettingsRow title={t("windowSnap.shortcut")} description={t("windowSnap.shortcutHelp")}>
+          <Select className="general-settings-select" label={t("windowSnap.shortcut")} disabled={!settings.windowSnapEnabled} value={settings.windowSnapShortcut}
+            onChange={value => onSave({ ...settings, windowSnapShortcut: value as WindowSnapShortcut })}
+            options={[{ value: "controlOptionCommandS", label: "⌃⌥⌘S" }, { value: "optionShiftS", label: "⌥⇧S" }, { value: "controlShiftS", label: "⌃⇧S" }]} />
+        </SettingsRow>
+        {settings.windowSnapEnabled && !computer?.screenRecording ? <Permission title={t("computer.screenRecording")} help={t("windowSnap.permissionHelp")} granted={false}
+          onAllow={() => void act({ type: "requestScreenRecording" })} onOpen={() => void act({ type: "openScreenRecordingSettings" })} /> : null}
+      </SettingsGroup>
+
       <SettingsGroup title={t("computer.title")} card>
         <SettingsRow title={t("computer.enable")} description={t("computer.enableHelp")}>
           <Switch checked={settings.computerUseEnabled} onChange={value => onSave({ ...settings, computerUseEnabled: value })} label={t("computer.enable")} />

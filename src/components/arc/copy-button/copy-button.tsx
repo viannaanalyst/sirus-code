@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion, type TargetAndTransition, type Transition } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { CircleAlert, Copy } from "lucide-react";
+import { CircleAlert, Copy } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { motionTokens } from "../lib/motion-tokens";
 import { useCopyFeedback } from "../lib/use-copy-feedback";

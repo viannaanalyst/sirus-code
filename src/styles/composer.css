@@ -63,11 +63,24 @@
   @keyframes dictation-orbit { to { offset-distance:100%; } }
   @keyframes dictation-wave { 0%,100% { transform:scaleY(.28); opacity:.6; } 35% { transform:scaleY(1); opacity:1; } 70% { transform:scaleY(.55); opacity:.8; } }
   @media (prefers-reduced-motion:reduce) { .dictation-orbit-dot,.dictation-wave b { animation:none!important; } }
-  .model-effort-panel { --model-tone: var(--brand-openai); --energy-cool: color-mix(in srgb,var(--model-tone) 28%,var(--brand-gemini)); --energy-soft: color-mix(in srgb,var(--model-tone) 45%,var(--brand-nebula)); }
-  .model-effort-panel[data-brand="claude"] { --model-tone: var(--brand-claude); }
-  .model-effort-panel[data-brand="gemini"] { --model-tone: var(--brand-gemini); }
-  .model-effort-panel[data-brand="cursor"] { --model-tone: var(--brand-cursor); }
-  .model-effort-panel[data-brand="unknown"], .model-effort-panel[data-brand="grok"], .model-effort-panel[data-brand="opencode"] { --model-tone: var(--text-secondary); }
+  /* Model picker provider tabs: icons on top with a gliding highlight. */
+  .model-tabs { position: relative; display: flex; gap: 4px; margin: 10px 12px 6px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+  .model-tab { position: relative; z-index: 1; display: flex; flex: 1; align-items: center; justify-content: center; height: 32px; border-radius: 9px; color: var(--text-muted); }
+  .model-tab > * { filter: grayscale(1); opacity: 0.6; transition: filter var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out), transform var(--motion-normal) var(--ease-spring); }
+  .model-tab:hover > * { opacity: 0.9; }
+  .model-tab[aria-pressed="true"] > * { filter: none; opacity: 1; transform: scale(1.08); }
+  .model-tab-star { color: var(--warning); }
+  .model-tab:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
+  .model-tab:disabled { opacity: 0.4; }
+  .model-tabs-glide { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 9px; background: color-mix(in srgb, var(--text-primary) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent); transition: transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring); }
+  @media (prefers-reduced-motion: reduce) { .model-tabs-glide, .model-tab > * { transition: none; } }
+  /* The brand colour heats toward red as effort rises (--effort-heat-mix is set from the level). */
+  .model-effort-panel { --model-base: var(--brand-openai); --model-tone: color-mix(in oklch, var(--model-base), #ff4d3d var(--effort-heat-mix, 0%)); --energy-cool: color-mix(in srgb,var(--model-tone) 28%,var(--brand-gemini)); --energy-soft: color-mix(in srgb,var(--model-tone) 45%,var(--brand-nebula)); }
+  .model-effort-panel[data-brand="claude"] { --model-base: var(--brand-claude); }
+  .model-effort-panel[data-brand="gemini"] { --model-base: var(--brand-gemini); }
+  .model-effort-panel[data-brand="cursor"] { --model-base: var(--brand-cursor); }
+  .model-effort-panel[data-brand="unknown"], .model-effort-panel[data-brand="grok"], .model-effort-panel[data-brand="opencode"] { --model-base: var(--text-secondary); }
+  .effort-label, .effort-bolt { transition: color var(--motion-slow) var(--ease-out), background var(--motion-fast), transform var(--motion-fast); }
   .effort-label,.effort-bolt { color: var(--model-tone); }
   .effort-bolt { background: color-mix(in srgb,var(--model-tone) 9%,transparent); transition: background var(--motion-fast), transform var(--motion-fast); }
   .effort-bolt:hover:not(:disabled) { background: color-mix(in srgb,var(--model-tone) 19%,transparent); }
@@ -76,9 +89,16 @@
   .effort-track { position:absolute; inset:0; border:1px solid var(--border-default); background:var(--background-3); border-radius:999px; overflow:hidden; }
   .effort-fill { position:absolute; inset:0; transform-origin:left; transform:scaleX(var(--effort-fill)); background:linear-gradient(100deg,var(--model-tone) 12%,var(--energy-soft) 63%,var(--energy-cool)); transition:transform var(--motion-normal) var(--ease-out); }
   .effort-energy { position:absolute; inset:0; overflow:hidden; border-radius:inherit; clip-path:inset(0 calc((1 - var(--effort-fill))*100%) 0 0 round 999px); transition:clip-path var(--motion-normal) var(--ease-out); }
-  .effort-nebula { position:absolute; inset:-12px auto -12px calc(var(--effort-fill)*55% - 90px); width:220px; background:radial-gradient(ellipse at 56% 49%,rgb(255 255 255/.95),transparent 17%),radial-gradient(ellipse at 62% 55%,var(--energy-soft),transparent 58%),radial-gradient(ellipse at 38% 40%,var(--energy-cool),transparent 60%); opacity:.9; animation:effort-nebula calc(var(--motion-slow)*13.5) ease-in-out infinite alternate paused; }
-  .effort-particles { position:absolute; inset:0 -160px 0 0; background:radial-gradient(circle at 14px 10px,white 0 1px,transparent 2px),radial-gradient(circle at 48px 28px,white 0 1.5px,transparent 2px),radial-gradient(circle at 109px 13px,rgb(255 255 255/.8) 0 1px,transparent 2px),radial-gradient(circle at 145px 27px,white 0 1px,transparent 2px); background-size:160px 38px; animation:effort-drift calc(var(--motion-slow)*9) linear infinite paused; }
+  .effort-nebula { position:absolute; inset:-12px auto -12px calc(var(--effort-fill)*55% - 90px); width:220px; background:radial-gradient(ellipse at 56% 49%,rgb(255 255 255/.95),transparent 17%),radial-gradient(ellipse at 62% 55%,var(--energy-soft),transparent 58%),radial-gradient(ellipse at 38% 40%,var(--energy-cool),transparent 60%); opacity:.9; animation:effort-nebula calc(var(--motion-slow)*13.5*var(--effort-speed,1)) ease-in-out infinite alternate paused; }
+  .effort-particles { position:absolute; inset:0 -160px 0 0; background:radial-gradient(circle at 14px 10px,white 0 1px,transparent 2px),radial-gradient(circle at 48px 28px,white 0 1.5px,transparent 2px),radial-gradient(circle at 109px 13px,rgb(255 255 255/.8) 0 1px,transparent 2px),radial-gradient(circle at 145px 27px,white 0 1px,transparent 2px); background-size:160px 38px; animation:effort-drift calc(var(--motion-slow)*9*var(--effort-speed,1)) linear infinite paused; }
   .effort-flare { position:absolute; top:0; bottom:0; left:calc(var(--effort-fill)*68% - 20px); width:40px; background:radial-gradient(ellipse,white 1%,rgb(255 255 255/.8) 9%,transparent 65%); animation:effort-flare calc(var(--motion-slow)*9) ease-in-out infinite alternate paused; }
+  /* Embers rise from the filled part; more of them at higher effort. */
+  .effort-embers { position:absolute; inset:0; pointer-events:none; }
+  .effort-embers i { position:absolute; bottom:2px; width:2.5px; height:2.5px; border-radius:50%; background:#ffd59a; box-shadow:0 0 5px #ffb547; opacity:0; animation:effort-ember calc(var(--motion-slow)*5.6) ease-out infinite paused; }
+  /* With Fast on, a bolt strikes across the bar every couple of seconds. */
+  .effort-strike { display:none; position:absolute; inset:-8px 0; width:100%; height:calc(100% + 16px); overflow:visible; pointer-events:none; z-index:2; }
+  .effort-strike path { fill:none; stroke:white; stroke-width:2.2; stroke-linejoin:round; filter:drop-shadow(0 0 4px #ffe1a8) drop-shadow(0 0 10px var(--model-tone)); stroke-dasharray:600; stroke-dashoffset:600; animation:effort-strike calc(var(--motion-slow)*7) ease-out infinite paused; }
+  [data-fast="true"] .effort-strike { display:block; }
   .effort-lightning { display:none; position:absolute; inset:0; width:100%; height:100%; overflow:visible; color:white; }
   .effort-lightning path { fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round; stroke-dasharray:100 9 50 14; animation:effort-current calc(var(--motion-slow)*5) linear infinite paused; }
   .effort-lightning path+path { stroke-width:1; opacity:.65; animation-direction:reverse; }
@@ -86,7 +106,7 @@
   [data-fast="true"] .effort-nebula { animation-duration:calc(var(--motion-slow)*5); }
   [data-fast="true"] .effort-particles { animation-duration:calc(var(--motion-slow)*3); opacity:.65; }
   [data-fast="true"] .effort-flare { animation-duration:calc(var(--motion-slow)*4); }
-  [data-animate="true"] .effort-nebula,[data-animate="true"] .effort-particles,[data-animate="true"] .effort-flare,[data-animate="true"] .effort-lightning path { animation-play-state:running; }
+  [data-animate="true"] .effort-nebula,[data-animate="true"] .effort-particles,[data-animate="true"] .effort-flare,[data-animate="true"] .effort-lightning path,[data-animate="true"] .effort-embers i,[data-animate="true"] .effort-strike path { animation-play-state:running; }
   .effort-dots { position:absolute; inset:0 14px; display:flex; align-items:center; justify-content:space-between; }
   .effort-dots i { width:4px; height:4px; background:rgb(255 255 255/.4); border-radius:50%; }
   .effort-slider input { position:absolute; inset:0; width:100%; margin:0; padding:0; height:32px; appearance:none; -webkit-appearance:none; background:transparent; border-radius:999px; cursor:pointer; }
@@ -97,5 +117,7 @@
   @keyframes effort-drift { from { transform:translateX(-160px); } to { transform:translateX(0); } }
   @keyframes effort-flare { from { transform:translateX(-12px) scale(.86); opacity:.55; } to { transform:translateX(15px) scale(1.15); opacity:1; } }
   @keyframes effort-current { to { stroke-dashoffset:-173; } }
-  @media (prefers-reduced-motion:reduce) { .effort-energy * { animation:none!important; } .effort-fill,.effort-energy { transition:none; } }
+  @keyframes effort-ember { 0% { opacity:0; transform:translateY(0); } 20% { opacity:.8; } 100% { opacity:0; transform:translate(5px,-24px); } }
+  @keyframes effort-strike { 0% { stroke-dashoffset:600; opacity:1; } 18% { stroke-dashoffset:0; opacity:1; } 30% { opacity:0; } 100% { stroke-dashoffset:0; opacity:0; } }
+  @media (prefers-reduced-motion:reduce) { .effort-energy *, .effort-strike path { animation:none!important; } .effort-strike, .effort-embers { display:none; } .effort-fill,.effort-energy { transition:none; } }
 }

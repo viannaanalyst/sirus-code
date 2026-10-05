@@ -5,7 +5,7 @@ import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./timeline.module.css";
 

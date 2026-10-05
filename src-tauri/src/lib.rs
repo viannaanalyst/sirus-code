@@ -9,6 +9,7 @@ mod agent_output;
 mod appearance;
 mod attachment_platform;
 mod attachments;
+mod automations;
 mod browser;
 mod browser_mcp;
 mod claude;
@@ -31,6 +32,7 @@ mod execution;
 mod fs_tree;
 mod git;
 mod git_workspace;
+mod github_inbox;
 mod goals;
 mod mcp_stdio;
 mod models;
@@ -38,8 +40,7 @@ mod notifications;
 mod opencode;
 mod paths;
 mod persist;
-mod profile;
-mod profile_image;
+mod project_look;
 mod provider_accounts;
 mod provider_models;
 mod provider_updates;
@@ -47,13 +48,16 @@ mod provider_usage;
 mod provider_usage_http;
 mod pty_term;
 mod pull_requests;
+mod side_chat;
 mod sidebar;
 mod skills;
+mod tasks;
 mod team;
 mod transcript;
 mod transcript_view;
 mod turn_review;
 mod window_attachment;
+mod window_snap;
 mod workspace_entries;
 mod worktree;
 
@@ -131,6 +135,12 @@ pub fn run() {
             }));
             appearance::schedule(app.handle(), app.state::<Arc<AppState>>().inner().clone());
             notifications::install(app.handle());
+            automations::start(app.handle().clone());
+            {
+                let state = app.state::<Arc<AppState>>().inner().clone();
+                let settings = state.data.lock().settings.clone();
+                window_snap::apply(app.handle(), &settings);
+            }
             attachment_platform::install_paste_listener(
                 app.handle(),
                 app.state::<Arc<AppState>>().inner().clone(),
@@ -145,6 +155,12 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             team::team_action,
+            side_chat::side_chat_action,
+            github_inbox::pull_request_action,
+            automations::automation_action,
+            tasks::task_action,
+            window_snap::window_snap_action,
+            project_look::project_look_action,
             commands::trash_workspace_entry,
             skills::skill_action,
             notifications::notification_action,
@@ -219,7 +235,6 @@ pub fn run() {
             commands::resize_terminal,
             commands::stop_terminal,
             commands::host_info,
-            profile_image::profile_image_action,
             commands::probe_provider,
             commands::list_provider_models,
             commands::set_session_model,

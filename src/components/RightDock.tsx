@@ -7,12 +7,13 @@ import {
   GitCompareArrows,
   Globe,
   Maximize2,
+  MessagesSquare,
   Minimize2,
   PanelRightClose,
   Plus,
   SquareTerminal,
   X,
-} from "lucide-react";
+} from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { selectCurrentProject, useAppStore, type DockPane, type DockPaneKind, selectCurrentSessionMeta } from "@/store/app-store";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
@@ -21,6 +22,7 @@ import { IconButton } from "@/primitives/IconButton";
 import { BrowserPanel } from "@/components/BrowserPanel";
 import { FileTree } from "@/components/FileTree";
 import { ChangesPane } from "@/components/ChangesPane";
+import { SideChatPane } from "@/components/SideChatPane";
 import { editorKey } from "@/lib/editor-state";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
@@ -52,9 +54,10 @@ const paneMeta: Record<DockPaneKind, { label: string; icon: typeof Files }> = {
   browser: { label: "Browser", icon: Globe },
   review: { label: "review.title", icon: GitCompareArrows },
   document: { label: "reader.title", icon: FileText },
+  sidechat: { label: "sideChat.title", icon: MessagesSquare },
 };
 
-const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser"];
+const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser", "sidechat"];
 
 export function RightDock() {
   const t = useTranslation();
@@ -80,7 +83,7 @@ export function RightDock() {
   };
 
   const visible = useMemo(
-    () => panes.filter((pane) => pane.kind === "document" ? pane.document?.scope === (session ? `session:${session.id}` : `project:${project?.id}`) : (pane.kind !== "editor" && pane.kind !== "review") || (session !== null && pane.sessionId === session.id)),
+    () => panes.filter((pane) => pane.kind === "document" ? pane.document?.scope === (session ? `session:${session.id}` : `project:${project?.id}`) : (pane.kind !== "editor" && pane.kind !== "review" && pane.kind !== "sidechat") || (session !== null && pane.sessionId === session.id)),
     [panes, session, project],
   );
   const active = visible.find((pane) => pane.id === activePaneId) ?? visible[0] ?? null;
@@ -176,6 +179,8 @@ export function RightDock() {
               </Suspense>
             ) : active.kind === "browser" ? (
               <BrowserPanel key={session.id} sessionId={session.id} />
+            ) : active.kind === "sidechat" && active.sessionId ? (
+              <SideChatPane key={active.sessionId} parentSessionId={active.sessionId} paneId={active.id} />
             ) : null}
           </motion.div>
         </AnimatePresence>

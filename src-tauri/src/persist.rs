@@ -67,7 +67,6 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
     remove_orphans(&dir, &data);
     seed_written(path, on_disk);
     crate::sidebar::prune(&mut data);
-    crate::profile::normalize(&mut data.settings.profile);
     crate::context_text::prune(&mut data);
     crate::appearance::normalize(&mut data.settings);
     // Closed enum migration (legacy System → Dark), defaults and numeric bounds

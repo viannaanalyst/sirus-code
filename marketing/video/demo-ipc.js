@@ -103,7 +103,7 @@
         const needle = action.query.trim().toLowerCase();
         return { type: "candidates", truncated: false, sessions: sessions.map((s) => ({ sessionId: s.id, messages: clone(s.messages.filter((m) => m.role !== "system" && m.content.toLowerCase().includes(needle))) })).filter((c) => c.messages.length) };
       }
-      return { type: "activity", sessions: sessions.map((s) => ({ sessionId: s.id, prompts: s.messages.filter((m) => m.role === "user").map((m) => ({ id: m.id, createdAt: m.createdAt })) })) };
+      return null;
     },
     open_project: ({ projectId }) => projects.find((p) => p.id === projectId),
     detect_agents: () => installs,

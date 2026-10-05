@@ -3,7 +3,7 @@
 import { isValidElement, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, type AnimationPlaybackControls, type HTMLMotionProps, type MotionProps, type TargetAndTransition, type Transition } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Folder } from "lucide-react";
+import { Folder } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./empty-state.module.css";
 

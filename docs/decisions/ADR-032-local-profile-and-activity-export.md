@@ -1,6 +1,6 @@
 # ADR-032: Local identity, retained activity and bounded image export
 
-**Status:** Accepted
+**Status:** Superseded — the Profile page, `profile_image_action` and transcript prompt activity were removed at the owner's request (2026-10-05). A retained `AppSettings.profile` is ignored.
 
 ## Context
 

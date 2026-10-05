@@ -30,8 +30,7 @@ async function leave(splash: HTMLElement) {
   const ease = `cubic-bezier(${motionTokens.ease.join(",")})`;
   const fade = (element: Element | null, duration: number, delay = 0) => element?.animate([{ opacity: 1 }, { opacity: 0 }], { duration, delay, easing: ease, fill: "forwards" }).finished;
   // Infinite loops stop so the exit reads as one motion.
-  splash.querySelectorAll(".app-splash-sheen, .app-splash-glow").forEach(node => node.getAnimations().forEach(animation => animation.cancel()));
-  splash.querySelectorAll(".app-splash-glow").forEach(node => void fade(node, ms(motionTokens.fast)));
+  splash.querySelectorAll(".app-splash-sheen").forEach(node => node.getAnimations().forEach(animation => animation.cancel()));
   const target = document.querySelector<HTMLElement>("[data-landing-glyph]");
   const from = logo?.getBoundingClientRect(), to = target?.getBoundingClientRect();
   const visible = !!to && to.width > 0 && to.bottom > 0 && to.top < innerHeight;

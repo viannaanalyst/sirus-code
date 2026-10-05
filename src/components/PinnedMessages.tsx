@@ -1,4 +1,4 @@
-import { Pin } from "lucide-react";
+import { Pin } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { InteractiveButton } from "@/primitives/InteractiveButton";

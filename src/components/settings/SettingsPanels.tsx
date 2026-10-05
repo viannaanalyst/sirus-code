@@ -1,7 +1,7 @@
 import { useTranslation } from "@/i18n/use-translation";
 import type { AgentInstall, AgentProviderId, AppSettings, HostInfo } from "@/client/types";
 import { client } from "@/client";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@/components/icons/phosphor";
 import "@/styles/general-settings.css";
 import { KeybindingsSettings } from "./KeybindingsSettings";
 import { ProviderRow } from "@/components/settings/ProviderRow";
@@ -9,7 +9,6 @@ import { ComputerSettings } from "@/components/settings/ComputerSettings";
 import { SettingsGroup, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { AppearanceSettings, FontSizeControl, MonoFontControl } from "./AppearanceSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
-import { ProfileSettings } from "@/components/settings/ProfileSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SkillsSettings } from "./SkillsSettings";
 import { PROVIDERS } from "@/lib/providers";
@@ -21,6 +20,7 @@ import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { Switch } from "@/primitives/Switch";
 import { useAppStore } from "@/store/app-store";
 import { SIDEBAR_MIN_WIDTH } from "@/lib/sidebar-panels";
+import { SIDEBAR_USAGE_LIMIT, USAGE_PROVIDER_IDS } from "@/lib/provider-usage";
 import { lazy, Suspense, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/arc/dialog/dialog";
 
@@ -47,7 +47,6 @@ export function SettingsPanels({
   if (section === "general") {
     return <GeneralSettings settings={settings} agents={agents} onSave={onSave} />;
   }
-  if (section === "profile") return <ProfileSettings settings={settings} host={host} />;
   if (section === "notifications") return <NotificationSettings settings={settings} onSave={onSave} />;
   if (section === "skills") return <SkillsSettings settings={settings} />;
   if (section === "computer") return <ComputerSettings settings={settings} onSave={onSave} />;
@@ -75,6 +74,7 @@ export function SettingsPanels({
               />
             ))}
           </SettingsGroup>
+          <SidebarUsageSettings settings={settings} agents={agents} onSave={onSave} />
           <SettingsGroup title={t("Updates")} card>
             <SettingsRow
               title={t("Check for CLI updates")}
@@ -370,4 +370,21 @@ function ArcExplorerButton() {
       </div>
     </DialogContent>
   </Dialog>;
+}
+
+/** Up to two providers whose quota ring shows in the sidebar rail. */
+function SidebarUsageSettings({ settings, agents, onSave }: { settings: AppSettings; agents: AgentInstall[]; onSave: (settings: AppSettings) => void }) {
+  const t = useTranslation();
+  const chosen = settings.sidebarUsageProviders;
+  const full = chosen.length >= SIDEBAR_USAGE_LIMIT;
+  return <SettingsGroup title={t("sidebarUsage.title")} card>
+    {PROVIDERS.filter((definition) => USAGE_PROVIDER_IDS.includes(definition.id)).map((definition) => {
+      const on = chosen.includes(definition.id);
+      const installed = agents.some((agent) => agent.id === definition.id && agent.installed);
+      return <SettingsRow key={definition.id} title={definition.name} description={!installed ? t("sidebarUsage.notInstalled") : !on && full ? t("sidebarUsage.limit") : undefined}>
+        <Switch checked={on} disabled={!on && (full || !installed)} onChange={(value) => onSave({ ...settings, sidebarUsageProviders: value ? [...chosen, definition.id].slice(0, SIDEBAR_USAGE_LIMIT) : chosen.filter((id) => id !== definition.id) })} />
+      </SettingsRow>;
+    })}
+    <p className="px-1 pt-2 ui-caption text-text-muted">{t("sidebarUsage.description")}</p>
+  </SettingsGroup>;
 }

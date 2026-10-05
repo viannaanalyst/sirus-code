@@ -1,0 +1,13 @@
+@layer components {
+  .context-meter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 7px; color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .context-meter:hover, .context-meter[data-state="open"] { background: var(--navigation-hover); color: var(--text-secondary); }
+  .context-meter[data-level="warning"] { color: var(--warning); }
+  .context-meter[data-level="danger"] { color: var(--danger); }
+  .context-meter:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
+  .context-meter-compact { width: 100%; margin-top: 10px; padding: 6px 10px; border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-primary); }
+  .context-meter-compact:hover:not(:disabled) { background: var(--navigation-hover); }
+  .context-meter-compact-strong { border-color: transparent; background: var(--accent); color: var(--background-0); }
+  .context-meter-compact-strong:hover:not(:disabled) { background: var(--accent-hover); }
+  .context-meter-compact:disabled { opacity: 0.5; }
+  .context-meter-compact:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
+}

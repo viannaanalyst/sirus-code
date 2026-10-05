@@ -202,6 +202,8 @@ test("native admission clears the initial draft once while startup IPC is pendin
   context.mock.method(client, "sendPrompt", () => new Promise<Session>(done => { resolve = done; }));
   let updated!: (session: Session) => void;
   context.mock.method(client, "onSessionUpdated", async (handler: typeof updated) => { updated = handler; return () => {}; });
+  context.mock.method(client, "onAutomationsChanged", async () => () => {});
+  context.mock.method(client, "onWindowSnap", async () => () => {});
   for (const method of ["onAgentOutput", "onAgentExit", "onPtyOutput", "onBrowserState", "onBrowserCapture", "onComputerState", "onActivityNotification", "onNotificationOpen"] as const) context.mock.method(client, method, async () => () => {});
   const unbind = await bindRealtime();
   const request = useAppStore.getState().sendPrompt("again");

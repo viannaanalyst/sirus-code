@@ -45,7 +45,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-030: Owner-bound Environment references and bookmark navigation](ADR-030-environment-context-references.md)
 - [ADR-031: Branch-owned read-only pull requests and checks](ADR-031-read-only-pull-request-checks.md)
 
-- [ADR-032: Local identity, retained activity and bounded image export](ADR-032-local-profile-and-activity-export.md)
+- [ADR-032: Local identity, retained activity and bounded image export](ADR-032-local-profile-and-activity-export.md) — superseded: Profile page removed
 - [ADR-033: Persisted appearance and closed native glass controls](ADR-033-persisted-appearance-and-native-glass.md)
 - [ADR-034: Native session notifications and closed sound controls](ADR-034-native-session-notifications.md)
 - [ADR-035: Bounded native turn activity and read-only child observations](ADR-035-native-turn-activity.md)
@@ -65,6 +65,17 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-046: Provider-generated commit titles](ADR-046-provider-generated-commit-titles.md) — explicit isolated inference from the owned prepared index.
 - [ADR-047: Per-session transcript files with content-addressed writes](ADR-047-per-session-transcript-files.md) — `state.json` keeps metadata; only changed transcripts are rewritten.
 - [ADR-048: Transcripts load on demand in the renderer](ADR-048-transcripts-on-demand.md) — metadata-only `load_state`, windowed session events, closed read-only `transcript_action`.
+- [ADR-049: Side chats beside a working session](ADR-049-side-chats.md) — one hidden parent-linked session per main session, a fresh recap on each turn, closed `side_chat_action`.
+- [ADR-050: Review inbox for pull requests and issues](ADR-050-review-inbox.md) — every owned repository's PRs/issues through `gh`, confirmed GitHub changes, closed `pull_request_action`; sidebar Activity view.
+- [ADR-051: Scheduled automations start agent turns](ADR-051-scheduled-automations.md) — owner-removed explicit-Send-only rule for automations: closed schedules, native timer while open, Ask/worktree defaults, closed `automation_action`.
+- [ADR-052: Inbox, Tasks and a customizable rail](ADR-052-inbox-tasks-and-rail-customization.md) — derived Inbox, task list with explicit hand-off to an agent (closed `task_action`), rail order/visibility/project shortcuts.
+- [ADR-053: Side-by-side conversations](ADR-053-side-by-side-conversations.md) — memory-only pane tree (≤4) where the active pane is the selected session; drag to a pane edge with a lit-half target; no IPC.
+- [ADR-054: Global window snap](ADR-054-global-window-snap.md) — opt-in Carbon hotkey snaps the frontmost app window into a nonce-bound native slot; closed `window_snap_action` claim/discard into the open composer.
+- [ADR-055: Temporary chats](ADR-055-temporary-chats.md) — landing toggle; the session is deleted once left and settled, worktree kept.
+- [ADR-056: Second opinion](ADR-056-second-opinion.md) — another provider/model reviews a settled turn read-only in a same-workspace session opened beside it.
+- [ADR-057: Context usage and compaction](ADR-057-context-usage-and-compaction.md) — provider-reported `Session.contextUsage`, composer ring, `/compact` (Codex `thread/compact/start`, Claude native command).
+- [ADR-058: Mermaid diagrams](ADR-058-mermaid-diagrams.md) — lazy strict-mode Mermaid with nonce-bound SVG styles in the transcript and Markdown preview.
+- [ADR-059: Project folder colour, emoji and logo](ADR-059-project-look.md) — closed `project_look_action` with preset/hex colours, short emoji and a native-picked, bounded 96 px PNG logo.
 
 ## Template
 

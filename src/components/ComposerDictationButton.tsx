@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { Mic, Square, X } from "lucide-react";
+import { Mic, Square, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import { ComposerMetalSurface } from "@/components/ComposerMetalSurface";
 import { useTranslation } from "@/i18n/use-translation";

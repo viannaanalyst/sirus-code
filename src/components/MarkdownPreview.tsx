@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { client } from "@/client";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { cn } from "@/lib/cn";
 import { parseInline, parseMarkdown } from "@/lib/markdown";
 
@@ -30,6 +31,7 @@ export function MarkdownPreview({ source }: { source: string }) {
   return <div className="scroll-thin h-full overflow-y-auto px-4 py-3">
     <div className="mx-auto max-w-[72ch] space-y-3 ui-chat text-text-secondary">
       {blocks.map((block, index) => {
+        if (block.kind === "code" && block.language?.toLowerCase() === "mermaid") return <MermaidDiagram key={index} source={block.content} />;
         if (block.kind === "code") {
           return <CodeBlock key={index} code={block.content} language={block.language} animateChanges={false} />;
         }

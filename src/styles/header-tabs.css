@@ -15,6 +15,11 @@
   .header-tab:hover { color: var(--text-primary); }
   .header-tab:hover:not([aria-selected="true"]) { background: var(--navigation-hover); }
   .header-tab[aria-selected="true"] { color: var(--text-primary); flex-shrink: 0; }
+  .header-tab[data-reorder-id] { user-select: none; touch-action: none; }
+  .header-tab[data-dragging] { opacity: .5; }
+  .header-tab[data-drop-edge]::before { content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
+  .header-tab[data-drop-edge="before"]::before { left: -2px; }
+  .header-tab[data-drop-edge="after"]::before { right: -2px; }
   .header-tab:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
   .header-tab[data-leaving] { max-width: 0; min-width: 0; padding: 0; opacity: 0; overflow: hidden; }
   /* Fixed max width; overflowing titles fade at the edge and scroll on hover. */

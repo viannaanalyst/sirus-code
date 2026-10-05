@@ -1,7 +1,6 @@
 //! The renderer's view of sessions without full transcripts (ADR-048):
 //! metadata-only state, turn-windowed session events and the closed
-//! read-only `transcript_action` (load one transcript, search candidates,
-//! prompt activity).
+//! read-only `transcript_action` (load one transcript, search candidates).
 
 use std::collections::HashSet;
 
@@ -96,8 +95,6 @@ pub enum Action {
     /// Messages that may contain `query` (case-insensitive literal), for the
     /// renderer's exact all-conversations search.
     Search { query: String },
-    /// Owned user prompts (ID and time) for the local Profile activity.
-    Activity,
 }
 
 #[derive(Debug, Serialize)]
@@ -115,9 +112,6 @@ pub enum Response {
         sessions: Vec<CandidateSession>,
         truncated: bool,
     },
-    Activity {
-        sessions: Vec<SessionPrompts>,
-    },
 }
 
 #[derive(Debug, Serialize)]
@@ -125,20 +119,6 @@ pub enum Response {
 pub struct CandidateSession {
     pub session_id: String,
     pub messages: Vec<Message>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionPrompts {
-    pub session_id: String,
-    pub prompts: Vec<PromptTime>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PromptTime {
-    pub id: String,
-    pub created_at: String,
 }
 
 /// Sessions whose project still exists, in state order.
@@ -219,41 +199,14 @@ pub fn search(sessions: &[Session], projects: &HashSet<String>, query: &str) -> 
     })
 }
 
-/// Owned user prompts after any fork-inherited prefix, deduplicated by ID.
-pub fn activity(data: &AppData) -> Response {
-    let sessions = owned(data)
-        .map(|session| {
-            let inherited = session
-                .fork_origin
-                .as_ref()
-                .map_or(0, |origin| origin.inherited_message_count)
-                .min(session.messages.len());
-            let mut seen = HashSet::new();
-            let prompts = session.messages[inherited..]
-                .iter()
-                .filter(|message| {
-                    message.role == MessageRole::User
-                        && message.session_id == session.id
-                        && seen.insert(message.id.clone())
-                })
-                .map(|message| PromptTime {
-                    id: message.id.clone(),
-                    created_at: message.created_at.clone(),
-                })
-                .collect();
-            SessionPrompts {
-                session_id: session.id.clone(),
-                prompts,
-            }
-        })
-        .collect();
-    Response::Activity { sessions }
-}
-
 /// Clones what a search needs under the lock; the scan runs after release.
 pub fn search_snapshot(data: &AppData) -> (Vec<Session>, HashSet<String>) {
     (
-        owned(data).cloned().collect(),
+        // Side chats are hidden from session lists, so search does not open them.
+        owned(data)
+            .filter(|session| session.side_chat.is_none())
+            .cloned()
+            .collect(),
         data.projects
             .iter()
             .map(|project| project.id.clone())
@@ -335,25 +288,11 @@ mod tests {
     }
 
     #[test]
-    fn activity_skips_inherited_foreign_and_duplicate_prompts() {
-        let mut data = data();
-        let duplicate = data.sessions[0].messages[1].clone();
-        data.sessions[0].messages.push(duplicate);
-        let Response::Activity { sessions } = activity(&data) else {
-            panic!()
-        };
-        assert_eq!(sessions.len(), 1);
-        assert_eq!(
-            sessions[0]
-                .prompts
-                .iter()
-                .map(|p| p.id.as_str())
-                .collect::<Vec<_>>(),
-            ["a1"]
-        );
+    fn load_returns_only_owned_transcripts() {
+        let data = data();
         assert!(load(&data, "missing").is_err());
         assert!(
-            matches!(load(&data, "a"), Ok(Response::Transcript { messages, .. }) if messages.len() == 5)
+            matches!(load(&data, "a"), Ok(Response::Transcript { messages, .. }) if messages.len() == 4)
         );
     }
 }

@@ -14,8 +14,7 @@ import {
   Settings2,
   SlidersHorizontal,
   TerminalSquare,
-  UserRound,
-} from "lucide-react";
+} from "@/components/icons/phosphor";
 import { cn } from "@/lib/cn";
 import type { SettingsSectionId } from "@/lib/settings";
 
@@ -24,7 +23,6 @@ const GROUPS: { label: string; items: { id: SettingsSectionId; label: string; ic
     label: "Personal",
     items: [
       { id: "general", label: "General", icon: Settings2 },
-      { id: "profile", label: "Profile", icon: UserRound },
       { id: "appearance", label: "Appearance", icon: Monitor },
       { id: "notifications", label: "Notifications", icon: Bell },
       { id: "keybindings", label: "Keybindings", icon: Keyboard },
@@ -113,7 +111,7 @@ export function SettingsSidebar({
                     active ? "text-text-primary" : "text-text-secondary",
                   )}
                 >
-                  <Icon size={15} className={active ? "text-text-primary" : "text-text-muted"} />
+                  <Icon size={16} className={cn("shrink-0", active ? "text-text-primary" : "text-text-muted")} />
                   {t(item.label)}
                 </button>
               );

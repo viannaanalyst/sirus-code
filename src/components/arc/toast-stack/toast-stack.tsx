@@ -5,7 +5,7 @@ import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent as ReactPointe
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, usePresence, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { HTMLMotionProps, MotionProps, TargetAndTransition, Transition } from "motion/react";
-import { CircleCheck, CircleX, Info, TriangleAlert, X } from "lucide-react";
+import { CircleCheck, CircleX, Info, TriangleAlert, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./toast-stack.module.css";
 

@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from "react";
-import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, Users, X, AppWindow } from "lucide-react";
+import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, Users, X, AppWindow } from "@/components/icons/phosphor";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
 import { canReadDocument } from "@/lib/document-reader";
 import { client } from "@/client";

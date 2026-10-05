@@ -6,7 +6,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { X } from "lucide-react";
+import { X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./dialog.module.css";

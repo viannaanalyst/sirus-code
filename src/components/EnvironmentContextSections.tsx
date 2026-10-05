@@ -1,4 +1,4 @@
-import { ChevronRight, Pin, X } from "lucide-react";
+import { ChevronRight, Pin, X } from "@/components/icons/phosphor";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@/client/types";
 import { Textarea } from "@/components/arc/textarea/textarea";

@@ -5,7 +5,7 @@ import type { ClipboardEvent as ReactClipboardEvent, CSSProperties, FormEvent, K
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition, Variants } from "motion/react";
-import { ArrowLeft, Bold, Check, Code, Heading1, Heading2, Heading3, Italic, Link, List, ListOrdered, Minus, Pilcrow, Quote, SquareCode, Strikethrough, Unlink } from "lucide-react";
+import { ArrowLeft, Bold, Check, Code, Heading1, Heading2, Heading3, Italic, Link, List, ListOrdered, Minus, Pilcrow, Quote, SquareCode, Strikethrough, Unlink } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./rich-text-editor.module.css";
 

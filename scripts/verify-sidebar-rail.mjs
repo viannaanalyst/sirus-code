@@ -17,7 +17,9 @@ try {
     for (const collapsed of [false, true]) {
       snapshot.sidebarCollapsed = collapsed;
       const html = renderToString(createElement(TooltipProvider, null, createElement(Sidebar)));
-      assert.equal((html.match(/data-section=/g) ?? []).length, 4);
+      // Eight customizable rail items (ADR-052), the "more" menu and Settings.
+      assert.equal((html.match(/data-section=/g) ?? []).length, 10);
+      assert.ok(html.includes('data-section="drafts"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");
       assert.ok(html.includes('aria-expanded="false"') && !html.includes('data-section="projects"'));
@@ -27,15 +29,15 @@ try {
         assert.ok(html.includes('id="sidebar-docked"') && html.includes("Session draft") && html.includes("Session recent"));
         assert.ok(!html.includes("sidebar-activity-second") && !html.includes("branch/draft"));
         assert.ok(!html.includes("sidebar-scope") && !html.includes("sidebar-section-heading") && !html.includes("data-open-project"));
-        assert.ok(html.includes(locale === "pt-BR" ? "Rascunhos" : "Drafts"));
+        assert.ok(/data-section="drafts" aria-pressed="false"/.test(html), "the drafts feather is a rail filter toggle");
         assert.ok(html.includes("sidebar-project-group") && html.includes("sidebar-folder-glyph"));
         assert.ok(!html.includes(locale === "pt-BR" ? "Ordenar sessões" : "Sort sessions"));
         assert.ok(!html.includes("sidebar-panel-footer"));
         assert.ok(!html.includes(locale === "pt-BR" ? "Recolher barra lateral" : "Collapse sidebar"));
         const header = html.slice(html.indexOf("sidebar-panel-header"), html.indexOf("sidebar-new-thread"));
-        assert.ok(header.includes("Fixture project") && header.includes(locale === "pt-BR" ? "Rascunhos" : "Drafts"));
+        assert.ok(header.includes("Switchyard") && !header.includes("Fixture project"), "the header shows the fixed product name, not the selected project");
       }
     }
   }
-  console.log("Sidebar rail: four persistent navigation actions, owned project folders/title-only sessions/drafts, clean header, collapsed rail and accessible labels pass in both locales");
+  console.log("Sidebar rail: customizable rail items, more menu and Settings, owned project folders/title-only sessions/drafts, clean header, collapsed rail and accessible labels pass in both locales");
 } finally { await server.close(); }

@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition, Variants } from "motion/react";
-import { Check, ChevronRight, CornerDownRight, RotateCcw, SmilePlus, X } from "lucide-react";
+import { Check, ChevronRight, CornerDownRight, RotateCcw, SmilePlus, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./comment-thread.module.css";
 

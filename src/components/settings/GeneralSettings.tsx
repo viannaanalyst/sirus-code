@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "@/components/icons/phosphor";
 import type { ReactNode } from "react";
 import type { AgentInstall, AppSettings } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

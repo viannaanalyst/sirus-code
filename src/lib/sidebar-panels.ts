@@ -19,7 +19,8 @@ export const initialSidebarPanel: SidebarPanelState = { section: "home", peek: n
 export function sidebarPanelReducer(state: SidebarPanelState, event: SidebarPanelEvent): SidebarPanelState {
   switch (event.type) {
     case "peek": return { ...state, peek: event.section, revision: state.revision + 1 };
-    case "select": return { section: event.collapsed ? state.section : event.section, peek: event.collapsed ? event.section : null, revision: state.revision + 1 };
+    // A click chooses the section even while collapsed (its panel then floats); hover only previews.
+    case "select": return { section: event.section, peek: event.collapsed ? event.section : null, revision: state.revision + 1 };
     case "leave": return event.revision === state.revision ? { ...state, peek: null } : state;
     case "pin": return { section: state.peek ?? state.section, peek: null, revision: state.revision + 1 };
     case "dismiss": return { ...state, peek: null, revision: state.revision + 1 };
@@ -52,4 +53,46 @@ export function sidebarPullRequest(session: Session, cached: PullRequestLoadStat
     || snapshot.sessionId !== session.id || snapshot.status !== "ready" || !branch || snapshot.branch !== branch
     || snapshot.pullRequest?.headBranch !== branch) return null;
   return snapshot.pullRequest;
+}
+
+export interface ActivitySection { key: string; label: string; sessions: Session[] }
+
+/** A session marked Done stays done until it has newer activity than the mark. */
+export function isSessionDone(session: Session, done: AppSettings["doneSessions"]) {
+  const mark = done.find((row) => row.id === session.id);
+  if (!mark) return false;
+  const markedAt = Date.parse(mark.at), active = Date.parse(session.lastActivityAt);
+  return Number.isFinite(markedAt) && (!Number.isFinite(active) || active <= markedAt);
+}
+
+/**
+ * The sidebar Activity view: pinned first, then sessions that need the person,
+ * running ones, drafts, the rest by day, and finally the ones marked Done.
+ * Each session appears once, in the first section that matches. Labels are i18n keys.
+ */
+export function sidebarTimeline(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, drafts: Readonly<Record<string, string>>, now: Date, options: { scope?: string | null; draftsOnly?: boolean } = {}): ActivitySection[] {
+  const inventory = sidebarGroups(projects, sessions, settings);
+  const draft = (session: Session) => Boolean(drafts[`session:${session.id}`]?.trim());
+  const inScope = (session: Session) => (!options.scope || session.projectId === options.scope) && (!options.draftsOnly || draft(session));
+  const recent = (list: Session[]) => [...list].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+  const sections: ActivitySection[] = [{ key: "pinned", label: "Pinned", sessions: inventory.pinned.filter(inScope) }];
+  let rest = recent(inventory.nested.filter(inScope));
+  const take = (key: string, label: string, match: (session: Session) => boolean) => {
+    sections.push({ key, label, sessions: rest.filter(match) });
+    rest = rest.filter((session) => !match(session));
+  };
+  take("waiting", "activity.needsYou", (session) => session.status === "waiting");
+  take("running", "activity.working", (session) => session.status === "running" || session.status === "starting");
+  take("drafts", "Drafts", draft);
+  const done = rest.filter((session) => isSessionDone(session, settings.doneSessions));
+  rest = rest.filter((session) => !done.includes(session));
+  const day = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const today = day(now), yesterday = today - 86_400_000;
+  const started = (session: Session) => { const time = new Date(session.lastActivityAt); return Number.isNaN(time.getTime()) ? 0 : day(time); };
+  take("today", "activity.today", (session) => started(session) >= today);
+  take("yesterday", "activity.yesterday", (session) => started(session) >= yesterday);
+  sections.push({ key: "earlier", label: "activity.earlier", sessions: rest });
+  const markedAt = (session: Session) => settings.doneSessions.find((row) => row.id === session.id)?.at ?? "";
+  sections.push({ key: "done", label: "activity.done", sessions: done.sort((a, b) => markedAt(b).localeCompare(markedAt(a))) });
+  return sections.filter((section) => section.sessions.length > 0);
 }

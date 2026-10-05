@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { FileDiff, MessageSquarePlus, X } from "lucide-react";
+import { FileDiff, MessageSquarePlus, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import type { FileChange } from "@/client/types";
 import { reviewDiffLines, type DiffComment } from "@/lib/diff-comment";

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronDown, Folder, GitBranch, GitBranchPlus, Laptop, Plus, Search, X } from "lucide-react";
+import { Check, ChevronDown, Folder, GitBranch, GitBranchPlus, Laptop, MessageCircle, Plus, Search, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { BranchInfo } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -21,6 +21,8 @@ export function LandingControls() {
   const addProjectFromPicker = useAppStore((state) => state.addProjectFromPicker);
   const draftIsolated = useAppStore((state) => state.draftIsolated);
   const setDraftIsolated = useAppStore((state) => state.setDraftIsolated);
+  const draftTemporary = useAppStore((state) => state.draftTemporary);
+  const setDraftTemporary = useAppStore((state) => state.setDraftTemporary);
   const gitByPath = useAppStore((state) => state.gitByPath);
   const refreshProjectGit = useAppStore((state) => state.refreshProjectGit);
   const [projectOpen, setProjectOpen] = useState(false);
@@ -249,6 +251,12 @@ export function LandingControls() {
           </PopoverContent>
         </Popover>
       ) : null}
+
+      <button type="button" className={cn(chip, "ml-auto", draftTemporary && "bg-background-3 text-text-primary")} aria-pressed={draftTemporary}
+        title={t("temporary.hint")} onClick={() => setDraftTemporary(!draftTemporary)}>
+        <MessageCircle size={13} aria-hidden="true" fill={draftTemporary ? "currentColor" : "none"} />
+        <span>{t("temporary.label")}</span>
+      </button>
     </div>
   );
 }

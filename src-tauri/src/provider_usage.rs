@@ -550,6 +550,17 @@ fn cache_result(
     value
 }
 
+/// Providers whose quota this module can read (CLI probes or the scoped HTTP reads).
+pub fn reports_usage(provider: &AgentProviderId) -> bool {
+    matches!(
+        provider,
+        AgentProviderId::Codex
+            | AgentProviderId::Claude
+            | AgentProviderId::Cursor
+            | AgentProviderId::OpenCode
+    )
+}
+
 #[tauri::command]
 pub async fn provider_usage(
     state: State<'_, Arc<AppState>>,

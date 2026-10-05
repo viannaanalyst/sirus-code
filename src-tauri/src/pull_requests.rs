@@ -73,7 +73,7 @@ pub(crate) struct Context {
     pub status: LookupStatus,
 }
 
-fn repository(web_url: &str) -> Option<String> {
+pub(crate) fn repository(web_url: &str) -> Option<String> {
     let value = web_url.strip_prefix("https://github.com/")?;
     let parts: Vec<_> = value.split('/').collect();
     if parts.len() != 2
@@ -94,17 +94,17 @@ fn repository(web_url: &str) -> Option<String> {
     }
     Some(value.to_owned())
 }
-fn sha(value: &str) -> bool {
+pub(crate) fn sha(value: &str) -> bool {
     matches!(value.len(), 40 | 64) && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
-fn text(value: &str, limit: usize) -> String {
+pub(crate) fn text(value: &str, limit: usize) -> String {
     value
         .chars()
         .filter(|c| !c.is_control())
         .take(limit)
         .collect()
 }
-fn github_link(value: Option<&str>, repo: &str) -> Option<String> {
+pub(crate) fn github_link(value: Option<&str>, repo: &str) -> Option<String> {
     let value = value?;
     if value.len() > 2048 {
         return None;
@@ -208,19 +208,26 @@ fn list_endpoint(repo: &str, branch: &str, state: &str) -> String {
         .expect("fixed host")
         .to_owned()
 }
-fn command(binary: &OsStr, endpoint: &str) -> tokio::process::Command {
+pub(crate) fn command(binary: &OsStr, endpoint: &str) -> tokio::process::Command {
+    let mut command = hardened(binary);
+    command.args([
+        "api",
+        "--hostname",
+        "github.com",
+        "--method",
+        "GET",
+        "-H",
+        "Accept: application/vnd.github+json",
+        endpoint,
+    ]);
+    command
+}
+
+/// `gh` with no prompts, pager, browser, proxy, debug or host/repo overrides,
+/// run outside any repository so local configuration cannot select a target.
+pub(crate) fn hardened(binary: &OsStr) -> tokio::process::Command {
     let mut command = crate::detect::command(binary);
     command
-        .args([
-            "api",
-            "--hostname",
-            "github.com",
-            "--method",
-            "GET",
-            "-H",
-            "Accept: application/vnd.github+json",
-            endpoint,
-        ])
         .current_dir(std::env::temp_dir())
         .env("GH_PROMPT_DISABLED", "1")
         .env("GH_NO_UPDATE_NOTIFIER", "1")

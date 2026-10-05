@@ -1,5 +1,5 @@
 import type { GitHistoryEntry } from "@/client/types";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 
 /** Draw edges only to parent hashes actually present in this bounded ancestry. */

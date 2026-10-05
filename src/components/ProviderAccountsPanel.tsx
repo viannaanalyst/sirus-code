@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, LogIn, Plus, RefreshCw } from "lucide-react";
+import { ArrowLeft, Check, LogIn, Plus, RefreshCw } from "@/components/icons/phosphor";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import type { AgentProviderId, ProviderUsage } from "@/client/types";

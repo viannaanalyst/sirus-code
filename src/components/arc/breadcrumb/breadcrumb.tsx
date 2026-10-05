@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { ChevronRight as NavArrowRight } from "lucide-react";
+import { ChevronRight as NavArrowRight } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { motionTokens } from "../lib/motion-tokens";

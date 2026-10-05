@@ -1049,7 +1049,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                         })
                         .map_err(|_| Error::agent("Fixture response unavailable"))?;
                 }
-                Event::Answered(_) | Event::Activity(_) | Event::Model(_) => {}
+                Event::Answered(_) | Event::Activity(_) | Event::Model(_) | Event::Context(_) => {}
             }
             Ok(())
         };

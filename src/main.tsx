@@ -35,6 +35,15 @@ window.addEventListener("unhandledrejection", (event) => {
   useAppStore.setState({ error: formatUnknownError(event.reason) });
 });
 
+// The window leaves drag and drop to the webview (`dragDropEnabled: false`) so
+// in-app reordering works. Files dragged in from Finder must never navigate
+// the webview to them; components that accept drops still handle them first.
+for (const type of ["dragover", "drop"] as const) {
+  window.addEventListener(type, (event) => {
+    if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+  });
+}
+
 try {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement, { onUncaughtError: (error) => showFatal(error) }).render(
     <React.StrictMode><App /></React.StrictMode>,

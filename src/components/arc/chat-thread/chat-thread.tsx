@@ -5,7 +5,7 @@ import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition } from "motion/react";
-import { ArrowDown, ArrowUp, FileText, Paperclip, RotateCw, SmilePlus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, FileText, Paperclip, RotateCw, SmilePlus, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./chat-thread.module.css";
 

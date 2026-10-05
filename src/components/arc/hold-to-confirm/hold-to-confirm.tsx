@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, KeyboardEvent as ReactKeyboardEvent, Pointer
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, MotionValue, TargetAndTransition } from "motion/react";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./hold-to-confirm.module.css";
 

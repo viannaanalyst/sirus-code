@@ -5,7 +5,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { AnimationPlaybackControls, Transition, Variants } from "motion/react";
-import { ArrowRight, ChevronDown, ChevronUp, Pause, Play, X } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronUp, Pause, Play, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./announcement-bar.module.css";
 

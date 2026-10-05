@@ -27,7 +27,7 @@ export const keybindingEnglish: Record<string, string> = {
   "keybindings.count": "{shown} of {total} commands",
 };
 export const keybindingPortuguese: Record<string, string> = {
-  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas",
+  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas", "Toggle side chat": "Abrir ou fechar o chat lateral",
   ...Object.fromEntries(Object.entries(descriptions).map(([id, text]) => [`keybindings.description.${id}`, text[1]])),
   "Open Files": "Abrir Arquivos", "Open Browser": "Abrir Navegador", "Toggle Environment": "Mostrar/ocultar Ambiente",
   "keybindings.intro": "Personalize os comandos de teclado que você usa no aplicativo.",

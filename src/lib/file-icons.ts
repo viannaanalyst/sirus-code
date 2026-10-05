@@ -25,7 +25,7 @@ import {
   GitBranch,
   Package,
   type LucideIcon,
-} from "lucide-react";
+} from "@/components/icons/phosphor";
 
 export interface FileIconSpec {
   Icon: LucideIcon;

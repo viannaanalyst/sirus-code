@@ -1,6 +1,6 @@
 # Synara Profile mapping
 
-Status: Profile, local identity and the PNG sharing dialog are implemented.
+Status: removed on 2026-10-05 at the owner's request (see ADR-032, superseded). Kept as a historical reference.
 Historical token telemetry and a lifetime activity ledger remain unavailable.
 Reference inspected in the local Synara checkout on 2026-10-02.
 

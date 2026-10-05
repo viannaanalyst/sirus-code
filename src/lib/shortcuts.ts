@@ -6,6 +6,10 @@ export interface CommandItem {
   hint?: string;
   group: string;
   shortcut?: string;
+  /** Leading glyph (app icon or provider mark). */
+  icon?: import("react").ReactNode;
+  /** Muted trailing text, e.g. a chat's project. */
+  meta?: string;
   run: () => void;
 }
 
@@ -34,6 +38,8 @@ export function escapeStopsAgent(
   if (status !== "running" && status !== "starting" && status !== "waiting") return false;
   const element = target as Element | null;
   if (typeof element?.closest !== "function" || element.tagName === "BODY" || element.tagName === "HTML") return true;
+  // A side chat's composer belongs to another session (ADR-049).
+  if (element.closest("[data-side-chat]")) return false;
   return element.closest("[data-draft-owner], .transcript-scroll") !== null;
 }
 

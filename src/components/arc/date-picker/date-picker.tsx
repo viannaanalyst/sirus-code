@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, FocusEvent, KeyboardEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Variants } from "motion/react";
-import { CalendarDays, ChevronDown } from "lucide-react";
+import { CalendarDays, ChevronDown } from "@/components/icons/phosphor";
 import { Calendar, type CalendarDateMatcher } from "../calendar/calendar";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./date-picker.module.css";

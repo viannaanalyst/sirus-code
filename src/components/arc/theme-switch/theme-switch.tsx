@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import { Button } from "../button/button";
 import styles from "./theme-switch.module.css";

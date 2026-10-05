@@ -4,7 +4,7 @@ import { hasConversation, mergeLoadedTranscript, mergeSessionEvent, transcriptsT
 import type { Message, Session } from "../src/client/types.ts";
 
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, sessionId: "s", role, content, createdAt: "t", streaming: false });
-const session = (messages: Message[], extra: Partial<Session> = {}): Session => ({ id: "s", projectId: "p", title: "Task", agent: "codex", status: "completed", createdAt: "t", lastActivityAt: "t", worktree: { path: "/fixture", branch: "main", isolated: false }, messages, ...extra });
+const session = (messages: Message[], extra: Partial<Session> = {}): Session => ({ id: "s", projectId: "p", title: "Task", agent: "codex", status: "completed", createdAt: "t", lastActivityAt: "t", worktree: { path: "/fixture", branch: "main", isolated: false }, messages, lastError: null, ...extra });
 
 test("a windowed event splices the current turn into a loaded transcript", () => {
   const held = session([message("u1", "user", "first"), message("a1", "agent", "reply"), message("u2", "user", "next"), message("a2", "agent", "partial")]);

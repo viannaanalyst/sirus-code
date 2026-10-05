@@ -5,7 +5,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, CSSProperties, FocusEvent as 
 import { AnimatePresence, animate, motion, useIsPresent, useMotionValue, useTransform } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import type { Transition, Variants } from "motion/react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./date-range-picker.module.css";
 

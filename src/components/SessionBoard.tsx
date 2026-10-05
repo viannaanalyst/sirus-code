@@ -1,6 +1,6 @@
-import { ArrowLeft, GitBranch, Plus } from "lucide-react";
+import { ArrowLeft, GitBranch, Plus } from "@/components/icons/phosphor";
 import { useState } from "react";
-import { useAppStore, selectCurrentProject } from "@/store/app-store";
+import { useAppStore, selectCurrentProject, selectListedSessions } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
 import { groupProjectSessions, relativeTime, SESSION_COLUMNS } from "@/lib/session-board";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -13,7 +13,7 @@ export function SessionBoard() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore((state) => state.projects);
-  const sessions = useAppStore((state) => state.sessions);
+  const sessions = useAppStore(selectListedSessions);
   const selectProject = useAppStore((state) => state.selectProject);
   const selectSession = useAppStore((state) => state.selectSession);
   const setMainView = useAppStore((state) => state.setMainView);

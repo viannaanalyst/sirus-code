@@ -1,4 +1,4 @@
-import { TriangleAlert, X } from "lucide-react";
+import { TriangleAlert, X } from "@/components/icons/phosphor";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { providerById } from "@/lib/provider-registry";

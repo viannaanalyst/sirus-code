@@ -4,11 +4,12 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { GitFork, Search } from "lucide-react";
+import { GitFork, Search } from "@/components/icons/phosphor";
 import { IconButton } from "@/primitives/IconButton";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { StatusIndicator } from "@/primitives/StatusIndicator";
 import { createTranscriptScroll } from "@/lib/transcript-scroll";
 import { parseTranscript } from "@/lib/transcript";
 import { isConversationStarted } from "@/lib/appearance";
@@ -26,7 +27,7 @@ import { hasConversation } from "@/lib/transcripts";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
-import { UsageFooter } from "@/components/UsageFooter";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
@@ -39,18 +40,28 @@ interface Props {
   onStop: () => void;
   onNewSession: () => void;
   onModelChange?: (provider: AgentProviderId, model: string | null) => void;
+  /**
+   * An inactive side-by-side pane: it shows `sessionId` read-only and the first
+   * use makes it the active pane (the selected session), which owns the composer.
+   */
+  passive?: boolean;
+  sessionId?: string | null;
 }
 
-export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
+export function SessionPane({ agents, onSend, onStop, onModelChange, passive = false, sessionId = null }: Props) {
   const t = useTranslation();
-  const session = useAppStore(selectCurrentSession);
+  const selected = useAppStore(selectCurrentSession);
+  const bound = useAppStore((state) => passive && sessionId ? state.sessions.find((item) => item.id === sessionId) ?? null : null);
+  const session = passive ? bound : selected;
   // Controls below the transcript never read messages: they skip per-frame renders.
   const sessionMeta = useAppStore(selectCurrentSessionMeta);
   const openProject = useAppStore((state) => state.addProjectFromPicker);
-  const project = useAppStore(selectCurrentProject);
+  const selectedProject = useAppStore(selectCurrentProject);
+  const boundProject = useAppStore((state) => passive ? state.projects.find((item) => item.id === bound?.projectId) ?? null : null);
+  const project = passive ? boundProject : selectedProject;
   const jump = useAppStore((state) => state.messageJump);
   const jumpToMessage = useAppStore((state) => state.jumpToMessage);
-  const search = useAppStore(state => state.transcriptSearch);
+  const search = useAppStore(state => passive ? null : state.transcriptSearch);
   const searchQuery = useDeferredValue(search?.query ?? "");
   const source = useAppStore((state) => state.sessions.find((item) => item.id === session?.forkOrigin?.sourceSessionId));
   // A transcript that is still loading is not an empty conversation (ADR-048).
@@ -61,6 +72,8 @@ export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
   const latestTurn = useRef<HTMLDivElement>(null);
   const scrolling = useRef<ReturnType<typeof createTranscriptScroll> | null>(null);
   const messages = useMemo(() => session?.messages.filter(message => message.role !== "system") ?? [], [session?.messages]);
+  // Replies to a standalone `/compact` read as a compaction, not as an empty answer (ADR-057).
+  const compactions = useMemo(() => new Set(messages.filter((message, index) => message.role === "agent" && messages[index - 1]?.role === "user" && messages[index - 1].content.trim() === "/compact").map((message) => message.id)), [messages]);
   const latestUserIndex = messages.reduce((last, message, index) => message.role === "user" ? index : last, -1);
   const latestUserId = messages[latestUserIndex]?.id;
   const [following, setFollowing] = useState(true);
@@ -89,22 +102,22 @@ export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
     (hit ?? node).scrollIntoView({ block: "center", behavior: "instant" });
     node.focus({ preventScroll: true });
   }, [jump, session?.id]);
-  const title = project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
+  const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
   return (
-    <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !isConversationStarted(session) && "dot-grid")}>
-      {empty ? <LandingOrbits /> : null}
+    <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
+      {empty && !passive ? <LandingOrbits /> : null}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <TranscriptSearchBar sessionId={session?.id} />
-        {!empty && !search ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
+        {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
+        {!empty && !search && !passive ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
         {session?.lastError ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
         {session?.forkOrigin ? <div className="mx-auto flex w-full max-w-[var(--chat-column-width)] items-center gap-2 px-3 pt-2 ui-caption text-text-muted"><GitFork aria-hidden="true" size={13} /><span>{t("Fork of {title}", { title: session.forkOrigin.sourceTitle })}</span>{source ? <InteractiveButton variant="toolbar" className="ml-auto shrink-0" onClick={() => jumpToMessage(source.id, session.forkOrigin!.sourceMessageId)}>{t("View original")}</InteractiveButton> : <span>{t("Original session removed")}</span>}</div> : null}
         {empty ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-8">
             <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
-              <img data-landing-glyph src="/switchyard-glyph.png" alt="" draggable={false} className="mb-4 h-[54px] w-auto opacity-95" />
+              <img data-landing-glyph={passive ? undefined : ""} src="/switchyard-glyph.png" alt="" draggable={false} className={cn("mb-4 w-auto opacity-95", passive ? "h-[36px]" : "h-[54px]")} />
               <h2 className="ui-title text-text-primary">{title}</h2>
-              {!project ? <button type="button" onClick={() => void openProject()} className="mt-4 ui-body text-accent">{t("project.open")}</button> : null}
+              {!project && !passive ? <button type="button" onClick={() => void openProject()} className="mt-4 ui-body text-accent">{t("project.open")}</button> : null}
             </div>
           </div>
         ) : (
@@ -129,28 +142,36 @@ export function SessionPane({ agents, onSend, onStop, onModelChange }: Props) {
                 <div ref={transcriptContent} className="mx-auto flex w-full shrink-0 max-w-[var(--chat-column-width)] flex-col gap-[var(--chat-message-gap)]">
                   {[messages.slice(0, Math.max(0, latestUserIndex)), messages.slice(Math.max(0, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
                   {group.map((message) => (
-                    <TranscriptMessage key={message.id} message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} />
+                    <TranscriptMessage key={message.id} message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
                   ))}
                   </div>)}
                 </div>
               </motion.div>
               <MessageTrail key={`trail:${session.id}`}messages={messages} viewport={transcript} content={transcriptContent} nodes={messageNodes} onSelect={navigateMessage} />
-              <TranscriptSelectionMenu key={`selection:${session.id}`} sessionId={session.id} viewport={transcript} />
+              {passive ? null : <TranscriptSelectionMenu key={`selection:${session.id}`} sessionId={session.id} viewport={transcript} />}
           </div>
 
         )}
         {!empty && !following ? <button type="button" className="absolute bottom-40 left-1/2 z-20 -translate-x-1/2 rounded-[7px] bg-background-2 px-3 py-1 ui-control text-text-secondary hover:bg-background-3" onClick={() => {
           scrolling.current?.follow();
         }}>{t("session.followLatest")}</button> : null}
-        {sessionMeta ? <AgentRequests session={sessionMeta} /> : null}
-        {empty && project && !session?.handoff?.pending ? <LandingControls /> : null}
-        <div className="relative z-10 px-6 pb-2">
-          <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />
+        {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
+        {empty && project && !passive && !session?.handoff?.pending ? <LandingControls /> : null}
+        <div className="relative z-10 px-6 pb-4">
+          {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
         </div>
-        <div className="relative z-10 shrink-0 px-6"><UsageFooter composerAligned /></div>
       </div>
     </section>
   );
+}
+
+/** Stands in for the composer of an inactive pane; using it activates the pane (see SplitWorkspace). */
+function PassiveComposer({ session }: { session: Session | null }) {
+  const t = useTranslation();
+  return <button type="button" className="split-passive-composer ui-body">
+    <span className="truncate text-text-muted">{t(session?.status === "waiting" ? "split.waiting" : "split.reply")}</span>
+    {session && ["starting", "running", "waiting"].includes(session.status) ? <span className="ml-auto shrink-0"><StatusIndicator status={session.status} /></span> : null}
+  </button>;
 }
 
 /** Session fields a message row reads besides its own message. */
@@ -162,11 +183,12 @@ function sameRowSession(a: Session, b: Session) {
  * One transcript row. Memoized so a streamed chunk re-renders only the message
  * it changed, not every earlier message and its parsed code blocks.
  */
-const TranscriptMessage = memo(function TranscriptMessage({ message, session, searchQuery, nodes }: {
+const TranscriptMessage = memo(function TranscriptMessage({ message, session, searchQuery, nodes, compacted = false }: {
   message: Message;
   session: Session;
   searchQuery: string;
   nodes: RefObject<Map<string, HTMLElement>>;
+  compacted?: boolean;
 }) {
   const t = useTranslation();
   const register = useCallback((node: HTMLElement | null) => {
@@ -192,9 +214,10 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           return (blocks ?? []).map((block, index) => {
             const start = offset;
             offset += block.content.length + 1;
+            if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
             return block.kind === "code" ? <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
           });
-        })() : <SearchText text={message.content} query={searchQuery} />) : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+        })() : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
@@ -205,4 +228,4 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
     </article>
   );
-}, (previous, next) => previous.message === next.message && previous.searchQuery === next.searchQuery && previous.nodes === next.nodes && sameRowSession(previous.session, next.session));
+}, (previous, next) => previous.message === next.message && previous.compacted === next.compacted && previous.searchQuery === next.searchQuery && previous.nodes === next.nodes && sameRowSession(previous.session, next.session));

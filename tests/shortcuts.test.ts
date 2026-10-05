@@ -60,10 +60,12 @@ test("controller matches shifted physical punctuation, ignores composition, repe
 
 test("Escape stops only the selected live agent and only from the conversation", () => {
   const state = { settingsOpen: false, paletteOpen: false, newSessionOpen: false, environmentOpen: false, mainView: "session", selectedSessionId: "owned", sessions: [{ id: "owned", status: "running" }, { id: "other", status: "running" }] };
-  const element = (inside: boolean, tagName = "BUTTON") => ({ tagName, closest: () => (inside ? {} : null) });
+  const element = (inside: boolean, tagName = "BUTTON", sideChat = false) => ({ tagName, closest: (selector: string) => (selector === "[data-side-chat]" ? sideChat : inside) ? {} : null });
   assert.equal(escapeStopsAgent(state, null), true);
   assert.equal(escapeStopsAgent(state, element(false, "BODY") as unknown as EventTarget), true);
   assert.equal(escapeStopsAgent(state, element(true, "TEXTAREA") as unknown as EventTarget), true);
+  // A side chat's composer belongs to another session; Escape there never stops the main agent.
+  assert.equal(escapeStopsAgent(state, element(true, "TEXTAREA", true) as unknown as EventTarget), false);
   // Menus, dialogs and other panes keep Escape for closing themselves.
   assert.equal(escapeStopsAgent(state, element(false) as unknown as EventTarget), false);
   for (const status of ["starting", "waiting"]) assert.equal(escapeStopsAgent({ ...state, sessions: [{ id: "owned", status }] }, null), true);

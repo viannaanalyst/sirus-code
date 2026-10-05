@@ -3,7 +3,7 @@ import { forwardRef, useId, useRef } from "react";
 import type { InputHTMLAttributes } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Search, X as Xmark } from "lucide-react";
+import { Search, X as Xmark } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./search-field.module.css";

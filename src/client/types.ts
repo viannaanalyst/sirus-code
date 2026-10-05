@@ -20,7 +20,16 @@ export interface Project {
   path: string;
   addedAt: string;
   lastOpenedAt: string;
+  /** Display-only folder colour, emoji or logo (ADR-059). */
+  look?: ProjectLook;
 }
+
+export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null }
+export type ProjectLookAction =
+  | { type: "setColor"; projectId: string; color: string | null }
+  | { type: "setEmoji"; projectId: string; emoji: string | null }
+  | { type: "pickLogo"; projectId: string }
+  | { type: "clearLogo"; projectId: string };
 
 export interface Worktree {
   path: string;
@@ -172,12 +181,16 @@ export interface Session {
   lastError: string | null;
   model?: string | null;
   nativeThread?: NativeThread | null;
+  /** Latest context-window reading the provider reported (ADR-057). */
+  contextUsage?: { used: number; window: number | null } | null;
   execution?: ExecutionOptions;
   pendingRequests?: PendingRequest[];
   /** Coordinator sessions own a team plan and its progress (ADR-043). */
   team?: Team | null;
   /** Worker sessions point back to their coordinator task. */
   teamWorker?: TeamWorker | null;
+  /** A side chat answers about this main session and is hidden from session lists (ADR-049). */
+  sideChat?: { parentSessionId: string } | null;
 }
 
 export type TeamStatus = "planning" | "proposed" | "running" | "ready" | "done" | "stopped" | "failed";
@@ -190,6 +203,9 @@ export interface TeamTask {
 export interface Team { messageId: string; status: TeamStatus; summary: string | null; error: string | null; approval: ApprovalMode | null; tasks: TeamTask[]; }
 export interface TeamWorker { coordinatorSessionId: string; taskId: string; }
 export interface TeamTaskEdit { id: string; title: string; provider: AgentProviderId; model: string | null; }
+/** Closed `side_chat_action`: open (or reuse) the parent's side chat. */
+export type SideChatAction = { type: "open"; parentSessionId: string };
+
 export type TeamAction =
   | { type: "start"; sessionId: string; tasks: TeamTaskEdit[]; approval: Exclude<ApprovalMode, "full"> }
   | { type: "stop" | "merge" | "discard"; sessionId: string }
@@ -197,10 +213,6 @@ export type TeamAction =
   | { type: "cleanup"; sessionId: string; confirm: true };
 export interface TeamActionResponse { sessions: Session[]; removed: string[]; }
 
-export type ProfileAvatarColor = "silver" | "blue" | "green" | "rose" | "amber";
-export interface LocalProfile { name: string; handle: string; avatarColor: ProfileAvatarColor; avatarImage: string | null; }
-export type ProfileImageAction = "copy" | "save" | "x" | "linkedin" | "reddit";
-export type ProfileImageResult = "copied" | "saved" | "cancelled" | "composerOpened";
 
 export type MonoFontId = "plexMono" | "jetbrains" | "fira" | "geistMono" | "source" | "roboto" | "ubuntu" | "sfMono" | "menlo" | "cascadia" | "hack" | "consolas";
 export interface AppearanceSupport { translucency: boolean; dockIcon: boolean; }
@@ -223,10 +235,29 @@ export interface AgentSkill { name: string; description: string; sources: SkillS
 export interface SkillsCatalog { portableDir: string; skills: AgentSkill[]; truncated: boolean }
 export type SkillActionResponse = { type: "catalog"; catalog: SkillsCatalog } | { type: "preview"; document: string };
 
+export type WindowSnapShortcut = "controlOptionCommandS" | "optionShiftS" | "controlShiftS";
+/** `window-snap` event after the global shortcut (ADR-054). */
+export type WindowSnapEvent = { status: "ready"; nonce: string; app: string } | { status: "needsPermission" } | { status: "ownWindow" } | { status: "failed" };
+export type WindowSnapAction = { type: "claim"; nonce: string; owner: string } | { type: "discard"; nonce: string };
+
 export interface AppSettings {
   notifications: NotificationPreferences;
-  profile: LocalProfile;
   usageProviders: AgentProviderId[];
+  /** Providers whose quota ring shows in the sidebar rail (at most two). */
+  sidebarUsageProviders: AgentProviderId[];
+  /** Sidebar shows the time-grouped Activity view instead of project folders. */
+  sidebarActivityView: boolean;
+  /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
+  doneSessions: { id: string; at: string }[];
+  /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */
+  windowSnapEnabled: boolean;
+  windowSnapShortcut: WindowSnapShortcut;
+  /** Pinned review-inbox items as `owner/repo#number` (ADR-050). */
+  githubPins: string[];
+  /** Rail customization (ADR-052): item order, hidden items and project shortcuts. */
+  railItemOrder: string[];
+  hiddenRailItems: string[];
+  railProjectShortcuts: string[];
   customShortcuts: Partial<Record<import("../lib/keybindings").ShortcutId, string>>;
   defaultAgent: AgentProviderId;
   openLastProject: boolean;
@@ -300,7 +331,6 @@ export interface AppSettings {
 
 export interface HostInfo {
   appearanceSupport: AppearanceSupport;
-  profileDefaultName?: string;
   gitDetected: boolean;
   gitPath: string | null;
   gitVersion: string | null;
@@ -616,9 +646,162 @@ export type CommitTitleResponse = CommitTitleResult | { type: "cancelled" };
 /** Closed read-only transcript access (ADR-048). */
 export type TranscriptAction =
   | { type: "load"; sessionId: string }
-  | { type: "search"; query: string }
-  | { type: "activity" };
+  | { type: "search"; query: string };
 export type TranscriptResponse =
   | { type: "transcript"; sessionId: string; messages: Message[] }
-  | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean }
-  | { type: "activity"; sessions: { sessionId: string; prompts: { id: string; createdAt: string }[] }[] };
+  | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean };
+
+// Review inbox (ADR-050): pull requests and issues of owned GitHub repositories.
+export type GithubItemKind = "pullRequest" | "issue";
+/** List filter: `closed` means closed without merging for pull requests. */
+export type GithubItemState = "open" | "closed" | "merged";
+export type GithubMergeMethod = "merge" | "squash" | "rebase";
+export type GithubLookupStatus = "ready" | "cliMissing" | "authRequired" | "unavailable" | string;
+export interface GithubLabel { name: string; color: string | null }
+export interface GithubItem {
+  kind: GithubItemKind;
+  repository: string;
+  number: number;
+  title: string;
+  url: string;
+  state: "open" | "closed" | "merged";
+  isDraft: boolean;
+  author: string | null;
+  createdAt: string;
+  updatedAt: string;
+  headRef: string | null;
+  baseRef: string | null;
+  additions: number;
+  deletions: number;
+  reviewDecision: string | null;
+  mergeable: string | null;
+  labels: GithubLabel[];
+  commentCount: number;
+  assignees: string[];
+  reviewRequests: string[];
+  checks: string | null;
+}
+export interface GithubInbox {
+  viewer: string | null;
+  repositories: { repository: string; projectIds: string[] }[];
+  items: GithubItem[];
+  failures: { repository: string; status: GithubLookupStatus }[];
+  checkedAt: string;
+}
+export interface GithubDetail {
+  item: GithubItem;
+  body: string;
+  headOid: string | null;
+  mergedAt: string | null;
+  closedAt: string | null;
+  mergeStateStatus: string | null;
+  changedFiles: number;
+  viewerCanUpdate: boolean;
+  mergeMethods: GithubMergeMethod[];
+  checks: { name: string; status: "passed" | "failed" | "pending" | "skipped" | "unknown"; url: string | null }[];
+  reviewers: string[];
+  reviews: { author: string | null; state: string; body: string; submittedAt: string | null }[];
+  comments: { author: string | null; body: string; createdAt: string }[];
+  commits: { oid: string; headline: string; author: string | null; committedAt: string | null }[];
+  files: { path: string; additions: number; deletions: number; changeType: string }[];
+  filesTruncated: boolean;
+}
+export type PullRequestAction =
+  | { type: "list"; kind: GithubItemKind; state: GithubItemState }
+  | { type: "detail"; repository: string; number: number; kind: GithubItemKind }
+  | { type: "diff"; repository: string; number: number }
+  | { type: "failures"; repository: string; number: number }
+  | { type: "merge"; repository: string; number: number; method: GithubMergeMethod; expectedHead: string; confirm: true }
+  | { type: "setDraft"; repository: string; number: number; draft: boolean; confirm: true }
+  | { type: "setOpen"; repository: string; number: number; kind: GithubItemKind; open: boolean; confirm: true }
+  | { type: "comment"; repository: string; number: number; body: string; confirm: true };
+export type PullRequestResponse =
+  | ({ type: "inbox" } & GithubInbox)
+  | ({ type: "detail" } & GithubDetail)
+  | { type: "diff"; text: string; truncated: boolean }
+  | { type: "failures"; checks: GithubFailedCheck[]; truncated: boolean }
+  | { type: "done" };
+/** One failing check with its annotations and an error-focused job log excerpt. */
+export interface GithubFailedCheck { name: string; url: string | null; summary: string | null; annotations: string[]; log: string | null }
+
+// Scheduled automations (ADR-051).
+export type AutomationSchedule =
+  | { kind: "manual" }
+  | { kind: "once"; at: string }
+  | { kind: "hourly"; minute: number }
+  | { kind: "daily"; time: string }
+  | { kind: "weekdays"; time: string }
+  | { kind: "weekly"; weekday: number; time: string }
+  | { kind: "interval"; minutes: number };
+export type AutomationWorkspace = "worktree" | "local";
+export interface Automation {
+  id: string;
+  name: string;
+  prompt: string;
+  projectId: string;
+  agent: AgentProviderId;
+  model: string | null;
+  approval: ApprovalMode;
+  planning: boolean;
+  workspace: AutomationWorkspace;
+  schedule: AutomationSchedule;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastError: string | null;
+}
+export interface AutomationRun {
+  id: string;
+  automationId: string;
+  sessionId: string | null;
+  startedAt: string;
+  manual: boolean;
+  status: "started" | "skipped" | "failed";
+  note: string | null;
+}
+export interface AutomationSnapshot { automations: Automation[]; runs: AutomationRun[] }
+export interface AutomationInput {
+  id: string | null;
+  name: string;
+  prompt: string;
+  projectId: string;
+  agent: AgentProviderId;
+  model: string | null;
+  approval: ApprovalMode;
+  planning: boolean;
+  workspace: AutomationWorkspace;
+  schedule: AutomationSchedule;
+  enabled: boolean;
+  acknowledgeFullAccess: boolean;
+}
+export type AutomationAction =
+  | { type: "list" }
+  | { type: "upsert"; automation: AutomationInput }
+  | { type: "delete"; id: string }
+  | { type: "setEnabled"; id: string; enabled: boolean }
+  | { type: "runNow"; id: string };
+
+// Tasks (ADR-052).
+export type TaskPriority = "none" | "low" | "medium" | "high" | "urgent";
+export interface Task {
+  id: string;
+  title: string;
+  notes: string;
+  priority: TaskPriority;
+  projectId: string | null;
+  dueDate: string | null;
+  sessionId: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface TaskInput { id: string | null; title: string; notes: string; priority: TaskPriority; projectId: string | null; dueDate: string | null }
+export type TaskAction =
+  | { type: "list" }
+  | { type: "upsert"; task: TaskInput }
+  | { type: "delete"; id: string }
+  | { type: "setDone"; id: string; done: boolean }
+  | { type: "unlink"; id: string }
+  | { type: "delegate"; id: string; agent: AgentProviderId; model: string | null; approval: ApprovalMode; planning: boolean; isolatedWorktree: boolean };

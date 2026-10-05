@@ -4,7 +4,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "lucide-react";
+import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { AgentInstall, AgentProviderId, ExecutionOptions, Session } from "@/client/types";
@@ -13,6 +13,7 @@ import { ComposerContour } from "@/components/ComposerContour";
 import { ComposerSuggestions } from "@/components/ComposerSuggestions";
 import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
+import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
 import { HandoffCard } from "@/components/HandoffCard";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
@@ -92,7 +93,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const execution = modelExecutionControls(agentId, modelId, catalogs[agentId]?.models ?? [], preference);
   const planningAvailable = supportsPlanning(agentId, modelId);
   // Teams need a native planning coordinator and no team already in flight on this session.
-  const teamAvailable = ["codex", "claude", "opencode"].includes(agentId) && !session?.teamWorker
+  const teamAvailable = ["codex", "claude", "opencode"].includes(agentId) && !session?.teamWorker && !session?.sideChat
     && !(session?.team && ["planning", "proposed", "running", "ready"].includes(session.team.status));
   const submitting = (sending && !running) || queueSending;
   const canSend = (value.trim().length > 0 || context.attachments.length > 0) && !dictating && !submitting && !pasting && !modelChanging && canType && providerReady && (!context.planning || planningAvailable);
@@ -246,6 +247,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         </div>
         <div className="composer-footer-actions flex items-center gap-2">
           <div className="composer-idle-control composer-model-controls items-center gap-2">
+          <ContextMeter session={session} />
           <ModelSelector executionControls disabled={running || sending || queueSending} currentProvider={agentId} currentModel={modelId} onSelect={(provider, model) => onModelChange?.(provider, model)} />
           </div>
           <ComposerDictationButton key={draftKey} onText={appendDictation} onActiveChange={setDictating} disabled={!canType || submitting || pasting} />

@@ -1,7 +1,8 @@
 import { useTranslation } from "@/i18n/use-translation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { useAppStore } from "@/store/app-store";
+import { selectListedSessions, useAppStore } from "@/store/app-store";
+import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ShortcutHint } from "@/primitives/ShortcutHint";
 import type { CommandItem } from "@/lib/shortcuts";
 
@@ -16,10 +17,27 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
   const returnFocus = useRef<HTMLElement | null>(null);
   useEffect(() => { list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" }); }, [active, query]);
 
+  const sessions = useAppStore(selectListedSessions);
+  const projects = useAppStore((state) => state.projects);
+  const archivedIds = useAppStore((state) => state.settings.archivedSessionIds);
+  // Chats come first: the five most recent, or every title match while typing (bounded).
+  const chats = useMemo<CommandItem[]>(() => {
+    if (!open) return [];
+    const needle = query.trim().toLocaleLowerCase();
+    const recent = [...sessions].filter((session) => needle ? session.title.toLocaleLowerCase().includes(needle) : !archivedIds.includes(session.id))
+      .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
+      .slice(0, needle ? 20 : 5);
+    return recent.map((session) => ({
+      id: `chat-${session.id}`, label: session.title, group: t("palette.recentChats"),
+      icon: <ProviderIcon id={session.agent} size={16} />,
+      meta: projects.find((project) => project.id === session.projectId)?.name,
+      run: () => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); },
+    }));
+  }, [open, query, sessions, projects, archivedIds, t]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return commands.filter((command) => command.label.toLowerCase().includes(needle));
-  }, [commands, query]);
+    return [...chats, ...commands.filter((command) => command.label.toLowerCase().includes(needle))];
+  }, [chats, commands, query]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CommandItem[]>();
@@ -68,7 +86,11 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
             aria-autocomplete="list"
             aria-activedescendant={filtered[active] ? `${listId}-${filtered[active].id}` : undefined}
             value={query}
-            placeholder={t("Buscar comandos…")}
+            placeholder={t("palette.placeholder")}
+            spellCheck={false}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
             onChange={(event) => {
               setQuery(event.target.value);
               setActive(0);
@@ -87,15 +109,15 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
                 run(filtered[active]);
               }
             }}
-            className="h-12 w-full border-b border-border-subtle bg-transparent px-4 ui-body text-text-primary outline-none placeholder:text-text-muted"
+            className="h-14 w-full bg-transparent px-5 ui-body text-text-primary outline-none placeholder:text-text-muted"
           />
-          <div ref={list} id={listId} role="listbox" aria-label={t("Command palette")} className="scroll-thin max-h-[360px] overflow-y-auto p-2">
+          <div ref={list} id={listId} role="listbox" aria-label={t("Command palette")} className="scroll-thin max-h-[420px] overflow-y-auto px-2 pb-2">
             {grouped.length === 0 ? (
-              <p className="px-2 py-6 text-center ui-body text-text-muted">{t("Nenhum comando")}</p>
+              <p className="px-2 py-6 text-center ui-body text-text-muted">{t("palette.empty")}</p>
             ) : (
               grouped.map(([group, items]) => (
                 <div key={group} role="group" aria-label={group} className="mb-2">
-                  <p className="px-2 py-1 ui-micro uppercase tracking-[0.14em] text-text-muted">{group}</p>
+                  <p className="px-3 pb-1 pt-2 ui-caption text-text-muted">{group}</p>
                   {items.map((item) => {
                     const index = filtered.indexOf(item);
                     return (
@@ -107,11 +129,13 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
                         type="button"
                         onMouseEnter={() => setActive(index)}
                         onClick={() => run(item)}
-                        className={`flex w-full items-center justify-between rounded-[8px] px-2 py-2 text-left ui-control ${
+                        className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-left ui-control ${
                           index === active ? "bg-background-3 text-text-primary" : "text-text-secondary"
                         }`}
                       >
-                        <span>{item.label}</span>
+                        {item.icon ? <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center text-text-muted [&_svg]:size-4">{item.icon}</span> : null}
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {item.meta ? <span className="max-w-[40%] shrink-0 truncate ui-caption text-text-muted">{item.meta}</span> : null}
                         {item.shortcut ? <ShortcutHint keys={item.shortcut} /> : null}
                       </button>
                     );

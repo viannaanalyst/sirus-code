@@ -2,7 +2,7 @@
 
 import { AnimatePresence, animate, motion, useMotionValue, useTransform, type MotionValue, type Variants } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus } from "@/components/icons/phosphor";
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./number-field.module.css";
