@@ -403,3 +403,19 @@ html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
 
 /* Drag to reorder (src/lib/use-pointer-reorder.ts): the dragged item lifts with a shadow over its neighbours. */
 [data-reorder-lifted] { position: relative; border-radius: 8px; background: var(--navigation-selected); box-shadow: 0 10px 24px rgb(0 0 0 / .4), inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: grabbing; }
+
+/* Right dock tabs (Synara style): pills that shrink to fit; the icon turns into a drag grip on hover. */
+.dock-tab { position: relative; display: flex; align-items: center; flex: 0 1 200px; min-width: 96px; height: 30px; border-radius: 10px; color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); user-select: none; touch-action: none; }
+.dock-tab:hover:not([data-active]) { background: var(--navigation-hover); color: var(--text-secondary); }
+.dock-tab[data-active] { background: var(--navigation-selected); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent); color: var(--text-primary); }
+.dock-tab-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; height: 100%; padding: 0 4px 0 10px; text-align: left; cursor: pointer; }
+.dock-tab[data-dragging] .dock-tab-open { cursor: grabbing; }
+.dock-tab-icon { position: relative; display: grid; place-items: center; width: 14px; height: 14px; flex: none; }
+.dock-tab-icon > svg { transition: opacity var(--motion-fast) var(--ease-out); }
+.dock-tab-grip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; letter-spacing: -1px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.dock-tab:hover .dock-tab-icon > svg { opacity: 0; }
+.dock-tab:hover .dock-tab-grip { opacity: 1; }
+.dock-tab-label { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.dock-tab-close { display: grid; place-items: center; flex: none; width: 20px; height: 20px; margin-right: 6px; border-radius: 6px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.dock-tab[data-active] .dock-tab-close, .dock-tab:hover .dock-tab-close, .dock-tab-close:focus-visible { opacity: 1; }
+.dock-tab-close:hover { background: var(--navigation-hover); color: var(--text-primary); }

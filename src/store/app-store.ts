@@ -310,6 +310,8 @@ interface AppStore {
   keepTurnChanges: (sessionId: string, messageId: string) => Promise<void>;
   openAttachmentReader: (scope: string, attachment: import("@/client/types").PromptAttachment) => void;
   closeDockPane: (paneId: string) => void;
+  /** Moves a dock tab before/after another (drag to reorder). */
+  moveDockPane: (paneId: string, targetId: string, edge: "before" | "after") => void;
   setActiveDockPane: (paneId: string) => void;
   ensureTerminal: (sessionId: string) => void;
   addTerminalTab: (sessionId: string, paneId: string) => void;
@@ -751,6 +753,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   dockOpen: false,
   dockMaximized: false,
   dockPanes: [],
+  moveDockPane: (paneId, targetId, edge) => set((state) => {
+    const moving = state.dockPanes.find((pane) => pane.id === paneId);
+    if (!moving || paneId === targetId) return state;
+    const rest = state.dockPanes.filter((pane) => pane.id !== paneId);
+    const at = rest.findIndex((pane) => pane.id === targetId);
+    if (at < 0) return state;
+    rest.splice(edge === "after" ? at + 1 : at, 0, moving);
+    return { dockPanes: rest };
+  }),
   dockActivePaneId: null,
   terminalWorkspacesBySession: {},
   localServersBySession: {},

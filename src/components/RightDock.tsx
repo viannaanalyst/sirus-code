@@ -24,6 +24,7 @@ import { FileTree } from "@/components/FileTree";
 import { ChangesPane } from "@/components/ChangesPane";
 import { SideChatPane } from "@/components/SideChatPane";
 import { editorKey } from "@/lib/editor-state";
+import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
@@ -72,6 +73,7 @@ export function RightDock() {
   const openDockPane = useAppStore((state) => state.openDockPane);
   const closeDockPane = useAppStore((state) => state.closeDockPane);
   const setActiveDockPane = useAppStore((state) => state.setActiveDockPane);
+  const reorder = usePointerReorder({ axis: "x", onDrop: (source, target, edge) => useAppStore.getState().moveDockPane(source, target, edge) });
   const toggleDock = useAppStore((state) => state.toggleDock);
   const toggleDockMaximized = useAppStore((state) => state.toggleDockMaximized);
   const discardEditorBuffer = useAppStore((state) => state.discardEditorBuffer);
@@ -107,13 +109,15 @@ export function RightDock() {
   return (
     <aside className={cn("flex h-full min-w-0 flex-col border-l border-border-subtle", conversationStarted ? "sidebar-material" : "main-material")} aria-label={t("Right panel")}>
       <div data-tauri-drag-region className="flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 px-1.5">
-        <div className="scroll-thin flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
+        <div className="dock-tabs flex min-w-0 flex-1 items-center gap-1" data-reorder-scope="">
           {visible.map((pane) => (
             <DockTab
               key={pane.id}
               pane={pane}
               active={pane.id === active?.id}
               dirty={isDirty(pane)}
+              reorder={reorder.bind(pane.id)}
+              dragging={reorder.dragging === pane.id}
               onSelect={() => setActiveDockPane(pane.id)}
               onClose={() => requestClose(pane)}
             />
@@ -210,20 +214,19 @@ export function RightDock() {
   );
 }
 
-function DockTab({ pane, active, dirty, onSelect, onClose }: { pane: DockPane; active: boolean; dirty: boolean; onSelect: () => void; onClose: () => void }) {
+/** Synara-style pill tab: icon (a drag grip on hover), name and close; tabs shrink to fit and reorder by dragging. */
+function DockTab({ pane, active, dirty, reorder, dragging, onSelect, onClose }: { pane: DockPane; active: boolean; dirty: boolean; reorder: ReturnType<ReturnType<typeof usePointerReorder>["bind"]>; dragging: boolean; onSelect: () => void; onClose: () => void }) {
   const t = useTranslation();
   const meta = paneMeta[pane.kind];
   const label = pane.document?.name ?? (pane.kind === "editor" && pane.path ? pane.path.split("/").at(-1) ?? meta.label : meta.label);
   return (
-    <div className={cn("group relative flex h-6 shrink-0 items-center rounded-[6px] transition-colors duration-[var(--motion-fast)]", active ? "bg-background-3 text-text-primary" : "text-text-muted hover:bg-background-3/70 hover:text-text-secondary")}>
-      <button type="button" className="flex min-w-0 items-center gap-1.5 py-1 pl-1.5 pr-2" aria-pressed={active} onClick={onSelect}>
-        <meta.icon size={12} aria-hidden="true" className="transition-opacity duration-[var(--motion-fast)] group-hover:opacity-0" />
-        <span className="max-w-[140px] truncate ui-caption">{dirty ? `• ${t(label)}` : t(label)}</span>
+    <div {...reorder} data-active={active || undefined} data-dragging={dragging || undefined} className="dock-tab group">
+      <button type="button" className="dock-tab-open" aria-pressed={active} onClick={onSelect} title={t(label)}>
+        <span className="dock-tab-icon" aria-hidden="true"><meta.icon size={14} /><span className="dock-tab-grip">⠿</span></span>
+        <span className="dock-tab-label ui-control">{dirty ? `• ${t(label)}` : t(label)}</span>
       </button>
-      <button type="button" aria-label={t("Close panel")} title={t("Close panel")}
-        className="absolute left-[3px] top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-[4px] text-text-muted opacity-0 hover:text-text-primary group-hover:opacity-100 focus-visible:opacity-100"
-        onClick={onClose}>
-        <X size={11} aria-hidden="true" />
+      <button type="button" data-no-reorder="" aria-label={t("Close panel")} title={t("Close panel")} className="dock-tab-close" onClick={onClose}>
+        <X size={12} aria-hidden="true" />
       </button>
     </div>
   );
