@@ -14,6 +14,12 @@ export const defaultSettings: AppSettings = {
   sidebarActivityView: false,
   steerWhileRunning: false,
   ciAutoFix: false,
+  dictationEnterSends: false,
+  foldFinishedTurns: true,
+  githubLinksInApp: true,
+  diffWordWrap: false,
+  confirmArchive: false,
+  confirmTerminalClose: true,
   doneSessions: [],
   windowSnapEnabled: false,
   windowSnapShortcut: "controlOptionCommandS",
@@ -101,6 +107,12 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     sidebarActivityView: value?.sidebarActivityView === true,
     steerWhileRunning: value?.steerWhileRunning === true,
     ciAutoFix: value?.ciAutoFix === true,
+    dictationEnterSends: value?.dictationEnterSends === true,
+    foldFinishedTurns: value?.foldFinishedTurns !== false,
+    githubLinksInApp: value?.githubLinksInApp !== false,
+    diffWordWrap: value?.diffWordWrap === true,
+    confirmArchive: value?.confirmArchive === true,
+    confirmTerminalClose: value?.confirmTerminalClose !== false,
     windowSnapEnabled: value?.windowSnapEnabled === true,
     windowSnapShortcut: (["controlOptionCommandS", "optionShiftS", "controlShiftS"] as const).find((id) => id === value?.windowSnapShortcut) ?? "controlOptionCommandS",
     doneSessions: (value?.doneSessions ?? []).filter((row, index, rows) => typeof row?.id === "string" && row.id.length > 0 && row.id.length <= 64 && typeof row.at === "string" && /^[0-9A-Za-z:.+-]{1,40}$/.test(row.at) && rows.findIndex((other) => other.id === row.id) === index).slice(0, 4096),
@@ -160,7 +172,7 @@ function sidebarIds(ids: string[] | undefined): string[] {
 }
 
 export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject",
-  "confirmCloseRunning", "steerWhileRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
+  "confirmCloseRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
   "environmentPanelDefaultOpen", "showEnvironmentUsage", "showEnvironmentRepository", "showEnvironmentEditor", "showEnvironmentPullRequest",
   "showEnvironmentPinned", "showEnvironmentNotepad", "showEnvironmentInstructions"] as const satisfies readonly (keyof AppSettings)[];
 
@@ -233,6 +245,8 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 }
 function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
 
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
+
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {
   const restored = { ...settings };
@@ -242,6 +256,7 @@ export function resetAppearanceSettings(settings: AppSettings): AppSettings {
 
 export type SettingsSectionId =
   | "notifications"
+  | "chat"
   | "general"
   | "providers"
   | "skills"

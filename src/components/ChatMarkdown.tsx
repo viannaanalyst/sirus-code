@@ -105,6 +105,18 @@ function FileReference({ owner, path, line, children, fallback }: { owner: Owner
   </ContextMenu>;
 }
 
+/** GitHub PR/issue links open the Pull requests page when Chat behavior asks for it (⌘-click: browser). */
+function openLink(url: string, external: boolean) {
+  const store = useAppStore.getState();
+  const match = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/i.exec(url);
+  if (match && !external && store.settings.githubLinksInApp) {
+    useAppStore.setState({ pullsSelection: `${match[1]}#${match[2]}` });
+    store.setMainView("pulls");
+    return;
+  }
+  void client.openExternalUrl(url).catch(() => void navigator.clipboard.writeText(url));
+}
+
 function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }): ReactNode {
   return nodes.map((node, index) => {
     switch (node.kind) {
@@ -119,7 +131,7 @@ function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }):
       }
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {
-          return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); void client.openExternalUrl(node.url).catch(() => void navigator.clipboard.writeText(node.url)); }}><Inline nodes={node.children} owner={owner} /></a>;
+          return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}><Inline nodes={node.children} owner={owner} /></a>;
         }
         const reference = owner ? fileReference(node.url, owner.cwd) : null;
         const label = <span className="underline underline-offset-2"><Inline nodes={node.children} owner={owner} /></span>;

@@ -257,6 +257,13 @@ export interface AppSettings {
   steerWhileRunning: boolean;
   /** Owner-authorized CI auto-fix (ADR-064). */
   ciAutoFix: boolean;
+  /** Chat behavior (Settings → Chat behavior). */
+  dictationEnterSends: boolean;
+  foldFinishedTurns: boolean;
+  githubLinksInApp: boolean;
+  diffWordWrap: boolean;
+  confirmArchive: boolean;
+  confirmTerminalClose: boolean;
   /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
   doneSessions: { id: string; at: string }[];
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */

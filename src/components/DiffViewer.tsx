@@ -6,11 +6,14 @@ import { reviewDiffLines, type DiffComment } from "@/lib/diff-comment";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { IconButton } from "@/primitives/IconButton";
 import { cn } from "@/lib/cn";
+import { useAppStore } from "@/store/app-store";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
 
 export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage, onComment, hideFileList = false }: { changes: FileChange[]; selected: FileChange | null; diff: string | null; onSelect: (change: FileChange) => void; emptyDiffMessage?: string; hideFileList?: boolean; onComment?: (selection: DiffComment) => boolean }) {
+  // Chat behavior: wrap long lines instead of scrolling sideways.
+  const wrap = useAppStore((state) => state.settings.diffWordWrap);
   const t = useTranslation();
   const commentId = useId();
   const lines = useMemo(() => reviewDiffLines(diff ?? ""), [diff]);
@@ -46,9 +49,9 @@ export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage
           const start = row(picked.startContainer), end = row(picked.endContainer);
           if (start && end && event.currentTarget.contains(start) && event.currentTarget.contains(end)) choose(Number(start.dataset.diffIndex), Number(end.dataset.diffIndex));
         }}>
-        {diff.startsWith("+++ untracked\n") && !onComment ? <div className="p-2"><CodeBlock code={diff.slice("+++ untracked\n".length)} filename={selected.path} language={selected.path.split(".").at(-1) ?? "text"} animateChanges={false} /></div> : diff.length === 0 ? <p className="p-3 ui-control text-text-muted">{emptyDiffMessage ?? t("No textual diff available.")}</p> : <div className="diff-code min-w-max py-2 leading-5">
+        {diff.startsWith("+++ untracked\n") && !onComment ? <div className="p-2"><CodeBlock code={diff.slice("+++ untracked\n".length)} filename={selected.path} language={selected.path.split(".").at(-1) ?? "text"} animateChanges={false} /></div> : diff.length === 0 ? <p className="p-3 ui-control text-text-muted">{emptyDiffMessage ?? t("No textual diff available.")}</p> : <div className={cn("diff-code py-2 leading-5", !wrap && "min-w-max")}>
           {lines.map((line, index) => <div key={index} data-diff-index={index} className={cn("flex pr-3", activeRange && index >= activeRange.from && index <= activeRange.to ? "bg-accent/20" : line.kind === "addition" ? "bg-success/10" : line.kind === "deletion" ? "bg-danger/10" : line.kind === "header" ? "bg-background-2" : "", line.kind === "addition" ? "text-success" : line.kind === "deletion" ? "text-danger" : line.kind === "header" ? "text-text-muted" : "text-text-secondary")}>
-            {onComment && line.kind !== "header" ? <button type="button" aria-label={t("review.selectLine", { old: line.oldLine ?? "—", new: line.newLine ?? "—" })} aria-pressed={!!activeRange && index >= activeRange.from && index <= activeRange.to} onClick={event => choose(index, index, event.shiftKey)} className="mr-2 flex w-[72px] shrink-0 select-none border-r border-border-subtle text-text-muted hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-accent"><span className="w-9 pr-1 text-right">{line.oldLine ?? ""}</span><span className="w-9 pr-2 text-right">{line.newLine ?? ""}</span></button> : <><span aria-hidden="true" className="w-9 shrink-0 select-none pr-1 text-right text-text-muted">{line.oldLine ?? ""}</span><span aria-hidden="true" className="mr-2 w-9 shrink-0 select-none border-r border-border-subtle pr-2 text-right text-text-muted">{line.newLine ?? ""}</span></>}<span className="whitespace-pre">{line.content}</span>
+            {onComment && line.kind !== "header" ? <button type="button" aria-label={t("review.selectLine", { old: line.oldLine ?? "—", new: line.newLine ?? "—" })} aria-pressed={!!activeRange && index >= activeRange.from && index <= activeRange.to} onClick={event => choose(index, index, event.shiftKey)} className="mr-2 flex w-[72px] shrink-0 select-none border-r border-border-subtle text-text-muted hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-accent"><span className="w-9 pr-1 text-right">{line.oldLine ?? ""}</span><span className="w-9 pr-2 text-right">{line.newLine ?? ""}</span></button> : <><span aria-hidden="true" className="w-9 shrink-0 select-none pr-1 text-right text-text-muted">{line.oldLine ?? ""}</span><span aria-hidden="true" className="mr-2 w-9 shrink-0 select-none border-r border-border-subtle pr-2 text-right text-text-muted">{line.newLine ?? ""}</span></>}<span className={wrap ? "min-w-0 whitespace-pre-wrap break-all" : "whitespace-pre"}>{line.content}</span>
           </div>)}
         </div>}
       </div>

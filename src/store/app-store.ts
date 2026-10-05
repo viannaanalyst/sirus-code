@@ -19,7 +19,7 @@ import { createDraftWriter } from "@/lib/draft-persistence";
 import { CONTEXT_TEXT_LIMIT, hasContextOwner, normalizeContextTexts } from "@/lib/context-text";
 import { newId } from "@/lib/ids";
 import { scanLocalServers } from "@/lib/local-servers";
-import { pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
+import { archiveSidebarSession, pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
 import type { PullRequestLoadState } from "@/lib/pull-requests";
 import { create } from "zustand";
 import { client } from "@/client";
@@ -273,6 +273,12 @@ interface AppStore {
   automations: import("@/client/types").AutomationSnapshot | null;
   /** Closed `automation_action`; failures land in `error` and resolve null. */
   automationAction: (action: import("@/client/types").AutomationAction) => Promise<import("@/client/types").AutomationSnapshot | null>;
+  /** `owner/repo#n` a chat link asked the Pull requests page to show (Chat behavior). */
+  pullsSelection: string | null;
+  /** Session waiting for the Chat behavior archive confirmation. */
+  archivePrompt: string | null;
+  /** Archives a session, asking first when Chat behavior requires it. */
+  requestArchive: (sessionId: string, confirmed?: boolean) => void;
   /** CI auto-fix progress per session (ADR-064), refreshed by native events. */
   ciAutoFix: import("@/client/types").CiFixState[];
   ciAutofixAction: (action: import("@/client/types").CiFixAction) => Promise<void>;
@@ -802,6 +808,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   unseenSessionIds: [],
   githubInbox: {},
   automations: null,
+  pullsSelection: null,
+  archivePrompt: null,
+  requestArchive: (sessionId, confirmed = false) => {
+    const state = get();
+    if (state.settings.confirmArchive && !confirmed) { set({ archivePrompt: sessionId }); return; }
+    set({ archivePrompt: null });
+    void state.saveSettings(archiveSidebarSession(state.settings, sessionId));
+  },
   ciAutoFix: [],
   tasks: null,
   loadedTranscripts: {},

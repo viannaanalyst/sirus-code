@@ -12,6 +12,7 @@ import { MAX_TERMINALS_PER_SESSION, terminalCount, useAppStore } from "@/store/a
 import type { TerminalPane } from "@/store/app-store";
 import { translate } from "@/i18n";
 import { cn } from "@/lib/cn";
+import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { SplitDownIcon, SplitRightIcon } from "@/components/icons/SquareSplitIcons";
 import "@xterm/xterm/css/xterm.css";
 
@@ -22,7 +23,13 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
   const ensureTerminal = useAppStore((state) => state.ensureTerminal);
   const addTerminalTab = useAppStore((state) => state.addTerminalTab);
   const setActiveTerminal = useAppStore((state) => state.setActiveTerminal);
-  const closeTerminal = useAppStore((state) => state.closeTerminal);
+  const closeNow = useAppStore((state) => state.closeTerminal);
+  // Chat behavior: closing a terminal can ask first, since its shell and history end.
+  const [pendingClose, setPendingClose] = useState<string | null>(null);
+  const closeTerminal = (owner: string, terminalId: string) => {
+    if (useAppStore.getState().settings.confirmTerminalClose) setPendingClose(terminalId);
+    else closeNow(owner, terminalId);
+  };
   const splitTerminalPane = useAppStore((state) => state.splitTerminalPane);
   const moveTerminalToOwnPane = useAppStore((state) => state.moveTerminalToOwnPane);
   const settings = useAppStore((state) => state.settings);
@@ -48,6 +55,9 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
   }
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--main-material)]" data-terminal>
+      <ConfirmDialog open={pendingClose !== null} onOpenChange={(open) => { if (!open) setPendingClose(null); }}
+        title={t("chatBehavior.terminalTitle")} description={t("chatBehavior.terminalBody")} confirmLabel={t("chatBehavior.terminalClose")} cancelLabel={t("common.cancel")}
+        onConfirm={() => { if (pendingClose) closeNow(sessionId, pendingClose); setPendingClose(null); }} />
       <div className={cn("flex h-full min-h-0", workspace.split === "columns" ? "flex-row" : "flex-col")}>
         {workspace.panes.map((pane, index) => (
           <div

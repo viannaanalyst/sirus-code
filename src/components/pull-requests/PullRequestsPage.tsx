@@ -41,7 +41,11 @@ export function PullRequestsPage() {
   const [state, setState] = useState<GithubItemState>("open");
   const [sort, setSort] = useState<Sort>("updated");
   const [filters, setFilters] = useState<InboxFilters>(defaultInboxFilters);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => useAppStore.getState().pullsSelection);
+  // A chat link can ask for an item while this page is already open.
+  const requested = useAppStore((store) => store.pullsSelection);
+  const [seen, setSeen] = useState(requested);
+  if (requested !== seen) { setSeen(requested); if (requested) setSelected(requested); }
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const inboxes = useAppStore((store) => store.githubInbox);
   const load = useAppStore((store) => store.loadGithubInbox);

@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Archive, ArchiveRestore, CircleCheck, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Undo2, Zap } from "@/components/icons/phosphor";
@@ -84,7 +85,7 @@ export function SidebarSessionRow({ session, project, active, archived = false, 
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
   const togglePin = () => { const state = useAppStore.getState(); void state.saveSettings({ ...state.settings, pinnedSessionIds: toggleSidebarId(state.settings.pinnedSessionIds, session.id) }); };
-  const toggleArchive = () => { const state = useAppStore.getState(); void state.saveSettings(archiveSidebarSession(state.settings, session.id)); };
+  const toggleArchive = () => { const state = useAppStore.getState(); if (archived) void state.saveSettings(archiveSidebarSession(state.settings, session.id)); else state.requestArchive(session.id); };
   return <SidebarHoverCard label={session.title} content={<SessionHoverContent session={session} project={project} />}>
     <SessionActions session={session}><div className={cn("sidebar-session-row", active && "sidebar-session-selected")}>
       <button type="button" className="sidebar-session-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${t(`status.${session.status}`)}${hasDraft ? ` · ${t("Unsent draft")}` : ""}`} onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
@@ -152,9 +153,18 @@ export function SidebarActivityRow({ session, project, active, done, unseen = fa
       {(live || (unseen && !active)) && <span className="sidebar-activity-status">{live ? <StatusIndicator status={session.status} /> : <span className="sidebar-session-unseen" role="img" aria-label={t("activity.unread")} />}</span>}
       <span className="sidebar-hover-actions sidebar-activity-actions">
         <RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={() => save((settings) => ({ ...settings, pinnedSessionIds: toggleSidebarId(settings.pinnedSessionIds, session.id) }))}>{pinned ? <PinOff /> : <Pin />}</RowAction>
-        <RowAction label={t("Archive session")} onClick={() => save((settings) => archiveSidebarSession(settings, session.id))}><Archive /></RowAction>
+        <RowAction label={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive /></RowAction>
         <RowAction label={t(done ? "activity.undoDone" : "activity.markDone")} onClick={toggleDone}>{done ? <Undo2 /> : <CircleCheck />}</RowAction>
       </span>
     </div></SessionActions>
   </SidebarHoverCard>;
+}
+
+/** The Chat behavior archive confirmation, mounted once beside the sidebar. */
+export function ArchiveConfirm() {
+  const t = useTranslation();
+  const pending = useAppStore((state) => state.archivePrompt);
+  return <ConfirmDialog open={pending !== null} onOpenChange={(open) => { if (!open) useAppStore.setState({ archivePrompt: null }); }}
+    title={t("chatBehavior.archiveTitle")} description={t("chatBehavior.archiveBody")} confirmLabel={t("chatBehavior.archive")} cancelLabel={t("common.cancel")} destructive={false}
+    onConfirm={() => { if (pending) useAppStore.getState().requestArchive(pending, true); }} />;
 }

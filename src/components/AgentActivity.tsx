@@ -109,8 +109,10 @@ export function AgentActivity({ activity }: { activity: TurnActivity }) {
   const modelName = activity.model ? modelLabel(activity.model) : providerById(activity.provider).name;
   const active = isActivityActive(activity.status) && activity.endedAt === null;
   // A live turn shows its trail; once it settles the trail folds into the header line.
-  const [view, setView] = useState({ active, expanded: active, all: false });
-  if (view.active !== active) setView({ active, expanded: active, all: view.all });
+  // Chat behavior can keep finished turns open instead of folding them.
+  const keepOpen = useAppStore((state) => !state.settings.foldFinishedTurns);
+  const [view, setView] = useState({ active, expanded: active || keepOpen, all: false });
+  if (view.active !== active) setView({ active, expanded: active || keepOpen, all: view.all });
   const [clock, setClock] = useState(() => ({ now: Date.now(), visible: false }));
   const node = useRef<HTMLDivElement>(null);
   const bodyId = useId();

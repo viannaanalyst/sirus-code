@@ -20,7 +20,8 @@ function dictationMessage(error: unknown): string {
 
 /** Native dictation with the approved orbital recording strip. No audio-level probe. */
 export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
-  onText: (text: string) => void;
+  /** `send` is true when Enter stopped the recording and Chat behavior asks to send. */
+  onText: (text: string, send: boolean) => void;
   disabled?: boolean;
   onActiveChange: (active: boolean) => void;
 }) {
@@ -74,7 +75,7 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
     return () => clearInterval(timer);
   }, [listening, visible, documentVisible]);
 
-  const stop = (cancelled: boolean) => {
+  const stop = (cancelled: boolean, send = false) => {
     if (stopped.current) return;
     stopped.current = true;
     setInterim(""); setListening(false); setBusy(true);
@@ -82,7 +83,7 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
     pending.current += 1;
     void client.stopDictation(cancelled).then((text) => {
       if (cancelled || !mounted.current) return;
-      if (text) onText(text);
+      if (text) onText(text, send);
       else requestAnimationFrame(() => { if (mounted.current) trigger.current?.focus(); });
     }).catch((error) => {
       if (!cancelled && mounted.current) useAppStore.setState({ error: dictationMessage(error) });
@@ -96,7 +97,13 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
     if (!listening) return;
     const composer = root.current?.closest(".agent-composer");
     const cancel = (event: Event) => {
-      if ((event as KeyboardEvent).key === "Escape") { event.preventDefault(); stop(true); }
+      const key = (event as KeyboardEvent).key;
+      if (key === "Escape") { event.preventDefault(); stop(true); }
+      // Enter finishes the recording; Chat behavior decides whether it also sends.
+      else if (key === "Enter" && !(event as KeyboardEvent).isComposing) {
+        event.preventDefault();
+        stop(false, useAppStore.getState().settings.dictationEnterSends);
+      }
     };
     composer?.addEventListener("keydown", cancel);
     return () => composer?.removeEventListener("keydown", cancel);

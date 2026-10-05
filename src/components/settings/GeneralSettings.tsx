@@ -18,7 +18,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
 }) {
   const t = useTranslation();
   const changed = GENERAL_SETTING_KEYS.some(key => settings[key] !== defaultSettings[key]);
-  const booleanRow = (key: "openLastProject" | "confirmCloseRunning" | "steerWhileRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
+  const booleanRow = (key: "openLastProject" | "confirmCloseRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
     <SettingsRow title={t(title)} description={t(description)}>
       <Switch checked={settings[key]} label={t(title)} onChange={value => onSave({ ...settings, [key]: value })} />
     </SettingsRow>
@@ -64,7 +64,6 @@ export function GeneralSettings({ settings, agents, onSave }: {
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card>
       {booleanRow("confirmCloseRunning", "Show confirmation before closing running sessions", "Ask before closing or quitting while agents are running.")}
-      {booleanRow("steerWhileRunning", "steer.setting", "steer.settingHelp")}
       <SettingsRow title={t("Check for updates automatically")} comingSoon><Switch checked={false} disabled label={t("Check for updates automatically")} onChange={() => undefined} /></SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Environment panel")} card>

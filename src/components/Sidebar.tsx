@@ -11,7 +11,7 @@ import { SidebarProjects } from "@/components/SidebarProjects";
 import { SidebarUsageRings } from "@/components/SidebarUsageRings";
 import { RailGlyph, SidebarRailMore } from "@/components/SidebarRailMore";
 import { PAGE_ITEMS, RAIL_LABELS, visibleRail } from "@/lib/rail";
-import { SidebarSessionRow } from "@/components/SidebarRows";
+import { SidebarSessionRow, ArchiveConfirm } from "@/components/SidebarRows";
 import { SidebarHoverCards } from "@/components/SidebarHoverCard";
 import { SidebarPanelHoldContext } from "@/components/SidebarPanelHold";
 import { Popover, PopoverContent } from "@/primitives/Popover";
@@ -122,6 +122,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   </SidebarHoverCards></SidebarPanelHoldContext>;
 
   return <aside className="sidebar-material sidebar-shell" aria-label={t("Sidebar")}>
+    <ArchiveConfirm />
     <div className="titlebar-drag h-[var(--window-controls-height)] shrink-0" />
     <Popover open={collapsed && panel.peek !== null} onOpenChange={open => { if (!open) dismiss(); }}>
       <div className="sidebar-layout">

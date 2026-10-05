@@ -6,7 +6,7 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useCallback, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentInstall, AgentProviderId, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerContour } from "@/components/ComposerContour";
@@ -169,7 +169,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     };
   }, []);
 
-  const send = async () => {
+  /** `invert` (⌘Enter) flips the queue/steer preference for this one message. */
+  const send = async (invert = false) => {
     const guard = queueing ? enqueueRef : sendingRef;
     if (!canSend || guard.current) return;
     guard.current = true;
@@ -177,7 +178,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     const submitted = value;
     const teamOwner = context.team ? draftKey : null;
     // Steering (opt-in): plain text goes into the running reply instead of the queue.
-    if (session && settings.steerWhileRunning && canSteer(session.agent, session.status) && !context.attachments.length && !context.team && submitted.trim()) {
+    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !context.attachments.length && !context.team && submitted.trim()) {
       try {
         if (await useAppStore.getState().steerTurn(session.id, submitted.trim()) && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
       } finally {
@@ -200,11 +201,19 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     }
   };
 
-  const appendDictation = useCallback((text: string) => {
+  const appendDictation = useCallback((text: string, sendAfter: boolean) => {
     const current = useAppStore.getState().composerDrafts[draftKey] ?? "";
     updateDraft(draftKey, `${current}${current && !/\s$/.test(current) ? " " : ""}${text}`);
+    // Sent once the draft and the dictation state have settled (see the effect below).
+    sendAfterDictation.current = sendAfter;
     requestAnimationFrame(() => area.current?.focus());
   }, [draftKey, updateDraft]);
+  const sendAfterDictation = useRef(false);
+  useEffect(() => {
+    if (!sendAfterDictation.current || dictating || !canSend) return;
+    sendAfterDictation.current = false;
+    void send();
+  });
 
   return (
     <>
@@ -273,7 +282,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           if (suggestions.onKeyDown(event)) return;
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            void send();
+            void send(event.metaKey || event.ctrlKey);
           }
         }}
         className="selectable scroll-thin max-h-[200px] min-h-[var(--composer-editor-min-height)] w-full resize-none overflow-y-auto bg-transparent pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary placeholder:text-text-muted disabled:opacity-50"

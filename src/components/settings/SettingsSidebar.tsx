@@ -8,6 +8,7 @@ import {
   FolderGit2,
   GitBranch,
   Keyboard,
+  MessageSquare,
   Monitor,
   MousePointerClick,
   Puzzle,
@@ -23,6 +24,7 @@ const GROUPS: { label: string; items: { id: SettingsSectionId; label: string; ic
     label: "Personal",
     items: [
       { id: "general", label: "General", icon: Settings2 },
+      { id: "chat", label: "chatBehavior.title", icon: MessageSquare },
       { id: "appearance", label: "Appearance", icon: Monitor },
       { id: "notifications", label: "Notifications", icon: Bell },
       { id: "keybindings", label: "Keybindings", icon: Keyboard },

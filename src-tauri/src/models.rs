@@ -466,6 +466,18 @@ pub struct AppSettings {
     /// Owner-authorized CI auto-fix: failing PR checks start an automatic fix turn,
     /// then Switchyard commits and pushes the session branch (ADR-064).
     pub ci_auto_fix: bool,
+    /// Chat behavior: Enter while dictating stops and sends instead of only stopping.
+    pub dictation_enter_sends: bool,
+    /// Chat behavior: a finished turn folds its steps into the "Worked for" line.
+    pub fold_finished_turns: bool,
+    /// Chat behavior: GitHub pull request/issue links in replies open the Pull requests page.
+    pub github_links_in_app: bool,
+    /// Chat behavior: diffs wrap long lines by default.
+    pub diff_word_wrap: bool,
+    /// Chat behavior: ask before archiving a session.
+    pub confirm_archive: bool,
+    /// Chat behavior: ask before closing a terminal tab.
+    pub confirm_terminal_close: bool,
     /// Sessions marked Done in the Activity view and when; newer activity reopens them.
     pub done_sessions: Vec<DoneSession>,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
@@ -576,6 +588,12 @@ impl Default for AppSettings {
             sidebar_activity_view: false,
             steer_while_running: false,
             ci_auto_fix: false,
+            dictation_enter_sends: false,
+            fold_finished_turns: true,
+            github_links_in_app: true,
+            diff_word_wrap: false,
+            confirm_archive: false,
+            confirm_terminal_close: true,
             done_sessions: Vec::new(),
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),

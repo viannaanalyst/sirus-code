@@ -8,6 +8,7 @@ import { ProviderRow } from "@/components/settings/ProviderRow";
 import { ComputerSettings } from "@/components/settings/ComputerSettings";
 import { SettingsGroup, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { AppearanceSettings, FontSizeControl, MonoFontControl } from "./AppearanceSettings";
+import { ChatBehaviorSettings } from "@/components/settings/ChatBehaviorSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SkillsSettings } from "./SkillsSettings";
@@ -44,6 +45,7 @@ export function SettingsPanels({
   const t = useTranslation();
   const installOf = (id: AgentProviderId) => agents.find((item) => item.id === id);
 
+  if (section === "chat") return <ChatBehaviorSettings settings={settings} onSave={onSave} />;
   if (section === "general") {
     return <GeneralSettings settings={settings} agents={agents} onSave={onSave} />;
   }
