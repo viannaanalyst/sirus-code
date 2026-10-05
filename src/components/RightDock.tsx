@@ -127,7 +127,7 @@ export function RightDock() {
           </DropdownTrigger>
           <DropdownContent align="end" side="bottom">
             {launcher.map((kind) => (
-              <DropdownItem key={kind} onSelect={() => openDockPane(kind)}>
+              <DropdownItem key={kind} icon={(() => { const Icon = paneMeta[kind].icon; return <Icon size={15} />; })()} onSelect={() => openDockPane(kind)}>
                 {t(paneMeta[kind].label)}
               </DropdownItem>
             ))}
