@@ -400,3 +400,6 @@ html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
 /* xterm paints its viewport #000 by default; the terminal container already carries the
    window material (opaque, or glass in translucent mode), so the viewport stays clear. */
 [data-terminal] .xterm .xterm-viewport { background-color: transparent !important; }
+
+/* Drag to reorder (src/lib/use-pointer-reorder.ts): the dragged item lifts with a shadow over its neighbours. */
+[data-reorder-lifted] { position: relative; border-radius: 8px; background: var(--navigation-selected); box-shadow: 0 10px 24px rgb(0 0 0 / .4), inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: grabbing; }

@@ -3,12 +3,8 @@
   .sidebar-section-label { margin: 0; padding: 6px 8px; color: var(--text-muted); }
   .sidebar-pinned-section { margin-bottom: 16px; }
   .sidebar-project-group { position: relative; margin-bottom: 10px; }
-  .sidebar-project-group[data-dragging] { opacity: .45; }
   .sidebar-project-open[data-reorder-id] { cursor: grab; user-select: none; }
   .sidebar-project-group[data-dragging] .sidebar-project-open { cursor: grabbing; }
-  .sidebar-project-group[data-drop-edge]::after { content: ""; position: absolute; z-index: 1; left: 8px; right: 8px; height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
-  .sidebar-project-group[data-drop-edge="before"]::after { top: -3px; }
-  .sidebar-project-group[data-drop-edge="after"]::after { bottom: -5px; }
   .sidebar-disclosure { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows var(--motion-normal) var(--ease-out), opacity var(--motion-normal) var(--ease-out); }
   .sidebar-disclosure[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
   .sidebar-disclosure-inner { min-height: 0; overflow: hidden; }

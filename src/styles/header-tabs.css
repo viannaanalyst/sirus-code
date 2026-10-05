@@ -16,10 +16,7 @@
   .header-tab:hover:not([aria-selected="true"]) { background: var(--navigation-hover); }
   .header-tab[aria-selected="true"] { color: var(--text-primary); flex-shrink: 0; }
   .header-tab[data-reorder-id] { user-select: none; touch-action: none; }
-  .header-tab[data-dragging] { opacity: .5; }
-  .header-tab[data-drop-edge]::before { content: ""; position: absolute; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
-  .header-tab[data-drop-edge="before"]::before { left: -2px; }
-  .header-tab[data-drop-edge="after"]::before { right: -2px; }
+  .header-tab[data-dragging] { cursor: grabbing; }
   .header-tab:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
   /* A faint rule between neighbouring tabs; it hides beside the active or hovered tab (as in Synara). */
   .header-tab + .header-tab::after { content: ""; position: absolute; left: -2px; top: 4px; bottom: 4px; width: 1px; background: color-mix(in srgb, var(--text-primary) 16%, transparent); pointer-events: none; transition: opacity var(--motion-fast) var(--ease-out); }
