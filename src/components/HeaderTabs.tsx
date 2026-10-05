@@ -12,6 +12,11 @@ import { selectCurrentProject, useAppStore, selectListedSessions } from "@/store
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import "@/styles/header-tabs.css";
 
+/** Project switcher, separator, "+N" and New tab around the list (px). */
+const TAB_CHROME = 230;
+/** Narrowest tab that still shows a readable title (px). */
+const TAB_MIN_READABLE = 128;
+
 /** Long titles scroll on hover (there and back) instead of being cut off; short ones stay still. */
 function measureMarquee(event: ReactMouseEvent<HTMLElement>) {
   const outer = event.currentTarget, inner = outer.firstElementChild as HTMLElement | null;
@@ -108,8 +113,26 @@ export function HeaderTabs() {
   const mainView = useAppStore(state => state.mainView);
   const { unseen, computer } = useWaitingSets();
   const tabs = useMemo(() => (project ? visibleTabSessions(tabIds ?? [], sessions, project.id, archived) : []), [project, tabIds, sessions, archived]);
-  const shown = tabs.slice(0, VISIBLE_TABS);
-  const overflow = tabs.slice(VISIBLE_TABS);
+  // Only the tabs that fit stay inline (the dock or a narrow window shrinks the
+  // header); the active one always stays visible and the rest go to "+N".
+  const root = useRef<HTMLDivElement>(null);
+  const [capacity, setCapacity] = useState(VISIBLE_TABS);
+  useLayoutEffect(() => {
+    const node = root.current;
+    if (!node) return;
+    const measure = () => setCapacity(Math.max(1, Math.min(VISIBLE_TABS, Math.floor((node.clientWidth - TAB_CHROME) / TAB_MIN_READABLE))));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  const activeId = mainView === "session" ? selectedSessionId : null;
+  const shown = useMemo(() => {
+    const first = tabs.slice(0, capacity);
+    const current = tabs.find(tab => tab.id === activeId);
+    return current && !first.includes(current) ? [...first.slice(0, Math.max(0, capacity - 1)), current] : first;
+  }, [tabs, capacity, activeId]);
+  const overflow = tabs.filter(tab => !shown.includes(tab));
   const draft = useAppStore(state => (project ? !!state.draftTabByProject[project.id] : false));
   const defaultAgent = useAppStore(state => state.settings.defaultAgent);
   const onDraft = mainView === "session" && !selectedSessionId;
@@ -163,7 +186,7 @@ export function HeaderTabs() {
   const toastTitle = toast ? sessions.find(session => session.id === toast)?.title ?? "" : "";
   const label = (session: Session) => t(`tabs.status.${tabStatus(session, unseen, computer)}`);
 
-  return <div className="header-tabs titlebar-no-drag">
+  return <div ref={root} className="header-tabs titlebar-no-drag">
     <ProjectSwitcher />
     <span className="header-tabs-separator" aria-hidden="true">/</span>
     <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [

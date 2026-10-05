@@ -1,11 +1,13 @@
 // Bounded detection of local development servers from terminal/agent output.
+// Servers that bind every interface print `0.0.0.0` or `[::]`; those are shown as localhost.
 const LOCAL_SERVER_PATTERN =
-  /https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d{1,5})?(?:[/?#][^\s"'`<>)\]},;]*)?/g;
+  /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1?\])(?![\w.-])(?::\d{1,5})?(?:[/?#][^\s"'`<>)\]},;]*)?/g;
+const ANY_HOST = /^(https?:\/\/)(?:0\.0\.0\.0|\[::1?\])/;
 
 export function scanLocalServers(text: string): string[] {
   const found: string[] = [];
   for (const match of text.matchAll(LOCAL_SERVER_PATTERN)) {
-    const candidate = match[0].replace(/[.,;:!?]+$/, "");
+    const candidate = match[0].replace(/[.,;:!?]+$/, "").replace(ANY_HOST, "$1localhost");
     try {
       const parsed = new URL(candidate);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;

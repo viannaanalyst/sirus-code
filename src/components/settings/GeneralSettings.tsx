@@ -69,9 +69,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
     </SettingsGroup>
     <SettingsGroup title={t("Environment panel")} card>
       {booleanRow("environmentPanelDefaultOpen", "Open by default", "Open the chat Environment panel automatically on normal threads. When off, the panel stays closed until you open it. Your last open/close also updates this preference.")}
-      {booleanRow("showEnvironmentUsage", "Usage", "Show provider usage in the Environment panel.")}
       {booleanRow("showEnvironmentRepository", "Repository", "Show the repository link in the Environment panel.")}
-      {booleanRow("showEnvironmentPullRequest", "Pull request and checks", "Show the branch pull request and GitHub checks in the Environment panel.")}
       {booleanRow("showEnvironmentEditor", "Editor", "Show the editor actions in the Environment panel.")}
     </SettingsGroup>
   </SettingsSection></div>;

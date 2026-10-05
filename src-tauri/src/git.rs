@@ -310,6 +310,51 @@ pub fn push(cwd: &Path) -> Result<GitPushResult> {
     Ok(GitPushResult { branch })
 }
 
+/// Explicit pull of the current branch from origin: fast-forward only, never a
+/// merge or rebase, with the same network-helper refusal as push. Git itself
+/// refuses when local changes would be overwritten.
+pub fn pull(cwd: &Path) -> Result<(String, String)> {
+    refuse_project_network_helpers(cwd)?;
+    let output = run(cwd, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() || branch.is_empty() {
+        return Err(Error::git("cannot pull into a detached HEAD"));
+    }
+    let remote = run_ok(cwd, &["remote", "get-url", "origin"])
+        .map_err(|_| Error::git("no origin remote is configured"))?;
+    if remote.trim().is_empty() {
+        return Err(Error::git("no origin remote is configured"));
+    }
+    let output = run(
+        cwd,
+        &[
+            "pull",
+            "--ff-only",
+            "--no-rebase",
+            "--no-edit",
+            "origin",
+            &branch,
+        ],
+    )?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(Error::git(if stderr.is_empty() {
+            "git pull failed".to_string()
+        } else {
+            stderr.chars().take(600).collect()
+        }));
+    }
+    let summary = stdout
+        .lines()
+        .last()
+        .unwrap_or_default()
+        .chars()
+        .take(200)
+        .collect();
+    Ok((branch, summary))
+}
+
 /// Normalize an `origin` remote to a web URL. Only GitHub is exposed, and the
 /// renderer receives a fixed https URL, never the raw remote.
 pub fn remote_web_url(path: &Path) -> Result<Option<String>> {

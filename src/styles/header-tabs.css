@@ -21,6 +21,9 @@
   .header-tab[data-drop-edge="before"]::before { left: -2px; }
   .header-tab[data-drop-edge="after"]::before { right: -2px; }
   .header-tab:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
+  /* A faint rule between neighbouring tabs; it hides beside the active or hovered tab (as in Synara). */
+  .header-tab + .header-tab::after { content: ""; position: absolute; left: -2px; top: 4px; bottom: 4px; width: 1px; background: color-mix(in srgb, var(--text-primary) 16%, transparent); pointer-events: none; transition: opacity var(--motion-fast) var(--ease-out); }
+  .header-tab[aria-selected="true"]::after, .header-tab:hover::after, .header-tab[aria-selected="true"] + .header-tab::after, .header-tab:hover + .header-tab::after, .header-tab[data-leaving]::after, .header-tab[data-leaving] + .header-tab::after { opacity: 0; }
   .header-tab[data-leaving] { max-width: 0; min-width: 0; padding: 0; opacity: 0; overflow: hidden; }
   /* Fixed max width; overflowing titles fade at the edge and scroll on hover. */
   .header-tab-title { min-width: 0; flex: 1; overflow: hidden; }

@@ -228,7 +228,7 @@ interface AppStore {
   ) => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   forkSession: (sessionId: string, messageId: string) => Promise<boolean>;
-  handoffSession: (sessionId: string, messageId: string, agent: import("@/client/types").AgentProviderId, model: string | null) => Promise<boolean>;
+  handoffSession: (sessionId: string, messageId: string, agent: import("@/client/types").AgentProviderId, model: string | null, newWorktree?: boolean) => Promise<boolean>;
   dismissHandoff: (sessionId: string) => Promise<boolean>;
   /**
    * Second opinion (ADR-056): a new session for `agent`/`model` in the same
@@ -1170,9 +1170,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
 
-  handoffSession: async (sessionId, messageId, agent, model) => {
+  handoffSession: async (sessionId, messageId, agent, model, newWorktree = false) => {
     try {
-      const handoff = await client.handoffSession(sessionId, messageId, agent, model);
+      const handoff = await client.handoffSession(sessionId, messageId, agent, model, newWorktree);
       set((state) => ({ sessions: [handoff, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [handoff.id]: ++transcriptTick }, error: null }));
       // The handoff opens beside its source, which stays visible (ADR-053 panes).
       if (get().selectedSessionId !== sessionId || get().mainView !== "session") await get().selectSession(sessionId);

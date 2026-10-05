@@ -116,6 +116,15 @@ pub enum Action {
         body: String,
         confirm: bool,
     },
+    /// Pushes the session branch, then opens a pull request from it into the
+    /// repository's default branch.
+    Create {
+        session_id: String,
+        title: String,
+        body: String,
+        draft: bool,
+        confirm: bool,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -135,6 +144,9 @@ pub enum Response {
         checks: Vec<FailedCheck>,
         /// More checks failed than were described.
         truncated: bool,
+    },
+    Created {
+        url: String,
     },
     Done,
 }
@@ -384,7 +396,150 @@ pub async fn pull_request_action(
             rest(binary, "POST", &endpoint, &[("body", body)]).await?;
             Ok(Response::Done)
         }
+        Action::Create {
+            session_id,
+            title,
+            body,
+            draft,
+            confirm,
+        } => {
+            confirmed(confirm)?;
+            let title = title.trim().to_string();
+            let body = body.trim().to_string();
+            if title.is_empty() || title.chars().count() > 256 || title.contains('\0') {
+                return Err(Error::new(
+                    "invalid",
+                    "The title must have 1 to 256 characters.",
+                ));
+            }
+            if body.len() > COMMENT_BODY_LIMIT || body.contains('\0') {
+                return Err(Error::new("invalid", "The description is too long."));
+            }
+            let probe = state.clone();
+            let id = session_id.clone();
+            let (cwd, context) = native_task(move || {
+                let cwd = crate::commands::session_path(&probe, &id)?;
+                let context = crate::pull_requests::inspect(cwd.clone())?;
+                Ok((cwd, context))
+            })
+            .await?;
+            let repo = context
+                .repository
+                .clone()
+                .filter(|repo| repositories.iter().any(|item| &item.repository == repo))
+                .ok_or_else(|| {
+                    Error::new(
+                        "invalid",
+                        "This session has no GitHub origin of a saved project.",
+                    )
+                })?;
+            let head = context
+                .branch
+                .clone()
+                .ok_or_else(|| Error::git("cannot open a pull request from a detached HEAD"))?;
+            let push_cwd = cwd.clone();
+            native_task(move || crate::git::push(&push_cwd).map(|_| ())).await?;
+            let base = rest_capture(
+                binary,
+                "GET",
+                &format!("/repos/{repo}"),
+                &[],
+                ".default_branch",
+            )
+            .await?;
+            if base.is_empty() || base == head {
+                return Err(Error::new(
+                    "invalid",
+                    "This branch is the repository's default branch.",
+                ));
+            }
+            let draft = if draft { "true" } else { "false" };
+            let url = rest_capture(
+                binary,
+                "POST",
+                &format!("/repos/{repo}/pulls"),
+                &[
+                    ("title", &title),
+                    ("head", &head),
+                    ("base", &base),
+                    ("body", &body),
+                    ("draft", draft),
+                ],
+                ".html_url",
+            )
+            .await?;
+            if !url.starts_with("https://github.com/") {
+                return Err(Error::new(
+                    "github_unavailable",
+                    "GitHub did not return the new pull request.",
+                ));
+            }
+            Ok(Response::Created { url })
+        }
     }
+}
+
+/// A fixed REST call whose one `--jq` field is returned (bounded, trimmed).
+/// `draft` is sent as a typed boolean; every other field stays a string.
+async fn rest_capture(
+    binary: &OsStr,
+    method: &str,
+    endpoint: &str,
+    fields: &[(&str, &str)],
+    jq: &str,
+) -> Result<String> {
+    let mut command = hardened(binary);
+    command.args([
+        "api",
+        "--hostname",
+        "github.com",
+        "--method",
+        method,
+        "-H",
+        "Accept: application/vnd.github+json",
+        endpoint,
+        "--jq",
+        jq,
+    ]);
+    for (key, value) in fields {
+        let flag = if *key == "draft" { "-F" } else { "-f" };
+        command.arg(flag).arg(format!("{key}={value}"));
+    }
+    let output = crate::cli_output::capture_command(command, Duration::from_secs(30))
+        .await
+        .map_err(|error| {
+            lookup_error(if error.kind() == std::io::ErrorKind::NotFound {
+                LookupStatus::CliMissing
+            } else {
+                LookupStatus::Unavailable
+            })
+        })?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .chars()
+            .take(400)
+            .collect());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(if stderr.contains("A pull request already exists") {
+        Error::new(
+            "github_conflict",
+            "A pull request already exists for this branch.",
+        )
+    } else if stderr.contains("HTTP 403") || stderr.contains("HTTP 404") {
+        Error::new(
+            "github_forbidden",
+            "Your GitHub account cannot change this repository.",
+        )
+    } else if stderr.contains("HTTP 422") {
+        Error::new(
+            "github_invalid",
+            "GitHub refused this pull request (is the branch pushed and different from the base?).",
+        )
+    } else {
+        lookup_error(status_of(&output.stderr))
+    })
 }
 
 fn confirmed(confirm: bool) -> Result<()> {

@@ -641,11 +641,14 @@ export type GitWorkspaceAction =
   | { type: "stage" | "unstage"; sessionId: string; paths: string[]; expectedIndex: string }
   | { type: "diff"; sessionId: string; path: string; staged: boolean; expectedIndex: string }
   /** Older ancestry below the exact commit the view loaded (`from`), so new commits cannot shift pages. */
-  | { type: "history"; sessionId: string; from: string; skip: number };
+  | { type: "history"; sessionId: string; from: string; skip: number }
+  /** Explicit fast-forward-only pull of the session branch from origin. */
+  | { type: "pull"; sessionId: string; confirm: true };
 export type GitWorkspaceResponse =
   | { type: "snapshot"; snapshot: GitWorkspaceSnapshot }
   | { type: "diff"; diff: string }
-  | { type: "history"; entries: GitHistoryEntry[]; truncated: boolean };
+  | { type: "history"; entries: GitHistoryEntry[]; truncated: boolean }
+  | { type: "pulled"; branch: string; summary: string };
 
 export type CommitTitleAction =
   | { type: "generate"; sessionId: string; expectedIndex: string; requestId: string }
@@ -724,12 +727,15 @@ export type PullRequestAction =
   | { type: "merge"; repository: string; number: number; method: GithubMergeMethod; expectedHead: string; confirm: true }
   | { type: "setDraft"; repository: string; number: number; draft: boolean; confirm: true }
   | { type: "setOpen"; repository: string; number: number; kind: GithubItemKind; open: boolean; confirm: true }
-  | { type: "comment"; repository: string; number: number; body: string; confirm: true };
+  | { type: "comment"; repository: string; number: number; body: string; confirm: true }
+  /** Pushes the session branch and opens a pull request into the default branch. */
+  | { type: "create"; sessionId: string; title: string; body: string; draft: boolean; confirm: true };
 export type PullRequestResponse =
   | ({ type: "inbox" } & GithubInbox)
   | ({ type: "detail" } & GithubDetail)
   | { type: "diff"; text: string; truncated: boolean }
   | { type: "failures"; checks: GithubFailedCheck[]; truncated: boolean }
+  | { type: "created"; url: string }
   | { type: "done" };
 /** One failing check with its annotations and an error-focused job log excerpt. */
 export interface GithubFailedCheck { name: string; url: string | null; summary: string | null; annotations: string[]; log: string | null }

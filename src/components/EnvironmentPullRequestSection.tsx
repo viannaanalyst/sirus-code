@@ -49,7 +49,7 @@ export function EnvironmentPullRequestSection({ session }: { session: Session })
 }
 
 /** CI auto-fix status for this session's open PR, with a per-PR off switch (ADR-064). */
-function CiFixRow({ sessionId }: { sessionId: string }) {
+export function CiFixRow({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
   const enabled = useAppStore(store => store.settings.ciAutoFix);
   const fix = useAppStore(store => store.ciAutoFix.find(item => item.sessionId === sessionId));

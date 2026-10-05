@@ -53,7 +53,7 @@ All CI content is quoted as untrusted data. The agent is told not to commit or p
 
 **UI.**
 
-- The Environment card shows the state under the PR: on, fixing (with the attempt number), green, paused (with the reason) or off. The same row turns auto-fix off or back on for that PR, through the closed `ci_autofix_action` (status / setEnabled).
+- The Environment card shows a compact row only while a fix runs (with the attempt number) or is paused (with the reason). The row turns auto-fix off or back on for that PR, through the closed `ci_autofix_action` (status / setEnabled).
 - The `ci-autofix-changed` event refreshes the state.
 - A green result or a pause raises an app toast and a system notification, following the notification preferences.
 - The automatic turn appears in the transcript as a normal user message that starts with "Auto-fix CI".

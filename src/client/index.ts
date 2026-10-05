@@ -206,7 +206,21 @@ export class SwitchyardClient {
     return { entries: result.entries, truncated: result.truncated };
   }
 
-  async gitWorkspace(action: Exclude<import("./types").GitWorkspaceAction, { type: "diff" | "history" }>) {
+  /** Explicit fast-forward-only pull of the session branch. */
+  async gitPull(sessionId: string) {
+    const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action: { type: "pull", sessionId, confirm: true } });
+    if (result.type !== "pulled") throw new Error("Unexpected Git pull response");
+    return result;
+  }
+
+  /** Pushes the session branch and opens a pull request; resolves to its GitHub URL. */
+  async createPullRequest(sessionId: string, title: string, body: string, draft: boolean) {
+    const result = await this.transport.invoke<import("./types").PullRequestResponse>("pull_request_action", { action: { type: "create", sessionId, title, body, draft, confirm: true } });
+    if (result.type !== "created") throw new Error("Unexpected pull request response");
+    return result.url;
+  }
+
+  async gitWorkspace(action: Exclude<import("./types").GitWorkspaceAction, { type: "diff" | "history" | "pull" }>) {
     const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action });
     if (result.type !== "snapshot") throw new Error("Unexpected Git workspace response");
     return result.snapshot;
@@ -326,8 +340,14 @@ export class SwitchyardClient {
     return this.transport.invoke<Session>("fork_session", { sessionId, messageId });
   }
 
-  handoffSession(sessionId: string, messageId: string, agent: import("./types").AgentProviderId, model: string | null) {
-    return this.transport.invoke<Session>("handoff_session", { sessionId, messageId, agent, model });
+  /** `newWorktree` moves the handoff into a new isolated worktree seeded from the current checkout. */
+  handoffSession(sessionId: string, messageId: string, agent: import("./types").AgentProviderId, model: string | null, newWorktree = false) {
+    return this.transport.invoke<Session>("handoff_session", { sessionId, messageId, agent, model, newWorktree });
+  }
+
+  /** Stops a localhost server only when Switchyard started it; resolves to the processes signalled. */
+  stopLocalServer(sessionId: string, url: string) {
+    return this.transport.invoke<number>("local_server_action", { action: { type: "stop", sessionId, url } });
   }
 
   dismissHandoff(sessionId: string) {

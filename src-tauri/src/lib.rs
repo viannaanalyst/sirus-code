@@ -35,6 +35,7 @@ mod git;
 mod git_workspace;
 mod github_inbox;
 mod goals;
+mod local_servers;
 mod mcp_stdio;
 mod models;
 mod notifications;
@@ -163,6 +164,7 @@ pub fn run() {
             github_inbox::pull_request_action,
             automations::automation_action,
             ci_autofix::ci_autofix_action,
+            local_servers::local_server_action,
             tasks::task_action,
             window_snap::window_snap_action,
             project_look::project_look_action,

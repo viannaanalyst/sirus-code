@@ -47,6 +47,11 @@ pub enum Action {
         from: String,
         skip: u32,
     },
+    /// Explicit fast-forward-only pull of the session branch from origin.
+    Pull {
+        session_id: String,
+        confirm: bool,
+    },
 }
 impl Action {
     pub fn session_id(&self) -> &str {
@@ -55,7 +60,8 @@ impl Action {
             | Self::Stage { session_id, .. }
             | Self::Unstage { session_id, .. }
             | Self::Diff { session_id, .. }
-            | Self::History { session_id, .. } => session_id,
+            | Self::History { session_id, .. }
+            | Self::Pull { session_id, .. } => session_id,
         }
     }
 }
@@ -71,6 +77,10 @@ pub enum Response {
     History {
         entries: Vec<HistoryEntry>,
         truncated: bool,
+    },
+    Pulled {
+        branch: String,
+        summary: String,
     },
 }
 #[derive(Debug, Clone, Serialize)]

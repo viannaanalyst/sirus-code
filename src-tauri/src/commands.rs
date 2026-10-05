@@ -527,6 +527,13 @@ pub async fn git_workspace_action(
                 let (entries, truncated) = workspace::history_from(&cwd, &from, skip)?;
                 Response::History { entries, truncated }
             }
+            Action::Pull { confirm, .. } => {
+                if !confirm {
+                    return Err(Error::new("invalid", "Pull requires confirmation."));
+                }
+                let (branch, summary) = git::pull(&cwd)?;
+                Response::Pulled { branch, summary }
+            }
         };
         recheck()?;
         Ok(result)
@@ -828,6 +835,38 @@ fn create_session_native(state: &AppState, request: CreateSessionRequest) -> Res
 
 /// Creates and inserts one session under an already-held data lock. Isolated worktrees start at
 /// `start` (a commit or `HEAD`). The caller persists.
+/// A new isolated worktree for `id`, under the configured location and branch pattern.
+fn isolated_worktree(
+    state: &AppState,
+    data: &AppData,
+    project: &crate::models::Project,
+    id: &str,
+    title: &str,
+    start: &str,
+) -> Result<Worktree> {
+    let pattern = data.settings.worktree_branch_pattern.clone();
+    let parent = if matches!(
+        data.settings.worktree_location,
+        WorktreeLocationPref::Custom
+    ) {
+        data.settings
+            .worktree_base_path
+            .as_ref()
+            .map(|path| PathBuf::from(path).join(&project.id))
+    } else {
+        None
+    }
+    .unwrap_or_else(|| state.worktree_root.join(&project.id));
+    worktree::create_isolated_at(
+        &PathBuf::from(&project.path),
+        &parent,
+        id,
+        title,
+        &pattern,
+        start,
+    )
+}
+
 pub(crate) fn create_session_locked(
     state: &AppState,
     data: &mut AppData,
@@ -868,28 +907,8 @@ pub(crate) fn create_session_locked(
     }
     paths::ensure_dir(&PathBuf::from(&project.path))?;
 
-    let pattern = data.settings.worktree_branch_pattern.clone();
-    let parent = if matches!(
-        data.settings.worktree_location,
-        WorktreeLocationPref::Custom
-    ) {
-        data.settings
-            .worktree_base_path
-            .as_ref()
-            .map(|path| PathBuf::from(path).join(&project.id))
-    } else {
-        None
-    }
-    .unwrap_or_else(|| state.worktree_root.join(&project.id));
     let worktree = if request.isolated_worktree {
-        worktree::create_isolated_at(
-            &PathBuf::from(&project.path),
-            &parent,
-            &id,
-            &title,
-            &pattern,
-            start,
-        )?
+        isolated_worktree(state, data, &project, &id, &title, start)?
     } else {
         let identity = git::identity(&PathBuf::from(&project.path))?;
         Worktree {
@@ -1023,10 +1042,20 @@ pub async fn handoff_session(
     message_id: String,
     agent: AgentProviderId,
     model: Option<String>,
+    new_worktree: Option<bool>,
 ) -> Result<Session> {
     let state = state.inner().clone();
-    native_task(move || handoff_session_native(&state, &session_id, &message_id, agent, model))
-        .await
+    native_task(move || {
+        handoff_session_native(
+            &state,
+            &session_id,
+            &message_id,
+            agent,
+            model,
+            new_worktree.unwrap_or(false),
+        )
+    })
+    .await
 }
 
 fn handoff_session_native(
@@ -1035,7 +1064,18 @@ fn handoff_session_native(
     message_id: &str,
     agent: AgentProviderId,
     model: Option<String>,
+    new_worktree: bool,
 ) -> Result<Session> {
+    // A move to a new worktree starts from the source checkout as it is now,
+    // uncommitted work included (the same private snapshot Team uses). The
+    // snapshot runs Git before the lock; the workspace is rechecked after.
+    let snapshot = if new_worktree {
+        let cwd = session_path(state, session_id)?;
+        let base = crate::team::snapshot_base(&cwd, &state.worktree_root.join(".team-snapshots"))?;
+        Some((cwd, base))
+    } else {
+        None
+    };
     let mut data = state.data.lock();
     state.ensure_running()?;
     let source = data
@@ -1065,10 +1105,26 @@ fn handoff_session_native(
             ));
         }
     }
-    // A handoff continues in the source workspace; uncommitted work is kept.
-    let worktree = source.worktree.clone();
     let provider_account_id = crate::provider_accounts::selected(&data, &agent);
     let id = Uuid::new_v4().to_string();
+    // A handoff continues in the source workspace, or in a new isolated worktree
+    // seeded from it; uncommitted work is kept either way.
+    let worktree = match &snapshot {
+        Some((cwd, base)) => {
+            if &session_cwd(&data, &source)? != cwd {
+                return Err(Error::agent("The workspace changed; try again."));
+            }
+            let project = data
+                .projects
+                .iter()
+                .find(|project| project.id == source.project_id)
+                .cloned()
+                .ok_or_else(|| Error::not_found("project not found"))?;
+            isolated_worktree(state, &data, &project, &id, &source.title, base)?
+        }
+        None => source.worktree.clone(),
+    };
+    let created = snapshot.is_some().then(|| worktree.clone());
     let handoff = crate::transcript::handoff_snapshot(
         &source,
         message_id,
@@ -1078,7 +1134,22 @@ fn handoff_session_native(
         model,
         provider_account_id,
         worktree,
-    )?;
+    );
+    let handoff = match handoff {
+        Ok(handoff) => handoff,
+        Err(error) => {
+            // Never leave the new worktree behind; it holds nothing yet.
+            if let (Some(tree), Some(project)) = (
+                &created,
+                data.projects
+                    .iter()
+                    .find(|project| project.id == source.project_id),
+            ) {
+                let _ = worktree::remove(&PathBuf::from(&project.path), tree, true);
+            }
+            return Err(error);
+        }
+    };
     data.sessions.insert(0, handoff.clone());
     persist::save(&state.data_path, &data)?;
     Ok(handoff)

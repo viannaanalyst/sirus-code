@@ -2,36 +2,43 @@ import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowUpFromLine,
+  Check,
   ChevronDown,
+  Clock3,
+  Copy,
   ExternalLink,
   FileCode2,
   FolderOpen,
   GitBranch,
+  Download,
+  GitCommitHorizontal,
+  GitFork,
+  GitPullRequest,
   GitCompareArrows,
   Globe,
   Hammer,
   Laptop,
   MessagesSquare,
   MousePointer2,
-  RefreshCw,
+  Plus,
+  Search,
   Settings2,
+  Square,
   SquareTerminal,
   Trash2,
 } from "@/components/icons/phosphor";
 import { client } from "@/client";
-import type { AgentProviderId, EditorId, GitWorktree } from "@/client/types";
-import { CopyButton } from "@/components/arc/copy-button/copy-button";
+import type { BranchInfo, EditorId } from "@/client/types";
 import { GitHubIcon } from "@/components/icons/BrandIcons";
 import { WindowIcon } from "@/components/icons/WindowIcon";
-import { EnvironmentPullRequestSection } from "@/components/EnvironmentPullRequestSection";
-import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
-import { primaryUsageWindow, usageWindowLabel } from "@/lib/provider-usage";
+import { orderedUsageWindows, resetDuration, usageWindowLabel } from "@/lib/provider-usage";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
-import { PROVIDERS } from "@/lib/provider-registry";
+import { CiFixRow } from "@/components/EnvironmentPullRequestSection";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { selectCurrentProject, useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
 
@@ -67,7 +74,8 @@ export function EnvironmentPanel() {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      // An open row popover takes Escape first; the card stays.
+      if (event.key === "Escape" && !document.querySelector("[data-environment-popover]")) setOpen(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -100,10 +108,9 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
   const openDockPane = useAppStore((state) => state.openDockPane);
   const selectedFile = useAppStore((state) => (session ? state.selectedFileBySession[session.id] : undefined));
   const loadProjectRemote = useAppStore((state) => state.loadProjectRemote);
-  const showUsage = useAppStore((state) => state.settings.showEnvironmentUsage);
   const showRepository = useAppStore((state) => state.settings.showEnvironmentRepository);
   const showEditor = useAppStore((state) => state.settings.showEnvironmentEditor);
-  const showPullRequest = useAppStore((state) => state.settings.showEnvironmentPullRequest);
+  const ciFixActive = useAppStore((state) => state.settings.ciAutoFix && state.ciAutoFix.some((item) => item.sessionId === session?.id && (item.status === "fixing" || item.status === "paused")));
 
   useEffect(() => {
     if (project && showRepository) void loadProjectRemote(project.id);
@@ -138,20 +145,17 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
             onClose();
           }}
         />
-        <LocalRow sessionId={session.id} />
-        <BranchRow projectId={project.id} branch={session.worktree.branch} />
-        <CommitAndPushSection sessionId={session.id} projectPath={project.path} />
+        <LocalRow sessionId={session.id} onClose={onClose} />
+        <BranchRow projectId={project.id} branch={session.worktree.branch} isolated={session.worktree.isolated} />
+        <CommitAndPushSection sessionId={session.id} projectId={project.id} projectPath={project.path} isolated={session.worktree.isolated} onClose={onClose} />
         <LocalServersSection sessionId={session.id} />
+        {/* CI auto-fix shows itself only while it is working or needs attention (ADR-064). */}
+        {ciFixActive ? <CiFixRow sessionId={session.id} /> : null}
         <SideChatRow parentSessionId={session.id} onClose={onClose} />
-        {showUsage && <><Divider />
-        <Section title={t("Usage")}>
-          <UsageSection />
-        </Section></>}
         {showRepository && <><Divider />
         <Section title={t("Repository")}>
           <RepositoryRow projectId={project.id} name={project.name} path={project.path} />
         </Section></>}
-        {showPullRequest && <EnvironmentPullRequestSection key={`${session.id}:${session.worktree.path}`} session={session} />}
         {showEditor && <><Divider />
         <Section title={t("Editor")}>
           <Row
@@ -171,7 +175,7 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
 }
 
 function Divider() {
-  return <div className="my-[4px] border-t border-border-subtle" />;
+  return <div className="my-[3px] border-t border-border-subtle" />;
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -184,7 +188,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return <p className="px-[8px] py-[4px] ui-control text-text-muted">{children}</p>;
+  return <p className="px-[8px] pb-[2px] pt-[3px] ui-control text-text-muted">{children}</p>;
 }
 
 function Row({
@@ -202,7 +206,7 @@ function Row({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
+      className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[3px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
     >
       <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -211,44 +215,58 @@ function Row({
   );
 }
 
+/** A row that opens its options in a popover below it (like Synara), so the card never grows. */
 function Expandable({
   icon,
   label,
+  heading,
   trailing,
   children,
-  defaultOpen = false,
+  open: controlled,
+  onOpenChange,
 }: {
   icon: ReactNode;
   label: string;
+  /** Small title inside the popover; omitted when the content brings its own. */
+  heading?: string | null;
   trailing?: ReactNode;
   children: ReactNode;
-  defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [local, setLocal] = useState(false);
+  const open = controlled ?? local;
+  const setOpen = onOpenChange ?? setLocal;
   return (
-    <>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
-      >
-        <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true">{icon}</span>
-        <span className="min-w-0 flex-1 truncate">{label}</span>
-        {trailing}
-        <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
-      </button>
-      <Reveal open={open}><div className="flex flex-col gap-[4px] px-[8px] pb-[4px] pt-[2px]">{children}</div></Reveal>
-    </>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-expanded={open}
+          className={cn("flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[3px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary", open && "bg-background-3 text-text-primary")}
+        >
+          <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true">{icon}</span>
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          {trailing}
+          <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent data-environment-popover="" side="bottom" align="end" sideOffset={4} collisionPadding={12} aria-label={label} className="w-[256px] p-1.5">
+        {heading === null ? null : <p className="px-2 pb-1 pt-0.5 ui-caption text-text-muted">{heading ?? label}</p>}
+        {children}
+      </PopoverContent>
+    </Popover>
   );
 }
 
-/** Opens and closes a section by animating its height (reduced motion makes it instant). */
-function Reveal({ open, children }: { open: boolean; children: ReactNode }) {
-  return <AnimatePresence initial={false}>
-    {open ? <motion.div key="reveal" className="overflow-hidden" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-      transition={{ duration: motionTokens.normal, ease: motionTokens.ease }}>{children}</motion.div> : null}
-  </AnimatePresence>;
+/** One action line inside a row popover. */
+function MenuItem({ icon, label, trailing, disabled, onClick }: { icon: ReactNode; label: string; trailing?: ReactNode; disabled?: boolean; onClick?: () => void }) {
+  return <button type="button" disabled={disabled} onClick={onClick}
+    className="flex w-full items-center gap-[8px] rounded-[7px] px-2 py-[5px] text-left ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary disabled:pointer-events-none disabled:opacity-40">
+    <span className="shrink-0 text-text-muted [&_svg]:size-[15px]" aria-hidden="true">{icon}</span>
+    <span className="min-w-0 flex-1 truncate">{label}</span>
+    {trailing}
+  </button>;
 }
 
 /** Real added/removed line totals of the selected session's working tree, when Git reports changes. */
@@ -262,140 +280,193 @@ function ChangeTotals() {
   </span>;
 }
 
-function LocalRow({ sessionId }: { sessionId: string }) {
+function LocalRow({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
   const t = useTranslation();
   const session = useAppStore((state) => state.sessions.find((item) => item.id === sessionId));
-  const [error, setError] = useState<string | null>(null);
+  // The handoff recap ends at the last finished answer of the loaded transcript.
+  const handoffFrom = useAppStore((state) => [...(state.sessions.find((item) => item.id === sessionId)?.messages ?? [])].reverse().find((message) => message.role === "agent" && !message.streaming && message.content.trim())?.id ?? null);
+  const usage = useAppStore((state) => (session ? state.usageByProvider[session.agent] : undefined));
+  const refreshUsage = useAppStore((state) => state.refreshProviderUsage);
+  const [limitsOpen, setLimitsOpen] = useState(false);
+  const fail = (reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) });
   if (!session) return null;
+  const windows = orderedUsageWindows(usage);
+  const now = Date.now();
   return (
-    <Expandable icon={<Laptop size={14} />} label={t(session.worktree.isolated ? "Isolated worktree" : "Local workspace")}>
-      <p className="selectable break-all font-mono ui-micro text-text-muted">{session.worktree.path}</p>
-      <div className="mt-1 flex items-center gap-1">
-        <CopyButton value={session.worktree.path} label={t("Copy path")} iconOnly variant="plain" />
-        <InteractiveButton
-          variant="toolbar"
-          onClick={() =>
-            void client.openPath(session.worktree.path).catch((reason: unknown) => setError(formatUnknownError(reason)))
-          }
-        >
-          <FolderOpen size={12} /> {t("Open folder")}
-        </InteractiveButton>
-      </div>
-      {error ? <p role="alert" className="mt-1 ui-caption text-danger">{error}</p> : null}
+    <Expandable icon={<Laptop size={14} />} label={t(session.worktree.isolated ? "Isolated worktree" : "Local workspace")} heading={t("env.workIn")}>
+      <MenuItem icon={<Laptop size={14} />} label={t(session.worktree.isolated ? "Isolated worktree" : "env.localProject")} trailing={<Check size={13} className="shrink-0 text-text-primary" aria-hidden="true" />} />
+      <MenuItem icon={<GitFork size={14} />} label={t("env.handoffWorktree")} disabled={!handoffFrom || ["starting", "running", "waiting"].includes(session.status)}
+        onClick={() => { if (handoffFrom) { onClose(); void useAppStore.getState().handoffSession(session.id, handoffFrom, session.agent, session.model ?? null, true); } }} />
+      <MenuItem icon={<FolderOpen size={14} />} label={t("Open folder")} onClick={() => void client.openPath(session.worktree.path).catch(fail)} />
+      <MenuItem icon={<Copy size={14} />} label={t("Copy path")} onClick={() => void navigator.clipboard.writeText(session.worktree.path)} />
+      <div className="my-1 border-t border-border-subtle" />
+      <MenuItem icon={<Clock3 size={14} />} label={t("env.rateLimits")}
+        trailing={<ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted transition-transform", limitsOpen && "rotate-180")} />}
+        onClick={() => { const next = !limitsOpen; setLimitsOpen(next); if (next) void refreshUsage(session.agent); }} />
+      {limitsOpen ? <div className="flex flex-col gap-2 px-2 pb-1.5 pt-1">
+        {windows.length === 0 ? <p className="ui-caption text-text-muted">{t(usage ? "Usage unavailable" : "common.loading")}</p> : windows.map((window) => {
+          const used = window.usedPercent ?? 0;
+          const left = Math.max(0, Math.round(100 - used));
+          const reset = window.resetsAt != null && window.resetsAt > now ? resetDuration(window.resetsAt, now) : null;
+          return <div key={window.id}>
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="min-w-0 truncate ui-control text-text-primary">{t(usageWindowLabel(window))}</span>
+              <span className="shrink-0 ui-caption tabular-nums text-text-muted">{t("env.left", { percent: left })}</span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text-primary)_10%,transparent)]" aria-hidden="true">
+              <div className={cn("h-full rounded-full", used >= 90 ? "bg-danger" : used >= 70 ? "bg-warning" : "bg-success")} style={{ width: `${left}%` }} />
+            </div>
+            {reset ? <p className="mt-0.5 ui-caption text-text-muted">{t("env.resetsIn", { time: reset })}</p> : null}
+          </div>;
+        })}
+      </div> : null}
     </Expandable>
   );
 }
 
-function BranchRow({ projectId, branch }: { projectId: string; branch: string }) {
-  return (
-    <Expandable icon={<GitBranch size={14} />} label={branch}>
-      <WorktreeList projectId={projectId} />
-    </Expandable>
-  );
-}
-
-function WorktreeList({ projectId }: { projectId: string }) {
+function BranchRow({ projectId, branch, isolated }: { projectId: string; branch: string; isolated: boolean }) {
   const t = useTranslation();
-  const [entries, setEntries] = useState<GitWorktree[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    client
-      .listWorktrees(projectId)
-      .then((list) => {
-        if (!cancelled) setEntries(list);
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) setError(formatUnknownError(reason));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId]);
-  if (error) return <p role="alert" className="ui-caption text-danger">{error}</p>;
-  if (!entries) return <p className="ui-caption text-text-muted">{t("common.loading")}</p>;
+  const refreshGitStatus = useAppStore((state) => state.refreshGitStatus);
+  const [open, setOpen] = useState(false);
+  const [branches, setBranches] = useState<BranchInfo[] | null>(null);
+  const [query, setQuery] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fail = (reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) });
+  const load = () => { setBranches(null); void client.listBranches(projectId).then(setBranches).catch((reason: unknown) => { setBranches([]); fail(reason); }); };
+  // An isolated worktree keeps its own branch; only the project checkout switches.
+  const listed = isolated ? [{ name: branch, current: true }] : branches ?? [];
+  const shown = listed.filter((item) => item.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const exact = shown.some((item) => item.name === query.trim());
+  const run = async (task: () => Promise<void>) => {
+    setBusy(true);
+    try { await task(); await refreshGitStatus(); setOpen(false); } catch (reason) { fail(reason); } finally { setBusy(false); }
+  };
   return (
-    <div className="space-y-1.5">
-      {entries.map((tree) => (
-        <div key={tree.path}>
-          <p className="truncate ui-caption text-text-secondary">{tree.branch ?? (tree.detached ? t("Detached HEAD") : t("Bare repository"))}</p>
-          <p className="selectable break-all font-mono ui-micro text-text-muted">{tree.path}</p>
-        </div>
-      ))}
-    </div>
+    <Expandable icon={<GitBranch size={14} />} label={branch} heading={null} open={open}
+      onOpenChange={(next) => { setOpen(next); setQuery(""); setCreating(false); if (next && !isolated) load(); }}>
+      <div className="mb-1 flex items-center gap-2 rounded-[8px] border border-[var(--field-focus-border)] px-2 py-1.5 text-text-muted">
+        <Search size={13} aria-hidden="true" />
+        <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t(creating ? "New branch name" : "Search branches…")}
+          onKeyDown={(event) => { if (event.key === "Enter" && creating && query.trim()) void run(() => client.createBranch(projectId, query.trim())); }}
+          className="w-full bg-transparent ui-control text-text-primary outline-none placeholder:text-text-muted" />
+      </div>
+      {!creating ? <div className="scroll-thin max-h-52 overflow-y-auto">
+        {!isolated && branches === null ? <p className="px-2 py-1.5 ui-caption text-text-muted">{t("common.loading")}</p>
+          : shown.map((item) => <MenuItem key={item.name} icon={<GitBranch size={14} />} label={item.name} disabled={busy || isolated || item.current}
+            trailing={item.current ? <span className="shrink-0 ui-caption text-text-muted">{t("current")}</span> : undefined}
+            onClick={() => void run(() => client.checkoutBranch(projectId, item.name))} />)}
+      </div> : null}
+      {isolated ? <p className="px-2 pb-1 pt-1 ui-caption text-text-muted">{t("env.isolatedBranch")}</p> : <>
+        <div className="my-1 border-t border-border-subtle" />
+        {creating
+          ? <MenuItem icon={<Plus size={14} />} label={t("env.createNamed", { name: query.trim() || "…" })} disabled={busy || !query.trim() || exact} onClick={() => void run(() => client.createBranch(projectId, query.trim()))} />
+          : <MenuItem icon={<Plus size={14} />} label={t("env.createBranch")} disabled={busy} onClick={() => { setCreating(true); setQuery(""); }} />}
+      </>}
+    </Expandable>
   );
 }
 
-function CommitAndPushSection({ sessionId, projectPath }: { sessionId: string; projectPath: string }) {
+type GitStep = "menu" | "commit" | "commitPush" | "push" | "pull" | "pr" | "branch";
+
+function CommitAndPushSection({ sessionId, projectId, projectPath, isolated, onClose }: { sessionId: string; projectId: string; projectPath: string; isolated: boolean; onClose: () => void }) {
   const t = useTranslation();
   const isRepo = useAppStore((state) => state.gitByPath[projectPath]?.isRepo ?? state.gitStatus?.identity.isRepo ?? false);
   const ahead = useAppStore((state) => state.gitStatus?.ahead ?? 0);
   const refreshGitStatus = useAppStore((state) => state.refreshGitStatus);
+  const openDockPane = useAppStore((state) => state.openDockPane);
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<GitStep>("menu");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState<"commit" | "push" | null>(null);
-  const [confirmPush, setConfirmPush] = useState(false);
-  const [result, setResult] = useState<{ error: boolean; text: string } | null>(null);
+  const [body, setBody] = useState("");
+  const [draft, setDraft] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ error: boolean; text: string; url?: string } | null>(null);
 
   if (!isRepo) return null;
 
-  const run = async (kind: "commit" | "push") => {
-    setBusy(kind);
+  const run = async () => {
+    setBusy(true);
     setResult(null);
     try {
-      if (kind === "commit") {
-        const committed = await client.gitCommit(sessionId, message);
+      if (step === "pull") {
+        const pulled = await client.gitPull(sessionId);
+        setResult({ error: false, text: pulled.summary || t("env.pulled", { branch: pulled.branch }) });
+      } else if (step === "pr") {
+        const url = await client.createPullRequest(sessionId, message, body, draft);
         setMessage("");
-        setResult({ error: false, text: committed.summary || committed.hash.slice(0, 8) });
+        setBody("");
+        setDraft(false);
+        setResult({ error: false, text: t("env.prCreated"), url });
+      } else if (step === "branch") {
+        await client.createBranch(projectId, message.trim());
+        setMessage("");
+        setResult({ error: false, text: t("env.branchCreated") });
       } else {
-        const pushed = await client.gitPush(sessionId);
-        setResult({ error: false, text: t("Pushed {branch}", { branch: pushed.branch }) });
+        if (step !== "push") {
+          const committed = await client.gitCommit(sessionId, message);
+          setMessage("");
+          setResult({ error: false, text: committed.summary || committed.hash.slice(0, 8) });
+        }
+        if (step !== "commit") {
+          const pushed = await client.gitPush(sessionId);
+          setResult({ error: false, text: t("Pushed {branch}", { branch: pushed.branch }) });
+        }
       }
-      setConfirmPush(false);
+      setStep("menu");
       await refreshGitStatus();
     } catch (reason) {
       setResult({ error: true, text: formatUnknownError(reason) });
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
+  const titles: Record<GitStep, string> = { menu: "env.gitActions", commit: "Commit", commitPush: "Commit and Push", push: "Push", pull: "env.pull", pr: "env.createPr", branch: "env.newBranch" };
+  const confirmLabels: Record<GitStep, string> = { menu: "", commit: "Commit", commitPush: "Commit and Push", push: "Confirm push", pull: "env.confirmPull", pr: "env.createPr", branch: "Create" };
+  const needsText = step === "commit" || step === "commitPush" || step === "pr" || step === "branch";
+  const field = "w-full rounded-[7px] border border-border-subtle bg-[var(--surface)] px-2 py-1.5 ui-control text-text-primary placeholder:text-text-muted focus-visible:border-[var(--field-focus-border)] focus-visible:outline-none";
+  const go = (next: GitStep) => { setResult(null); setMessage(""); setStep(next); };
   return (
     <Expandable
       icon={<ArrowUpFromLine size={14} />}
       label={t("Commit and Push")}
+      heading={t(titles[step])}
+      open={open}
+      onOpenChange={(next) => { setOpen(next); if (!next) { setStep("menu"); setResult(null); } }}
       trailing={ahead > 0 ? <span className="ui-caption text-text-muted">{t("{count} ahead", { count: ahead })}</span> : undefined}
     >
-      <textarea
-        value={message}
-        onChange={(event) => setMessage(event.target.value)}
-        placeholder={t("Commit message")}
-        rows={2}
-        className="w-full resize-none rounded-[7px] border border-border-subtle bg-background-2 px-[8px] py-[6px] ui-body text-text-primary placeholder:text-text-muted focus-visible:border-border-default focus-visible:outline-none"
-      />
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <InteractiveButton variant="toolbar" disabled={!message.trim() || busy !== null} onClick={() => void run("commit")}>
-          {busy === "commit" ? t("Committing…") : t("Commit")}
-        </InteractiveButton>
-        {confirmPush ? (
-          <>
-            <InteractiveButton variant="toolbar" disabled={busy !== null} onClick={() => void run("push")}>
-              {busy === "push" ? t("Pushing…") : t("Confirm push")}
-            </InteractiveButton>
-            <InteractiveButton variant="toolbar" disabled={busy !== null} onClick={() => setConfirmPush(false)}>
-              {t("common.cancel")}
-            </InteractiveButton>
-          </>
-        ) : (
-          <InteractiveButton variant="toolbar" disabled={busy !== null} onClick={() => setConfirmPush(true)}>
-            {t("Push")}
+      {step === "menu" ? <>
+        <MenuItem icon={<GitCommitHorizontal size={14} />} label={t("Commit")} onClick={() => go("commit")} />
+        <MenuItem icon={<Download size={14} />} label={t("env.pull")} onClick={() => go("pull")} />
+        <MenuItem icon={<ArrowUpFromLine size={14} />} label={t("Commit and Push")} onClick={() => go("commitPush")} />
+        <MenuItem icon={<ArrowUpFromLine size={14} />} label={t("Push")} trailing={ahead > 0 ? <span className="ui-caption text-text-muted">{ahead}</span> : undefined} onClick={() => go("push")} />
+        <MenuItem icon={<GitPullRequest size={14} />} label={t("env.createPr")} onClick={() => go("pr")} />
+        <MenuItem icon={<GitBranch size={14} />} label={t("env.newBranch")} disabled={isolated} onClick={() => go("branch")} />
+        <div className="my-1 border-t border-border-subtle" />
+        <MenuItem icon={<GitCompareArrows size={14} />} label={t("env.reviewChanges")} onClick={() => { openDockPane("changes"); setOpen(false); onClose(); }} />
+      </> : <div className="flex flex-col gap-1.5 px-1 pb-1">
+        {step === "branch" || step === "pr"
+          ? <input autoFocus value={message} onChange={(event) => setMessage(event.target.value)} placeholder={t(step === "pr" ? "env.prTitle" : "New branch name")} className={field} />
+          : step === "commit" || step === "commitPush"
+            ? <textarea autoFocus value={message} onChange={(event) => setMessage(event.target.value)} placeholder={t("Commit message")} rows={2} className={cn(field, "resize-none")} />
+            : <p className="px-1 ui-caption text-text-muted">{t(step === "pull" ? "env.pullHint" : "env.pushHint")}</p>}
+        {step === "pr" ? <>
+          <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder={t("env.prBody")} rows={3} className={cn(field, "resize-none")} />
+          <label className="flex items-center gap-2 px-1 ui-caption text-text-secondary"><input type="checkbox" checked={draft} onChange={(event) => setDraft(event.target.checked)} />{t("env.prDraft")}</label>
+          <p className="px-1 ui-caption text-text-muted">{t("env.prHint")}</p>
+        </> : null}
+        <div className="flex items-center justify-end gap-1">
+          <InteractiveButton variant="toolbar" disabled={busy} onClick={() => setStep("menu")}>{t("common.cancel")}</InteractiveButton>
+          <InteractiveButton variant="toolbar" disabled={busy || (needsText && !message.trim())} onClick={() => void run()}>
+            {busy ? t("common.loading") : t(confirmLabels[step])}
           </InteractiveButton>
-        )}
-      </div>
-      {result ? (
-        <p role={result.error ? "alert" : "status"} className={cn("mt-1.5 break-words ui-caption", result.error ? "text-danger" : "text-text-muted")}>
-          {t(result.text)}
-        </p>
-      ) : null}
+        </div>
+      </div>}
+      {result ? <p role={result.error ? "alert" : "status"} className={cn("break-words px-2 pb-1 pt-1 ui-caption", result.error ? "text-danger" : "text-text-muted")}>
+        {t(result.text)}
+        {result.url ? <> · <button type="button" className="text-accent underline-offset-2 hover:underline" onClick={() => void client.openExternalUrl(result.url!).catch(() => undefined)}>{t("env.openPr")}</button></> : null}
+      </p> : null}
     </Expandable>
   );
 }
@@ -409,7 +480,7 @@ function SideChatRow({ parentSessionId, onClose }: { parentSessionId: string; on
   const open = () => { onClose(); void useAppStore.getState().openSideChat(parentSessionId); };
   const count = side?.transcriptLength ?? side?.messages.filter((message) => message.role !== "system").length ?? 0;
   return <div className="group flex w-full items-center rounded-[8px] hover:bg-background-3">
-    <button type="button" onClick={open} className="flex min-w-0 flex-1 items-center gap-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:text-text-primary">
+    <button type="button" onClick={open} className="flex min-w-0 flex-1 items-center gap-[8px] px-[8px] py-[3px] text-left ui-body text-text-secondary hover:text-text-primary">
       <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true"><MessagesSquare size={14} /></span>
       <span className="min-w-0 flex-1 truncate">{t(side ? "sideChat.title" : "sideChat.open")}</span>
       {running ? <span className="ui-caption text-text-muted">{t("sideChat.working")}</span>
@@ -425,84 +496,35 @@ function SideChatRow({ parentSessionId, onClose }: { parentSessionId: string; on
 function LocalServersSection({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
   const servers = useAppStore((state) => state.localServersBySession[sessionId]) ?? [];
-  const setStoreError = (message: string) => useAppStore.setState({ error: message });
+  const fail = (reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) });
   return (
     <Expandable
       icon={<Globe size={14} />}
       label={t("Local Servers")}
+      heading={servers.length ? t("env.serversRunning", { count: servers.length }) : t("Local Servers")}
       trailing={servers.length ? <span className="mr-1 flex items-center gap-1.5 ui-caption tabular-nums text-text-muted"><span className="size-1.5 rounded-full bg-success shadow-[0_0_6px_var(--success)]" aria-hidden="true" />{servers.length}</span> : undefined}
     >
-      {servers.length === 0 ? (
-        <p className="ui-caption text-text-muted">{t("No local servers detected.")}</p>
-      ) : (
-        <div className="space-y-0.5">
-          {servers.map((url) => (
-            <button
-              key={url}
-              type="button"
-              className="flex w-full items-center gap-[6px] rounded-[8px] px-[8px] py-[4px] text-left hover:bg-background-3"
-              onClick={() => void client.openExternalUrl(url).catch((reason: unknown) => setStoreError(formatUnknownError(reason)))}
-            >
-              <span className="min-w-0 flex-1 truncate font-mono ui-micro text-text-secondary">{url}</span>
-              <ExternalLink size={11} className="shrink-0 text-text-muted" aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      )}
+      {servers.length === 0 ? <p className="px-2 pb-1 ui-caption text-text-muted">{t("No local servers detected.")}</p> : servers.map((url) => {
+        let host = url;
+        let path = "";
+        try { const parsed = new URL(url); host = parsed.host; path = parsed.pathname === "/" ? "" : parsed.pathname; } catch { /* keep the raw URL */ }
+        return <div key={url} className="group flex w-full items-center gap-1 rounded-[7px] hover:bg-background-3">
+          <button type="button" title={url} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+            onClick={() => void client.openExternalUrl(url).catch(fail)}>
+            <span className="size-1.5 shrink-0 rounded-full bg-success shadow-[0_0_6px_var(--success)]" aria-hidden="true" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate ui-control text-text-primary">{host}</span>
+              {path ? <span className="block truncate font-mono ui-micro text-text-muted">{path}</span> : null}
+            </span>
+          </button>
+          <button type="button" aria-label={t("env.stopServer")} title={t("env.stopServer")}
+            className="mr-1.5 grid size-5 shrink-0 place-items-center rounded-[5px] text-text-muted hover:bg-background-3 hover:text-danger"
+            onClick={() => void client.stopLocalServer(sessionId, url).then(() => useAppStore.setState((state) => ({ localServersBySession: { ...state.localServersBySession, [sessionId]: (state.localServersBySession[sessionId] ?? []).filter((item) => item !== url) } }))).catch(fail)}>
+            <Square size={10} aria-hidden="true" />
+          </button>
+        </div>;
+      })}
     </Expandable>
-  );
-}
-
-function UsageSection() {
-  const t = useTranslation();
-  const session = useAppStore(selectCurrentSessionMeta);
-  const settings = useAppStore((state) => state.settings);
-  const usage = useAppStore((state) => state.usageByProvider);
-  const refresh = useAppStore((state) => state.refreshProviderUsage);
-  const provider: AgentProviderId = session?.agent ?? settings.defaultAgent;
-  const name = PROVIDERS.find((item) => item.id === provider)?.name ?? provider;
-  const current = usage[provider];
-  const main = primaryUsageWindow(current);
-  const used = main?.usedPercent;
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (open) void refresh(provider);
-  }, [open, provider, refresh]);
-  return (
-    <>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
-      >
-        <ProviderIcon id={provider} size={16} className="shrink-0 bg-transparent" />
-        <span className="min-w-0 flex-1 truncate">{name}</span>
-        {used != null ? <span className="flex items-center gap-2 tabular-nums text-text-muted"><span className="h-1 w-10 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text-primary)_14%,transparent)]" aria-hidden="true"><span className={cn("block h-full rounded-full", used >= 90 ? "bg-danger" : "bg-text-secondary")} style={{ width: `${Math.min(100, used)}%` }} /></span>{Math.round(used)}%</span> : <span className="text-text-muted">{t("Usage unavailable")}</span>}
-        <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
-      </button>
-      <Reveal open={open}>
-        <div className="flex flex-col gap-[4px] px-[8px] pb-[4px] pt-[2px]">
-          {current?.windows.map((window) => (
-            <div key={window.id} className="mb-1.5">
-              <div className="flex justify-between gap-3 ui-caption text-text-secondary">
-                <span>{t(usageWindowLabel(window))}</span>
-                <span className="tabular-nums">{window.usedPercent == null ? "—" : `${Math.round(window.usedPercent)}%`}</span>
-              </div>
-              {window.usedPercent != null ? (
-                <div className="mt-1 h-1 overflow-hidden rounded-full bg-background-3">
-                  <div className="h-full rounded-full bg-text-secondary" style={{ width: `${window.usedPercent}%` }} />
-                </div>
-              ) : null}
-            </div>
-          ))}
-          {!current ? <p className="ui-caption text-text-muted">{t("common.loading")}</p> : null}
-          <InteractiveButton variant="toolbar" onClick={() => void refresh(provider, true)}>
-            <RefreshCw size={12} /> {t("Refresh usage")}
-          </InteractiveButton>
-        </div>
-      </Reveal>
-    </>
   );
 }
 
@@ -557,7 +579,7 @@ function EditorOpenSection({ sessionId, path, onClose }: { sessionId: string; pa
               <button
                 key={editor.id}
                 type="button"
-                className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[4px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
+                className="flex w-full items-center gap-[8px] rounded-[8px] px-[8px] py-[3px] text-left ui-body text-text-secondary hover:bg-background-3 hover:text-text-primary"
                 onClick={() => {
                   void client
                     .openInEditor(sessionId, editor.id, path)
