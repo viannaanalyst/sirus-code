@@ -6,7 +6,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/providers";
 import { modelDisplayName } from "@/lib/model-registry";
 import { taskView, workerChanges, type TaskView } from "@/lib/team";
-import { useAppStore } from "@/store/app-store";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import "@/styles/team.css";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
@@ -120,7 +120,8 @@ function StatusDot({ view }: { view: TaskView }) {
 function ProgressCard({ session }: { session: Session }) {
   const t = useTranslation();
   const team = session.team!;
-  const sessions = useAppStore(state => state.sessions);
+  // Status and identity only: streaming helpers would otherwise re-render this card every frame.
+  const sessions = useAppStore(selectSessionsMeta);
   const label = useAssigneeLabel();
   const teamAction = useAppStore(state => state.teamAction);
   const selectSession = useAppStore(state => state.selectSession);

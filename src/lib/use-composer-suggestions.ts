@@ -7,10 +7,15 @@ import { filterSkills, skillContextKey } from "@/lib/skills";
 import { useSkillsCatalog } from "@/lib/use-skills-catalog";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
+import { availableCommands, commandPosition, filterCommands, type CommandContext, type ComposerCommandId } from "@/lib/composer-commands";
+import { translate } from "@/i18n";
 
-export interface ComposerSuggestion { key: string; label: string; description: string; path?: string; directory?: boolean }
+export interface ComposerSuggestion { key: string; label: string; description: string; path?: string; directory?: boolean; command?: ComposerCommandId }
 
-export function useComposerSuggestions(ownerKey: string, value: string, area: RefObject<HTMLTextAreaElement | null>, unavailable: boolean) {
+/** App commands join the `/` list; `run` receives the chosen command after its token leaves the draft. */
+export interface ComposerCommands { context: CommandContext; run: (id: ComposerCommandId) => void }
+
+export function useComposerSuggestions(ownerKey: string, value: string, area: RefObject<HTMLTextAreaElement | null>, unavailable: boolean, commands?: ComposerCommands) {
   const listId = useId();
   const [cursor, setCursor] = useState({ ownerKey, value, start: 0, end: 0 });
   const [focused, setFocused] = useState(false);
@@ -46,15 +51,32 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
   const fileData = files.key === requestKey ? files : null;
   const loading = kind === "skill" ? skillsLoading : kind === "file" && fileData === null;
   const error = kind === "skill" ? skillsError : fileData?.error ?? null;
+  const locale = useAppStore(state => state.settings.locale);
+  const skillRows: ComposerSuggestion[] = kind === "skill" ? filterSkills(catalog?.skills ?? [], query, disabledSkills, true).map(skill => ({ key: skill.name, label: `/${skill.name}`, description: skill.description })) : [];
+  // A skill named exactly like the query keeps the first place, so an existing
+  // `/name` + Enter still picks that skill; app commands follow, then other skills.
+  const commandRows: ComposerSuggestion[] = kind === "skill" && commands && trigger && commandPosition(value, trigger.start)
+    ? filterCommands(availableCommands(commands.context), query).map(command => ({ key: `command:${command.id}`, label: `/${command.id}`, description: translate(locale, command.description), command: command.id }))
+    : [];
+  const exact = skillRows.filter(row => row.key === query);
   const rows: ComposerSuggestion[] = kind === "skill"
-    ? filterSkills(catalog?.skills ?? [], query, disabledSkills, true).map(skill => ({ key: skill.name, label: `/${skill.name}`, description: skill.description }))
+    ? [...exact, ...commandRows, ...skillRows.filter(row => row.key !== query)]
     : kind === "file" ? (fileData?.data?.entries ?? []).map(entry => ({ key: entry.path, label: entry.path.split("/").at(-1)! + (entry.isDir ? "/" : ""), description: entry.path.includes("/") ? entry.path.slice(0, entry.path.lastIndexOf("/")) : "", path: entry.path, directory: entry.isDir })) : [];
   const index = selection.key === requestKey ? Math.min(selection.index, Math.max(0, rows.length - 1)) : 0;
   const syncCursor = (node: HTMLTextAreaElement) => setCursor({ ownerKey, value: node.value, start: node.selectionStart, end: node.selectionEnd });
   const choose = (row: ComposerSuggestion) => {
-    if (!trigger || loading || unavailable) return;
+    if (!trigger || (loading && !row.command) || unavailable) return;
     const store = useAppStore.getState();
     if ((store.composerDrafts[ownerKey] ?? "") !== value || skillContextKey(store, owner) !== contextKey) return;
+    if (row.command) {
+      // Commands act on the app: the token leaves the draft and is never sent as text.
+      const rest = (value.slice(0, trigger.start) + value.slice(trigger.end)).trimStart();
+      store.setComposerDraft(ownerKey, rest);
+      setDismissed(JSON.stringify([ownerKey, contextKey, rest, 0, 0]));
+      setCursor({ ownerKey, value: rest, start: 0, end: 0 });
+      commands?.run(row.command);
+      return;
+    }
     if (trigger.kind === "skill" && store.settings.disabledSkills.includes(row.key)) return;
     const next = completeComposerToken(value, trigger, row.path ?? row.key, row.directory);
     store.setComposerDraft(ownerKey, next.value);
@@ -84,6 +106,7 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
   const retry = () => { if (kind === "skill") void refresh(); else { setFiles({ key: "", data: null, error: null }); setAttempt(current => current + 1); } };
   return {
     visible, kind, listId, rows, index, loading, error, choose, onKeyDown, syncCursor,
+    hasCommands: commandRows.length > 0,
     truncated: kind === "skill" ? catalog?.truncated ?? false : fileData?.data?.truncated ?? false,
     onFocus: (node: HTMLTextAreaElement) => { setFocused(true); syncCursor(node); },
     onBlur: () => setFocused(false),

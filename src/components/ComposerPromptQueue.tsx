@@ -4,10 +4,13 @@ import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { providerById } from "@/lib/provider-registry";
+import { canSteer } from "@/lib/steering";
 
 export function ComposerPromptQueue({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
   const queue = useAppStore(state => state.promptQueues[sessionId]);
+  const steerable = useAppStore(state => { const session = state.sessions.find(item => item.id === sessionId); return canSteer(session?.agent, session?.status); });
+  const [steering, setSteering] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [error, setError] = useState(false);
@@ -44,6 +47,10 @@ export function ComposerPromptQueue({ sessionId }: { sessionId: string }) {
             {item.context.attachments.length ? <p className="truncate ui-caption text-text-muted">{item.context.attachments.map(file => file.name).join(", ")}</p> : null}
           </div>
           {editing !== item.id ? <div className="flex shrink-0 gap-1">
+            {steerable && !item.context.attachments.length && item.text.trim() && queue.inFlight !== item.id && item.afterMessageId === undefined ? <InteractiveButton variant="toolbar" disabled={steering !== null} title={t("steer.nowHelp")} aria-label={t("steer.nowItem", { position: index + 1 })} onClick={() => {
+              setSteering(item.id);
+              void store().steerTurn(sessionId, item.text.trim()).then(sent => { if (sent) store().cancelQueuedPrompt(sessionId, item.id); }).finally(() => setSteering(null));
+            }}>{t("steer.now")}</InteractiveButton> : null}
             <InteractiveButton variant="toolbar" data-queue-edit={item.id} disabled={queue.inFlight === item.id || item.afterMessageId !== undefined} aria-label={t("queue.editItem", { position: index + 1 })} onClick={() => { store().pausePromptQueue(sessionId); setEditing(item.id); setText(item.text); setError(false); }}>{t("queue.edit")}</InteractiveButton>
             <InteractiveButton variant="toolbar" disabled={queue.inFlight === item.id} aria-label={t("queue.cancelItem", { position: index + 1 })} onClick={() => { store().cancelQueuedPrompt(sessionId, item.id); restoreFocus(); }}>{t("queue.cancel")}</InteractiveButton>
           </div> : null}

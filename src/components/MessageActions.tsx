@@ -62,7 +62,8 @@ export function MessageActions({ message, session }: { message: Message; session
   const pick = (provider: AgentProviderId, model: string | null) => {
     if (handoffBusy) return;
     setHandoffBusy(true);
-    void handoffSession(session.id, message.id, provider, model).finally(() => setHandoffBusy(false));
+    // The source stays on screen beside the handoff pane, so the picker closes itself.
+    void handoffSession(session.id, message.id, provider, model).then((done) => { if (done) setHandoffOpen(false); }).finally(() => setHandoffBusy(false));
   };
 
   return <div className="mt-2 flex items-center gap-0.5 text-text-muted">

@@ -72,14 +72,15 @@ export function RightDock() {
   const toggleDock = useAppStore((state) => state.toggleDock);
   const toggleDockMaximized = useAppStore((state) => state.toggleDockMaximized);
   const discardEditorBuffer = useAppStore((state) => state.discardEditorBuffer);
-  const editorBuffers = useAppStore((state) => state.editorBuffers);
+  // Only the set of unsaved files, so typing re-renders the dock only when a file turns dirty or clean.
+  const dirtyKeys = useAppStore((state) => Object.keys(state.editorBuffers).filter((key) => { const buffer = state.editorBuffers[key]; return buffer.content.length !== buffer.saved.length || buffer.content !== buffer.saved; }).join("\u0000"));
+  const dirtySet = useMemo(() => new Set(dirtyKeys ? dirtyKeys.split("\u0000") : []), [dirtyKeys]);
   const editorSaving = useAppStore((state) => state.editorSaving);
   const [pendingClose, setPendingClose] = useState<DockPane | null>(null);
 
   const isDirty = (pane: DockPane) => {
     if (pane.kind !== "editor" || !pane.path || !pane.sessionId) return false;
-    const buffer = editorBuffers[editorKey(pane.sessionId, pane.path)];
-    return !!buffer && buffer.content !== buffer.saved;
+    return dirtySet.has(editorKey(pane.sessionId, pane.path));
   };
 
   const visible = useMemo(

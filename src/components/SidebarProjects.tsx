@@ -12,6 +12,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { usePointerReorder, type DropEdge } from "@/lib/use-pointer-reorder";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore, selectListedSessions } from "@/store/app-store";
+import { useDraftOwners } from "@/lib/use-draft-owners";
 
 export function SidebarProjects({ floating = false, query = "", draftsOnly = false }: { floating?: boolean; query?: string; draftsOnly?: boolean }) {
   const t = useTranslation();
@@ -20,7 +21,7 @@ export function SidebarProjects({ floating = false, query = "", draftsOnly = fal
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const sessions = useAppStore(selectListedSessions);
   const settings = useAppStore(state => state.settings);
-  const drafts = useAppStore(state => state.composerDrafts);
+  const drafts = useDraftOwners();
   const groups = useMemo(() => {
     const catalog = sidebarGroups(projects, sessions, settings);
     const search = query.trim().toLocaleLowerCase();

@@ -611,7 +611,11 @@ pub(crate) async fn execute(
                 let _=wire.send(json!({"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":native}})).await;
                 return Err(Error::agent(format!("OpenCode provider error: {message}")));
             },
-            Some(reply)=run.replies.recv(),if !interrupted=>{
+            Some(inbound)=run.replies.recv(),if !interrupted=>{
+                let reply=match inbound {
+                    crate::codex::Inbound::Answer(reply)=>reply,
+                    crate::codex::Inbound::Steer{result,..}=>{let _=result.send(Err(Error::agent("OpenCode does not accept instructions during a turn")));continue;}
+                };
                 let r=&reply.request;
                 let mut delivery_failed=false;
                 let result=if r.session_id!=run.session.id||r.generation!=run.generation||r.turn_id!=turn {Err(Error::agent("Stale or foreign OpenCode reply"))}
@@ -955,7 +959,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                     for generation in ["foreign", "generation", "generation"] {
                         let (result, ack) = tokio::sync::oneshot::channel();
                         sender
-                            .try_send(crate::codex::Reply {
+                            .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
                                 request: RespondAgentRequest {
                                     session_id: "s".into(),
                                     request_id: p.request_id.clone(),
@@ -966,7 +970,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                                     },
                                 },
                                 result,
-                            })
+                            }))
                             .unwrap();
                         acks.push(ack);
                     }
@@ -1035,7 +1039,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                     }
                     let (result, _receiver) = tokio::sync::oneshot::channel();
                     sender
-                        .try_send(crate::codex::Reply {
+                        .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
                             request: RespondAgentRequest {
                                 session_id: session.id.clone(),
                                 generation: pending.generation,
@@ -1046,10 +1050,14 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                                 },
                             },
                             result,
-                        })
+                        }))
                         .map_err(|_| Error::agent("Fixture response unavailable"))?;
                 }
-                Event::Answered(_) | Event::Activity(_) | Event::Model(_) | Event::Context(_) => {}
+                Event::Answered(_)
+                | Event::Activity(_)
+                | Event::Model(_)
+                | Event::Context(_)
+                | Event::UsageLimit(_) => {}
             }
             Ok(())
         };

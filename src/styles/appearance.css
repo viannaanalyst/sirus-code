@@ -19,7 +19,7 @@ html[data-sidebar-glass="on"] .sidebar-material {
 }
 html[data-theme="dark"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in srgb, #111111 var(--sidebar-opacity), transparent); }
 html[data-theme="light"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in srgb, #ececee var(--sidebar-opacity), transparent); }
-/* Preserve the palette's opaque control tokens: glass belongs to pane and popup surfaces. */
+/* Window glass: the window coat is translucent; see below for the tinted surfaces inside it. */
 html[data-window-glass="on"] {
   --window-coat: color-mix(in srgb, var(--background-0) var(--window-opacity), transparent);
   --main-material: transparent;
@@ -28,6 +28,13 @@ html[data-window-glass="on"] {
 html[data-window-glass="on"] body { background: transparent; }
 html[data-window-glass="on"] .dot-grid { background-color: transparent; }
 html[data-window-glass="on"] :is(.app-material, .settings-material) { background: var(--window-coat); }
+/* Inside the glass window, panels, controls and highlights are ink tints over the glass (as in
+   MonoCode), never solid blocks. Popups and dialogs are portaled out and keep their own material. */
+html[data-window-glass="on"] :is(.app-material, .settings-material, .floating-material, [data-appearance-floating]) {
+  --background-1: color-mix(in srgb, var(--text-primary) 3%, transparent);
+  --background-2: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  --background-3: color-mix(in srgb, var(--text-primary) 9%, transparent);
+}
 html[data-window-glass="on"] .app-material[data-settings-open="true"] { background: transparent; }
 :is(.floating-material, [data-appearance-floating]) {
   background: var(--floating-material);
@@ -35,9 +42,12 @@ html[data-window-glass="on"] .app-material[data-settings-open="true"] { backgrou
   border-color: var(--border-default);
 }
 html[data-popup-glass="on"] { --floating-material: color-mix(in srgb, var(--background-elevated) var(--popup-opacity), transparent); }
+/* Dark glass popups are a light ink film over a strong blur (as in MonoCode): they always read a step
+   lighter than whatever sits beneath, so they look like glass over any content or desktop. */
+html[data-theme="dark"][data-popup-glass="on"] { --floating-material: color-mix(in srgb, var(--text-primary) 5%, transparent); }
 html[data-popup-glass="on"] :is(.floating-material, [data-appearance-floating]) {
-  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(125%);
-  backdrop-filter: blur(var(--material-blur)) saturate(125%);
+  -webkit-backdrop-filter: blur(max(var(--material-blur), 24px)) saturate(130%);
+  backdrop-filter: blur(max(var(--material-blur), 24px)) saturate(130%);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .07), var(--shadow-floating);
 }
 html[data-font-smoothing="off"] body { -webkit-font-smoothing: auto; }

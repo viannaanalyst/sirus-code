@@ -42,7 +42,9 @@
   --text-muted: #7d7d7d;
   --sidebar-rail-icon-active: #ffffff;
   --navigation-hover: color-mix(in srgb, var(--text-primary) 5%, transparent);
-  --navigation-selected: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --navigation-selected: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  /* The user's message bubble: a tint over whatever is behind it (glass or opaque), never a solid grey. */
+  --chat-bubble: color-mix(in srgb, var(--text-primary) 10%, transparent);
   --brand-claude: #d87957;
   --brand-openai: #3b82f6;
   --brand-gemini: #8bb8ff;
@@ -91,10 +93,10 @@
   --switch-border: rgb(255 255 255 / 0.12);
   --switch-disabled: rgb(255 255 255 / 0.06);
   /* Selected Orbit switch material; a finite state transition, no ambient loop. */
-  --orbit-switch-track: #181818;
+  --orbit-switch-track: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --orbit-switch-border: #ffffff1a;
-  --orbit-switch-on-start: #55585d;
-  --orbit-switch-on-end: #a7adb4;
+  --orbit-switch-on-start: #6b5bd6;
+  --orbit-switch-on-end: #9a8cff;
   --orbit-pearl-highlight: #ffffff;
   --orbit-pearl-body: #dedede;
   --orbit-pearl-shade: #9c9c9c;
@@ -212,8 +214,9 @@
     cursor: pointer;
   }
 
+  /* Keyboard focus stays visible but soft: a half-strength ring, not a solid white bar. */
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
     outline-offset: 2px;
   }
 
@@ -324,16 +327,23 @@ html[data-theme="light"] {
   --text-secondary: #3f3f46;
   --text-muted: #71717a;
   --sidebar-rail-icon-active: #000000;
+  /* Dark ink reads stronger than light ink: lighter tints in the light palette. */
+  --navigation-selected: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --chat-bubble: color-mix(in srgb, var(--text-primary) 7%, transparent);
   --accent: #18181b;
   --draft: #1f5fd1;
   --info: #1f5fd1;
   --merged: #8250df;
+  /* Status colours dark enough to read on light surfaces (the dark palette's are too pale here). */
+  --success: #1a7f37;
+  --danger: #cf222e;
+  --warning: #9a6700;
   --switch-track-off: rgb(0 0 0 / 0.12);
   --switch-track-on: rgb(24 24 27 / 0.55);
   --switch-thumb-on: var(--background-0);
   --switch-thumb-off: var(--text-muted);
   --switch-border: rgb(0 0 0 / 0.14);
-  --orbit-switch-track: #d4d4d6;
+  --orbit-switch-track: color-mix(in srgb, var(--text-primary) 12%, transparent);
   --orbit-switch-border: #55555530;
 }
 
@@ -383,3 +393,6 @@ html[data-density="comfortable"] {
     background-color: var(--navigation-selected);
   }
 }
+
+/* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */
+html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }

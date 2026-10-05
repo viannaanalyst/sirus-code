@@ -51,10 +51,10 @@ export function SidebarHoverCard({ children, content, label }: { children: React
       onKeyDown={(event) => { if (event.key === "ArrowRight" && open && card.current?.querySelector("button")) { event.preventDefault(); card.current.querySelector<HTMLButtonElement>("button")?.focus(); } }}>
       {children}
     </div></PopoverAnchor>
-    {open && <PopoverContent ref={card} side="right" align="start" sideOffset={10} collisionPadding={10} className="floating-material sidebar-hover-card" aria-label={label}
+    <PopoverContent ref={card} side="right" align="start" sideOffset={10} collisionPadding={10} className="floating-material sidebar-hover-card" aria-label={label}
       onOpenAutoFocus={(event) => event.preventDefault()} onCloseAutoFocus={(event) => event.preventDefault()}
       onInteractOutside={(event) => { if (event.target instanceof Node && anchor.current?.contains(event.target)) event.preventDefault(); }}
       onMouseEnter={keep} onMouseLeave={closeSoon} onFocus={keep} onBlur={closeSoon}
-      onClick={close}>{content}</PopoverContent>}
+      onClick={close}>{content}</PopoverContent>
   </Popover>;
 }

@@ -1,6 +1,6 @@
 # ADR-040: Bounded native turn change reviews
 
-**Status:** Accepted.
+**Status:** Accepted. Amended by [ADR-061](ADR-061-undo-turn-changes.md): the summary now offers Undo through reverse application of the retained diffs..
 
 ## Context
 

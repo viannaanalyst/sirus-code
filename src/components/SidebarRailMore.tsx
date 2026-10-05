@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { PopoverAnchor } from "@radix-ui/react-popover";
-import { Check, Clock3, Ellipsis, GitPullRequest, GripVertical, Inbox, ListTodo } from "@/components/icons/phosphor";
+import { Check, Clock3, Ellipsis, GitPullRequest, GripVertical, Inbox, ListTodo, SlidersHorizontal } from "@/components/icons/phosphor";
 import { DraftIcon } from "@/components/icons/DraftIcon";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
 import { useTranslation } from "@/i18n/use-translation";
@@ -67,7 +67,7 @@ export function SidebarRailMore({ onOpen }: { onOpen: () => void }) {
           <span className="flex min-w-[190px] items-center gap-2"><span className="min-w-0 flex-1 truncate">{project.name}</span>{settings.railProjectShortcuts.includes(project.id) ? <Check size={13} /> : <span className="w-[13px]" />}</span>
         </DropdownItem>)}
         <DropdownSeparator />
-        <DropdownItem onSelect={() => { pendingCustomize.current = true; }}>{t("rail.customize")}</DropdownItem>
+        <DropdownItem icon={<SlidersHorizontal size={15} />} onSelect={() => { pendingCustomize.current = true; }}>{t("rail.customize")}</DropdownItem>
       </DropdownContent>
     </Dropdown>
     <PopoverContent side="right" align="start" sideOffset={10} className="sidebar-customize w-[280px] p-2" aria-label={t("rail.customizeTitle")}>

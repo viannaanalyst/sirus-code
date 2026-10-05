@@ -44,6 +44,7 @@ import type {
   WindowSnapEvent,
 } from "@/client/types";
 import { formatUnknownError } from "@/lib/format-error";
+import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeAt } from "@/lib/usage-limit";
 import { providerById, PROVIDERS } from "@/lib/provider-registry";
 import {
   defaultSettings,
@@ -158,6 +159,19 @@ interface AppStore {
   setDraftTemporary: (temporary: boolean) => void;
   /** Temporary sessions (memory-only); each is deleted after the person leaves it and it settles. */
   temporarySessionIds: string[];
+  /** Usage-limit notices (memory-only): armed resumes, dismissed notices and resets read from provider usage. */
+  usageResumeArmed: Record<string, true>;
+  usageLimitDismissed: Record<string, true>;
+  usageLimitResets: Record<string, number>;
+  /** Continue the session by itself once its usage limit resets (explicit, per notice). */
+  armUsageResume: (sessionId: string, armed: boolean) => void;
+  dismissUsageLimit: (sessionId: string) => void;
+  /** Sends the continue turn now; a queue paused by the limit follows once it succeeds. */
+  resumeAfterUsageLimit: (sessionId: string) => Promise<boolean>;
+  /** Sends text into the running reply instead of the queue (Codex/Claude, ADR-062). */
+  steerTurn: (sessionId: string, text: string) => Promise<boolean>;
+  /** When the stream did not say when the limit resets, asks the provider's usage report. */
+  lookupUsageLimitReset: (sessionId: string) => Promise<void>;
   composerDrafts: Record<string, string>;
   contextTexts: Record<string, string>;
   contextTextStatus: Record<string, { saving: boolean; error: string | null }>;
@@ -596,6 +610,54 @@ export const useAppStore = create<AppStore>((set, get) => ({
   draftTemporary: false,
   setDraftTemporary: (draftTemporary) => set({ draftTemporary }),
   temporarySessionIds: [],
+  usageResumeArmed: {},
+  usageLimitDismissed: {},
+  usageLimitResets: {},
+  armUsageResume: (sessionId, armed) => set((state) => {
+    const usageResumeArmed = { ...state.usageResumeArmed };
+    if (armed) usageResumeArmed[sessionId] = true; else delete usageResumeArmed[sessionId];
+    return { usageResumeArmed };
+  }),
+  dismissUsageLimit: (sessionId) => set((state) => {
+    const usageResumeArmed = { ...state.usageResumeArmed };
+    delete usageResumeArmed[sessionId];
+    return { usageResumeArmed, usageLimitDismissed: { ...state.usageLimitDismissed, [sessionId]: true } };
+  }),
+  resumeAfterUsageLimit: async (sessionId) => {
+    const session = get().sessions.find((item) => item.id === sessionId);
+    if (!session?.usageLimit || activeSession(session) || resumingAfterLimit.has(sessionId)) return false;
+    resumingAfterLimit.add(sessionId);
+    get().armUsageResume(sessionId, false);
+    try {
+      await client.sendPrompt({ sessionId, prompt: CONTINUE_PROMPT, execution: session.execution ?? undefined, attachmentIds: [], attachmentOwner: `session:${sessionId}` });
+      if (get().promptQueues[sessionId]?.items.length) queueAfterLimit.add(sessionId);
+      return true;
+    } catch (error) {
+      set({ error: formatUnknownError(error) });
+      return false;
+    } finally {
+      resumingAfterLimit.delete(sessionId);
+    }
+  },
+  steerTurn: async (sessionId, text) => {
+    try {
+      await client.steerTurn(sessionId, text);
+      return true;
+    } catch (error) {
+      set({ error: formatUnknownError(error) });
+      return false;
+    }
+  },
+  lookupUsageLimitReset: async (sessionId) => {
+    const session = get().sessions.find((item) => item.id === sessionId);
+    if (!session?.usageLimit || session.usageLimit.resetsAt != null || get().usageLimitResets[sessionId] || resetLookups.has(sessionId)) return;
+    if (session.agent !== "codex" && session.agent !== "claude") return;
+    resetLookups.add(sessionId);
+    try {
+      const reset = exhaustedReset(await client.providerUsage(session.agent, true, session.providerAccountId ?? "default"));
+      if (reset && get().sessions.find((item) => item.id === sessionId)?.usageLimit) set((state) => ({ usageLimitResets: { ...state.usageLimitResets, [sessionId]: reset } }));
+    } catch { /* The notice still offers Resume by hand. */ }
+  },
   composerDrafts: {},
   contextTexts: {},
   contextTextStatus: {},
@@ -1107,11 +1169,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   handoffSession: async (sessionId, messageId, agent, model) => {
     try {
       const handoff = await client.handoffSession(sessionId, messageId, agent, model);
-      set((state) => ({ sessions: [handoff, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [handoff.id]: ++transcriptTick }, error: null,
-        selectedSessionId: handoff.id, selectedProjectId: handoff.projectId,
-        mainView: "session" as const, gitStatus: null, selectedDiff: null, diffText: null,
-      }));
-      await get().refreshGitStatus();
+      set((state) => ({ sessions: [handoff, ...state.sessions], loadedTranscripts: { ...state.loadedTranscripts, [handoff.id]: ++transcriptTick }, error: null }));
+      // The handoff opens beside its source, which stays visible (ADR-053 panes).
+      if (get().selectedSessionId !== sessionId || get().mainView !== "session") await get().selectSession(sessionId);
+      const before = get().splitLayout;
+      get().openInSplit(handoff.id, "right");
+      if (get().splitLayout === before) await get().selectSession(handoff.id);
       return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
@@ -1907,7 +1970,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         const session = await client.setSessionModel(sessionId, provider, model);
         set((state) => ({
-          sessions: state.sessions.map((item) => item.id === session.id ? { ...item, agent: session.agent, model: session.model, providerAccountId: session.providerAccountId, accountBindings: session.accountBindings, forkOrigin: session.forkOrigin, nativeThread: session.nativeThread, pendingRequests: session.pendingRequests, lastActivityAt: session.lastActivityAt } : item),
+          sessions: state.sessions.map((item) => item.id === session.id ? { ...item, agent: session.agent, model: session.model, providerAccountId: session.providerAccountId, accountBindings: session.accountBindings, forkOrigin: session.forkOrigin, nativeThread: session.nativeThread, pendingRequests: session.pendingRequests, handoff: session.handoff, contextUsage: session.contextUsage, lastActivityAt: session.lastActivityAt } : item),
         }));
         if (!target && sequence === modelSelectionSequence) await get().saveSettings({ ...get().settings, defaultAgent: provider, defaultModel });
       } catch (error) {
@@ -1959,7 +2022,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
 // Header tabs: a project's tabs start as its sessions (sidebar order); any selection opens its tab;
 // the landing shows a blank tab that the first send turns into the new session; finishing out of view marks it unseen.
-useAppStore.subscribe((state) => {
+useAppStore.subscribe((state, previous) => {
+  // Keystrokes and other unrelated updates change none of these; skip the per-session scans.
+  if (state.sessions === previous.sessions && state.projects === previous.projects && state.mainView === previous.mainView
+    && state.selectedProjectId === previous.selectedProjectId && state.selectedSessionId === previous.selectedSessionId
+    && state.unseenSessionIds === previous.unseenSessionIds && state.openTabsByProject === previous.openTabsByProject
+    && state.draftTabByProject === previous.draftTabByProject && state.lastActiveTabByProject === previous.lastActiveTabByProject) return;
   const finished = finishedUnseen(previousStatuses, state.sessions, state.mainView === "session" ? state.selectedSessionId : null);
   previousStatuses = new Map(state.sessions.map(session => [session.id, session.status]));
   const created = state.sessions.filter(session => !previousSessionIds.has(session.id)).map(session => session.id);
@@ -2374,6 +2442,53 @@ async function receiveWindowSnap(event: WindowSnapEvent) {
     notice("added", event.app);
   } catch (error) { useAppStore.setState({ error: formatUnknownError(error) }); }
 }
+
+// Usage limits: a resume is armed explicitly from the session's notice. One
+// timer waits for the earliest reset (rechecking while the Mac may sleep); a
+// queue paused by the limit continues after the continue turn succeeds.
+const resumingAfterLimit = new Set<string>();
+const queueAfterLimit = new Set<string>();
+const resetLookups = new Set<string>();
+let usageResumeTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleUsageResume() {
+  clearTimeout(usageResumeTimer);
+  usageResumeTimer = undefined;
+  const state = useAppStore.getState();
+  const now = Date.now();
+  let next = Number.POSITIVE_INFINITY;
+  for (const id of Object.keys(state.usageResumeArmed)) {
+    const session = state.sessions.find((item) => item.id === id);
+    const at = resumeAt(session?.usageLimit ? session.usageLimit.resetsAt ?? state.usageLimitResets[id] : null);
+    if (at == null) continue;
+    if (now >= at) void state.resumeAfterUsageLimit(id);
+    else next = Math.min(next, at - now);
+  }
+  if (Number.isFinite(next)) usageResumeTimer = setTimeout(scheduleUsageResume, Math.min(next, RESUME_RECHECK_MS));
+}
+let usageResumeSignature = "";
+useAppStore.subscribe((state, previous) => {
+  if (state.sessions === previous.sessions && state.usageResumeArmed === previous.usageResumeArmed && state.usageLimitResets === previous.usageLimitResets) return;
+  for (const id of queueAfterLimit) {
+    const session = state.sessions.find((item) => item.id === id);
+    if (session && activeSession(session)) continue;
+    queueAfterLimit.delete(id);
+    if (session?.status === "completed") state.resumePromptQueue(id);
+  }
+  // A new send clears the native limit; its notice state goes with it.
+  const limited = new Set(state.sessions.filter((session) => session.usageLimit).map((session) => session.id));
+  const stale = (record: Record<string, unknown>) => Object.keys(record).some((id) => !limited.has(id));
+  if (stale(state.usageResumeArmed) || stale(state.usageLimitDismissed) || stale(state.usageLimitResets)) {
+    const keep = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([id]) => limited.has(id)));
+    for (const id of resetLookups) if (!limited.has(id)) resetLookups.delete(id);
+    queueMicrotask(() => useAppStore.setState((current) => ({ usageResumeArmed: keep(current.usageResumeArmed), usageLimitDismissed: keep(current.usageLimitDismissed), usageLimitResets: keep(current.usageLimitResets) })));
+    return;
+  }
+  // Streaming deltas elsewhere change `sessions` every frame; re-arm only when a limited session's state moved.
+  const signature = state.sessions.filter((session) => session.usageLimit || queueAfterLimit.has(session.id)).map((session) => `${session.id}:${session.status}:${session.usageLimit?.resetsAt ?? ""}`).join("|");
+  const changed = signature !== usageResumeSignature || state.usageResumeArmed !== previous.usageResumeArmed || state.usageLimitResets !== previous.usageLimitResets;
+  usageResumeSignature = signature;
+  if (changed && (Object.keys(state.usageResumeArmed).length || usageResumeTimer)) scheduleUsageResume();
+});
 
 // A temporary session is deleted once it is no longer open in any pane and has
 // settled; a running turn finishes first. Its worktree is kept (never removed

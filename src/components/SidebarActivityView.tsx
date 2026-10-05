@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Check, ChevronDown, ChevronRight, Plus, SquarePen } from "@/components/icons/phosphor";
+import { ArrowUpDown, Check, ChevronDown, ChevronRight, Plus, SquarePen, CheckCircle2 } from "@/components/icons/phosphor";
 import { SidebarActivityRow } from "@/components/SidebarRows";
 import { SidebarHoverCards } from "@/components/SidebarHoverCard";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
@@ -9,6 +9,7 @@ import { sidebarTimeline } from "@/lib/sidebar-panels";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { Tooltip } from "@/primitives/Tooltip";
 import { selectListedSessions, useAppStore } from "@/store/app-store";
+import { useDraftOwners } from "@/lib/use-draft-owners";
 
 /**
  * The sidebar's Activity view: every listed session across projects, grouped by
@@ -20,7 +21,7 @@ export function SidebarActivityView({ floating, draftsOnly }: { floating: boolea
   const projects = useAppStore((state) => state.projects);
   const sessions = useAppStore(selectListedSessions);
   const settings = useAppStore((state) => state.settings);
-  const drafts = useAppStore((state) => state.composerDrafts);
+  const drafts = useDraftOwners();
   const unseen = useAppStore((state) => state.unseenSessionIds);
   const splitDragging = useAppStore((state) => state.splitDrag !== null);
   useSidebarPanelHold(splitDragging);
@@ -63,7 +64,7 @@ export function SidebarActivityView({ floating, draftsOnly }: { floating: boolea
           <button type="button" className="sidebar-header-action" aria-label={t("activity.options")}><ArrowUpDown size={14} /></button>
         </DropdownTrigger></Tooltip>
         <DropdownContent align="end" side="bottom">
-          <DropdownItem disabled={unseen.length === 0} onSelect={() => useAppStore.setState({ unseenSessionIds: [] })}>{t("activity.markAllRead")}</DropdownItem>
+          <DropdownItem icon={<CheckCircle2 size={15} />} disabled={unseen.length === 0} onSelect={() => useAppStore.setState({ unseenSessionIds: [] })}>{t("activity.markAllRead")}</DropdownItem>
         </DropdownContent>
       </Dropdown>
     </div>

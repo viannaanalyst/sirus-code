@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Sparkles } from "@/components/icons/phosphor";
+import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Sparkles, GitCommitHorizontal, ArrowUpFromLine } from "@/components/icons/phosphor";
 import { client, type SwitchyardClient } from "@/client";
 import type { FileChange, GitWorkspaceEntry, GitWorkspaceSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -170,8 +170,8 @@ function WorkspaceChanges({ sessionId, api = client }: Props) {
         <Dropdown>
           <DropdownTrigger asChild><button type="button" className="changes-commit-more" aria-label={t("workspaceGit.moreActions")} disabled={busy}><ChevronDown size={14} aria-hidden="true" /></button></DropdownTrigger>
           <DropdownContent align="end">
-            <DropdownItem disabled={commitBlocked || !message.trim()} onSelect={() => void commitAndPush()}>{t("workspaceGit.commitAndPush")}</DropdownItem>
-            <DropdownItem disabled={pushBlocked} onSelect={() => setConfirmPush(true)}>{t("workspaceGit.pushOnly")}</DropdownItem>
+            <DropdownItem icon={<GitCommitHorizontal size={15} />} disabled={commitBlocked || !message.trim()} onSelect={() => void commitAndPush()}>{t("workspaceGit.commitAndPush")}</DropdownItem>
+            <DropdownItem icon={<ArrowUpFromLine size={15} />} disabled={pushBlocked} onSelect={() => setConfirmPush(true)}>{t("workspaceGit.pushOnly")}</DropdownItem>
           </DropdownContent>
         </Dropdown>
       </div>

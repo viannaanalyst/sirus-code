@@ -185,8 +185,8 @@ function TreeDir({ sessionId, path, name, depth, selected, onSelect, onOpenFile,
 
   return <div>
     {path && onTrash ? <ContextMenu activation="context-only" label={t("File actions")} items={[
-      { id: "copy-path", label: t("Copy path"), icon: <Copy size={14} />, onSelect: () => { void navigator.clipboard.writeText(path).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); } },
-      { id: "trash", label: t("explorer.trash"), icon: <Trash2 size={14} />, onSelect: () => onTrash({ path, name, isDir: true }) },
+      { id: "copy-path", label: t("Copy path"), icon: <Copy size={15} />, onSelect: () => { void navigator.clipboard.writeText(path).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); } },
+      { id: "trash", label: t("explorer.trash"), icon: <Trash2 size={15} />, destructive: true, onSelect: () => onTrash({ path, name, isDir: true }) },
     ]}>
       <button ref={rootRow} type="button" onClick={() => { onSelect(path ? { entry: { path, name, isDir: true } } : null); onToggle(path ?? ROOT); }}
       aria-expanded={open} aria-controls={contentId} aria-pressed={path ? selected === path : selected === null} title={path}
@@ -226,8 +226,8 @@ function FileRow({ entry, parentPath, depth, selected, onSelect, onOpenFile, onT
   const t = useTranslation();
   const spec = fileIconFor(entry.name);
   return <ContextMenu activation="context-only" label={t("File actions")} items={[
-    { id: "copy-path", label: t("Copy path"), icon: <Copy size={14} />, onSelect: () => { void navigator.clipboard.writeText(entry.path).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); } },
-    ...(onTrash ? [{ id: "trash", label: t("explorer.trash"), icon: <Trash2 size={14} />, onSelect: () => onTrash(entry) }] : []),
+    { id: "copy-path", label: t("Copy path"), icon: <Copy size={15} />, onSelect: () => { void navigator.clipboard.writeText(entry.path).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); } },
+    ...(onTrash ? [{ id: "trash", label: t("explorer.trash"), icon: <Trash2 size={15} />, destructive: true, onSelect: () => onTrash(entry) }] : []),
   ]}>
     <button type="button" aria-pressed={selected === entry.path} onClick={() => { onSelect({ entry, parentPath }); onOpenFile?.(entry.path); }} title={entry.path}
       style={{ paddingLeft: 24 + depth * 12 }}

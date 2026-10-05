@@ -63,7 +63,7 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
       }}
     >
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[8px] data-[state=open]:animate-[fadeIn_var(--motion-fast)_var(--ease-out)]" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[8px] data-[state=open]:animate-[fadeIn_var(--motion-fast)_var(--ease-out)] data-[state=closed]:animate-[fadeOut_var(--motion-instant)_var(--ease-out)]" />
         <Dialog.Content data-appearance-floating="true"
           onOpenAutoFocus={() => { returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
           onCloseAutoFocus={(event) => {

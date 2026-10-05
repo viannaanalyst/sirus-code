@@ -20,7 +20,7 @@ use crate::paths::now_rfc3339;
 
 pub struct AgentProcess {
     pub(crate) cancel: watch::Sender<bool>,
-    pub(crate) replies: Option<tokio::sync::mpsc::Sender<crate::codex::Reply>>,
+    pub(crate) replies: Option<tokio::sync::mpsc::Sender<crate::codex::Inbound>>,
     pub(crate) generation: Option<String>,
     #[cfg(unix)]
     pub(crate) pid: Option<u32>,
@@ -634,6 +634,7 @@ pub(crate) fn record_output(
                 created_at: now_rfc3339(),
                 streaming: true,
                 activity: None,
+                steers: Vec::new(),
             });
             *message_id = Some(id);
         } else {
@@ -1221,6 +1222,7 @@ mod tests {
             created_at: String::new(),
             streaming: false,
             activity: None,
+            steers: Vec::new(),
         };
         let messages = vec![
             message(MessageRole::User, "First request"),

@@ -1,0 +1,20 @@
+@layer components {
+  /* Assistant reply prose (ChatMarkdown): block rhythm, lists, quotes, tables. */
+  .chat-markdown > * + * { margin-top: 0.75rem; }
+  .chat-markdown .chat-heading { margin-top: 1.1rem; color: var(--text-primary); }
+  .chat-markdown > .chat-heading:first-child { margin-top: 0; }
+  .chat-list { display: flex; flex-direction: column; gap: 0.2rem; }
+  .chat-list-item { display: flex; gap: 0.5rem; }
+  .chat-list-marker { flex: none; min-width: 1rem; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .chat-quote { border-left: 2px solid var(--border-default); padding-left: 0.75rem; color: var(--text-muted); }
+  .chat-inline-code, .chat-markdown code { border-radius: 5px; background: color-mix(in oklab, var(--text-primary) 8%, transparent); padding: 0.05rem 0.35rem; font-family: var(--font-mono); font-size: 0.9em; color: var(--text-primary); }
+  .chat-table-wrap { overflow-x: auto; }
+  .chat-table { border-collapse: collapse; min-width: 50%; font-size: 0.95em; }
+  .chat-table th, .chat-table td { border: 1px solid var(--border-default); padding: 0.35rem 0.6rem; vertical-align: top; }
+  .chat-table th { color: var(--text-primary); font-weight: 600; background: color-mix(in oklab, var(--text-primary) 4%, transparent); }
+  /* Workspace files and links read as links: no pill, a file icon, underline on hover. */
+  .chat-file-ref, .chat-link { padding: 0; border: 0; background: none; text-decoration: none; color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); font: inherit; font-weight: 500; text-align: inherit; cursor: pointer; text-underline-offset: 0.18em; }
+  .chat-file-ref:hover, .chat-link:hover { text-decoration: underline; }
+  .chat-file-ref:focus-visible, .chat-link:focus-visible { border-radius: 4px; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .chat-file-ref-icon { display: inline-block; margin-right: 0.25rem; vertical-align: -0.12em; }
+}

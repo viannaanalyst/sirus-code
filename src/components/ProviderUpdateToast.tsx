@@ -2,7 +2,6 @@ import { TriangleAlert, X } from "@/components/icons/phosphor";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { providerById } from "@/lib/provider-registry";
-import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
@@ -17,7 +16,6 @@ export function ProviderUpdateToast() {
   const applyProviderUpdates = useAppStore((state) => state.applyProviderUpdates);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
   const setSettingsSection = useAppStore((state) => state.setSettingsSection);
-  const hasError = useAppStore((state) => state.error !== null);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const outdated = (updates ?? []).filter((update) => update.updateAvailable);
   const updatable = outdated.filter((update) => update.updateSupported);
@@ -35,13 +33,10 @@ export function ProviderUpdateToast() {
       {visible ? (
         <motion.div
           key="provider-update-toast"
-          className={cn(
-            "fixed left-1/2 z-[90] w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2",
-            hasError ? "top-[96px]" : "top-[8px]",
-          )}
-          initial={{ opacity: 0, y: -16, scale: 0.98 }}
+          className="w-full"
+          initial={{ opacity: 0, y: 16, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -16, scale: 0.98 }}
+          exit={{ opacity: 0, y: 8, scale: 0.98 }}
           transition={{ duration: motionTokens.fast, ease: motionTokens.ease }}
         >
       <div className="floating-material rounded-[12px] border border-border-default bg-background-1 p-3 shadow-[var(--shadow-float)]">

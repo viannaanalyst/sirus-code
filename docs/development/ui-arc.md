@@ -37,6 +37,18 @@ Product components use semantic `ui-*` utilities from `src/styles/index.css`, ra
 
 Add and approval panels share 12 px item titles, 11 px descriptions/group captions, 15 px control icons and compact row spacing. Menu content must not fall back to a larger inherited body size. Arc foundation font aliases map forms, select menus, tooltips and dialogs onto this same host scale; imported demonstration content retains its own hierarchy. Terminal text still follows its separate terminal font preference, and code/diffs keep the monospace family.
 
+## Conversation surfaces and replies
+
+Highlights never use solid greys over the window. The user bubble and "Your instruction" use `--chat-bubble`. The selected rail icon, conversation, header tab and page rows use `--navigation-selected`. Hover uses `--navigation-hover`. These tints follow MonoCode: 10% and 5% ink in dark; light uses 7% for the bubble and selection, because dark ink reads stronger. They take the colour of the glass or of the opaque background. Menus and popovers keep their own material.
+
+The composer and the turn-change summary are thin tints of the text colour over whatever is behind them: a 3% fill, a border at 10–12%, and 20% when focused. The composer also gets an 8 px backdrop blur. The window glass shows through, and opaque windows get a slightly lighter panel. The composer's liquid-metal rim and Add button are unchanged.
+
+Assistant prose renders through `ChatMarkdown` (`src/lib/chat-markdown.ts`, text only, no HTML):
+
+- **Formatting:** headings use `ui-title` up to level 2, then semibold chat text. Paragraphs keep their line breaks. Lists nest by indentation, quotes get a left rule, and GFM tables are supported. Inline code gets a tinted chip.
+- **File links:** workspace files referenced in inline code or link targets become blue links with their file-type icon, like Synara. They are anchors so punctuation stays on the same line. A path becomes a link only after `workspace_files` finds it in the session workspace; otherwise it stays code.
+- **Undo:** "Undo" is plain text, and an undone turn shows a muted "Undone".
+
 ## New thread orbit background
 
 The empty landing mounts `LandingOrbits.tsx` behind its existing content; sending the first message removes the background. The shared Canvas 2D drawing in `src/lib/landing-orbits.ts` is the same geometry used by the approved Órbitas preview, fixed at 100% intensity and its Fast (1×) speed. The center remains clear, controls retain pointer/focus behavior, and a token-based shade protects the welcome text. Light mode uses the existing text color token.

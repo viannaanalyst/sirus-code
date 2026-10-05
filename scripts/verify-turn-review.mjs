@@ -54,7 +54,10 @@ try {
     assert.ok(html.includes(locale === "pt-BR" ? "Manter" : "Keep"));
     assert.ok(html.includes(locale === "pt-BR" ? "Revisar" : "Review"));
     assert.ok(html.includes('aria-expanded="true"'));
-    assert.ok(!html.includes("Undo") && !html.includes("Desfazer"));
+    // Undo (ADR-061) is offered only while a file still has a retained text diff.
+    assert.ok(html.includes(locale === "pt-BR" ? "Desfazer" : "Undo"));
+    const expired = renderToString(createElement(TurnChangeSummary, { sessionId: "s", messageId: "m", review: { ...review, expired: true } }));
+    assert.ok(!expired.includes(locale === "pt-BR" ? ">Desfazer" : ">Undo"));
     assert.ok(html.includes("src/&lt;script&gt;.ts") && !html.includes("src/<script>.ts"));
     assert.ok(!html.includes('title="fourth.ts"'), "The compact list initially shows 3 files");
     const kept = renderToString(createElement(TurnChangeSummary, { sessionId: "s", messageId: "m", review: { ...review, keptAt: "accepted" } }));

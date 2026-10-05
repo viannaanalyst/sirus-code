@@ -69,6 +69,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
     let now = now_rfc3339();
     let session = Session {
         context_usage: None,
+        usage_limit: None,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -244,6 +245,7 @@ mod tests {
             created_at: "t".into(),
             streaming,
             activity: None,
+            steers: Vec::new(),
         }
     }
 

@@ -117,13 +117,22 @@ pub struct Reply {
     pub request: RespondAgentRequest,
     pub result: oneshot::Sender<Result<()>>,
 }
+/// What a running native turn accepts from the person: an answer to a pending
+/// request, or an instruction steered into the running reply.
+pub enum Inbound {
+    Answer(Reply),
+    Steer {
+        text: String,
+        result: oneshot::Sender<Result<()>>,
+    },
+}
 pub struct Run {
     pub session: Session,
     pub cwd: String,
     pub prompt: String,
     pub attachments: Vec<std::sync::Arc<crate::attachments::PreparedAttachment>>,
     pub generation: String,
-    pub replies: mpsc::Receiver<Reply>,
+    pub replies: mpsc::Receiver<Inbound>,
 }
 pub enum Event {
     Identity(NativeThread),
@@ -134,6 +143,8 @@ pub enum Event {
     Model(String),
     /// Context-window reading reported by the provider (ADR-057).
     Context(crate::models::ContextUsage),
+    /// The turn hit the account's usage limit; the reset time when the provider reported it.
+    UsageLimit(Option<i64>),
 }
 
 /// Each turn owns one server process. Follow-ups resume the exact persisted thread.
@@ -297,7 +308,7 @@ impl Wire {
                     if value.get("error").is_some() { return Err(Error::agent(format!("Codex rejected {method}; check CLI compatibility and native thread availability"))); }
                     return value.get("result").cloned().ok_or_else(|| Error::agent("Codex response lacks result"));
                 }
-                if matches!(method, "turn/start" | "thread/compact/start") && value.get("method").is_some() {
+                if matches!(method, "turn/start" | "thread/compact/start" | "turn/steer") && value.get("method").is_some() {
                     let size=value.to_string().len();
                     if self.deferred.len() >= 256 || self.deferred_bytes + size > 8*1024*1024 {return Err(Error::agent("Too many early Codex turn events"));}
                     self.deferred_bytes+=size;
@@ -476,6 +487,9 @@ async fn execute(
     let mut item_key_bytes = 0;
     // Separate consecutive assistant message items in the one transcript message.
     let mut last_text_item: Option<String> = None;
+    // Usage-limit refusal and the latest exhausted window's reset (`account/rateLimits/updated`).
+    let mut usage_limited = false;
+    let mut exhausted_reset: Option<i64> = None;
     let mut file_changes: HashMap<String, Value> = HashMap::new();
     let mut file_change_bytes = 0;
     let mut seen_requests = std::collections::HashSet::new();
@@ -488,6 +502,16 @@ async fn execute(
                 value = wire.read() => value?,
                 reply = run.replies.recv() => {
                     let Some(reply) = reply else { return Err(Error::agent("Codex response channel closed")); };
+                    let reply = match reply {
+                        Inbound::Answer(reply) => reply,
+                        Inbound::Steer { text, result } => {
+                            // `turn/steer` adds the person's input to this same turn; its events wait in the queue.
+                            let params = json!({"threadId":thread_id,"input":crate::attachments::codex_input(&text, &[]),"expectedTurnId":turn_id});
+                            let delivered = wire.request("turn/steer", params, &mut cancel.clone()).await.map(|_| ()).map_err(|_| Error::agent("Codex did not accept the instruction for this turn"));
+                            let _ = result.send(delivered);
+                            continue;
+                        }
+                    };
                     match ledger.take(&reply.request) {
                         Ok((id,result)) => {
                             let sent = wire.send(json!({"id":id,"result":result})).await;
@@ -672,6 +696,14 @@ async fn execute(
                 }
                 *previous = text.into();
             }
+            "account/rateLimits/updated" => {
+                if let Some(reset) = exhausted_window_reset(&params["rateLimits"]) {
+                    exhausted_reset = Some(reset);
+                }
+            }
+            "error" if params["turnId"] == turn_id => {
+                usage_limited |= is_usage_limit(&params["error"]);
+            }
             "thread/tokenUsage/updated" => {
                 if let Some(usage) = context_usage(params) {
                     emit(Event::Context(usage))?;
@@ -681,12 +713,39 @@ async fn execute(
                 return match params["turn"]["status"].as_str() {
                     Some("completed") => Ok(false),
                     Some("interrupted") => Ok(true),
+                    _ if usage_limited || is_usage_limit(&params["turn"]["error"]) => {
+                        emit(Event::UsageLimit(exhausted_reset))?;
+                        Err(Error::new("usage_limit", "Usage limit reached."))
+                    }
                     _ => Err(Error::agent("Codex turn failed; see CLI diagnostics")),
                 };
             }
             _ => {}
         }
     }
+}
+
+/// Codex marks a spent account limit with `codexErrorInfo: "usageLimitExceeded"`.
+fn is_usage_limit(error: &Value) -> bool {
+    match &error["codexErrorInfo"] {
+        Value::String(kind) => kind == "usageLimitExceeded",
+        Value::Object(kinds) => kinds.contains_key("usageLimitExceeded"),
+        _ => false,
+    }
+}
+
+/// The latest reset (UTC ms) among rate-limit windows at or over 100%.
+pub(crate) fn exhausted_window_reset(snapshot: &Value) -> Option<i64> {
+    ["primary", "secondary"]
+        .iter()
+        .filter_map(|key| {
+            let window = &snapshot[*key];
+            (window["usedPercent"].as_f64()? >= 100.0)
+                .then(|| window["resetsAt"].as_i64())
+                .flatten()
+        })
+        .max()
+        .map(|seconds| seconds.saturating_mul(1000))
 }
 
 /// The standalone `/compact` command.
@@ -827,6 +886,9 @@ pub fn monitor(
                     }
                 }
                 Event::Model(model) => crate::activity::model(session, &model),
+                Event::UsageLimit(resets_at) => {
+                    session.usage_limit = Some(crate::models::UsageLimit { resets_at })
+                }
                 Event::Context(usage) => {
                     // A reading without a window keeps the last window known for this model.
                     let window = usage
@@ -996,6 +1058,25 @@ async fn cleanup(child: &mut Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn usage_limits_and_their_reset_come_from_codex_reports() {
+        assert!(is_usage_limit(
+            &json!({"message":"limit","codexErrorInfo":"usageLimitExceeded"})
+        ));
+        assert!(is_usage_limit(
+            &json!({"codexErrorInfo":{"usageLimitExceeded":{}}})
+        ));
+        assert!(
+            !is_usage_limit(&json!({"codexErrorInfo":"other"})) && !is_usage_limit(&Value::Null)
+        );
+        let snapshot = json!({"primary":{"usedPercent":100,"resetsAt":1790000000},"secondary":{"usedPercent":40,"resetsAt":1790500000}});
+        assert_eq!(exhausted_window_reset(&snapshot), Some(1_790_000_000_000));
+        assert_eq!(
+            exhausted_window_reset(&json!({"primary":{"usedPercent":99,"resetsAt":1}})),
+            None
+        );
+    }
 
     #[test]
     fn context_usage_reads_the_last_request_and_window() {
@@ -1238,7 +1319,8 @@ else:
                     Event::Answered(_)
                     | Event::Activity(_)
                     | Event::Model(_)
-                    | Event::Context(_) => {}
+                    | Event::Context(_)
+                    | Event::UsageLimit(_) => {}
                 }
                 Ok(())
             };
@@ -1332,7 +1414,7 @@ else:
                     }
                     let (result, receiver) = oneshot::channel();
                     sender
-                        .try_send(Reply {
+                        .try_send(crate::codex::Inbound::Answer(Reply {
                             request: RespondAgentRequest {
                                 session_id: session.id.clone(),
                                 generation: pending.generation,
@@ -1343,7 +1425,7 @@ else:
                                 },
                             },
                             result,
-                        })
+                        }))
                         .map_err(|_| Error::agent("Approval test queue unavailable"))?;
                     acknowledgements.push(receiver);
                 }

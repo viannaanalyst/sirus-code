@@ -12,6 +12,7 @@ export const defaultSettings: AppSettings = {
   usageProviders: ["codex"],
   sidebarUsageProviders: [],
   sidebarActivityView: false,
+  steerWhileRunning: false,
   doneSessions: [],
   windowSnapEnabled: false,
   windowSnapShortcut: "controlOptionCommandS",
@@ -97,6 +98,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     usageProviders: [...new Set((value?.usageProviders ?? defaultSettings.usageProviders).filter((id) => AGENT_PROVIDER_IDS.includes(id)))].slice(0, AGENT_PROVIDER_IDS.length),
     sidebarUsageProviders: [...new Set((value?.sidebarUsageProviders ?? []).filter((id) => USAGE_PROVIDER_IDS.includes(id)))].slice(0, SIDEBAR_USAGE_LIMIT),
     sidebarActivityView: value?.sidebarActivityView === true,
+    steerWhileRunning: value?.steerWhileRunning === true,
     windowSnapEnabled: value?.windowSnapEnabled === true,
     windowSnapShortcut: (["controlOptionCommandS", "optionShiftS", "controlShiftS"] as const).find((id) => id === value?.windowSnapShortcut) ?? "controlOptionCommandS",
     doneSessions: (value?.doneSessions ?? []).filter((row, index, rows) => typeof row?.id === "string" && row.id.length > 0 && row.id.length <= 64 && typeof row.at === "string" && /^[0-9A-Za-z:.+-]{1,40}$/.test(row.at) && rows.findIndex((other) => other.id === row.id) === index).slice(0, 4096),
@@ -156,7 +158,7 @@ function sidebarIds(ids: string[] | undefined): string[] {
 }
 
 export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject",
-  "confirmCloseRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
+  "confirmCloseRunning", "steerWhileRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
   "environmentPanelDefaultOpen", "showEnvironmentUsage", "showEnvironmentRepository", "showEnvironmentEditor", "showEnvironmentPullRequest",
   "showEnvironmentPinned", "showEnvironmentNotepad", "showEnvironmentInstructions"] as const satisfies readonly (keyof AppSettings)[];
 
@@ -219,7 +221,9 @@ export function applyAppearance(settings: AppSettings, support?: import("@/clien
   root.style.setProperty("--terminal-font-family", monoFontFamily(normalized.terminalFont));
   root.style.setProperty("--window-opacity", `${material.windowOpacity}%`);
   root.style.setProperty("--sidebar-opacity", `${material.sidebarOpacity}%`);
-  root.style.setProperty("--popup-opacity", `${Math.max(68, Math.min(95, material.windowGlass ? material.windowOpacity : material.sidebarOpacity))}%`);
+  // Glass popups sit over the window's own translucent coat, so they stay a light tint (MonoCode-like) or the
+  // desktop behind the window would barely show; blur and saturation keep text legible.
+  root.style.setProperty("--popup-opacity", `${Math.max(24, Math.min(80, Math.round((material.windowGlass ? material.windowOpacity : material.sidebarOpacity) * 0.4)))}%`);
 }
 
 function boundedInteger(value: unknown, min: number, max: number, fallback: number): number {

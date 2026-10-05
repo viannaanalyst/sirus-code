@@ -70,7 +70,7 @@ function UsageRing({ provider }: { provider: AgentProviderId }) {
       </button>
     </PopoverTrigger>
     <PopoverContent side="right" align="end" sideOffset={10} className="usage-popover scroll-thin max-h-[min(520px,80vh)] w-80 overflow-y-auto p-3" aria-label={t("Usage · {provider}", { provider: name })}>
-      <ProviderUsagePanel provider={provider} name={name} usage={usage} loading={loading} barColor={(percent) => ringColor(provider, percent)} />
+      <ProviderUsagePanel provider={provider} name={name} usage={usage} loading={loading} />
     </PopoverContent>
   </Popover>;
 }

@@ -5,7 +5,7 @@
 .trigger { position: relative; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; min-height: var(--control-height-md); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 var(--space-3); background: var(--surface); color: var(--foreground); font: inherit; font-size: var(--text-sm); text-align: left; cursor: pointer; transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard); }
 @media (hover: hover) and (pointer: fine) { .trigger:hover:not([data-disabled]) { border-color: var(--border-strong); background: var(--surface-muted); } }
 .trigger:active:not([data-disabled]), .trigger[data-state="open"] { border-color: var(--border-strong); background: var(--surface-muted); }
-.trigger:focus-visible { border-color: var(--accent); outline: 3px solid var(--accent-subtle); outline-offset: 0; }
+.trigger:focus-visible { border-color: var(--field-focus-border); outline: 3px solid var(--field-focus-ring); outline-offset: 0; }
 .trigger[data-disabled] { opacity: .5; cursor: not-allowed; }
 .valueText { display: grid; flex: 1; min-width: 0; grid-template-columns: minmax(0, 1fr); }
 .valueText > span { grid-area: 1 / 1; display: flex; align-items: center; gap: var(--space-2); min-width: 0; overflow: hidden; white-space: nowrap; }
@@ -20,22 +20,22 @@
 .trigger[data-state="open"] .chevron { transform: rotate(180deg); }
 .hint { color: var(--text-muted); font-size: var(--text-xs); }
 /* Radix holds the animation until the menu is positioned, so it always grows from the trigger edge. */
-.content { --menu-x: 0px; --menu-y: -6px; box-sizing: border-box; z-index: 1000; width: max-content; min-width: var(--radix-select-trigger-width); max-width: min(20rem, calc(100vw - 20px)); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding: 6px; background: var(--surface-raised); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in 220ms var(--ease-enter) both; }
-.content[data-side="top"] { --menu-y: 6px; }
-.content[data-side="left"] { --menu-x: 6px; --menu-y: 0px; }
-.content[data-side="right"] { --menu-x: -6px; --menu-y: 0px; }
-.content[data-state="closed"] { animation: select-out 130ms var(--ease-standard) both; }
+.content { --menu-x: 0px; --menu-y: -4px; box-sizing: border-box; z-index: 1000; width: max-content; min-width: var(--radix-select-trigger-width); max-width: min(20rem, calc(100vw - 20px)); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius-control) + 2px); padding: 6px; background: var(--surface-raised); color: var(--foreground); box-shadow: var(--shadow-floating); transform-origin: var(--radix-select-content-transform-origin); animation: select-in var(--motion-fast) var(--ease-enter) both; }
+.content[data-side="top"] { --menu-y: 4px; }
+.content[data-side="left"] { --menu-x: 4px; --menu-y: 0px; }
+.content[data-side="right"] { --menu-x: -4px; --menu-y: 0px; }
+.content[data-state="closed"] { animation: select-out var(--motion-instant) var(--ease-standard) both; }
 .viewport { padding: 2px 0; }
-.item { position: relative; display: flex; align-items: center; min-height: 36px; border-radius: calc(var(--radius-control) - 8px); padding: 0 34px 0 11px; color: var(--foreground); font-size: var(--text-sm); cursor: default; outline: none; user-select: none; transition: background-color 80ms var(--ease-standard), color 80ms var(--ease-standard); }
+.item { position: relative; display: flex; align-items: center; min-height: 36px; border-radius: calc(var(--radius-control) - 8px); padding: 0 34px 0 11px; color: var(--foreground); font-size: var(--text-sm); cursor: pointer; outline: none; user-select: none; transition: background-color 80ms var(--ease-standard), color 80ms var(--ease-standard); }
 .item[data-highlighted] { background: var(--surface-muted); }
-.item[data-disabled] { opacity: .45; }
+.item[data-disabled] { opacity: .45; cursor: default; }
 .indicator { position: absolute; right: 10px; display: inline-flex; align-items: center; color: var(--foreground); animation: indicator-in var(--duration-standard) var(--ease-enter) 40ms both; }
-/* Radix mounts each arrow only when its edge can scroll. Reserve both slots
-   while either arrow exists so the viewport/thumb do not resize mid-scroll.
-   Short menus keep their natural height and do not gain empty arrow gutters. */
-.scrollButtonSlot { height: 0; flex-shrink: 0; }
-.content:has(.scrollButton) .scrollButtonSlot { height: 28px; }
-.scrollButton { display: grid; height: 28px; place-items: center; color: var(--text-muted); }
+/* Radix mounts each arrow only when its edge can scroll. The arrows float over the list edges, so the
+   first option sits right under the trigger and the viewport never resizes mid-scroll. */
+.scrollButtonSlot { position: relative; height: 0; flex-shrink: 0; z-index: 1; }
+.scrollButton { position: absolute; left: 0; right: 0; display: grid; height: 26px; place-items: center; color: var(--text-muted); cursor: pointer; }
+.scrollButtonSlot:first-child .scrollButton { top: -6px; border-radius: calc(var(--radius-control) + 2px) calc(var(--radius-control) + 2px) 0 0; background: linear-gradient(var(--floating-material) 40%, transparent); }
+.scrollButtonSlot:last-child .scrollButton { bottom: -6px; border-radius: 0 0 calc(var(--radius-control) + 2px) calc(var(--radius-control) + 2px); background: linear-gradient(transparent, var(--floating-material) 60%); }
 @keyframes select-in { from { opacity: 0; transform: translate(var(--menu-x), var(--menu-y)) scale(.97); } }
 @keyframes select-out { to { opacity: 0; transform: translate(calc(var(--menu-x) / 2), calc(var(--menu-y) / 2)) scale(.98); } }
 @keyframes indicator-in { from { opacity: 0; transform: scale(.6); filter: blur(2px); } }

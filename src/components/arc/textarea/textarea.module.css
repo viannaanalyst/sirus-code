@@ -5,8 +5,8 @@
 /* Same focus language as Input: the ring contracts onto the border while it fades in, and the box never changes size. */
 .control { width: 100%; min-height: 110px; resize: vertical; border: 1px solid var(--border-strong); border-radius: var(--radius-control); padding: var(--space-3); background: var(--surface); color: var(--foreground); font: inherit; font-size: var(--text-sm); line-height: var(--leading-body); outline: none; box-shadow: 0 0 0 6px transparent; transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-standard) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard); }
 .control::placeholder { color: var(--text-muted); }
-@media (hover: hover) and (pointer: fine) { .control:hover:not(:disabled, [aria-invalid="true"]) { border-color: var(--foreground); } }
-.control:focus-visible { border-color: var(--foreground); box-shadow: 0 0 0 3px var(--focus-ring); outline: 2px solid transparent; outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .control:hover:not(:disabled, [aria-invalid="true"]) { border-color: var(--field-focus-border); } }
+.control:focus-visible { border-color: var(--field-focus-border); box-shadow: 0 0 0 3px var(--field-focus-ring); outline: 2px solid transparent; outline-offset: 2px; }
 .control[aria-invalid="true"] { border-color: var(--danger); }
 .control[aria-invalid="true"]:focus-visible { box-shadow: 0 0 0 3px color-mix(in oklch, var(--danger) 24%, transparent); }
 .control:disabled { cursor: not-allowed; background: var(--surface-muted); opacity: .6; }

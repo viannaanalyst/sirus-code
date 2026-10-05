@@ -48,6 +48,7 @@ mod provider_usage;
 mod provider_usage_http;
 mod pty_term;
 mod pull_requests;
+mod session_export;
 mod side_chat;
 mod sidebar;
 mod skills;
@@ -56,6 +57,7 @@ mod team;
 mod transcript;
 mod transcript_view;
 mod turn_review;
+mod turn_undo;
 mod window_attachment;
 mod window_snap;
 mod workspace_entries;
@@ -161,6 +163,8 @@ pub fn run() {
             tasks::task_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
+            session_export::export_conversation,
+            turn_undo::undo_turn_changes,
             commands::trash_workspace_entry,
             skills::skill_action,
             notifications::notification_action,
@@ -230,6 +234,7 @@ pub fn run() {
             commands::send_prompt,
             commands::stop_agent,
             commands::respond_agent_request,
+            commands::steer_turn,
             commands::start_terminal,
             commands::write_terminal,
             commands::resize_terminal,

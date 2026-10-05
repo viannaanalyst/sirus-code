@@ -79,6 +79,8 @@ pub async fn start(
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        // Echoes consumed user input, so a steered instruction is known to be read.
+        "--replay-user-messages",
         "--permission-mode",
         crate::execution::claude_permission_mode(&session.execution),
         "--permission-prompts",
@@ -286,7 +288,11 @@ pub(crate) async fn execute(
     let mut identity = None;
     let mut text = Text::default();
     let mut interrupted = false;
+    // `rate_limit_event` refused requests (no extra usage paying): the reset, when reported.
+    let mut usage_limit: Option<Option<i64>> = None;
     let mut deadline = None;
+    // Instructions steered into this turn that Claude has not echoed back yet.
+    let mut unread_steers: Vec<String> = vec![];
     loop {
         let value = tokio::select! {
             value=wire.read()=>value?,
@@ -296,7 +302,17 @@ pub(crate) async fn execute(
                 deadline=Some(tokio::time::Instant::now()+Duration::from_secs(2));continue;
             },
             _=async {if let Some(deadline)=deadline {tokio::time::sleep_until(deadline).await;}else{std::future::pending::<()>().await;}},if interrupted=>return Ok(true),
-            Some(reply)=run.replies.recv(),if !interrupted=>{
+            Some(inbound)=run.replies.recv(),if !interrupted=>{
+                let reply=match inbound {
+                    crate::codex::Inbound::Answer(reply)=>reply,
+                    crate::codex::Inbound::Steer{text,result}=>{
+                        // Claude reads input sent during a turn at its next step, in the same turn.
+                        let sent=wire.send(json!({"type":"user","message":{"role":"user","content":[{"type":"text","text":text}]},"parent_tool_use_id":null,"session_id":native,"uuid":uuid::Uuid::new_v4().to_string()})).await;
+                        if sent.is_ok() {unread_steers.push(text);}
+                        let _=result.send(sent);
+                        continue;
+                    }
+                };
                 let request=&reply.request;
                 let mut delivery_failed=false;
                 let result=if request.session_id!=run.session.id || request.generation!=run.generation || request.turn_id!=turn {Err(Error::agent("Stale or foreign Claude response"))}
@@ -419,6 +435,25 @@ pub(crate) async fn execute(
                     emit(Event::Answered(opaque))?;
                 }
             }
+            Some("rate_limit_event") => {
+                let info = &value["rate_limit_info"];
+                usage_limit = (info["status"] == "rejected" && info["isUsingOverage"] != true)
+                    .then(|| epoch_ms(&info["resetsAt"]));
+            }
+            Some("user") if value["parent_tool_use_id"].is_null() => {
+                if let Some(echoed) = value["message"]["content"]
+                    .as_array()
+                    .and_then(|blocks| blocks.iter().find(|block| block["type"] == "text"))
+                    .and_then(|block| block["text"].as_str())
+                {
+                    if let Some(index) = unread_steers.iter().position(|steer| steer == echoed) {
+                        unread_steers.remove(index);
+                    }
+                }
+            }
+            // An instruction that arrived as the turn ended runs as its continuation.
+            Some("result")
+                if !interrupted && !unread_steers.is_empty() && value["is_error"] != true => {}
             Some("result") => {
                 if identity.is_none() {
                     return Err(Error::agent("Claude completed without native identity"));
@@ -427,6 +462,10 @@ pub(crate) async fn execute(
                     return Ok(true);
                 }
                 if value["is_error"] == true || value["subtype"] != "success" {
+                    if usage_limit.is_some() || usage_limit_text(&value) {
+                        emit(Event::UsageLimit(usage_limit.flatten()))?;
+                        return Err(Error::new("usage_limit", "Usage limit reached."));
+                    }
                     return Err(Error::agent("Claude turn failed; see CLI diagnostics"));
                 }
                 return Ok(false);
@@ -438,6 +477,39 @@ pub(crate) async fn execute(
             }
         }
     }
+}
+
+/// Claude also ends a limited turn with the limit as its error text.
+fn usage_limit_text(value: &Value) -> bool {
+    let limited = |text: &str| {
+        let text = text.to_ascii_lowercase();
+        text.contains("hit your limit")
+            || text.contains("hit your usage limit")
+            || text.contains("usage limit reached")
+    };
+    value["result"].as_str().is_some_and(limited)
+        || value["errors"]
+            .as_array()
+            .is_some_and(|errors| errors.iter().filter_map(Value::as_str).any(limited))
+}
+
+/// Seconds or milliseconds since the epoch, or an RFC 3339 time, as UTC milliseconds.
+fn epoch_ms(value: &Value) -> Option<i64> {
+    let number = value.as_f64().or_else(|| {
+        value
+            .as_str()
+            .and_then(|text| text.trim().parse::<f64>().ok())
+    });
+    if let Some(number) = number.filter(|number| number.is_finite() && *number > 0.0) {
+        return Some(if number < 1e10 {
+            number * 1000.0
+        } else {
+            number
+        } as i64);
+    }
+    chrono::DateTime::parse_from_rfc3339(value.as_str()?)
+        .ok()
+        .map(|time| time.timestamp_millis())
 }
 
 /// Context reading from stream-json (ADR-057). Main-agent `assistant` events report
@@ -480,6 +552,26 @@ fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn usage_limits_are_read_from_results_and_reset_times() {
+        assert!(usage_limit_text(
+            &json!({"is_error":true,"result":"Claude AI usage limit reached|1790000000"})
+        ));
+        assert!(usage_limit_text(
+            &json!({"is_error":true,"errors":["You've hit your limit · resets 3pm"]})
+        ));
+        assert!(!usage_limit_text(
+            &json!({"is_error":true,"result":"Tool failed"})
+        ));
+        assert_eq!(epoch_ms(&json!(1790000000)), Some(1_790_000_000_000));
+        assert_eq!(epoch_ms(&json!(1790000000123_i64)), Some(1_790_000_000_123));
+        assert_eq!(
+            epoch_ms(&json!("2026-10-05T12:00:00Z")),
+            Some(1_791_201_600_000)
+        );
+        assert_eq!(epoch_ms(&json!(null)), None);
+    }
 
     #[test]
     fn context_readings_follow_the_main_agent_and_the_result_window() {
@@ -670,7 +762,10 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                     }
                     let (result, receiver) = tokio::sync::oneshot::channel();
                     sender
-                        .try_send(crate::codex::Reply { request, result })
+                        .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
+                            request,
+                            result,
+                        }))
                         .unwrap();
                     acknowledgements.push((kind, receiver));
                 }
@@ -732,10 +827,10 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                 Event::Answered(_) => {
                     let (result, receiver) = tokio::sync::oneshot::channel();
                     sender
-                        .try_send(crate::codex::Reply {
+                        .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
                             request: request.take().unwrap(),
                             result,
-                        })
+                        }))
                         .unwrap();
                     acknowledgement = Some(receiver);
                 }
@@ -793,7 +888,7 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                     }
                     let (result, _receiver) = tokio::sync::oneshot::channel();
                     sender
-                        .try_send(crate::codex::Reply {
+                        .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
                             request: RespondAgentRequest {
                                 session_id: session.id.clone(),
                                 generation: pending.generation,
@@ -808,10 +903,14 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                                 },
                             },
                             result,
-                        })
+                        }))
                         .map_err(|_| Error::agent("Fixture response unavailable"))?;
                 }
-                Event::Answered(_) | Event::Activity(_) | Event::Model(_) | Event::Context(_) => {}
+                Event::Answered(_)
+                | Event::Activity(_)
+                | Event::Model(_)
+                | Event::Context(_)
+                | Event::UsageLimit(_) => {}
             }
             Ok(())
         };

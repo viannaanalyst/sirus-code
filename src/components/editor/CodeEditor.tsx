@@ -147,6 +147,8 @@ export function CodeEditor({
   initialValue.current = value;
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // The text this editor last emitted: its own echo needs no full-document comparison.
+  const emitted = useRef<string | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
 
@@ -158,7 +160,7 @@ export function CodeEditor({
     const state = EditorState.create({
       doc: initialValue.current,
       extensions: [
-        ...editorExtensions({ language, nonce: editorStyleNonce(document), onChange: value => onChangeRef.current(value), onSave: () => onSaveRef.current() }),
+        ...editorExtensions({ language, nonce: editorStyleNonce(document), onChange: value => { emitted.current = value; onChangeRef.current(value); }, onSave: () => onSaveRef.current() }),
         EditorView.contentAttributes.of({ "aria-label": label }),
         palette.of(theme(resolvedDark())),
       ],
@@ -186,7 +188,7 @@ export function CodeEditor({
 
   useEffect(() => {
     const instance = view.current;
-    if (!instance) return;
+    if (!instance || value === emitted.current) return;
     const current = instance.state.doc.toString();
     if (current === value) return;
     instance.dispatch({ changes: { from: 0, to: current.length, insert: value } });

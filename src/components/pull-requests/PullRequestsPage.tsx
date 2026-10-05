@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Check, ChevronDown, Ellipsis, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X } from "@/components/icons/phosphor";
+import { ArrowUpDown, Check, ChevronDown, Ellipsis, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons/phosphor";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import type { GithubInbox, GithubItem, GithubItemKind, GithubItemState } from "@/client/types";
 import { PullRequestDetail } from "@/components/pull-requests/PullRequestDetail";
@@ -118,8 +118,8 @@ export function PullRequestsPage() {
           <Dropdown>
             <DropdownTrigger asChild><button type="button" className="pulls-icon-button" aria-label={t("pulls.more")} title={t("pulls.more")}><Ellipsis size={16} /></button></DropdownTrigger>
             <DropdownContent align="end" side="bottom">
-              <DropdownItem disabled={loading} onSelect={reload}>{t("pulls.refresh")}</DropdownItem>
-              <DropdownItem disabled={!activeFilters && !filters.query} onSelect={clear}>{t("pulls.clearFilters")}</DropdownItem>
+              <DropdownItem icon={<RefreshCw size={15} />} disabled={loading} onSelect={reload}>{t("pulls.refresh")}</DropdownItem>
+              <DropdownItem icon={<Eraser size={15} />} disabled={!activeFilters && !filters.query} onSelect={clear}>{t("pulls.clearFilters")}</DropdownItem>
             </DropdownContent>
           </Dropdown>
         </div>

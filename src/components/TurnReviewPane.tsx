@@ -3,6 +3,7 @@ import { DiffViewer } from "@/components/DiffViewer";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
+import { UndoTurnButton } from "@/components/UndoTurnButton";
 
 /** Uses retained turn data, never mutable git_diff/current worktree status. */
 export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: string; messageId: string; path?: string }) {
@@ -20,6 +21,7 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
       {review.sharedWorkspace ? <p>{t("review.shared")}</p> : null}
       {review.partial ? <p>{t("review.partial")}</p> : null}
       {review.expired ? <p>{t("review.expired")}</p> : null}
+      {selected && !review.expired ? <div className="flex items-center gap-2 pt-1"><UndoTurnButton key={selected.path} sessionId={sessionId} messageId={messageId} review={review} path={selected.path} className="inline-flex items-center gap-1 rounded-[7px] border border-border-default px-2 py-1 ui-caption text-text-secondary hover:bg-background-3 disabled:opacity-60" /></div> : null}
     </div>
     <div className="min-h-0 flex-1">
       {review.files.length ? <DiffViewer changes={review.files} selected={selected} diff={selected?.diff ?? ""} onSelect={(file) => setSelectedPath(file.path)} emptyDiffMessage={t(unavailable)} onComment={!review.expired && selected?.diff && !selected.binary ? selection => {

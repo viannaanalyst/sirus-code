@@ -8,7 +8,7 @@
   padding: 0.875rem 0.875rem 0.875rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  background: color-mix(in oklch, var(--surface) 94%, var(--background));
+  background: color-mix(in oklch, var(--surface-raised) 94%, var(--background));
   color: var(--foreground);
   box-shadow: var(--shadow-floating);
 }

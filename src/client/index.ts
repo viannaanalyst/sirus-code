@@ -181,6 +181,11 @@ export class SwitchyardClient {
     return this.transport.invoke<void>("create_branch", { projectId, branch, confirm: true });
   }
 
+  /** Saves Markdown of an owned conversation where the person picks in the native dialog (ADR-060); false when cancelled. */
+  exportConversation(sessionId: string, markdown: string) {
+    return this.transport.invoke<boolean>("export_conversation", { sessionId, markdown });
+  }
+
   /** One session's full transcript, loaded when a view needs it (ADR-048). */
   async loadTranscript(sessionId: string) {
     const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "load", sessionId } });
@@ -327,6 +332,16 @@ export class SwitchyardClient {
 
   dismissHandoff(sessionId: string) {
     return this.transport.invoke<Session>("dismiss_handoff", { sessionId });
+  }
+
+  /** Sends an instruction into the session's running Codex/Claude reply (ADR-062). */
+  steerTurn(sessionId: string, text: string) {
+    return this.transport.invoke<void>("steer_turn", { sessionId, text });
+  }
+
+  /** Reverses a settled turn's retained diffs, file by file, after a check (ADR-061). */
+  undoTurnChanges(sessionId: string, messageId: string, paths?: string[]) {
+    return this.transport.invoke<import("./types").UndoTurnOutcome>("undo_turn_changes", { request: { sessionId, messageId, paths, confirm: true } });
   }
 
   keepTurnChanges(sessionId: string, messageId: string) {

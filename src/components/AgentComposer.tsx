@@ -15,6 +15,11 @@ import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
+import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
+import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
+import { lastAssistantId } from "@/lib/prompt-queue";
+import { canSteer } from "@/lib/steering";
 import { HandoffCard } from "@/components/HandoffCard";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
 import { ModelSelector } from "@/components/ModelSelector";
@@ -97,7 +102,48 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     && !(session?.team && ["planning", "proposed", "running", "ready"].includes(session.team.status));
   const submitting = (sending && !running) || queueSending;
   const canSend = (value.trim().length > 0 || context.attachments.length > 0) && !dictating && !submitting && !pasting && !modelChanging && canType && providerReady && (!context.planning || planningAvailable);
-  const suggestions = useComposerSuggestions(draftKey, value, area, !canType || submitting || pasting || dictating || modelChanging);
+  // Bound to the composer's owner, so switching conversations closes it.
+  const [panel, setCommandPanel] = useState<{ kind: "status" | "rename"; owner: string } | null>(null);
+  const commandPanel = panel?.owner === draftKey ? panel.kind : null;
+  const fastToggle = Boolean(modelId) && execution.fastAvailable && !(agentId === "cursor" && !execution.parameterized);
+  const executionFor = (planning: boolean): ExecutionOptions => {
+    const turnApproval = planning && requestedApproval === "full" ? agentId === "cursor" ? "auto" : "ask" : requestedApproval;
+    return { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning, approval: definition.approvalModes.length ? turnApproval : null };
+  };
+  // App commands chosen from the `/` list (never sent as text, except `/compact`,
+  // which the provider adapters map to their own compaction).
+  const runCommand = (id: ComposerCommandId) => {
+    const store = useAppStore.getState();
+    const fail = (error: unknown) => useAppStore.setState({ error: formatUnknownError(error) });
+    switch (id) {
+      case "review": void onSend(REVIEW_PROMPT, executionFor(planningAvailable)); break;
+      case "compact": void onSend("/compact", executionFor(context.planning)); break;
+      case "status": case "rename": setCommandPanel({ kind: id, owner: draftKey }); break;
+      case "fast": {
+        const key = modelKey(agentId, modelId ?? "");
+        void store.saveSettings({ ...store.settings, modelExecution: { ...store.settings.modelExecution, [key]: { ...store.settings.modelExecution[key], fast: !execution.fast } } });
+        break;
+      }
+      case "fork": {
+        const messageId = session ? lastAssistantId(session) : null;
+        if (session && messageId) void store.forkSession(session.id, messageId);
+        break;
+      }
+      case "export": {
+        if (!session) break;
+        void (async () => {
+          if (!(await useAppStore.getState().ensureTranscript(session.id))) return;
+          const current = useAppStore.getState().sessions.find((item) => item.id === session.id);
+          if (!current) return;
+          await client.exportConversation(current.id, conversationMarkdown(current, current.messages, { you: t("commands.export.you"), agent: t("commands.export.agent") }));
+        })().catch(fail);
+        break;
+      }
+      case "side": if (session) void store.openSideChat(session.id); break;
+      case "new": store.requestNewSession(); break;
+    }
+  };
+  const suggestions = useComposerSuggestions(draftKey, value, area, !canType || submitting || pasting || dictating || modelChanging, { context: { session, agent: agentId, fastAvailable: fastToggle }, run: runCommand });
 
   useLayoutEffect(() => {
     const node = area.current;
@@ -130,6 +176,16 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     if (queueing) setQueueSending(true); else setSending(true);
     const submitted = value;
     const teamOwner = context.team ? draftKey : null;
+    // Steering (opt-in): plain text goes into the running reply instead of the queue.
+    if (session && settings.steerWhileRunning && canSteer(session.agent, session.status) && !context.attachments.length && !context.team && submitted.trim()) {
+      try {
+        if (await useAppStore.getState().steerTurn(session.id, submitted.trim()) && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
+      } finally {
+        guard.current = false;
+        setQueueSending(false); setSending(false);
+      }
+      return;
+    }
     try {
       const sent = await onSend(composerPrompt(submitted, context), { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning: context.planning, approval: definition.approvalModes.length ? approval : null });
       // A team request is one-shot: the next message talks to the coordinator normally.
@@ -152,11 +208,15 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
 
   return (
     <>
+    {session && commandPanel === "status" ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus(); }} /> : null}
+    {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
+    {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>
-    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-border-default bg-background-2 transition-colors duration-[var(--motion-fast)]">
-      <ComposerContour speed={settings.composerLineSpeed} reducedMotion={reducedMotion || dictating} />
+    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)] focus-within:border-[color-mix(in_oklab,var(--text-primary)_20%,transparent)]">
+      {/* One animated rim at a time: the side chat's composer keeps a still border. */}
+      {session?.sideChat ? null : <ComposerContour speed={settings.composerLineSpeed} reducedMotion={reducedMotion || dictating} />}
       {session ? <HandoffCard session={session} /> : null}
       <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} />
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}

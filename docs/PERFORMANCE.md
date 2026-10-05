@@ -274,6 +274,36 @@ Notes:
 
 Computer use (ADR-038) was verified live through its driver: Accessibility and Screen Recording are recognized, Calculator was observed (26 elements), 7 + 8 = 15 was pressed through Accessibility, and a window screenshot was captured in 2.7 s. The end-to-end agent flow (approval card, control pill, Escape) still needs an agent turn in the app.
 
+## Follow-up audit (2026-10-05)
+
+A code-reading audit after the workspace features. It found issues; none of them were measured.
+
+**Fixed:**
+- **Chat file links.** A bare filename in a reply (`` `App.tsx` ``) ran a recursive workspace search, up to 8,192 entries or 150 ms, per reference. Such a name can only match a root entry. Bare names now check one shallow root listing per session, cached for 15 s.
+- **Unfocused window.** Running-turn shimmer and pulses kept animating while the app was visible but not focused:
+  - the activity line;
+  - running tab dots;
+  - team progress;
+  - status indicators.
+
+  They now follow the shared ambient gate. `html[data-ambient]` pauses the CSS pulses.
+- **Side chat.** The side-chat composer no longer mounts a second animated rim shader.
+- **Keystrokes.**
+  - The sidebar views subscribe to a stable list of draft owners (`useDraftOwners`) instead of every composer keystroke.
+  - The tab/unseen store subscriber exits early when none of its inputs changed.
+- **Streaming frames.**
+  - The usage-limit resume timer re-arms only when a limited session's state changes, not on every streaming frame.
+  - Team progress cards read session metadata only.
+- **Editor.**
+  - The editor skips the full-document comparison when the incoming value is its own last edit.
+  - The dock subscribes to the set of unsaved files rather than every buffer, so typing re-renders only the edited pane.
+- **Streaming replies.** Each Markdown block is memoized by its source, so a streaming reply re-parses only the block that changed.
+- **Native browser.**
+  - A session keeps at most 8 tabs; the oldest closes when a new one opens.
+  - At most 4 sessions keep live WKWebViews. The least recently opened one is released and reopens at its last page.
+
+**Still open:** the Environment card's blur over a streaming dock may be recomputed per frame. Not measured.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.

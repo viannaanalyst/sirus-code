@@ -79,6 +79,6 @@ export function DropdownContent({ children, className, ...props }: ComponentProp
   return <DropdownPrimitive.Portal><DropdownPrimitive.Content data-appearance-floating="true" sideOffset={6} collisionPadding={12} loop className={[styles.menu, className].filter(Boolean).join(" ")} {...props}>{children}</DropdownPrimitive.Content></DropdownPrimitive.Portal>;
 }
 export function DropdownItem({ className, ...props }: ComponentPropsWithoutRef<typeof DropdownPrimitive.Item>) {
-  return <DropdownPrimitive.Item className={[styles.item, "data-[highlighted]:bg-background-3", className].filter(Boolean).join(" ")} {...props} />;
+  return <DropdownPrimitive.Item className={[styles.item, "data-[highlighted]:bg-[var(--navigation-selected)]", className].filter(Boolean).join(" ")} {...props} />;
 }
 export function DropdownSeparator() { return <DropdownPrimitive.Separator className={styles.separator} />; }

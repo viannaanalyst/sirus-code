@@ -21,6 +21,13 @@ export function primaryUsageWindow(usage: ProviderUsage | undefined): UsageWindo
     !chosen || (row.durationMinutes ?? 0) > (chosen.durationMinutes ?? 0) ? row : chosen, undefined);
 }
 
+/** The provider's main quota first (Codex `codex/…`), extra buckets after. */
+export function orderedUsageWindows(usage: ProviderUsage | undefined): UsageWindow[] {
+  const windows = usage?.windows ?? [];
+  const main = (window: UsageWindow) => window.id.startsWith("base_model_inference/") ? 1 : 0;
+  return [...windows].sort((a, b) => main(a) - main(b));
+}
+
 export function resetDuration(resetsAt: number | null, now: number): string | null {
   if (resetsAt == null || !Number.isFinite(resetsAt)) return null;
   const minutes = Math.max(0, Math.ceil((resetsAt - now) / 60_000));
@@ -40,6 +47,8 @@ export function usageWindowLabel(window: UsageWindow): string {
     "cursor/member": "Individual limit", "cursor/team": "Team pool",
   };
   if (labels[window.id]) return labels[window.id];
+  // Codex also reports a separate limit for its reserve model ("gpt-reserve"); it is not the main quota.
+  if (window.id.startsWith("base_model_inference/")) return window.durationMinutes === 300 ? "5-hour · reserve model" : "Weekly · reserve model";
   if (window.durationMinutes === 300) return "5-hour usage";
   if (window.durationMinutes === 10_080) return "Weekly usage";
   return window.id;

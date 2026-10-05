@@ -32,6 +32,22 @@ the workspace, without cloning the raw transcript.
   `fork_session` command remains for existing `forkOrigin` sessions and their
   banner; the UI entry point is now the handoff.
 
+## Amendment (2026-10-05): side pane and in-session switch
+
+- The assistant Handoff action now opens the new session in a pane beside its
+  source (ADR-053), so both conversations stay visible. If no pane can be
+  added, it is selected as before.
+- Changing provider or model in the composer of a session with history is an
+  **in-session handoff**. The switch already drops the native thread, so the
+  next Codex/Claude/OpenCode turn would otherwise start without context.
+  `set_session_model` / `set_session_agent` now arm the same pending recap
+  (`handoff` metadata, built from the session's own transcript) and the next
+  Send wraps it once. The same dismissible card shows in the composer.
+  - Text fallback providers (Cursor, Grok and the local print adapters) already
+    replay bounded history and get no recap.
+  - Forks get no recap either, because they already rebuild their history.
+  - A second switch before sending keeps the original source provider.
+
 ## Consequences
 
 - **Positive:** switching agents keeps the working tree exactly as the previous

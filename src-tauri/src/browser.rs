@@ -248,11 +248,23 @@ pub(crate) mod platform {
         tabs: Vec<(String, TabRuntime)>,
         active: Option<String>,
         next_tab: u64,
+        /// Manager clock value of the last open; the least recent browser is released first.
+        used: u64,
     }
+
+    /// Each WKWebView keeps its own WebContent memory. A session keeps at most
+    /// this many tabs (the oldest closes first), and at most this many sessions
+    /// keep live browsers; an older one is released and reopens at its last page.
+    const MAX_TABS_PER_SESSION: usize = 8;
+    const MAX_LIVE_SESSIONS: usize = 4;
+    const MAX_REMEMBERED_PAGES: usize = 64;
 
     #[derive(Default)]
     struct BrowserManager {
         sessions: HashMap<String, SessionRuntime>,
+        clock: u64,
+        /// Active page of a released browser, restored when its session reopens it.
+        released: HashMap<String, String>,
     }
 
     // Main-thread-only state: every access below is inside a
@@ -415,26 +427,29 @@ pub(crate) mod platform {
             content_height: f64,
             mtm: MainThreadMarker,
         ) -> Result<BrowserSessionState> {
-            if !self.sessions.contains_key(session_id) {
-                self.sessions.insert(
-                    session_id.into(),
-                    SessionRuntime {
-                        content_view: content.clone(),
-                        tabs: vec![],
-                        active: None,
-                        next_tab: 1,
-                    },
-                );
-            }
+            self.clock += 1;
+            let used = self.clock;
+            self.sessions
+                .entry(session_id.into())
+                .or_insert_with(|| SessionRuntime {
+                    content_view: content.clone(),
+                    tabs: vec![],
+                    active: None,
+                    next_tab: 1,
+                    used,
+                })
+                .used = used;
             if self
                 .sessions
                 .get(session_id)
                 .is_some_and(|session| session.tabs.is_empty())
             {
-                self.new_tab(app, session_id, None, content_height, mtm)?;
+                let page = self.released.remove(session_id);
+                self.new_tab(app, session_id, page, content_height, mtm)?;
             } else {
                 self.show_active(session_id, content_height);
             }
+            self.release_idle(app, session_id);
             let session = self
                 .sessions
                 .get(session_id)
@@ -454,6 +469,11 @@ pub(crate) mod platform {
                 .sessions
                 .get_mut(session_id)
                 .ok_or_else(|| Error::not_found("the browser is not open for this session"))?;
+            if session.tabs.len() >= MAX_TABS_PER_SESSION {
+                // The new tab becomes active, so the oldest one can go.
+                let (_, oldest) = session.tabs.remove(0);
+                oldest.webview.removeFromSuperview();
+            }
             let content = session.content_view.clone();
             let tab_id = format!("tab-{}", session.next_tab);
             session.next_tab += 1;
@@ -691,6 +711,38 @@ pub(crate) mod platform {
                 tab.bounds = bounds.clone();
             }
             self.show_active(session_id, content_height);
+        }
+
+        /// Releases the least recently opened browsers beyond the live limit, never
+        /// `current`. The renderer learns through `browser-state` and reopens on demand.
+        fn release_idle(&mut self, app: &AppHandle, current: &str) {
+            while self.sessions.len() > MAX_LIVE_SESSIONS {
+                let Some(oldest) = self
+                    .sessions
+                    .iter()
+                    .filter(|(id, _)| id.as_str() != current)
+                    .min_by_key(|(_, session)| session.used)
+                    .map(|(id, _)| id.clone())
+                else {
+                    return;
+                };
+                if let Some(session) = self.sessions.get(&oldest) {
+                    let page = session
+                        .active
+                        .as_ref()
+                        .and_then(|active| session.tabs.iter().find(|(id, _)| id == active))
+                        .map(|(_, tab)| tab.url.clone())
+                        .filter(|url| is_allowed_browser_url(url));
+                    if let Some(page) = page {
+                        if self.released.len() >= MAX_REMEMBERED_PAGES {
+                            self.released.clear();
+                        }
+                        self.released.insert(oldest.clone(), page);
+                    }
+                }
+                self.close(&oldest);
+                let _ = app.emit("browser-state", BrowserSessionState::closed(&oldest));
+            }
         }
 
         fn close(&mut self, session_id: &str) {

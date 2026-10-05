@@ -23,6 +23,7 @@ import { playSidebarCascade, type SidebarMotion } from "@/lib/sidebar-motion";
 import { useGlidingHover } from "@/lib/use-gliding-hover";
 import { useAppStore, selectListedSessions } from "@/store/app-store";
 import "@/styles/sidebar.css";
+import { useDraftOwners } from "@/lib/use-draft-owners";
 
 const sections = [
   { id: "home", label: "Home" },
@@ -96,6 +97,10 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
     if (restoreFocus) { suppressFocus.current = true; trigger.current?.focus(); suppressFocus.current = false; }
   };
   const section = collapsed ? panel.peek ?? panel.section : panel.section;
+  // The peek card keeps its last section while it animates out.
+  const [lastPeek, setLastPeek] = useState(panel.peek);
+  if (panel.peek && panel.peek !== lastPeek) setLastPeek(panel.peek);
+  const peekSection = panel.peek ?? lastPeek ?? panel.section;
   const pin = () => {
     cancelClose(); dispatch({ type: "pin" });
     if (collapsed) toggleSidebar();
@@ -108,7 +113,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   const opening = motion === "opening";
   const dockedRef = useCallback((node: HTMLDivElement | null) => { content.current = node; if (node && opening) playSidebarCascade(node); }, [opening]);
   const peekRef = useCallback((node: HTMLDivElement | null) => { content.current = node; if (node && section) playSidebarCascade(node); }, [section]);
-  const renderBody = (floating: boolean) => <SidebarPanelHoldContext value={hold}><SidebarHoverCards disabled={collapsed}>
+  const renderBody = (floating: boolean, section: typeof peekSection) => <SidebarPanelHoldContext value={hold}><SidebarHoverCards disabled={collapsed}>
     {section !== "home" && section !== "archived" && <div className="sidebar-panel-header">
       <h1 className="ui-brand truncate min-w-0 flex-1">{t(sections.find(item => item.id === section)!.label)}</h1>
       {floating && <IconButton label={t("Pin sidebar")} tooltip={false} onClick={pin} className="sidebar-header-action"><PanelLeft size={13} /></IconButton>}
@@ -165,13 +170,13 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
             <Settings size={20} />
           </button>
         </div>
-        {docked && <div id="sidebar-docked" className="sidebar-docked-panel" ref={dockedRef} data-closing={motion === "closing" || undefined} inert={motion === "closing"} style={{ minWidth: sidebarWidth - SIDEBAR_RAIL_WIDTH }}>{renderBody(false)}</div>}
+        {docked && <div id="sidebar-docked" className="sidebar-docked-panel" ref={dockedRef} data-closing={motion === "closing" || undefined} inert={motion === "closing"} style={{ minWidth: sidebarWidth - SIDEBAR_RAIL_WIDTH }}>{renderBody(false, section)}</div>}
       </div>
-      {collapsed && panel.peek && <PopoverContent id="sidebar-peek" ref={peekRef} side="right" align="start" sideOffset={18} alignOffset={-8} collisionPadding={8} data-glide={glide || undefined} className="floating-material sidebar-peek-panel" aria-label={t(sections.find(item => item.id === section)!.label)}
+      {collapsed && <PopoverContent id="sidebar-peek" ref={peekRef} side="right" align="start" sideOffset={18} alignOffset={-8} collisionPadding={8} data-glide={glide || undefined} className="floating-material sidebar-peek-panel" aria-label={t(sections.find(item => item.id === peekSection)!.label)}
         onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (held.current.size) { event.preventDefault(); return; } event.preventDefault(); dismiss(true); }}
         onInteractOutside={event => { if (held.current.size || (event.target instanceof Node && rail.current?.contains(event.target))) event.preventDefault(); }}
-        onPointerEnter={enter} onPointerLeave={leave} onPointerMove={() => { keyboard.current = false; }} onKeyDownCapture={() => { keyboard.current = true; }} onFocus={cancelClose} onBlur={closeSoon}>{renderBody(true)}</PopoverContent>}
+        onPointerEnter={enter} onPointerLeave={leave} onPointerMove={() => { keyboard.current = false; }} onKeyDownCapture={() => { keyboard.current = true; }} onFocus={cancelClose} onBlur={closeSoon}>{renderBody(true, peekSection)}</PopoverContent>}
     </Popover>
   </aside>;
 }
@@ -181,7 +186,7 @@ function SidebarActivity({ archived, floating, onPin, draftsOnly }: { archived: 
   const shortcut = useShortcut("new-session");
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
-  const drafts = useAppStore(state => state.composerDrafts);
+  const drafts = useDraftOwners();
   const settings = useAppStore(state => state.settings);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const mainView = useAppStore(state => state.mainView);

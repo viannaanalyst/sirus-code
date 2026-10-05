@@ -16,13 +16,23 @@ const listeners = new Set<Listener>();
 let covered = false;
 let focused = true;
 
-const emit = () => { for (const listener of [...listeners]) listener(); };
+function markRoot() {
+  const root = typeof document !== "undefined" ? document.documentElement : undefined;
+  if (root?.dataset) root.dataset.ambient = ambientActive() ? "on" : "off";
+}
+
+const emit = () => {
+  // CSS status pulses (running tab dots, team progress) pause through this attribute.
+  markRoot();
+  for (const listener of [...listeners]) listener();
+};
 
 // Test and server environments may lack a window.
 if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
   window.addEventListener("focus", () => { focused = true; emit(); });
   window.addEventListener("blur", () => { focused = false; emit(); });
   document.addEventListener("visibilitychange", emit);
+  markRoot();
 }
 
 export function ambientActive() {

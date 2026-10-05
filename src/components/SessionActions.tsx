@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Checkbox } from "@/components/arc/checkbox/checkbox";
 import { Input } from "@/components/arc/input/input";
-import { MoreHorizontal } from "@/components/icons/phosphor";
+import { MoreHorizontal, Columns3, Rows, Pencil, Trash2 } from "@/components/icons/phosphor";
 import { useState } from "react";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -40,15 +40,15 @@ export function SessionActions({ session, children }: { session: Session; childr
   };
   return <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !busy) setAction(null); }}>
     {children ? <ContextMenu onOpenChange={setMenuOpen} activation="context-only" label={t("session.actions")} items={[
-      { id: "split-right", label: t("split.openRight"), disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "right") },
-      { id: "split-down", label: t("split.openDown"), disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "bottom") },
-      { id: "rename", label: t("session.rename"), onSelect: () => { setTitle(session.title); setAction("rename"); } },
-      { id: "delete", label: t("session.delete"), disabled: active, destructive: true, onSelect: () => { setRemoveWorktree(false); setAction("delete"); } },
+      { id: "split-right", label: t("split.openRight"), icon: <Columns3 size={15} />, disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "right") },
+      { id: "split-down", label: t("split.openDown"), icon: <Rows size={15} />, disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "bottom") },
+      { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "edit", onSelect: () => { setTitle(session.title); setAction("rename"); } },
+      { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, disabled: active, destructive: true, onSelect: () => { setRemoveWorktree(false); setAction("delete"); } },
     ]}>{children}</ContextMenu> : <Dropdown onOpenChange={setMenuOpen}>
       <DropdownTrigger asChild><button type="button" aria-label={t("session.actions")} className="flex size-6 items-center justify-center rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 hover:bg-background-3"><MoreHorizontal size={14} /></button></DropdownTrigger>
       <DropdownContent>
-        <DropdownItem onSelect={() => { setTitle(session.title); setAction("rename"); }}>{t("session.rename")}</DropdownItem>
-        <DropdownItem disabled={active} onSelect={() => { setRemoveWorktree(false); setAction("delete"); }}>{t("session.delete")}</DropdownItem>
+        <DropdownItem icon={<Pencil size={15} />} onSelect={() => { setTitle(session.title); setAction("rename"); }}>{t("session.rename")}</DropdownItem>
+        <DropdownItem icon={<Trash2 size={15} />} destructive disabled={active} onSelect={() => { setRemoveWorktree(false); setAction("delete"); }}>{t("session.delete")}</DropdownItem>
       </DropdownContent>
     </Dropdown>}
     <DialogContent title={t(action === "rename" ? "session.rename" : "session.delete")} description={t(action === "rename" ? "session.renameHelp" : "session.deleteHelp")} variant={action === "delete" ? "confirm" : "default"} className="w-[min(420px,calc(100vw-32px))]" onCloseAutoFocus={(event) => {

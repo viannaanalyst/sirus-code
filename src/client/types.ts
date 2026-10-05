@@ -43,12 +43,14 @@ export interface ActivityStep { id: string; kind: ActivityKind; label: string; s
 /** Child rows (`kind: "agent"`) may carry their native observation window and their own generic steps. */
 export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number; }
 export interface TurnReview {
-  files: (FileChange & { binary: boolean; diff: string | null })[];
+  files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null })[];
   partial: boolean;
   sharedWorkspace: boolean;
   keptAt: string | null;
   expired: boolean;
 }
+/** Files left as they were: changed again since the turn, or no retained diff (ADR-061). */
+export interface UndoTurnOutcome { undone: string[]; refused: string[] }
 export interface TurnActivity {
   review?: TurnReview | null;
   provider: AgentProviderId; model: string | null; startedAt: number; endedAt: number | null;
@@ -63,6 +65,8 @@ export interface Message {
   createdAt: string;
   streaming: boolean;
   activity?: TurnActivity | null;
+  /** Instructions sent into this running reply; `offset` is the reply's length when each arrived (ADR-062). */
+  steers?: { text: string; at: string; offset: number }[];
 }
 
 export interface NativeThread {
@@ -183,6 +187,8 @@ export interface Session {
   nativeThread?: NativeThread | null;
   /** Latest context-window reading the provider reported (ADR-057). */
   contextUsage?: { used: number; window: number | null } | null;
+  /** The last turn hit the provider's usage limit; `resetsAt` in UTC ms when reported. */
+  usageLimit?: { resetsAt: number | null } | null;
   execution?: ExecutionOptions;
   pendingRequests?: PendingRequest[];
   /** Coordinator sessions own a team plan and its progress (ADR-043). */
@@ -247,6 +253,8 @@ export interface AppSettings {
   sidebarUsageProviders: AgentProviderId[];
   /** Sidebar shows the time-grouped Activity view instead of project folders. */
   sidebarActivityView: boolean;
+  /** Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue (ADR-062). */
+  steerWhileRunning: boolean;
   /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
   doneSessions: { id: string; at: string }[];
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */

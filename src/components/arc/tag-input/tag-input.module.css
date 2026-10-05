@@ -6,7 +6,7 @@
 /* The shell animates its height to .content, which carries the wrapping rows. The ring contracts onto the border on focus. */
 .control { box-sizing: content-box; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 0 0 6px transparent; transition: border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-standard) var(--ease-standard); }
 @media (hover: hover) and (pointer: fine) { .control:hover:not(:focus-within) { border-color: var(--border-strong); } }
-.control:focus-within { border-color: var(--foreground); box-shadow: 0 0 0 3px var(--focus-ring); outline: 2px solid transparent; outline-offset: 2px; }
+.control:focus-within { border-color: var(--field-focus-border); box-shadow: 0 0 0 3px var(--field-focus-ring); outline: 2px solid transparent; outline-offset: 2px; }
 /* Equal 7px padding makes one row fill the minimum height exactly, so existing tags hold their line when a second row opens. */
 .content { position: relative; display: flex; flex-wrap: wrap; align-items: center; align-content: flex-start; gap: 6px; min-height: calc(var(--control-height-md) - 2px); box-sizing: border-box; padding: 7px; cursor: text; }
 .tag { position: relative; display: inline-flex; align-items: center; gap: 3px; min-height: 28px; box-sizing: border-box; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 0 4px 0 9px; background: var(--surface-muted); color: var(--foreground); font-size: var(--text-sm); white-space: nowrap; cursor: default; }

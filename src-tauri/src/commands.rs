@@ -902,6 +902,7 @@ pub(crate) fn create_session_locked(
     let account_id = crate::provider_accounts::selected(data, &request.agent);
     let session = Session {
         context_usage: None,
+        usage_limit: None,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -1442,6 +1443,7 @@ pub async fn send_prompt(
             created_at: now_rfc3339(),
             streaming: false,
             activity: None,
+            steers: Vec::new(),
         };
         session.messages.push(user);
         session.messages.push(Message {
@@ -1452,6 +1454,7 @@ pub async fn send_prompt(
             created_at: now_rfc3339(),
             streaming: true,
             activity: None,
+            steers: Vec::new(),
         });
         if let Some(message) = session.messages.last_mut() {
             message.activity = Some(crate::activity::TurnActivity::new(
@@ -1464,6 +1467,7 @@ pub async fn send_prompt(
         }
         session.status = SessionStatus::Starting;
         session.last_error = None;
+        session.usage_limit = None;
         session.last_activity_at = now_rfc3339();
         if session.title == "New session" {
             session.title = prompt.chars().take(42).collect();
@@ -1722,10 +1726,10 @@ pub async fn respond_agent_request(
             .ok_or_else(|| Error::agent("Provider does not accept interactive responses"))?;
         let (result, receiver) = tokio::sync::oneshot::channel();
         sender
-            .try_send(crate::codex::Reply {
+            .try_send(crate::codex::Inbound::Answer(crate::codex::Reply {
                 request: request.clone(),
                 result,
-            })
+            }))
             .map_err(|_| Error::agent("Native response queue is unavailable"))?;
         // Reserve under the same data lock: duplicate IPC cannot enqueue another authorization.
         session.pending_requests.remove(index);
@@ -1737,6 +1741,88 @@ pub async fn respond_agent_request(
         .await
         .map_err(|_| Error::agent("Native response timed out; stop this turn before retrying"))?
         .map_err(|_| Error::agent("Native process ended before accepting response"))?
+}
+
+/// Longest instruction steered into a running reply.
+const STEER_LIMIT: usize = 64 * 1024;
+
+/// Sends an instruction into the session's running Codex or Claude reply (ADR-062).
+/// Only text; the running turn keeps its model, approvals and attachments. Once the
+/// provider accepts it, the instruction is recorded on the reply at its current length.
+#[tauri::command]
+pub async fn steer_turn(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    text: String,
+) -> Result<()> {
+    let text = text.trim().to_owned();
+    if text.is_empty() || text.len() > STEER_LIMIT || text.contains('\0') {
+        return Err(Error::new(
+            "invalid",
+            "Instructions must have 1 to 65,536 bytes of text.",
+        ));
+    }
+    let (receiver, generation) = {
+        let data = state.data.lock();
+        state.ensure_running()?;
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        if !matches!(
+            session.agent,
+            AgentProviderId::Codex | AgentProviderId::Claude
+        ) || !session.status.is_active()
+        {
+            return Err(Error::agent("This reply cannot take instructions now."));
+        }
+        let agents = state.agents.lock();
+        let process = agents
+            .get(&session_id)
+            .ok_or_else(|| Error::agent("This reply cannot take instructions now."))?;
+        let sender = process
+            .replies
+            .clone()
+            .ok_or_else(|| Error::agent("This reply cannot take instructions now."))?;
+        let (result, receiver) = tokio::sync::oneshot::channel();
+        sender
+            .try_send(crate::codex::Inbound::Steer {
+                text: text.clone(),
+                result,
+            })
+            .map_err(|_| Error::agent("This reply cannot take instructions now."))?;
+        (receiver, process.generation.clone())
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(15), receiver)
+        .await
+        .map_err(|_| Error::agent("The provider did not take the instruction in time."))?
+        .map_err(|_| Error::agent("The reply ended before taking the instruction."))??;
+    let mut data = state.data.lock();
+    let still_running = state
+        .agents
+        .lock()
+        .get(&session_id)
+        .is_some_and(|process| process.generation == generation);
+    if let Ok(session) = find_session_mut(&mut data, &session_id) {
+        if let Some(message) = session
+            .messages
+            .iter_mut()
+            .rev()
+            .find(|message| message.role == MessageRole::Agent)
+            .filter(|message| still_running && message.streaming)
+        {
+            let offset = message.content.encode_utf16().count();
+            message.steers.push(crate::models::Steer {
+                text,
+                at: now_rfc3339(),
+                offset,
+            });
+        }
+        crate::transcript_view::emit(&app, session);
+    }
+    crate::persist::save(&state.data_path, &data)
 }
 
 #[tauri::command]
@@ -1941,11 +2027,13 @@ fn apply_session_selection(session: &mut Session, agent: AgentProviderId, model:
     if session.agent == agent && session.model == model {
         return;
     }
-    session.agent = agent;
+    let previous = std::mem::replace(&mut session.agent, agent);
     session.model = model;
     // Another model has another window; the next turn reports it again.
     session.context_usage = None;
     session.native_thread = None;
+    // The new provider/model continues this same conversation, not a blank one.
+    crate::transcript::arm_in_session_handoff(session, previous);
     if let Some(origin) = &mut session.fork_origin {
         origin.seeded_native_thread_id = None;
     }

@@ -47,6 +47,8 @@ import {
   CircleHalf as PhCircleHalf,
   CircleNotch as PhCircleNotch,
   Clock as PhClock,
+  Gauge as PhGauge,
+  Rows as PhRows,
   Code as PhCode,
   CodeBlock as PhCodeBlock,
   Command as PhCommand,
@@ -302,6 +304,8 @@ export const MessageSquare = adapt(PhChatCentered, "MessageSquare");
 export const MessageSquarePlus = adapt(PhChatCenteredText, "MessageSquarePlus");
 export const MessagesSquare = adapt(PhChats, "MessagesSquare");
 export const MessagesCircle = adapt(PhChatsCircle, "MessagesCircle");
+export const Gauge = adapt(PhGauge, "Gauge");
+export const Rows = adapt(PhRows, "Rows");
 export const Mic = adapt(PhMicrophone, "Mic");
 export const Minimize2 = adapt(PhCornersIn, "Minimize2");
 export const Minus = adapt(PhMinus, "Minus");

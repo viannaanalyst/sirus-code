@@ -28,7 +28,7 @@
   .split-divider:focus-visible { outline: none; }
 
   /* Drop target: the half (or whole pane) lights up and glides between targets. */
-  .split-drop { position: absolute; z-index: 30; display: grid; place-items: center; padding: 4px; pointer-events: none; opacity: 0; }
+  .split-drop { position: absolute; z-index: 30; display: grid; place-items: center; padding: 4px; pointer-events: none; opacity: 0; transition: opacity var(--motion-instant) var(--ease-out); }
   .split-drop::before { content: ""; position: absolute; inset: 4px; border: 2px solid color-mix(in srgb, var(--info) 75%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--info) 14%, transparent); }
   .split-drop-visible { opacity: 1; transition: left var(--motion-fast) var(--ease-out), top var(--motion-fast) var(--ease-out), width var(--motion-fast) var(--ease-out), height var(--motion-fast) var(--ease-out), opacity var(--motion-instant) var(--ease-out); }
   .split-drop-full::before { border-color: color-mix(in srgb, var(--danger) 65%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); }

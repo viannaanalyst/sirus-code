@@ -76,6 +76,10 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-057: Context usage and compaction](ADR-057-context-usage-and-compaction.md) — provider-reported `Session.contextUsage`, composer ring, `/compact` (Codex `thread/compact/start`, Claude native command).
 - [ADR-058: Mermaid diagrams](ADR-058-mermaid-diagrams.md) — lazy strict-mode Mermaid with nonce-bound SVG styles in the transcript and Markdown preview.
 - [ADR-059: Project folder colour, emoji and logo](ADR-059-project-look.md) — closed `project_look_action` with preset/hex colours, short emoji and a native-picked, bounded 96 px PNG logo.
+- [ADR-060: Composer app commands and conversation export](ADR-060-composer-app-commands-and-export.md) — `/review`, `/status`, `/export` and other app commands in the `/` list without shadowing skills; native-picked Markdown export.
+- [ADR-061: Undo a turn's changes](ADR-061-undo-turn-changes.md) — per-file `git apply -R` of retained turn diffs after a check; later edits are never overwritten.
+- [ADR-062: Steer a running reply](ADR-062-steer-running-replies.md) — Codex `turn/steer` and Claude in-turn input, recorded in place on the reply.
+- [ADR-063: Usage-limit notice and resume at reset](ADR-063-usage-limit-notice.md) — provider-reported limits, reset countdown and an explicitly armed continue.
 
 ## Template
 

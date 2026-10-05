@@ -1,5 +1,6 @@
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ChevronDown, FolderPlus, Plus, Search, X } from "@/components/icons/phosphor";
+import { ChevronDown, FolderPlus, Plus, Search, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
 import type { Session } from "@/client/types";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -166,10 +167,10 @@ export function HeaderTabs() {
     <ProjectSwitcher />
     <span className="header-tabs-separator" aria-hidden="true">/</span>
     <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [
-      { id: "close", label: t("tabs.close"), onSelect: () => close(menuTab) },
-      { id: "others", label: t("tabs.closeOthers"), disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
-      { id: "right", label: t("tabs.closeRight"), disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
-      { id: "reopen", label: t("tabs.reopen"), disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
+      { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },
+      { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
+      { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
+      { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
     ] : []}>
       <div ref={list} className="header-tabs-list" data-reorder-scope="" role="tablist" aria-label={t("tabs.label")}
         onContextMenuCapture={event => setMenuTab((event.target as HTMLElement).closest<HTMLElement>("[data-tab]")?.dataset.tab ?? null)}>
@@ -214,9 +215,9 @@ export function HeaderTabs() {
       </DropdownContent>
     </Dropdown>}
     <button type="button" className="header-tabs-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => store().requestNewSession()}><Plus size={14} aria-hidden="true" /></button>
-    {toast && <div className="header-tabs-toast" role="status">
+    <AnimatePresence>{toast && <motion.div key="closed-tab" className="header-tabs-toast" role="status" exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }}>
       <span>{t("tabs.closedToast", { title: toastTitle })}</span>
       <button type="button" onClick={() => { setToast(null); store().reopenHeaderTab(); }}>{t("tabs.undo")}</button>
-    </div>}
+    </motion.div>}</AnimatePresence>
   </div>;
 }

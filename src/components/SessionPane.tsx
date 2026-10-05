@@ -17,7 +17,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { motion } from "motion/react";
-import { memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Fragment, memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { MessageTrail } from "@/components/MessageTrail";
 import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
@@ -27,6 +27,7 @@ import { hasConversation } from "@/lib/transcripts";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
@@ -110,7 +111,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
         {!empty && !search && !passive ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
-        {session?.lastError ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
+        {session?.lastError && !session.usageLimit ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
         {session?.forkOrigin ? <div className="mx-auto flex w-full max-w-[var(--chat-column-width)] items-center gap-2 px-3 pt-2 ui-caption text-text-muted"><GitFork aria-hidden="true" size={13} /><span>{t("Fork of {title}", { title: session.forkOrigin.sourceTitle })}</span>{source ? <InteractiveButton variant="toolbar" className="ml-auto shrink-0" onClick={() => jumpToMessage(source.id, session.forkOrigin!.sourceMessageId)}>{t("View original")}</InteractiveButton> : <span>{t("Original session removed")}</span>}</div> : null}
         {empty ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-8">
@@ -137,7 +138,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: motionTokens.fast, ease: motionTokens.ease }}
-                className="transcript-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6"
+                className="transcript-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6 focus-visible:outline-none"
               >
                 <div ref={transcriptContent} className="mx-auto flex w-full shrink-0 max-w-[var(--chat-column-width)] flex-col gap-[var(--chat-message-gap)]">
                   {[messages.slice(0, Math.max(0, latestUserIndex)), messages.slice(Math.max(0, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
@@ -194,9 +195,24 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   const register = useCallback((node: HTMLElement | null) => {
     if (node) nodes.current.set(message.id, node); else nodes.current.delete(message.id);
   }, [nodes, message.id]);
-  const blocks = useMemo(() => message.role === "agent" && message.content
-    ? parseTranscript(session.team?.messageId === message.id ? stripTeamPlan(message.content) : message.content)
-    : null, [message.role, message.content, message.id, session.team?.messageId]);
+  // A reply is cut where the person steered it, so each instruction shows where it arrived.
+  const segments = useMemo(() => {
+    if (message.role !== "agent" || !message.content) return null;
+    const team = session.team?.messageId === message.id;
+    const content = team ? stripTeamPlan(message.content) : message.content;
+    const steers = team ? [] : message.steers ?? [];
+    const parts: { start: number; blocks: ReturnType<typeof parseTranscript>; steer?: string }[] = [];
+    let start = 0;
+    for (const steer of steers) {
+      const cut = Math.max(start, Math.min(steer.offset, content.length));
+      parts.push({ start, blocks: cut > start ? parseTranscript(content.slice(start, cut)) : [], steer: steer.text });
+      // The reply resumes after the instruction without the blank lines between its items.
+      start = cut;
+      while (content[start] === "\n") start += 1;
+    }
+    parts.push({ start, blocks: start < content.length ? parseTranscript(content.slice(start)) : [] });
+    return parts;
+  }, [message.role, message.content, message.id, message.steers, session.team?.messageId]);
   return (
     <article data-message-id={message.id} ref={register} tabIndex={-1} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
@@ -206,18 +222,23 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       <div
         data-transcript-text
         className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
-          message.role === "user" ? "rounded-[18px] bg-background-3 px-4 py-2.5 text-text-primary" : "text-text-secondary"
+          message.role === "user" ? "rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary" : "text-text-secondary"
         }`}
       >
-        {message.content ? (message.role === "agent" ? (() => {
-          let offset = 0;
-          return (blocks ?? []).map((block, index) => {
-            const start = offset;
-            offset += block.content.length + 1;
-            if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
-            return block.kind === "code" ? <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div> : <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p>;
-          });
-        })() : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+        {message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
+          let offset = segment.start;
+          return <Fragment key={part}>
+            {segment.blocks.map((block, index) => {
+              const start = offset;
+              offset += block.content.length + 1;
+              if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
+              if (block.kind === "code") return <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div>;
+              // Search highlights need the raw text offsets, so a search shows the reply unformatted.
+              return searchQuery.trim() ? <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p> : <ChatMarkdown key={index} text={block.content} sessionId={session.id} cwd={session.worktree.path} />;
+            })}
+            {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
+          </Fragment>;
+        }) : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />

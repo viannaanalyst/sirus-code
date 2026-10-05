@@ -2,10 +2,10 @@
   .automations-page { display: flex; min-height: 0; min-width: 0; flex: 1; }
   .automations-list-column { display: flex; width: clamp(260px, 26%, 340px); flex-shrink: 0; flex-direction: column; gap: 10px; min-height: 0; padding: 16px 10px; border-right: 1px solid var(--border-subtle); }
   .automations-new { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 8px; color: var(--text-secondary); }
-  .automations-new:hover { color: var(--text-primary); background: var(--background-3); }
+  .automations-new:hover { color: var(--text-primary); background: var(--navigation-hover); }
   .automations-row { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; }
-  .automations-row:hover { background: var(--background-2); }
-  .automations-row-active, .automations-row-active:hover { background: var(--background-3); }
+  .automations-row:hover { background: var(--navigation-hover); }
+  .automations-row-active, .automations-row-active:hover { background: var(--navigation-selected); }
   .automations-row-icon { display: inline-flex; flex-shrink: 0; }
   .automations-new:focus-visible, .automations-row:focus-visible, .automations-run:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   .automations-detail-column { min-width: 0; min-height: 0; flex: 1; }

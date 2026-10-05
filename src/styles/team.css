@@ -52,6 +52,7 @@
     .team-card { animation: team-in var(--motion-slow) var(--ease-out) both; }
     .team-live { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: team-shimmer calc(var(--motion-slow) * 8) linear infinite; }
     .team-dot[data-view="running"] { animation: team-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
+    html[data-ambient="off"] :is(.team-live, .team-dot) { animation-play-state: paused; }
   }
   @keyframes team-in { from { opacity: 0; translate: 0 6px; } }
   @keyframes team-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }

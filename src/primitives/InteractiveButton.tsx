@@ -19,7 +19,7 @@ const variants: Record<Variant, string> = {
   danger:
     "h-8 px-3 bg-danger text-white font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-danger/90",
   secondary:
-    "h-8 px-3 bg-background-2 text-text-primary border border-border-subtle hover:border-border-default hover:bg-background-3",
+    "h-8 px-3 bg-[var(--surface)] text-text-primary border border-border-subtle hover:border-border-default hover:bg-[var(--surface-muted)]",
   ghost: "h-8 px-2.5 text-text-secondary hover:text-text-primary hover:bg-background-3/80",
   icon: "size-8 text-text-secondary hover:text-text-primary hover:bg-background-3/80",
   toolbar:

@@ -2,7 +2,7 @@ import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { useSidebarHoverCardHold } from "@/components/SidebarHoverCard";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import type { ReactNode } from "react";
-import { MoreHorizontal } from "@/components/icons/phosphor";
+import { MoreHorizontal, Pencil, Trash2 } from "@/components/icons/phosphor";
 import { useState } from "react";
 import type { Project } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -27,9 +27,9 @@ export function ProjectActions({ project, children, onEdit }: { project: Project
     finally { setBusy(false); }
   };
   return <>
-    {children ? <ContextMenu onOpenChange={setMenuOpen} activation="context-only" label={t("project.actions")} items={[...(onEdit ? [{ id: "edit", label: t("Edit project"), onSelect: onEdit }] : []), { id: "remove", label: t("Remove from list"), onSelect: () => setOpen(true) }]}>{children}</ContextMenu> : <Dropdown onOpenChange={setMenuOpen}>
+    {children ? <ContextMenu onOpenChange={setMenuOpen} activation="context-only" label={t("project.actions")} items={[...(onEdit ? [{ id: "edit", label: t("Edit project"), icon: <Pencil size={15} />, onSelect: onEdit }] : []), { id: "remove", label: t("Remove from list"), icon: <Trash2 size={15} />, destructive: true, onSelect: () => setOpen(true) }]}>{children}</ContextMenu> : <Dropdown onOpenChange={setMenuOpen}>
       <DropdownTrigger asChild><button type="button" aria-label={t("project.actions")} className="flex size-6 items-center justify-center rounded opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 hover:bg-background-3"><MoreHorizontal size={14} /></button></DropdownTrigger>
-      <DropdownContent><DropdownItem onSelect={() => setOpen(true)}>{t("Remove from list")}</DropdownItem></DropdownContent>
+      <DropdownContent><DropdownItem icon={<Trash2 size={15} />} destructive onSelect={() => setOpen(true)}>{t("Remove from list")}</DropdownItem></DropdownContent>
     </Dropdown>}
     <ConfirmDialog open={open} onOpenChange={setOpen} busy={busy} title={`${t("Remove from list")} · ${project.name}`} description={t("project.removeHelp")} confirmLabel={t("Remove from list")} onConfirm={remove}
       onCloseAutoFocus={(event) => { event.preventDefault(); document.querySelector<HTMLButtonElement>('[data-open-project]')?.focus(); }} />

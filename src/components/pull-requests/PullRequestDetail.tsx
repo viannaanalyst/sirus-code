@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench } from "@/components/icons/phosphor";
+import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
 import { DiffViewer } from "@/components/DiffViewer";
@@ -115,13 +115,13 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
         <Dropdown>
           <DropdownTrigger asChild><button type="button" className="pulls-more ui-control" aria-label={t("pulls.more")}>···</button></DropdownTrigger>
           <DropdownContent align="end" side="bottom">
-            <DropdownItem onSelect={() => void navigator.clipboard.writeText(view.url)}><span className="inline-flex items-center gap-2"><Copy size={13} />{t("pulls.copyLink")}</span></DropdownItem>
-            {isPull && view.state === "open" && failing ? <DropdownItem disabled={!projectIds.length || fixing} onSelect={() => void sendToAgent("fix")}><span className="inline-flex items-center gap-2"><Wrench size={13} />{t("pulls.fixFindings")}</span></DropdownItem> : null}
-            {isPull && view.state === "open" && conflicting ? <DropdownItem disabled={!projectIds.length} onSelect={() => void sendToAgent("conflicts")}><span className="inline-flex items-center gap-2"><GitMerge size={13} />{t("pulls.resolveConflicts")}</span></DropdownItem> : null}
+            <DropdownItem icon={<Copy size={15} />} onSelect={() => void navigator.clipboard.writeText(view.url)}>{t("pulls.copyLink")}</DropdownItem>
+            {isPull && view.state === "open" && failing ? <DropdownItem icon={<Wrench size={15} />} disabled={!projectIds.length || fixing} onSelect={() => void sendToAgent("fix")}>{t("pulls.fixFindings")}</DropdownItem> : null}
+            {isPull && view.state === "open" && conflicting ? <DropdownItem icon={<GitMerge size={15} />} disabled={!projectIds.length} onSelect={() => void sendToAgent("conflicts")}>{t("pulls.resolveConflicts")}</DropdownItem> : null}
             <DropdownSeparator />
-            {isPull && view.state === "open" && !view.isDraft ? <DropdownItem disabled={!detail} onSelect={() => setPending({ type: "setDraft", draft: true })}>{t("pulls.toDraft")}</DropdownItem> : null}
-            {view.state === "open" ? <DropdownItem onSelect={() => setPending({ type: "setOpen", open: false })}>{t(isPull ? "pulls.closePull" : "pulls.closeIssue")}</DropdownItem> : null}
-            {view.state === "closed" ? <DropdownItem onSelect={() => setPending({ type: "setOpen", open: true })}>{t(isPull ? "pulls.reopenPull" : "pulls.reopenIssue")}</DropdownItem> : null}
+            {isPull && view.state === "open" && !view.isDraft ? <DropdownItem icon={<GitPullRequestDraft size={15} />} disabled={!detail} onSelect={() => setPending({ type: "setDraft", draft: true })}>{t("pulls.toDraft")}</DropdownItem> : null}
+            {view.state === "open" ? <DropdownItem icon={<GitPullRequestClosed size={15} />} destructive onSelect={() => setPending({ type: "setOpen", open: false })}>{t(isPull ? "pulls.closePull" : "pulls.closeIssue")}</DropdownItem> : null}
+            {view.state === "closed" ? <DropdownItem icon={<RotateCcw size={15} />} onSelect={() => setPending({ type: "setOpen", open: true })}>{t(isPull ? "pulls.reopenPull" : "pulls.reopenIssue")}</DropdownItem> : null}
           </DropdownContent>
         </Dropdown>
       </div>

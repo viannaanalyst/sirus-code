@@ -32,6 +32,9 @@ pub struct ReviewFile {
     pub deletions: u32,
     pub binary: bool,
     pub diff: Option<String>,
+    /// Set once the person undid this file's turn changes (`turn_undo.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undone_at: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,7 +88,7 @@ pub struct Capture {
     _slot: Option<Slot>,
 }
 
-fn allowed_name(name: &str) -> bool {
+pub(crate) fn allowed_name(name: &str) -> bool {
     name.len() <= 1024
         && !name.is_empty()
         && !name.chars().any(char::is_control)
@@ -419,6 +422,7 @@ fn compare(before: Snapshot, after: Snapshot, shared: bool) -> TurnReview {
             deletions: 0,
             binary,
             diff: None,
+            undone_at: None,
         };
         if !binary {
             let diff = similar::TextDiff::configure()
@@ -657,6 +661,7 @@ mod tests {
                 deletions: 1,
                 binary: false,
                 diff: Some("-before\n+after\n".into()),
+                undone_at: None,
             }],
             partial: false,
             shared_workspace: true,

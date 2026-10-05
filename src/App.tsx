@@ -8,6 +8,7 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Clock3, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
+import { TopToastStack } from "@/components/TopToastStack";
 import { WindowSnapToast } from "@/components/WindowSnapToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
@@ -71,6 +72,9 @@ export default function App() {
   const mainView = useAppStore((state) => state.mainView);
   const setMainView = useAppStore((state) => state.setMainView);
   const newSessionOpen = useAppStore((state) => state.newSessionOpen);
+  // Stays mounted after the first open so closing plays the dialog's exit.
+  const [newSessionMounted, setNewSessionMounted] = useState(false);
+  if (newSessionOpen && !newSessionMounted) setNewSessionMounted(true);
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
@@ -306,13 +310,15 @@ export default function App() {
 
         <CommandPalette commands={commands} />
         <Suspense fallback={null}>
-          {newSessionOpen ? <NewSessionDialog /> : null}
+          {newSessionMounted ? <NewSessionDialog /> : null}
           {settingsMounted ? <SettingsPage /> : null}
         </Suspense>
-        {!settingsOpen ? <ErrorToast /> : null}
-        {!settingsOpen ? <WindowSnapToast /> : null}
-        {!settingsOpen ? <ActivityNotifications /> : null}
-        {!settingsOpen ? <ProviderUpdateToast /> : null}
+        {!settingsOpen ? <TopToastStack>
+          <ErrorToast />
+          <WindowSnapToast />
+          <ActivityNotifications />
+          <ProviderUpdateToast />
+        </TopToastStack> : null}
       </div>
     </TooltipProvider>
     </MotionConfig>

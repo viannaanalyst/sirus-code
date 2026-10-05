@@ -1,6 +1,6 @@
 # ADR-042: Explicit queued requests follow native turn settlement
 
-**Status:** Accepted.
+**Status:** Accepted. Amended by [ADR-062](ADR-062-steer-running-replies.md): Codex/Claude replies can take queued text immediately ("Send now" or the steering setting)..
 
 ## Context
 

@@ -123,6 +123,7 @@ pub fn fork_snapshot(
     };
     Ok(Session {
         context_usage: None,
+        usage_limit: None,
         goal: source.goal.clone(),
         import_origin: None,
         handoff: None,
@@ -272,6 +273,7 @@ pub fn handoff_snapshot(
     }
     Ok(Session {
         context_usage: None,
+        usage_limit: None,
         goal: source.goal.clone(),
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -302,6 +304,39 @@ pub fn handoff_snapshot(
         team_worker: None,
         side_chat: None,
     })
+}
+
+/// Switching provider or model inside a session drops its native thread, so the
+/// next native turn would start blind. Arm a pending in-session handoff from the
+/// current transcript instead; the recap travels once with the next send. Text
+/// fallback providers already replay bounded history and need no recap. An
+/// unsent earlier recap keeps its original source provider.
+pub fn arm_in_session_handoff(session: &mut Session, previous: AgentProviderId) {
+    let native = matches!(
+        session.agent,
+        AgentProviderId::Codex | AgentProviderId::Claude | AgentProviderId::OpenCode
+    );
+    // Forks rebuild their whole history on the next native thread already.
+    if !native
+        || session.fork_origin.is_some()
+        || session.messages.iter().any(|message| message.streaming)
+    {
+        return;
+    }
+    let brief = handoff_brief(&session.messages);
+    if brief.is_empty() {
+        return;
+    }
+    let from = match &session.handoff {
+        Some(pending) if pending.pending => pending.from.clone(),
+        _ => previous,
+    };
+    session.handoff = Some(HandoffOrigin {
+        from,
+        brief,
+        request: handoff_request(&session.messages),
+        pending: true,
+    });
 }
 
 /// Wraps the first prompt of a pending handoff with its recap and consumes it.
@@ -495,6 +530,37 @@ mod tests {
         assert!(first.ends_with("</handoff>") && first.contains("\n\ncontinue\n\n"));
         assert!(handoff.handoff.is_none());
         assert_eq!(consume_handoff(&mut handoff, "next".into()), "next");
+    }
+
+    #[test]
+    fn switching_provider_in_a_session_carries_a_recap_into_the_next_native_turn() {
+        let mut session = source();
+        session.agent = AgentProviderId::Claude;
+        session.native_thread = None;
+        arm_in_session_handoff(&mut session, AgentProviderId::Codex);
+        let first = consume_handoff(&mut session, "continue".into());
+        assert!(first.contains("handed off from Codex") && first.contains("later answer"));
+        assert!(!first.contains("private diagnostic"));
+        assert_eq!(consume_handoff(&mut session, "next".into()), "next");
+
+        // A second switch before sending keeps the original source provider.
+        arm_in_session_handoff(&mut session, AgentProviderId::Codex);
+        session.agent = AgentProviderId::OpenCode;
+        arm_in_session_handoff(&mut session, AgentProviderId::Claude);
+        assert_eq!(
+            session.handoff.as_ref().unwrap().from,
+            AgentProviderId::Codex
+        );
+
+        // Text fallback providers already replay history; forks rebuild it.
+        let mut fallback = source();
+        fallback.agent = AgentProviderId::Cursor;
+        arm_in_session_handoff(&mut fallback, AgentProviderId::Codex);
+        assert!(fallback.handoff.is_none());
+        let mut fork = fork_snapshot(&source(), "answer", "new", "now", source().worktree).unwrap();
+        fork.agent = AgentProviderId::Claude;
+        arm_in_session_handoff(&mut fork, AgentProviderId::Codex);
+        assert!(fork.handoff.is_none());
     }
 
     #[test]

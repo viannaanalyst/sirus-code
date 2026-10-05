@@ -133,6 +133,18 @@ pub struct Message {
     pub streaming: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<crate::activity::TurnActivity>,
+    /// Instructions the person sent into this running reply (steering); `offset`
+    /// is the reply's UTF-16 length when each arrived, so it renders in place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub steers: Vec<Steer>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Steer {
+    pub text: String,
+    pub at: String,
+    pub offset: usize,
 }
 
 /// Exact vendor identity bound to the owning native session and validated workspace.
@@ -231,6 +243,15 @@ pub struct RespondAgentRequest {
     pub response: AgentResponse,
 }
 
+/// The provider refused the turn because the account's usage limit is spent.
+/// `resets_at` (UTC milliseconds) comes from the provider's own rate-limit report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageLimit {
+    #[serde(default)]
+    pub resets_at: Option<i64>,
+}
+
 /// Tokens the conversation occupies and the model's window, as the provider reports them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -260,6 +281,9 @@ pub struct Session {
     /// Latest context-window reading the provider reported (ADR-057); not inferred.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_usage: Option<ContextUsage>,
+    /// Set when the last turn hit the provider's usage limit; cleared by the next send.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage_limit: Option<UsageLimit>,
     pub id: String,
     pub title: String,
     pub project_id: String,
@@ -437,6 +461,8 @@ pub struct AppSettings {
     pub sidebar_usage_providers: Vec<AgentProviderId>,
     /// The sidebar shows the time-grouped Activity view instead of project folders.
     pub sidebar_activity_view: bool,
+    /// Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue.
+    pub steer_while_running: bool,
     /// Sessions marked Done in the Activity view and when; newer activity reopens them.
     pub done_sessions: Vec<DoneSession>,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
@@ -545,6 +571,7 @@ impl Default for AppSettings {
             usage_providers: vec![AgentProviderId::Codex],
             sidebar_usage_providers: Vec::new(),
             sidebar_activity_view: false,
+            steer_while_running: false,
             done_sessions: Vec::new(),
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),

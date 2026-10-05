@@ -3,6 +3,7 @@ import { AnimatePresence, motion, type Variants } from "motion/react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Dialog } from "@/components/arc/dialog/dialog";
 import { ErrorToast } from "@/components/ErrorToast";
+import { TopToastStack } from "@/components/TopToastStack";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { useTranslation } from "@/i18n/use-translation";
 import type { AgentProviderId } from "@/client/types";
@@ -98,7 +99,7 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
-      <ErrorToast />
+      <TopToastStack><ErrorToast /></TopToastStack>
       <ActivityNotifications />
     </DialogPrimitive.Content>
     </DialogPrimitive.Portal>

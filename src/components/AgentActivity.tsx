@@ -133,7 +133,8 @@ export function AgentActivity({ activity }: { activity: TurnActivity }) {
   const waiting = activity.status === "waiting";
   // An approval can wait for hours: its orbit only moves while someone can see it.
   const waitingMotion = waiting && !reduced && clock.visible && ambient;
-  const live = ticking && clock.visible && !reduced;
+  // A running turn can last minutes while the window sits in the background; its shimmer and pulses rest then.
+  const live = ticking && clock.visible && !reduced && ambient;
   const label = waiting ? "Waiting for your response" : activity.status === "starting" ? "Starting" : activity.status === "running" ? "Working" : activity.status === "completed" ? "Worked for" : activity.status === "failed" ? "status.failed" : "status.stopped";
   const items = activity.items;
   const hidden = view.all ? 0 : Math.max(0, items.length - VISIBLE_STEPS);
