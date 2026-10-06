@@ -3,5 +3,5 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/cn";
 export { Popover, PopoverAnchor, PopoverTrigger };
 export function PopoverContent({ className, ...props }: ComponentProps<typeof ArcPopoverContent>) {
-  return <ArcPopoverContent {...props} className={cn("z-50 min-w-48 p-1 ui-control text-text-primary", className)} />;
+  return <ArcPopoverContent {...props} className={cn("z-[80] min-w-48 p-1 ui-control text-text-primary", className)} />;
 }

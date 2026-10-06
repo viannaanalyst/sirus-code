@@ -19,7 +19,7 @@ try {
     Object.assign(initial, { sessions: [session], projects: [{ id: "p", name: "Fixture", path: "/fixture", addedAt: "time", lastOpenedAt: "time" }], selectedSessionId: "s", settings: { ...initial.settings, locale }, transcriptSearch: { scope: "session", query: "login", revision: 1 } });
     const html = renderToString(createElement(SessionPane, { session, agents: [], onSend: async () => false, onStop: () => {}, onNewSession: () => {} }));
     assert.ok(html.includes('role="search"'));
-    assert.ok(html.includes(locale === "pt-BR" ? "Todas as conversas" : "All conversations"));
+    assert.ok(html.includes(locale === "pt-BR" ? "Buscar na conversa" : "Find in conversation"));
     assert.ok(html.includes('data-search-start="0"') && html.includes('data-search-start="14"'), "prose and code matches have the same offsets as search navigation");
     assert.ok(html.includes("&lt;script&gt;") && !html.includes("<script>login</script>"));
     const historical = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m" }));

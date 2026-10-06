@@ -4,8 +4,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { GitFork, Search } from "@/components/icons/phosphor";
-import { IconButton } from "@/primitives/IconButton";
+import { GitFork } from "@/components/icons/phosphor";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -132,7 +131,6 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {astro && !passive ? <AstroHeader astro={astro} /> : null}
         {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
-        {!empty && !search && !passive ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
         {session?.lastError && !session.usageLimit ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
         {session?.forkOrigin ? <div className="mx-auto flex w-full max-w-[var(--chat-column-width)] items-center gap-2 px-3 pt-2 ui-caption text-text-muted"><GitFork aria-hidden="true" size={13} /><span>{t("Fork of {title}", { title: session.forkOrigin.sourceTitle })}</span>{source ? <InteractiveButton variant="toolbar" className="ml-auto shrink-0" onClick={() => jumpToMessage(source.id, session.forkOrigin!.sourceMessageId)}>{t("View original")}</InteractiveButton> : <span>{t("Original session removed")}</span>}</div> : null}
         {empty ? (
