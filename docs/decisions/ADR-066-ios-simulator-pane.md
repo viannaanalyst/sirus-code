@@ -13,7 +13,7 @@ Synara Beta shows a live, touchable iOS Simulator in its right dock, and agents 
 - The helper drives a booted simulator headless through CoreSimulator/SimulatorKit, which it `dlopen`s from the selected Xcode. It needs no Screen Recording or Accessibility permission.
 - `simulator.rs` embeds the sources and compiles them on first use with the person's own `xcrun clang`/`swiftc`, into app data keyed by Xcode build and source hash.
 - The helper speaks newline-delimited JSON-RPC on stdio: list, attach, stream, tap, swipe, key, text, button, screenshot and describe-ui.
-- It writes H.264 (Annex B) frames to a private 0600 Unix socket that `simulator.rs` listens on. Frames reach the renderer as `simulator-frame` events and are decoded there with WebCodecs. Frames arrive only when the screen changes.
+- It writes H.264 (Annex B) frames to a private 0600 Unix socket that `simulator.rs` listens on. Rust batches frames into `simulator-frame` events at most every 33 ms and drops queued deltas above 6 MiB until a codec config or keyframe arrives. The renderer gates frames by device and sequence, requires codec config plus a keyframe, and requests a stream restart after a late subscription, lost delta or decoder error. This bounds IPC traffic and recovers the WebCodecs decoder without waiting for the next periodic keyframe. Frames arrive only when the screen changes.
 
 **Pane.** The dock gains a Simulator pane:
 

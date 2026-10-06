@@ -856,4 +856,4 @@ export type SimulatorAction =
   | { type: "swipe"; startX: number; startY: number; endX: number; endY: number }
   | { type: "key"; usage: number; phase?: "down" | "up" } | { type: "text"; text: string }
   | { type: "button"; name: "home" | "lock" | "volume-up" | "volume-down" }
-  | { type: "screenshot" } | { type: "record"; start: boolean } | { type: "shutdown"; udid: string; confirm: true };
+  | { type: "screenshot" } | { type: "resync" } | { type: "record"; start: boolean } | { type: "shutdown"; udid: string; confirm: true };

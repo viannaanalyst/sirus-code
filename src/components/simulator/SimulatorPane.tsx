@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { useAppStore } from "@/store/app-store";
 import { DeviceScreen } from "./DeviceFrame";
+import { createFrameGateState, stepFrameGate } from "./frame-gate";
 import "@/styles/simulator.css";
 
 /** USB HID usages for keys the pane forwards (printable text goes through `text`). */
@@ -37,12 +38,40 @@ function bytes(data: string) {
 /** Decodes the helper's Annex-B H.264 frames into the canvas with WebCodecs. */
 function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, udid: string | null) {
   const [live, setLive] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
   useEffect(() => {
-    if (!udid || typeof VideoDecoder !== "function") return;
+    if (!udid) { setLive(false); setVideoError(null); return; }
+    if (typeof VideoDecoder !== "function" || typeof EncodedVideoChunk !== "function") {
+      setLive(false);
+      setVideoError("This WebView does not support H.264 WebCodecs.");
+      return;
+    }
     let decoder: VideoDecoder | null = null;
     let parameters: Uint8Array | null = null;
     let disposed = false;
     let timestamp = 0;
+    let gate = createFrameGateState();
+    let lastResync = 0;
+    const resync = () => {
+      if (Date.now() - lastResync < 1000) return;
+      lastResync = Date.now();
+      void client.simulatorAction({ type: "resync" }).catch(() => undefined);
+    };
+    const teardown = () => {
+      parameters = null;
+      if (!decoder) return;
+      const current = decoder;
+      decoder = null;
+      try { if (current.state !== "closed") current.close(); } catch { /* already errored */ }
+    };
+    const fail = (reason: unknown) => {
+      if (disposed) return;
+      teardown();
+      gate = createFrameGateState();
+      setLive(false);
+      setVideoError(reason instanceof Error ? reason.message : "The simulator video decoder failed.");
+      resync();
+    };
     const paint = (frame: VideoFrame) => {
       try {
         const target = canvas.current;
@@ -50,42 +79,58 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
         if (target.width !== frame.displayWidth || target.height !== frame.displayHeight) { target.width = frame.displayWidth; target.height = frame.displayHeight; }
         target.getContext("2d")?.drawImage(frame, 0, 0);
         setLive(true);
+        setVideoError(null);
       } finally { frame.close(); }
     };
+    setLive(false);
+    setVideoError(null);
     const onFrame = (frame: SimulatorFrame) => {
-      if (disposed || frame.udid !== udid) return;
-      const payload = bytes(frame.data);
-      if (frame.config) {
+      if (disposed) return;
+      const step = stepFrameGate(gate, frame, udid);
+      gate = step.state;
+      if (step.requestKeyframe) resync();
+      if (step.action.kind === "ignore" || step.action.kind === "drop") return;
+      let payload: Uint8Array;
+      try { payload = bytes(frame.data); } catch (reason) { fail(reason); return; }
+      if (step.action.kind === "configure") {
         const codec = codecFor(payload);
-        if (!codec) return;
-        if (!decoder || decoder.state === "closed") {
-          decoder = new VideoDecoder({ output: paint, error: () => { decoder = null; } });
-        }
-        if (decoder.state === "unconfigured") decoder.configure({ codec, optimizeForLatency: true });
+        if (!codec) { fail(new Error("The simulator stream sent invalid H.264 parameters.")); return; }
+        teardown();
+        decoder = new VideoDecoder({ output: paint, error: fail });
+        try { decoder.configure({ codec, optimizeForLatency: true }); }
+        catch (reason) { fail(reason); return; }
         parameters = payload;
         return;
       }
       if (!decoder || decoder.state !== "configured") return;
-      if (!frame.keyframe && decoder.decodeQueueSize > 3) return;
+      const keyframe = step.action.keyframe;
+      if (!keyframe && decoder.decodeQueueSize > 8) {
+        gate = { phase: "awaiting-keyframe", lastSequence: frame.sequence };
+        resync();
+        return;
+      }
       let data = payload;
-      if (frame.keyframe && parameters) {
+      if (keyframe && parameters) {
         data = new Uint8Array(parameters.length + payload.length);
         data.set(parameters);
         data.set(payload, parameters.length);
         parameters = null;
       }
       timestamp += 16_000;
-      try { decoder.decode(new EncodedVideoChunk({ type: frame.keyframe ? "key" : "delta", timestamp, data })); } catch { /* wait for the next keyframe */ }
+      try { decoder.decode(new EncodedVideoChunk({ type: keyframe ? "key" : "delta", timestamp, data })); }
+      catch (reason) { fail(reason); }
     };
-    const pending = client.onSimulatorFrame(onFrame);
+    const pending = client.onSimulatorFrames((frames) => { for (const frame of frames) onFrame(frame); });
+    // The first keyframe may have gone out before this listener existed; ask for a fresh one.
+    void pending.then(() => { if (!disposed) resync(); });
     return () => {
       disposed = true;
       setLive(false);
       void pending.then((stop) => stop());
-      try { decoder?.close(); } catch { /* already closed */ }
+      teardown();
     };
   }, [canvas, udid]);
-  return live;
+  return { live, videoError };
 }
 
 /** iOS Simulator pane (ADR-066): a live, touchable device the agent can also drive. */
@@ -99,7 +144,7 @@ export function SimulatorPane({ paneId }: { paneId: string }) {
   const [landscape, setLandscape] = useState(false);
   const [confirmShutdown, setConfirmShutdown] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const live = useSimulatorVideo(canvas, attached?.udid ?? null);
+  const { live, videoError } = useSimulatorVideo(canvas, attached?.udid ?? null);
   const fail = (reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) });
 
   const refresh = async () => {
@@ -162,12 +207,12 @@ export function SimulatorPane({ paneId }: { paneId: string }) {
   };
 
   const label = attached?.name ?? t("simulator.choose");
-  const message = available === false ? t("simulator.needsXcode")
+  const message = videoError ?? (available === false ? t("simulator.needsXcode")
     : busy === "preparing" ? t("simulator.preparing")
     : busy === "booting" ? t("simulator.booting")
     : busy === "attaching" ? t("simulator.connecting")
     : !attached ? t("simulator.chooseHint")
-    : !live ? t("simulator.waiting") : null;
+    : !live ? t("simulator.waiting") : null);
 
   return <div className="simulator-pane">
     <div className="simulator-header">

@@ -579,8 +579,9 @@ export class SwitchyardClient {
     return this.transport.invoke<T>("simulator_action", { action });
   }
 
-  onSimulatorFrame(handler: (frame: import("./types").SimulatorFrame) => void) {
-    return this.transport.listen<import("./types").SimulatorFrame>("simulator-frame", handler);
+  /** Frames arrive in small batches (at most ~30 events per second). */
+  onSimulatorFrames(handler: (frames: import("./types").SimulatorFrame[]) => void) {
+    return this.transport.listen<{ frames: import("./types").SimulatorFrame[] }>("simulator-frame", (event) => handler(event.frames ?? []));
   }
 
   onSimulatorState(handler: (state: { attached: import("./types").SimulatorAttached | null }) => void) {

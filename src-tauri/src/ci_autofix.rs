@@ -169,15 +169,21 @@ fn now() -> String {
 
 /// A settled turn may belong to a fix in progress; finish it promptly.
 pub fn settled(state: &Arc<AppState>, session_id: &str) {
-    let fixing = state
-        .data
-        .lock()
-        .ci_auto_fix
-        .iter()
-        .any(|item| item.session_id == session_id && item.status == Status::Fixing);
-    if fixing {
-        wake();
-    }
+    // Callers may still hold `state.data` (the mutex is not reentrant), so the
+    // check runs on its own task, like `team::settled`.
+    let state = state.clone();
+    let session_id = session_id.to_owned();
+    tauri::async_runtime::spawn(async move {
+        let fixing = state
+            .data
+            .lock()
+            .ci_auto_fix
+            .iter()
+            .any(|item| item.session_id == session_id && item.status == Status::Fixing);
+        if fixing {
+            wake();
+        }
+    });
 }
 
 /// Drops states of removed sessions and keeps the list bounded.

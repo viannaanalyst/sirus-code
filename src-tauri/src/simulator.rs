@@ -40,6 +40,10 @@ const BOOT_SETTLE: Duration = Duration::from_secs(8);
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(10 * 60);
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_FRAME: usize = 16 * 1024 * 1024;
+/// Renderer frame batches: at most one event per interval (~30 per second).
+const FRAME_BATCH: Duration = Duration::from_millis(33);
+/// Encoded bytes a batch may hold before deltas are dropped until a keyframe.
+const MAX_BATCH_BYTES: usize = 6 * 1024 * 1024;
 const MAX_TEXT: usize = 2_000;
 pub const FRAME_EVENT: &str = "simulator-frame";
 pub const STATE_EVENT: &str = "simulator-state";
@@ -573,7 +577,16 @@ fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> 
         let _ = std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600));
     }
     let owner = sim.clone();
-    let task = tauri::async_runtime::spawn(async move {
+    // Frames are read as fast as the helper writes them but reach the renderer in
+    // batches, at most one event per FRAME_BATCH, so a busy screen cannot flood
+    // the webview's IPC queue. If a batch grows past MAX_BATCH_BYTES the deltas
+    // are dropped until the next keyframe, which redraws the whole screen.
+    let pending: Arc<parking_lot::Mutex<(Vec<Value>, usize, bool)>> = Default::default();
+    let reader_pending = pending.clone();
+    let reader_owner = owner.clone();
+    let done = Arc::new(AtomicBool::new(false));
+    let reader_done = done.clone();
+    let reader = tauri::async_runtime::spawn(async move {
         let Ok((mut stream, _)) = listener.accept().await else {
             return;
         };
@@ -587,33 +600,93 @@ fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> 
             if stream.read_exact(&mut envelope).await.is_err() {
                 break;
             }
-            if owner.generation.load(Ordering::Acquire) != generation {
+            if reader_owner.generation.load(Ordering::Acquire) != generation {
                 break;
             }
             if u16::from_le_bytes([envelope[0], envelope[1]]) != 0x5346 {
                 continue;
             }
             let flags = envelope[3];
+            let (keyframe, config) = (flags & 1 != 0, flags & 2 != 0);
             let sequence = u32::from_le_bytes([envelope[4], envelope[5], envelope[6], envelope[7]]);
             let id_length = envelope[16] as usize;
             let Some(payload) = envelope.get(17 + id_length..) else {
                 continue;
             };
             let udid = String::from_utf8_lossy(&envelope[17..17 + id_length]).to_string();
-            let _ = owner.app.emit(
-                FRAME_EVENT,
-                json!({
-                    "udid": udid,
-                    "sequence": sequence,
-                    "keyframe": flags & 1 != 0,
-                    "config": flags & 2 != 0,
-                    "data": base64::engine::general_purpose::STANDARD.encode(payload),
-                }),
-            );
+            let mut slot = reader_pending.lock();
+            let (frames, bytes, waiting_key) = &mut *slot;
+            if config || keyframe {
+                *waiting_key = false;
+            } else if *waiting_key {
+                continue;
+            }
+            if !config && !keyframe && *bytes + payload.len() > MAX_BATCH_BYTES {
+                // The renderer is behind: drop deltas until a keyframe resets the picture.
+                *waiting_key = true;
+                continue;
+            }
+            *bytes += payload.len();
+            frames.push(json!({
+                "udid": udid,
+                "sequence": sequence,
+                "keyframe": keyframe,
+                "config": config,
+                "data": base64::engine::general_purpose::STANDARD.encode(payload),
+            }));
         }
+        reader_done.store(true, Ordering::Release);
+    });
+    let task = tauri::async_runtime::spawn(async move {
+        let mut tick = tokio::time::interval(FRAME_BATCH);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tick.tick().await;
+            if owner.generation.load(Ordering::Acquire) != generation
+                || done.load(Ordering::Acquire)
+            {
+                break;
+            }
+            let frames = {
+                let mut slot = pending.lock();
+                slot.1 = 0;
+                std::mem::take(&mut slot.0)
+            };
+            if !frames.is_empty() {
+                let _ = owner.app.emit(FRAME_EVENT, json!({ "frames": frames }));
+            }
+        }
+        reader.abort();
     });
     *sim.stream.lock() = Some(task);
     Ok(())
+}
+
+/// Opens a fresh frame socket and starts the helper stream (codec parameters and a keyframe first).
+async fn start_stream(sim: &Arc<Sim>) -> Result<Value> {
+    let generation = sim.generation.fetch_add(1, Ordering::AcqRel) + 1;
+    std::fs::create_dir_all(&sim.dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&sim.dir, std::fs::Permissions::from_mode(0o700));
+    }
+    let socket = sim.dir.join("frames.sock");
+    start_frames(sim, socket.clone(), generation)?;
+    call(
+        sim,
+        "stream.start",
+        json!({ "socketPath": socket.to_string_lossy(), "keyframeIntervalSeconds": 2.0 }),
+        CALL_TIMEOUT,
+    )
+    .await
+}
+
+/// A renderer that subscribed late asks for a fresh keyframe by restarting the stream.
+async fn restart_stream(sim: &Arc<Sim>) -> Result<()> {
+    sim.generation.fetch_add(1, Ordering::AcqRel);
+    stop_stream(sim).await;
+    start_stream(sim).await.map(|_| ())
 }
 
 async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
@@ -639,22 +712,7 @@ async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
         Duration::from_secs(60),
     )
     .await?;
-    let generation = sim.generation.fetch_add(1, Ordering::AcqRel) + 1;
-    std::fs::create_dir_all(&sim.dir)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&sim.dir, std::fs::Permissions::from_mode(0o700));
-    }
-    let socket = sim.dir.join("frames.sock");
-    start_frames(sim, socket.clone(), generation)?;
-    let started = call(
-        sim,
-        "stream.start",
-        json!({ "socketPath": socket.to_string_lossy(), "keyframeIntervalSeconds": 2.0 }),
-        CALL_TIMEOUT,
-    )
-    .await?;
+    let started = start_stream(sim).await?;
     let list = devices(sim).await.unwrap_or_default();
     let device = list.iter().find(|device| device.udid == udid);
     let attached = Attached {
@@ -737,6 +795,26 @@ fn attached_udid(sim: &Sim) -> Result<String> {
         .ok_or_else(|| Error::new("not_attached", "Choose a simulator first."))
 }
 
+/// Devices drawn with a physical Home button; every other iPhone/iPad goes home
+/// by swiping up from the bottom edge, which the HID Home usage does not do.
+fn has_home_button(name: &str) -> bool {
+    name.contains("iPhone SE") || name.contains("iPhone 8") || name.contains("(9th generation)")
+}
+
+async fn press_button(sim: &Sim, name: &str) -> Result<Value> {
+    let device = sim.attached.lock().as_ref().map(|item| item.name.clone());
+    match device {
+        Some(device) if name == "home" && !has_home_button(&device) => call(
+            sim,
+            "swipe",
+            json!({ "startX": 0.5, "startY": 0.995, "endX": 0.5, "endY": 0.6, "durationMs": 120 }),
+            CALL_TIMEOUT,
+        )
+        .await,
+        _ => call(sim, "button", json!({ "name": name }), CALL_TIMEOUT).await,
+    }
+}
+
 async fn save_dialog(app: &AppHandle, name: &str, extension: &str) -> Option<PathBuf> {
     use tauri_plugin_dialog::DialogExt;
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -789,6 +867,8 @@ pub enum Action {
         name: String,
     },
     Screenshot {},
+    /// Restarts the stream so the renderer gets codec parameters and a keyframe.
+    Resync {},
     Record {
         start: bool,
     },
@@ -846,7 +926,12 @@ pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
             if !matches!(name.as_str(), "home" | "lock" | "side" | "siri" | "volume-up" | "volume-down") {
                 return Err(Error::new("invalid", "Unknown button."));
             }
-            call(&sim, "button", json!({ "name": name }), CALL_TIMEOUT).await
+            press_button(&sim, &name).await
+        }
+        Action::Resync {} => {
+            attached_udid(&sim)?;
+            restart_stream(&sim).await?;
+            Ok(json!({ "resynced": true }))
         }
         Action::Screenshot {} => {
             attached_udid(&sim)?;
@@ -1040,7 +1125,7 @@ pub async fn execute(
                 if !matches!(name.as_str(), "home" | "lock" | "volume-up" | "volume-down") {
                     return Err(Error::new("invalid", "Unknown button."));
                 }
-                call(&sim, "button", json!({ "name": name }), CALL_TIMEOUT).await
+                press_button(&sim, &name).await
             }
             _ => Err(Error::new("invalid", "unknown simulator tool")),
         }
@@ -1055,6 +1140,10 @@ mod tests {
 
     #[test]
     fn udids_coordinates_and_runtimes_are_strict() {
+        assert!(has_home_button("iPhone SE (3rd generation)"));
+        assert!(has_home_button("iPad (9th generation)"));
+        assert!(!has_home_button("iPhone 17 Pro"));
+        assert!(!has_home_button("iPad Pro 13-inch (M5)"));
         assert!(valid_udid("7997560A-87D6-47E3-A221-5078A0D241DF"));
         assert!(!valid_udid("7997560A-87D6-47E3-A221-5078A0D241D"));
         assert!(!valid_udid("../../etc/passwd-0000-0000-000000000000"));

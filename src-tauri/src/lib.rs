@@ -112,6 +112,32 @@ pub fn run() {
                 app_dir
             };
             std::fs::create_dir_all(&app_dir)?;
+            {
+                // Keep a small crash breadcrumb without persisting panic payloads
+                // or source paths, which may contain private user data.
+                let log = app_dir.join("panic.log");
+                let previous = std::panic::take_hook();
+                std::panic::set_hook(Box::new(move |info| {
+                    use std::io::Write;
+                    if let Ok(mut file) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&log)
+                    {
+                        let line = info.location().map(|at| at.line()).unwrap_or_default();
+                        let thread = std::thread::current()
+                            .name()
+                            .unwrap_or("unnamed")
+                            .to_string();
+                        let _ = writeln!(
+                            file,
+                            "{} [{thread}] panic at source line {line}",
+                            chrono::Utc::now().to_rfc3339(),
+                        );
+                    }
+                    previous(info);
+                }));
+            }
             let data_path = app_dir.join("state.json");
             browser_mcp::init(app.handle().clone(), app_dir.clone());
             simulator::init(app.handle().clone(), &app_dir);
