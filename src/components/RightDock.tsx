@@ -11,6 +11,7 @@ import {
   Minimize2,
   PanelRightClose,
   Plus,
+  Smartphone,
   SquareTerminal,
   X,
 } from "@/components/icons/phosphor";
@@ -34,6 +35,7 @@ const TerminalTabsPane = lazy(async () => {
   return { default: module.TerminalTabsPane };
 });
 
+const SimulatorPane = lazy(async () => ({ default: (await import("@/components/simulator/SimulatorPane")).SimulatorPane }));
 const EditorPane = lazy(async () => {
   const module = await import("@/components/EditorPane");
   return { default: module.EditorPane };
@@ -57,9 +59,10 @@ const paneMeta: Record<DockPaneKind, { label: string; icon: typeof Files }> = {
   review: { label: "review.title", icon: GitCompareArrows },
   document: { label: "reader.title", icon: FileText },
   sidechat: { label: "sideChat.title", icon: MessagesSquare },
+  simulator: { label: "simulator.title", icon: Smartphone },
 };
 
-const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser", "sidechat"];
+const launcher: DockPaneKind[] = ["terminal", "files", "changes", "browser", "sidechat", "simulator"];
 
 export function RightDock() {
   const t = useTranslation();
@@ -187,6 +190,10 @@ export function RightDock() {
               </Suspense>
             ) : active.kind === "browser" ? (
               <BrowserPanel key={session.id} sessionId={session.id} />
+            ) : active.kind === "simulator" ? (
+              <Suspense fallback={<p className="px-3 py-6 ui-control text-text-muted">{t("common.loading")}</p>}>
+                <SimulatorPane paneId={active.id} />
+              </Suspense>
             ) : active.kind === "sidechat" && active.sessionId ? (
               <SideChatPane key={active.sessionId} parentSessionId={active.sessionId} paneId={active.id} />
             ) : null}

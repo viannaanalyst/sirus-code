@@ -266,6 +266,12 @@ fn execute(
     if !session_owned(app, session_id) {
         return Err("this session no longer exists".into());
     }
+    if tool.starts_with("simulator_") {
+        // The same per-session bridge serves the iOS Simulator tools (ADR-066).
+        return tauri::async_runtime::block_on(crate::simulator::execute(
+            app, session_id, tool, args,
+        ));
+    }
     match tool {
         "browser_status" | "browser_tabs" => browser::mcp_status(app, session_id)
             .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
@@ -395,6 +401,9 @@ fn tool_definitions() -> Vec<Value> {
         json!({ "name": "browser_logs", "description": "Bounded console/error log buffer; optionally clear it.", "inputSchema": { "type": "object", "properties": { "clear": { "type": "boolean" } } } }),
         json!({ "name": "browser_close", "description": "Close all tabs of the session browser.", "inputSchema": { "type": "object", "properties": {} } }),
     ]
+    .into_iter()
+    .chain(crate::simulator::tool_definitions())
+    .collect()
 }
 
 /// Child mode: MCP over stdio, tool calls forwarded to the app socket.
@@ -417,9 +426,11 @@ mod tests {
         let tools = tool_definitions();
         assert!(tools.len() >= 14);
         for tool in &tools {
-            assert!(tool["name"]
-                .as_str()
-                .is_some_and(|name| name.starts_with("browser_")));
+            assert!(
+                tool["name"].as_str().is_some_and(
+                    |name| name.starts_with("browser_") || name.starts_with("simulator_")
+                )
+            );
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));

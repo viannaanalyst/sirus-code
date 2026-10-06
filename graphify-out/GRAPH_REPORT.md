@@ -1,27 +1,27 @@
 # Graph Report - switchyard  (2026-10-05)
 
 ## Corpus Check
-- 680 files · ~827,860 words
+- 696 files · ~848,505 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 158 file(s) not represented in the graph (top: .css 137, (none) 19, .csv 1)
+- Unclassified: 161 file(s) not represented in the graph (top: .css 138, (none) 20, .csv 1)
 
 ## Summary
-- 7930 nodes · 19541 edges · 372 communities (315 shown, 57 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 385 edges (avg confidence: 0.86)
+- 8265 nodes · 20352 edges · 376 communities (323 shown, 53 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 396 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0bbfe81e`
+- Built from commit: `e22b967e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - claude.rs
-- react
+- SidebarRows.tsx
 - dictation.rs
 - package.json
 - SwitchyardClient
-- AutomationsPage.tsx
+- String
 - models.rs
 - pull_requests.rs
 - useTranslation
@@ -41,21 +41,21 @@
 - Local state.json persistence
 - No npm test or ESLint yet
 - switchyard
-- KeybindingsSettings.tsx
+- provider_usage_http.rs
 - signature-pad.tsx
 - date-range-picker.tsx
 - ref_node_assert
 - ci_autofix.rs
 - SOURCES.md
 - github_inbox.rs
-- cn
+- FrameStream
 - asText
 - models/SOURCES.md
 - computer_mcp.rs
 - Overnight progress
 - number-field.tsx
 - devDependencies
-- useArcReducedMotion
+- billing-toggle.tsx
 - scripts
 - tsconfig.tests.json
 - activity.rs
@@ -73,7 +73,7 @@
 - resizable-panels.tsx
 - calendar.tsx
 - chat-thread.tsx
-- commands.rs
+- fork_fixture
 - copy-button.tsx
 - file-dropzone.tsx
 - filter-toolbar.tsx
@@ -104,12 +104,12 @@
 - phosphor.tsx
 - expanding-search.tsx
 - Detail
-- .listen
+- HelperCapability
 - Compact sidebar and session Kanban (2026-10-01)
-- project_look.rs
+- simulator.rs
 - tree-view.tsx
 - pty_term.rs
-- previews.tsx
+- motion
 - window_snap.rs
 - alert.tsx
 - waffle-chart.tsx
@@ -122,8 +122,8 @@
 - slope-chart.tsx
 - hold-to-confirm.tsx
 - provider_usage.rs
-- Result
-- gauge.tsx
+- browser.rs
+- useArcReducedMotion
 - attachment_platform.rs
 - sparkline.tsx
 - password-strength.tsx
@@ -145,7 +145,7 @@
 - automations.rs
 - tauri.local.conf.json
 - timeout
-- Switchyard
+- SimulatorError
 - agent_output.rs
 - App.tsx
 - window_attachment.rs
@@ -153,17 +153,17 @@
 - Authenticated Cursor / OpenCode Go quotas and account identity (2026-10-01)
 - AppState
 - Message
-- Session
+- client/index.ts
 - Composer capability correction (2026-10-01)
 - EnvironmentPanel.tsx
 - Composer bottom anchor and CLI usage footer (2026-10-01)
 - Composer execution integration (2026-10-01)
 - Usage popup identity, motion and further provider research (2026-10-01)
-- split-layout.ts
+- SplitWorkspace.tsx
 - model-brand.ts
 - notifications.rs
 - drafts.rs
-- document_preview.rs
+- ChatMarkdown.tsx
 - provider_accounts.rs
 - provider_updates.rs
 - slot-text.tsx
@@ -183,7 +183,7 @@
 - Assistant footer, transcript forks and message pins (2026-10-01)
 - ComposerAddMenu.tsx
 - Appearance settings implementation
-- ref_node_test
+- use-composer-suggestions.ts
 - effects.ts
 - decisions/README.md
 - radio-cards.tsx
@@ -191,7 +191,7 @@
 - types.ts
 - Synara turn review and checkpoint revert
 - cli_output.rs
-- workspace-tools.tsx
+- workspace-tools-git.ts
 - ADR-020: Provider CLI update checks and explicit npm updates
 - side_chat.rs
 - ADR-023: Composer dictation through the Web Speech API
@@ -203,7 +203,7 @@
 - 2026-10-02-theme-materials.md
 - 2026-10-01-provider-branding-and-catalog.md
 - text-shimmer.tsx
-- spreadsheet
+- document_preview.rs
 - dictationevent
 - tasks.rs
 - ADR-037: Composer skill and workspace filename suggestions
@@ -218,30 +218,30 @@
 - AgentComposer.tsx
 - draft-activity/preview.js
 - build
-- lib.rs
+- transcript.rs
 - ADR-030: Browser tools for agents over a local MCP bridge
 - agent.rs
 - TasksPage.tsx
-- error.rs
+- fs_tree.rs
 - ADR-034: Native session notifications and closed sound controls
 - Pull Request and Checks Implementation Plan
-- ADR-048: Transcripts load on demand in the renderer
-- use-browser-bounds.ts
+- SwitchyardHIDBridge
+- TeamPanel.tsx
 - ambient-motion.ts
 - sidebar/tsconfig.json
 - ADR-028: Turn-level handoff to another provider
 - sidebar-motion/README.md
 - Global constraints
 - Sidebar studies
-- start
+- AgentActivity.tsx
 - Environment Context Implementation Plan
 - CC0 1.0 Universal
-- create_session_locked
+- ResizablePanels
 - social/SOURCES.md
-- BrowserManager
+- RichTextEditor
 - commit_title.rs
-- browser.rs
-- PullRequestDetail.tsx
+- FrameStream.swift
+- github-inbox.ts
 - persist.rs
 - Session notifications implementation plan
 - changes-review/tsconfig.json
@@ -249,7 +249,7 @@
 - ref_node_fs
 - demo-ipc.js
 - ADR-036: Native-owned skill discovery and explicit portable invocations
-- in-view-title.tsx
+- accordion.tsx
 - Option
 - 2026-10-02-agent-skills.md
 - diagnostics.rs
@@ -261,7 +261,7 @@
 - sidebar-synara/README.md
 - ToastStack
 - super
-- .new
+- Error
 - UI Arc integration
 - commit-title.test.ts
 - ADR-031: Branch-owned read-only pull requests and checks
@@ -270,7 +270,7 @@
 - worktree.rs
 - local_servers.rs
 - Editor repair and turn review previews
-- ADR-019-header-environment-dock-and-editors.md
+- General settings: Synara reference map
 - context-menu.tsx
 - 2026-10-02-keybindings-popup-previews.md
 - popup-themes/README.md
@@ -279,20 +279,20 @@
 - String
 - expandable-card.tsx
 - 2026-10-02-transcript-and-sidebar-layout.md
-- RichTextEditor
+- tidy
 - ADR-038: App-owned computer use with per-app approval
 - time-picker.tsx
 - createToastStore
 - pull_request_action
 - O que deixar para depois e quais efeitos colaterais importam?
-- Cited Findings
-- ADR-047: Per-session transcript files with content-addressed writes
+- O que existe hoje e onde há lacunas?
+- DeviceFrame.tsx
 - chat-markdown.ts
-- ADR-016: Native-owned transcript forks and message bookmarks
+- progress.tsx
 - changes-review/main.tsx
 - 2026-10-02-turn-change-review.md
-- Embedded Browser Phases 2–3 Implementation Plan (executed)
-- composer-metal.ts
+- verify-document-reader.mjs
+- SortableDataTable
 - ADR-056: Second opinion
 - BrowserPanel
 - Sidebar rail implementation plan
@@ -306,7 +306,7 @@
 - App
 - ADR-008: Rust owns Session execution and transcript state
 - Provider usage footer
-- session_export.rs
+- tauri
 - sidebar-icons.tsx
 - ADR-030: Owner-bound Environment references and bookmark navigation
 - ADR-058: Mermaid diagrams
@@ -330,13 +330,13 @@
 - ADR-018: Native file snapshots and explicit clipboard attachments
 - ADR-064: CI auto-fix
 - AgentProviderId
-- ArcComponentExplorer.tsx
+- previews.tsx
 - ADR-054: Global window snap
 - AppData
 - measure-idle.sh
-- goals.rs
+- RPCErrorCode
 - ADR-010: Claude approvals use native stream-json and exact resume
-- CommentThread
+- Findings
 - 2026-10-02-agent-activity.md
 - ADR-052: Inbox, Tasks and a customizable rail
 - ADR-050: Review inbox for pull requests and issues
@@ -357,7 +357,7 @@
 - ADR-040: Bounded native turn change reviews
 - automations-strings.ts
 - profile-settings-synara-map.md
-- create_workspace_entry
+- MarkdownPreview
 - Message
 - convertBlock
 - workspace-pages-strings.ts
@@ -370,31 +370,35 @@
 - FileChange
 - ADR-059: Project folder colour, emoji and logo
 - split-strings.ts
-- isCancelledTitle
-- ADR-014: Scoped authenticated quota reads and account identity
+- ADR-066: iOS Simulator pane
+- Evolua o Switchyard fechando ciclos reais
 - .validate_controls
 - sidebar-usage-strings.ts
-- scanLocalServers
+- ADR-022: Explicit branch listing, switch and creation from the new-thread landing
 - LucideIcon
+- ADR-029: Sidebar organization as owner-validated settings
 - ADR-060: Composer app commands and conversation export
 - ADR-063: Usage-limit notice and resume at reset
-- ADR-015: Isolated provider accounts with session profile binding
+- app-splash.ts
+- prompt-context.ts
+- ADR-019: Header environment card, right dock and workspace editors
+- General Settings Implementation Plan
 - computer-strings.ts
 - src_assets_social_reddit
 - src_assets_social_x
 - src_styles_profile
 
 ## God Nodes (most connected - your core abstractions)
-1. `useAppStore` - 252 edges
-2. `react` - 242 edges
-3. `useTranslation()` - 241 edges
+1. `useAppStore` - 258 edges
+2. `useTranslation()` - 246 edges
+3. `react` - 244 edges
 4. `useArcReducedMotion()` - 213 edges
 5. `AppState` - 185 edges
-6. `SwitchyardClient` - 136 edges
+6. `SwitchyardClient` - 140 edges
 7. `motion` - 108 edges
-8. `cn()` - 103 edges
+8. `cn()` - 104 edges
 9. `motionTokens` - 96 edges
-10. `formatUnknownError()` - 72 edges
+10. `formatUnknownError()` - 74 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Index` --references--> `AgentProviderId`  [INFERRED]
@@ -415,27 +419,27 @@
 ## Hyperedges (group relationships)
 - **Untrusted UI vs privileged Rust core** — docs_decisions_adr_002_client_transport_boundary_switchyardclient, docs_decisions_adr_007_pty_is_user_shell_only_pty_shell, docs_decisions_adr_003_cli_agent_providers_least_privilege, docs_decisions_adr_004_git_argv_no_destructive_defaults_git_argv [INFERRED 0.85]
 
-## Communities (372 total, 57 thin omitted)
+## Communities (376 total, 53 thin omitted)
 
 ### Community 0 - "claude.rs"
-Cohesion: 0.09
-Nodes (42): ActivityItem, context_usage(), deny(), epoch_ms(), exact_resume_refuses_foreign_bindings(), execute(), host_response_is_bound_consumed_once_and_echoes_only_native_input(), id() (+34 more)
+Cohesion: 0.10
+Nodes (38): context_usage(), deny(), epoch_ms(), exact_resume_refuses_foreign_bindings(), execute(), host_response_is_bound_consumed_once_and_echoes_only_native_input(), id(), live_claude_declines_native_write() (+30 more)
 
-### Community 1 - "react"
-Cohesion: 0.04
-Nodes (108): Constraints, General Settings Implementation Plan, Tasks, Verification, Tasks, @phosphor-icons/react, @radix-ui/react-popover, react (+100 more)
+### Community 1 - "SidebarRows.tsx"
+Cohesion: 0.05
+Nodes (76): Tasks, Tasks, @phosphor-icons/react, Cited Findings, Project, Session, Input, FolderHero() (+68 more)
 
 ### Community 2 - "dictation.rs"
-Cohesion: 0.06
-Nodes (77): anythread, arc, atomic, AVAudioEngine, AVAudioFile, bool, duration, Into (+69 more)
+Cohesion: 0.09
+Nodes (39): anythread, arc, atomic, AVAudioEngine, AVAudioFile, bool, duration, mpsc (+31 more)
 
 ### Community 3 - "package.json"
-Cohesion: 0.04
-Nodes (57): engines, node, name, private, type, version, clsx, codemirror (+49 more)
+Cohesion: 0.05
+Nodes (49): engines, node, name, private, type, version, clsx, codemirror (+41 more)
 
-### Community 5 - "AutomationsPage.tsx"
-Cohesion: 0.15
-Nodes (20): AutomationsPage, AutomationInput, AutomationRun, AutomationSchedule, defaultOnce(), Kind, KINDS, AutomationDetail() (+12 more)
+### Community 5 - "String"
+Cohesion: 0.14
+Nodes (22): Int, Never, emitPayloadAndExit(), handle(), handleLine(), HelperSession, logDiagnostic(), Params (+14 more)
 
 ### Community 6 - "models.rs"
 Cohesion: 0.12
@@ -447,7 +451,7 @@ Nodes (44): PullRequestCheck, api(), apply_runs(), apply_statuses(), check_link(
 
 ### Community 8 - "useTranslation"
 Cohesion: 0.04
-Nodes (92): Decision, General preferences and Orbit switches, ActivityNotification, AppearanceSupport, AppSettings, HostInfo, MonoFontId, NotificationAction (+84 more)
+Nodes (101): Decision, General preferences and Orbit switches, @radix-ui/react-dialog, react, SessionBoard, AgentInstall, AppSettings, HostInfo (+93 more)
 
 ### Community 9 - "dependencies"
 Cohesion: 0.04
@@ -463,11 +467,11 @@ Nodes (19): app, macOSPrivateApi, security, windows, build, beforeBuildCommand, 
 
 ### Community 12 - "git.rs"
 Cohesion: 0.05
-Nodes (115): HistoryEntry, Snapshot, app_git_commands_do_not_execute_checkout_hooks(), bounded_probe(), bounded_run(), capture_git(), checkout_branch(), commit_checked() (+107 more)
+Nodes (116): HistoryEntry, sha2, Snapshot, app_git_commands_do_not_execute_checkout_hooks(), bounded_probe(), bounded_run(), capture_git(), checkout_branch() (+108 more)
 
 ### Community 13 - "rich-text-editor.tsx"
-Cohesion: 0.05
-Nodes (35): BLOCK_MAP, BLOCK_TAGS, BlockType, COUNTED, DROP, enter, faceVariants, fadeVariants (+27 more)
+Cohesion: 0.06
+Nodes (29): BLOCK_MAP, BlockType, enter, faceVariants, fadeVariants, Formats, GLIDE, GROW (+21 more)
 
 ### Community 14 - "color-picker.tsx"
 Cohesion: 0.07
@@ -499,11 +503,11 @@ Nodes (3): AgentProviderId, No dangerously bypass flags, PTY launches user shell
 
 ### Community 23 - "new-thread-effects/preview.ts"
 Cohesion: 0.10
-Nodes (27): add, canvas, choices, composer, ctx, descriptions, get(), icons (+19 more)
+Nodes (26): add, canvas, choices, composer, ctx, descriptions, get(), icons (+18 more)
 
-### Community 28 - "KeybindingsSettings.tsx"
-Cohesion: 0.15
-Nodes (24): SideChatRow(), KeybindingRow(), KeyCaps, MODIFIERS, KeybindingsSettings(), CustomShortcuts, effectiveShortcut(), filterKeybindings() (+16 more)
+### Community 28 - "provider_usage_http.rs"
+Cohesion: 0.12
+Nodes (39): base64, header, provider_usage, ProviderUsage, read, absolute_env(), client(), Credential (+31 more)
 
 ### Community 29 - "signature-pad.tsx"
 Cohesion: 0.06
@@ -514,8 +518,8 @@ Cohesion: 0.07
 Nodes (43): addDays(), addMonths(), Bezier, cellIn(), clampDate(), DateRange, DateRangePicker(), DateRangePickerProps (+35 more)
 
 ### Community 31 - "ref_node_assert"
-Cohesion: 0.11
-Nodes (12): @napi-rs/canvas, ref_node_assert, ref_node_console, react-dom, vite, objects, offsets, pdf (+4 more)
+Cohesion: 0.17
+Nodes (7): ref_node_assert, ref_node_console, react-dom, vite, ADR-0052, ADR-0061, theme()
 
 ### Community 32 - "ci_autofix.rs"
 Cohesion: 0.08
@@ -525,13 +529,13 @@ Nodes (53): git_workspace_as_workspace, osstr, pull_requests, a_settled_failure_
 Cohesion: 0.06
 Nodes (34): btreemap, pathbuf, Action, BODY_LIMIT, COMMENT_BODY_LIMIT, COMMENT_LIMIT, DIFF_LIMIT, DRAFT_MUTATION (+26 more)
 
-### Community 35 - "cn"
-Cohesion: 0.07
-Nodes (38): Rascunhos e cabeçalho de atividade, SessionBoard, SessionStatus, AgentIcon(), CliDiagnostics(), HandoffIcon(), GripVertical, MessagesCircle (+30 more)
+### Community 35 - "FrameStream"
+Cohesion: 0.11
+Nodes (24): CMFormatDescription, CMSampleBuffer, Int32, FrameEnvelope, FrameSocketWriter, .droppedFrames, .isClosed, FrameStream (+16 more)
 
 ### Community 38 - "computer_mcp.rs"
 Cohesion: 0.06
-Nodes (71): IpcResult, AppInfo, acp_server(), Action, APP, approval_and_stop_are_published_and_revocable(), APPROVAL_TIMEOUT, arg_name() (+63 more)
+Nodes (73): collections, IpcResult, AppInfo, acp_server(), Action, APP, approval_and_stop_are_published_and_revocable(), APPROVAL_TIMEOUT (+65 more)
 
 ### Community 39 - "Overnight progress"
 Cohesion: 0.12
@@ -545,9 +549,9 @@ Nodes (40): affixText(), cut, decimalsOf(), DIGITS, directionsBetween(), enterEa
 Cohesion: 0.15
 Nodes (13): devDependencies, eslint, @eslint/js, eslint-plugin-react-hooks, @napi-rs/canvas, @tauri-apps/cli, @types/node, @types/react (+5 more)
 
-### Community 42 - "useArcReducedMotion"
-Cohesion: 0.03
-Nodes (69): AnimatedCounter(), AnimatedCounterProps, DIGITS, fade, src_components_arc_animated_counter_animated_counter_module, Part, partsFor(), presence (+61 more)
+### Community 42 - "billing-toggle.tsx"
+Cohesion: 0.06
+Nodes (29): AnimatedCounter(), AnimatedCounterProps, DIGITS, fade, src_components_arc_animated_counter_animated_counter_module, Part, partsFor(), presence (+21 more)
 
 ### Community 43 - "scripts"
 Cohesion: 0.20
@@ -559,7 +563,7 @@ Nodes (7): compilerOptions, composite, types, extends, include, ./tsconfig.json,
 
 ### Community 45 - "activity.rs"
 Cohesion: 0.11
-Nodes (48): ActivityStep, acp_closed_tools_ignore_thoughts_and_output(), ActivityItem, ActivityStep, child_steps_are_bounded_and_settle_with_the_turn(), children_can_work_again_but_wait_models_do_not_overwrite_spawn_metadata(), claude(), claude_children_own_their_steps_and_absorb_the_delegation_call() (+40 more)
+Nodes (49): ActivityStep, json, acp_closed_tools_ignore_thoughts_and_output(), ActivityItem, ActivityStep, child_steps_are_bounded_and_settle_with_the_turn(), children_can_work_again_but_wait_models_do_not_overwrite_spawn_metadata(), claude() (+41 more)
 
 ### Community 47 - "context_text.rs"
 Cohesion: 0.36
@@ -575,7 +579,7 @@ Nodes (77): AtomicUsize, BTreeSet, allowed_name(), attach(), Capture, CAPTURES, 
 
 ### Community 50 - "computer.rs"
 Cohesion: 0.07
-Nodes (26): allocanythread, CGEvent, CGEventFlags, CGImage, fallback, frame, objc2_application_services, platform (+18 more)
+Nodes (30): allocanythread, CGEvent, CGEventFlags, CGImage, fallback, frame, objc2_application_services, platform (+22 more)
 
 ### Community 51 - "provider_models.rs"
 Cohesion: 0.13
@@ -602,8 +606,8 @@ Cohesion: 0.08
 Nodes (39): chip, chipFade, CODE_KEYS, detectPlatform(), EMPTY, formatShortcut(), isModifier(), Kbd (+31 more)
 
 ### Community 57 - "resizable-panels.tsx"
-Cohesion: 0.11
-Nodes (36): band(), clamp(), collapseAt(), Drag, HandleProps, Mode, src_components_arc_resizable_panels_resizable_panels_module, project() (+28 more)
+Cohesion: 0.10
+Nodes (19): band(), collapseAt(), Drag, HandleProps, Mode, src_components_arc_resizable_panels_resizable_panels_module, project(), ResizablePanel() (+11 more)
 
 ### Community 58 - "calendar.tsx"
 Cohesion: 0.10
@@ -613,13 +617,13 @@ Nodes (35): addDays(), addMonths(), Calendar(), CalendarDateMatcher, CalendarPro
 Cohesion: 0.07
 Nodes (32): ARRIVE, Avatar(), ChatAttachment, ChatComposer, ChatComposerHandle, ChatComposerProps, ChatDraft, ChatMessage (+24 more)
 
-### Community 60 - "commands.rs"
-Cohesion: 0.12
-Nodes (25): Context, PullRequestSnapshot, context_flush_and_shutdown_keep_latest_admitted_text_and_refuse_closing(), context_persistence_failure_retains_admitted_text_for_retry(), failed_appearance_save_preserves_latest_successful_settings(), fork_fixture(), fork_rejects_live_handles_and_invalid_boundaries_before_creating_worktrees(), fork_uses_source_head_in_owned_tree_and_persists_origin_without_copying_dirty_files() (+17 more)
+### Community 60 - "fork_fixture"
+Cohesion: 0.19
+Nodes (12): Context, PullRequestSnapshot, context_flush_and_shutdown_keep_latest_admitted_text_and_refuse_closing(), context_persistence_failure_retains_admitted_text_for_retry(), failed_appearance_save_preserves_latest_successful_settings(), fork_fixture(), fork_rejects_live_handles_and_invalid_boundaries_before_creating_worktrees(), pr_context_refuses_foreign_removed_changed_and_closing_sessions() (+4 more)
 
 ### Community 61 - "copy-button.tsx"
-Cohesion: 0.07
-Nodes (29): CodeBlock(), CodeBlockProps, followedBy(), highlight(), src_components_arc_code_block_code_block_module, normaliseLanguage(), textEnter, textExit (+21 more)
+Cohesion: 0.10
+Nodes (20): CopyButtonProps, enter, fadeIn, fadeOut, Glyph, glyphIn, glyphOut, iconEnter (+12 more)
 
 ### Community 62 - "file-dropzone.tsx"
 Cohesion: 0.07
@@ -634,8 +638,8 @@ Cohesion: 0.10
 Nodes (28): AxisLabel(), Bar(), BarChart(), BarChartDatum, BarChartProps, barPath(), centerOf(), clamp() (+20 more)
 
 ### Community 65 - "comment-thread.tsx"
-Cohesion: 0.08
-Nodes (21): Avatar(), Bezier, CommentAuthor, CommentReaction, CommentThreadEvent, CommentThreadProps, ComposerProps, DEFAULT_REACTIONS (+13 more)
+Cohesion: 0.07
+Nodes (28): authorsOf(), Avatar(), Bezier, CommentAuthor, CommentReaction, CommentThread, CommentThreadEvent, CommentThreadProps (+20 more)
 
 ### Community 66 - "line-chart.tsx"
 Cohesion: 0.09
@@ -662,12 +666,12 @@ Cohesion: 0.08
 Nodes (26): Button, ButtonProps, ButtonSize, ButtonVariant, fadeIn, fadeOut, iconEnter, iconIn (+18 more)
 
 ### Community 72 - "appearance.rs"
-Cohesion: 0.11
-Nodes (27): AppearanceSupport, dockicon, manager, nsappearancecustomization, NSWindow, apply(), apply_blur(), BACKING_ID (+19 more)
+Cohesion: 0.10
+Nodes (29): AppearanceSupport, dockicon, manager, nsappearancecustomization, NSWindow, oncelock, refcell, apply() (+21 more)
 
 ### Community 73 - "swipe-actions.tsx"
 Cohesion: 0.11
-Nodes (24): ActionLayer(), clamp01(), Drag, Group, GroupContext, LayerProps, src_components_arc_swipe_actions_swipe_actions_module, rubberBand() (+16 more)
+Nodes (25): @radix-ui/react-dropdown-menu, ActionLayer(), clamp01(), Drag, Group, GroupContext, LayerProps, src_components_arc_swipe_actions_swipe_actions_module (+17 more)
 
 ### Community 74 - "usage-meter.tsx"
 Cohesion: 0.09
@@ -690,16 +694,16 @@ Cohesion: 0.15
 Nodes (24): allBranches(), branchesToDepth(), childPath(), CopyState, copyText(), countLabel(), entries(), isBranch() (+16 more)
 
 ### Community 79 - "sortable-data-table.tsx"
-Cohesion: 0.10
-Nodes (22): blur(), collator, comparable(), DataColumn, enter, fade, instant, isEmpty() (+14 more)
+Cohesion: 0.12
+Nodes (14): blur(), collator, DataColumn, enter, fade, instant, leave, src_components_arc_sortable_data_table_sortable_data_table_module (+6 more)
 
 ### Community 80 - "treemap.tsx"
 Cohesion: 0.11
 Nodes (23): carry(), clamp(), Drawn, Flat, flatten(), follow, glide, grouped (+15 more)
 
 ### Community 81 - "Transport"
-Cohesion: 0.14
-Nodes (12): Additional local CLI providers, Preferences and lifecycle, Providers and models, Runtime guide, Sessions and workspaces, Transport and security, Verification limits, Worktrees and review (+4 more)
+Cohesion: 0.08
+Nodes (16): Original decision, Security review, Additional local CLI providers, Preferences and lifecycle, Providers and models, Runtime guide, Sessions and workspaces, Transport and security (+8 more)
 
 ### Community 82 - "bottom-sheet.tsx"
 Cohesion: 0.11
@@ -727,7 +731,7 @@ Nodes (16): glyphFrom, GlyphKind, glyphRest, leave, src_components_arc_stepper_s
 
 ### Community 88 - "phosphor.tsx"
 Cohesion: 0.03
-Nodes (104): BrowserAnnotation, DocumentPreview, EditorId, WordBlock, WorkspaceEntryKind, EMPTY_URLS, WorkspaceChanges(), absolute() (+96 more)
+Nodes (138): Decision, PullRequestsPage, EditorId, FileChange, TurnReview, DropdownContent(), DropdownItem, DropdownMenuProps (+130 more)
 
 ### Community 89 - "expanding-search.tsx"
 Cohesion: 0.13
@@ -737,29 +741,33 @@ Nodes (16): enter, ExpandingSearch(), choose(), collapse(), handleKeyDown(), Exp
 Cohesion: 0.19
 Nodes (26): Failure, Inbox, body(), ChangedFile, Check, check_status(), clean_log_line(), Comment (+18 more)
 
+### Community 91 - "HelperCapability"
+Cohesion: 0.09
+Nodes (29): CaseIterable, Protocol, Selector, CapabilityProbe, Any, Bool, Int, String (+21 more)
+
 ### Community 92 - "Compact sidebar and session Kanban (2026-10-01)"
 Cohesion: 0.67
 Nodes (3): Compact sidebar and session Kanban (2026-10-01), Completed, Validation
 
-### Community 93 - "project_look.rs"
-Cohesion: 0.14
-Nodes (23): engine, Action, ensure_project(), logo_from_bytes(), logo_from_file(), LOGO_SIDE, logos_are_square_small_pngs(), MAX_FILE (+15 more)
+### Community 93 - "simulator.rs"
+Cohesion: 0.05
+Nodes (84): engine, oneshot, Pending, Action, ensure_project(), logo_from_bytes(), logo_from_file(), LOGO_SIDE (+76 more)
 
 ### Community 94 - "tree-view.tsx"
 Cohesion: 0.16
 Nodes (17): blur(), fadeIn, fadeOut, fileTone(), flatten(), FolderIcon(), src_components_arc_tree_view_tree_view_module, still (+9 more)
 
 ### Community 95 - "pty_term.rs"
-Cohesion: 0.12
-Nodes (21): ChildKiller, hashmap, MasterPty, pid_t, portable_pty, ptyoutputevent, kill_all(), MAX_BATCH (+13 more)
+Cohesion: 0.07
+Nodes (41): ChildKiller, hashmap, MasterPty, pid_t, portable_pty, ptyoutputevent, native_menu(), open_external_url() (+33 more)
 
-### Community 96 - "previews.tsx"
-Cohesion: 0.02
-Nodes (136): motion, @radix-ui/react-accordion, @radix-ui/react-tooltip, Accordion(), AccordionItem, AccordionProps, contentClosed, contentMotion (+128 more)
+### Community 96 - "motion"
+Cohesion: 0.03
+Nodes (81): motion, @radix-ui/react-checkbox, @radix-ui/react-select, @radix-ui/react-tooltip, Avatar(), AvatarProps, src_components_arc_avatar_avatar_module, AvatarGroup() (+73 more)
 
 ### Community 97 - "window_snap.rs"
-Cohesion: 0.08
-Nodes (35): global_hotkey, hotkey, nonnull, nsworkspace, objc2_core_foundation, objc2_core_graphics, PromptAttachment, refcell (+27 more)
+Cohesion: 0.09
+Nodes (32): global_hotkey, hotkey, nsworkspace, objc2_core_foundation, objc2_core_graphics, PromptAttachment, Action, apply() (+24 more)
 
 ### Community 98 - "alert.tsx"
 Cohesion: 0.06
@@ -771,7 +779,7 @@ Nodes (14): allocate(), Cell, clamp(), grouped, src_components_arc_waffle_chart_
 
 ### Community 100 - "codex.rs"
 Cohesion: 0.08
-Nodes (50): BufReader, ChildStdin, ChildStdout, answer(), bounded_item(), cleanup(), compaction_turn(), context_usage() (+42 more)
+Nodes (54): ActivityItem, BufReader, ChildStdout, answer(), bounded_item(), cleanup(), compaction_turn(), context_usage() (+46 more)
 
 ### Community 101 - "Architecture Decision Records"
 Cohesion: 0.50
@@ -802,16 +810,16 @@ Cohesion: 0.10
 Nodes (25): enter, FaceProps, fadeIn, fadeOut, HoldToConfirm(), begin(), complete(), onKeyDown() (+17 more)
 
 ### Community 108 - "provider_usage.rs"
-Cohesion: 0.06
-Nodes (73): asyncreadext, Future, serde_json, approval_profiles_reach_codex_and_clear_full_access_on_the_next_turn(), claude_permission_mode(), codex_options_clear_fast_and_planning_without_broadening_permissions(), codex_policy(), codex_turn() (+65 more)
+Cohesion: 0.10
+Nodes (52): asyncreadext, Future, a_probe_started_before_login_cannot_publish_after_login_finishes(), account_text(), account_wire_denies_callbacks_and_refreshes_after_a_fixture_reset(), cache_result(), CachedUsage, claude_percentage_is_not_a_ratio_and_missing_data_stays_unknown() (+44 more)
 
-### Community 109 - "Result"
-Cohesion: 0.17
-Nodes (46): active_tab(), annotate_cancel(), annotate_start(), back(), browser_annotate_cancel(), browser_annotate_start(), browser_back(), browser_capture() (+38 more)
+### Community 109 - "browser.rs"
+Cohesion: 0.07
+Nodes (103): NSView, objc2_web_kit, active_tab(), annotate_cancel(), ANNOTATE_CANCEL_SCRIPT, annotate_finish(), ANNOTATE_FINISH_SCRIPT, annotate_start() (+95 more)
 
-### Community 110 - "gauge.tsx"
-Cohesion: 0.18
-Nodes (11): arcFor(), fade, Gauge(), GaugeProps, GaugeThreshold, GaugeTone, src_components_arc_gauge_gauge_module, reveal (+3 more)
+### Community 110 - "useArcReducedMotion"
+Cohesion: 0.04
+Nodes (52): SwapText(), DropdownMenu(), TriggerLabel(), arcFor(), fade, Gauge(), GaugeProps, GaugeThreshold (+44 more)
 
 ### Community 111 - "attachment_platform.rs"
 Cohesion: 0.23
@@ -838,8 +846,8 @@ Cohesion: 0.25
 Nodes (8): Architectural decisions, Blocked / not exercised, Bugs found and fixed, Completed, Partially completed, Provider account profiles (2026-10-01), Recommended next steps, Validation
 
 ### Community 117 - "editor.rs"
-Cohesion: 0.13
-Nodes (23): EditorAppIcon, EditorInstall, openerext, app_icon_png(), detect_editors(), editor_app_icons(), EDITORS, EditorSpec (+15 more)
+Cohesion: 0.14
+Nodes (22): EditorAppIcon, EditorInstall, openerext, app_icon_png(), detect_editors(), editor_app_icons(), EDITORS, EditorSpec (+14 more)
 
 ### Community 118 - "agent-activity/preview.js"
 Cohesion: 0.16
@@ -847,11 +855,11 @@ Nodes (24): activeIcon(), agents(), descriptions, elapsedLabel(), elapsedSeconds
 
 ### Community 119 - "dictation/preview.ts"
 Cohesion: 0.12
-Nodes (25): caption, choices, cleanup, clock, composer, element(), fitPrompt(), mic (+17 more)
+Nodes (26): caption, choices, cleanup, clock, composer, element(), fitPrompt(), mic (+18 more)
 
 ### Community 122 - "app-store.ts"
 Cohesion: 0.02
-Nodes (130): ADR-0053, Decision, ComputerAction, ComputerSnapshot, Project, QueuedPromptContext, SendPromptRequest, WindowSnapEvent (+122 more)
+Nodes (133): ADR-0053, Decision, Select, Textarea, EditorPane(), ContextTextSection(), EnvironmentContextSections(), EnvironmentPanel() (+125 more)
 
 ### Community 123 - "i18n/index.ts"
 Cohesion: 0.14
@@ -870,8 +878,8 @@ Cohesion: 0.29
 Nodes (7): ADR-026: Additional local CLI providers with bounded print adapters, Alternatives considered, Consequences, Context, Decision, Sources, Verification and limits
 
 ### Community 128 - "Feature backlog"
-Cohesion: 0.29
-Nodes (7): Current implementation status, Evidence and scope, Evidence limitations, Feature backlog, LATER — separate scope and security decisions, NEXT — after the MVP loop is validated, NOW — close the local desktop loop
+Cohesion: 0.07
+Nodes (24): ADR-014: Scoped authenticated quota reads and account identity, Alternatives considered, Consequences, Context, Decision, ADR-015: Isolated provider accounts with session profile binding, Alternatives considered, Consequences (+16 more)
 
 ### Community 129 - "automations.rs"
 Cohesion: 0.08
@@ -881,9 +889,9 @@ Nodes (60): DateTime, Local, NaiveDate, NaiveTime, Span, Action, at_local(), Aut
 Cohesion: 0.40
 Nodes (4): bundle, macOS, signingIdentity, $schema
 
-### Community 132 - "Switchyard"
-Cohesion: 0.29
-Nodes (7): Aplicativo local, Checks, Dados locais, Desenvolvimento, Requisitos, Switchyard, Uso inicial
+### Community 132 - "SimulatorError"
+Cohesion: 0.09
+Nodes (32): CustomStringConvertible, loadPrivateFrameworks(), NSObject, PrivateFrameworkHandles, resolveDeveloperDirectory(), SimulatorDevice, .bootIdentity, .deviceTypeIdentifier (+24 more)
 
 ### Community 133 - "agent_output.rs"
 Cohesion: 0.13
@@ -891,11 +899,11 @@ Nodes (11): antigravity_deltas_hide_tool_payloads_and_skip_terminal_snapshot(), 
 
 ### Community 134 - "App.tsx"
 Cohesion: 0.05
-Nodes (65): edit(), Fixture(), initial, material(), materialModes, message(), outlinePreview, queuePreview (+57 more)
+Nodes (76): edit(), Fixture(), initial, material(), materialModes, message(), outlinePreview, queuePreview (+68 more)
 
 ### Community 135 - "window_attachment.rs"
 Cohesion: 0.12
-Nodes (17): CaptureResult, objc2, objc2_foundation, objc2_screen_capture_kit, pick, clear(), Completion, Ivars (+9 more)
+Nodes (16): CaptureResult, objc2_foundation, objc2_screen_capture_kit, pick, clear(), Completion, Ivars, Pending (+8 more)
 
 ### Community 136 - "file-icons.ts"
 Cohesion: 0.04
@@ -906,16 +914,16 @@ Cohesion: 0.25
 Nodes (8): Authenticated Cursor / OpenCode Go quotas and account identity (2026-10-01), Bloqueado, Bugs encontrados e corrigidos, Concluído, Decisões arquiteturais, Parcialmente concluído, Próximos passos recomendados, Validação
 
 ### Community 139 - "AppState"
-Cohesion: 0.09
-Nodes (84): Action, HostInfo, ProbeResult, PtyMap, Response, SendPromptRequest, add_project(), apply_session_selection() (+76 more)
+Cohesion: 0.07
+Nodes (114): Action, CreateSessionRequest, HostInfo, Owner, ProbeResult, PtyMap, Response, SendPromptRequest (+106 more)
 
 ### Community 140 - "Message"
 Cohesion: 0.08
-Nodes (27): AgentEvent, Message, MessageTrail, Props, TickHandlers, TrailTick, applyAgentOutput(), reuseMessages() (+19 more)
+Nodes (28): AgentEvent, Message, Tooltip(), MessageTrail, Props, TickHandlers, TrailTick, applyAgentOutput() (+20 more)
 
-### Community 141 - "Session"
-Cohesion: 0.06
-Nodes (38): Interfaces, PullRequest, PullRequestCheckStatus, PullRequestLookupStatus, PullRequestSnapshot, Session, CiFixRow(), EnvironmentPullRequestSection() (+30 more)
+### Community 141 - "client/index.ts"
+Cohesion: 0.04
+Nodes (78): ADR-0060, setPalette(), ref_node_test, client, SharedListener, ADR-0048, ADR-0061, ADR-0062 (+70 more)
 
 ### Community 142 - "Composer capability correction (2026-10-01)"
 Cohesion: 0.25
@@ -923,7 +931,7 @@ Nodes (8): Bloqueado, Bugs encontrados e corrigidos, Composer capability correct
 
 ### Community 143 - "EnvironmentPanel.tsx"
 Cohesion: 0.04
-Nodes (67): ADR-0013, ADR-0015, ADR-0060, client, SharedListener, ADR-0048, ADR-0061, ADR-0062 (+59 more)
+Nodes (87): ADR-0013, ADR-0015, Interfaces, @radix-ui/react-popover, BranchInfo, ProviderAccount, ProviderUsage, PullRequest (+79 more)
 
 ### Community 144 - "Composer bottom anchor and CLI usage footer (2026-10-01)"
 Cohesion: 0.25
@@ -937,9 +945,9 @@ Nodes (6): Bloqueado, Composer execution integration (2026-10-01), Concluído, P
 Cohesion: 0.33
 Nodes (6): Bloqueado, Concluído, Parcialmente concluído, Próximos passos recomendados, Usage popup identity, motion and further provider research (2026-10-01), Validação
 
-### Community 147 - "split-layout.ts"
-Cohesion: 0.14
-Nodes (29): beginSplitDrag(), finish(), pending, splitTargetAt(), activeLeaf(), edgeAt(), initialSplit(), insertNode() (+21 more)
+### Community 147 - "SplitWorkspace.tsx"
+Cohesion: 0.11
+Nodes (38): box(), percent(), SplitDivider(), SplitDropOverlay(), SplitPane(), SplitPaneHeader(), SplitWorkspace(), beginSplitDrag() (+30 more)
 
 ### Community 148 - "model-brand.ts"
 Cohesion: 0.08
@@ -947,15 +955,15 @@ Nodes (26): src_assets_models_cohere, src_assets_models_deepseek, src_assets_mod
 
 ### Community 149 - "notifications.rs"
 Cohesion: 0.09
-Nodes (43): Action, admit_time(), announce(), bounded_label(), candidates(), choice(), copy(), current_notice() (+35 more)
+Nodes (42): serde, Action, admit_time(), announce(), bounded_label(), candidates(), choice(), copy() (+34 more)
 
 ### Community 150 - "drafts.rs"
 Cohesion: 0.42
 Nodes (10): apply(), draft_is_persisted_without_becoming_a_message_or_running_session(), draft_refuses_unknown_owners_and_utf8_byte_overflow(), fixture(), has_owner(), prune(), removed_metadata_cannot_retain_or_resurrect_its_draft(), AppData (+2 more)
 
-### Community 151 - "document_preview.rs"
-Cohesion: 0.12
-Nodes (20): Node, roxmltree, Semaphore, attr(), Cell, csv_preserves_quoted_commas_newlines_and_bom_and_never_evaluates_formulas(), MAX_CELLS, MAX_COLS (+12 more)
+### Community 151 - "ChatMarkdown.tsx"
+Cohesion: 0.08
+Nodes (34): absolute(), ChatMarkdown, checkReference(), checks, externalEditor(), FileReference(), openReference(), Owner (+26 more)
 
 ### Community 152 - "provider_accounts.rs"
 Cohesion: 0.11
@@ -966,7 +974,7 @@ Cohesion: 0.08
 Nodes (49): AsRef, Client, OsString, path, ProviderUpdate, ProviderUpdateResult, cli_path(), command() (+41 more)
 
 ### Community 154 - "slot-text.tsx"
-Cohesion: 0.22
+Cohesion: 0.23
 Nodes (12): buildStrip(), classOf(), LANDING, src_components_arc_slot_text_slot_text_module, Reel(), ReelProps, seeded(), SlotText() (+4 more)
 
 ### Community 155 - "sidebar.rs"
@@ -974,12 +982,12 @@ Cohesion: 0.20
 Nodes (18): archive_and_pin_references_are_bounded_owned_and_do_not_change_execution(), fixture(), manual_order_retains_owned_order_and_rejects_oversized_lists(), metadata_removal_prunes_pins_and_archives(), normalize(), old_settings_and_round_trip_preserve_sidebar_organization(), prune(), rename_only_changes_owned_project_display_name() (+10 more)
 
 ### Community 156 - "skills.rs"
-Cohesion: 0.06
-Nodes (87): base64, collections, header, json, oncelock, provider_usage, ProviderUsage, read (+79 more)
+Cohesion: 0.13
+Nodes (44): Action, admitted_root(), allowed(), AllowedRoot, bounded_read(), bounds_and_catalog_root_authority_are_enforced(), Catalog, configured_project_root_and_ancestor_symlinks_cannot_authorize_foreign_trees() (+36 more)
 
 ### Community 157 - "SessionPane.tsx"
-Cohesion: 0.04
-Nodes (72): Decision, FileChange, Team, TeamTask, AgentComposer, AgentRequests, CopyButton(), ChangesPane() (+64 more)
+Cohesion: 0.05
+Nodes (54): AgentActivity(), AgentComposer, AgentRequests, CodeBlock(), CodeBlockProps, followedBy(), highlight(), src_components_arc_code_block_code_block_module (+46 more)
 
 ### Community 158 - "Sidebar topbar refinement (2026-10-01)"
 Cohesion: 0.67
@@ -994,20 +1002,20 @@ Cohesion: 0.11
 Nodes (14): Clock, dayKey(), enter, Group, src_components_arc_timeline_timeline_module, noopSubscribe(), relative(), RevealClock (+6 more)
 
 ### Community 161 - "String"
-Cohesion: 0.12
-Nodes (36): AXError, AXUIElement, CFRetained, CFString, CFType, SCWindow, activate(), application() (+28 more)
+Cohesion: 0.14
+Nodes (31): AXError, AXUIElement, CFRetained, CFString, CFType, activate(), application(), attribute() (+23 more)
 
 ### Community 162 - "transcript_view.rs"
-Cohesion: 0.15
-Nodes (30): Iterator, Action, CandidateSession, conversation_length(), current_turn(), data(), emit(), emit_from() (+22 more)
+Cohesion: 0.06
+Nodes (58): Iterator, serde_json, approval_profiles_reach_codex_and_clear_full_access_on_the_next_turn(), claude_permission_mode(), codex_options_clear_fast_and_planning_without_broadening_permissions(), codex_policy(), codex_turn(), cursor_model() (+50 more)
 
 ### Community 164 - "sidebar-synara/preview.js"
 Cohesion: 0.11
 Nodes (28): app, closeSoon(), composer, dismissPeek(), glyph(), history, media, observer (+20 more)
 
 ### Community 165 - "Performance and resource audit"
-Cohesion: 0.08
-Nodes (23): Findings, Follow-up audit (2026-10-05), Frontend idle, Chromium, 10 s window per screen, How they were taken, Idle work, Measurements (baseline), Memory growth, Native app, debug build, idle on the restored view (+15 more)
+Cohesion: 0.07
+Nodes (26): ADR-047: Per-session transcript files with content-addressed writes, Alternatives considered, Consequences, Context, Decision, ADR-048: Transcripts load on demand in the renderer, Alternatives considered, Consequences (+18 more)
 
 ### Community 166 - "ADR-017: Approval profiles are typed per-turn execution preferences"
 Cohesion: 0.33
@@ -1023,19 +1031,23 @@ Nodes (3): Assistant footer, transcript forks and message pins (2026-10-01), Com
 
 ### Community 169 - "ComposerAddMenu.tsx"
 Cohesion: 0.08
-Nodes (40): ApprovalMode, DocumentSheet, PromptAttachment, DialogClose, DialogContentProps, DialogTrigger, fade, leave (+32 more)
+Nodes (41): PromptAttachment, QueuedPromptContext, AgentComposerView(), fitComposerHeight(), ComposerAddMenu(), ComposerContextChips(), ComposerImageAttachment(), ComposerImageViewer() (+33 more)
 
 ### Community 170 - "Appearance settings implementation"
 Cohesion: 0.33
 Nodes (5): Appearance settings implementation, Global constraints, Task 1: Native preferences and macOS effects, Task 2: Appearance UI, application and typography, Task 3: Review, docs and delivery
 
-### Community 171 - "ref_node_test"
-Cohesion: 0.12
-Nodes (31): ref_node_test, AgentSkill, SkillOwner, SkillsCatalog, SkillSource, WorkspaceFiles, ComposerSkillPicker(), Eye (+23 more)
+### Community 171 - "use-composer-suggestions.ts"
+Cohesion: 0.13
+Nodes (28): AgentSkill, SkillOwner, SkillsCatalog, WorkspaceFiles, ComposerSkillPicker(), SkillsSettings(), availableCommands(), CommandContext (+20 more)
 
 ### Community 172 - "effects.ts"
 Cohesion: 0.27
 Nodes (13): drawEffect(), Effect, glow(), path(), Point, silver(), tide(), veil() (+5 more)
+
+### Community 173 - "decisions/README.md"
+Cohesion: 0.12
+Nodes (4): Documentation index, Turn changes review preview, Composer control design previews, Settings switch studies
 
 ### Community 174 - "radio-cards.tsx"
 Cohesion: 0.22
@@ -1047,7 +1059,7 @@ Nodes (19): ADR-011: OpenCode interaction uses native ACP, Amendment (2026-10-03
 
 ### Community 176 - "types.ts"
 Cohesion: 0.02
-Nodes (100): ADR-0038, RFC-3339, Agent activity v2 previews, ActivityItem, ActivityKind, ActivityState, ActivityStep, AgentResponse (+92 more)
+Nodes (102): ADR-0038, RFC-3339, isCancelledTitle(), ActivityNotification, ActivityState, AgentResponse, AppearanceSupport, AutomationAction (+94 more)
 
 ### Community 177 - "Synara turn review and checkpoint revert"
 Cohesion: 0.33
@@ -1057,9 +1069,9 @@ Nodes (5): Completed-turn card, Right-side review, Switchyard boundary and revie
 Cohesion: 0.15
 Nodes (20): Fn, io, process, an_exited_probe_with_open_descendant_pipes_is_bounded_and_reaped(), bounded(), capture(), capture_command(), catalog_request_keeps_partial_stdout_when_stderr_closes() (+12 more)
 
-### Community 179 - "workspace-tools.tsx"
-Cohesion: 0.11
-Nodes (21): files, fixtureRoot, fixtureSessionId, initialFiles, observePreviewCreation(), previewFile(), resetPreviewFiles(), session (+13 more)
+### Community 179 - "workspace-tools-git.ts"
+Cohesion: 0.09
+Nodes (21): Decision, files, fixtureRoot, fixtureSessionId, initialFiles, observePreviewCreation(), previewFile(), resetPreviewFiles() (+13 more)
 
 ### Community 180 - "ADR-020: Provider CLI update checks and explicit npm updates"
 Cohesion: 0.33
@@ -1093,13 +1105,13 @@ Nodes (48): approval(), approval_config(), auto_delegates_only_to_pinned_built_i
 Cohesion: 0.31
 Nodes (9): clientSnapshot(), falloff, src_components_arc_text_shimmer_text_shimmer_module, percent(), serverSnapshot(), shimmerImage(), subscribeHydration(), TextShimmer() (+1 more)
 
-### Community 191 - "spreadsheet"
-Cohesion: 0.20
-Nodes (23): Cursor, Document, archive(), attachment_preview(), coordinate(), csv_preview(), DocumentPreview, excel() (+15 more)
+### Community 191 - "document_preview.rs"
+Cohesion: 0.10
+Nodes (43): Cursor, Document, Node, roxmltree, Semaphore, archive(), attachment_preview(), attr() (+35 more)
 
 ### Community 193 - "tasks.rs"
-Cohesion: 0.14
-Nodes (27): automations, chrono, serde, Action, data(), find(), input(), MAX_TASKS (+19 more)
+Cohesion: 0.15
+Nodes (26): automations, chrono, Action, data(), find(), input(), MAX_TASKS, mutate() (+18 more)
 
 ### Community 194 - "ADR-037: Composer skill and workspace filename suggestions"
 Cohesion: 0.40
@@ -1114,8 +1126,8 @@ Cohesion: 0.29
 Nodes (6): compilerOptions, types, extends, include, ../../tsconfig.json, references
 
 ### Community 204 - "AgentComposer.tsx"
-Cohesion: 0.06
-Nodes (76): NewSessionDialog, AGENT_PROVIDER_IDS, AgentInstall, AgentProviderId, DiscoveredModel, ExecutionOptions, ProviderModelList, AgentComposerView() (+68 more)
+Cohesion: 0.07
+Nodes (65): Rascunhos e cabeçalho de atividade, AgentProviderId, ApprovalMode, DiscoveredModel, ExecutionOptions, ProviderModelList, Props, ComposerStatusCard() (+57 more)
 
 ### Community 205 - "draft-activity/preview.js"
 Cohesion: 0.22
@@ -1125,9 +1137,9 @@ Nodes (14): feedback, media, renderSelection(), renderThreads(), state, textarea
 Cohesion: 0.21
 Nodes (16): NSBox, NSButton, NSColor, NSPanel, NSRect, NSTextField, build(), cocoa() (+8 more)
 
-### Community 207 - "lib.rs"
-Cohesion: 0.23
-Nodes (15): native_menu(), open_external_url(), open_path(), pick_executable(), pick_folder(), request_close(), AppHandle, FnOnce (+7 more)
+### Community 207 - "transcript.rs"
+Cohesion: 0.15
+Nodes (35): arm_in_session_handoff(), consume_handoff(), context_limit(), failed_native_start_keeps_fork_context_until_a_successful_bound_turn(), first_fork_turn_receives_context_then_exact_resume_uses_only_new_prompt(), fork_rejects_live_foreign_user_empty_or_oversized_boundaries(), fork_snapshot(), fork_stops_at_selected_answer_and_rebinds_messages_without_vendor_state() (+27 more)
 
 ### Community 208 - "ADR-030: Browser tools for agents over a local MCP bridge"
 Cohesion: 0.33
@@ -1138,12 +1150,12 @@ Cohesion: 0.07
 Nodes (60): AgentEvent, ExitStatus, IntoIterator, outputparser, a_late_process_exit_preserves_shutdown_interruption(), AgentProcess, argv_keeps_model_workspace_and_prompt_separate(), bounded_line() (+52 more)
 
 ### Community 210 - "TasksPage.tsx"
-Cohesion: 0.10
-Nodes (26): Stage 3 changes, Stage 3 measurements, Subagent display previews (Stage 1), TasksPage, Task, TaskInput, TaskPriority, EnvironmentPanelContent() (+18 more)
+Cohesion: 0.06
+Nodes (51): Stage 3 changes, Stage 3 measurements, Subagent display previews (Stage 1), AutomationsPage, InboxPage, TasksPage, Automation, AutomationRun (+43 more)
 
-### Community 211 - "error.rs"
-Cohesion: 0.18
-Nodes (14): fs, Serialize, ErrorPayload, list_children(), FileEntry, Path, Result, String (+6 more)
+### Community 211 - "fs_tree.rs"
+Cohesion: 0.21
+Nodes (13): fs, list_children(), FileEntry, Path, Result, String, suggest_files(), suggestions_bound_large_directories_and_report_truncation() (+5 more)
 
 ### Community 212 - "ADR-034: Native session notifications and closed sound controls"
 Cohesion: 0.29
@@ -1153,17 +1165,17 @@ Nodes (6): ADR-034: Native session notifications and closed sound controls, Alte
 Cohesion: 0.40
 Nodes (4): Constraints, Pull Request and Checks Implementation Plan, Tasks, Verification
 
-### Community 214 - "ADR-048: Transcripts load on demand in the renderer"
-Cohesion: 0.29
-Nodes (5): ADR-048: Transcripts load on demand in the renderer, Alternatives considered, Consequences, Context, Decision
+### Community 214 - "SwitchyardHIDBridge"
+Cohesion: 0.09
+Nodes (29): appkit, clientClass, dlfcn, mach_time, message, NSInteger, NSThread, NSTimeInterval (+21 more)
 
-### Community 215 - "use-browser-bounds.ts"
-Cohesion: 0.36
-Nodes (5): BrowserBounds, overlapsBrowser(), ViewportRect, HIT_POINTS, useBrowserBounds()
+### Community 215 - "TeamPanel.tsx"
+Cohesion: 0.11
+Nodes (24): Team, TeamTask, AlertTriangle, Lock, Square, SquareArrowOutUpRight, Users, SideChatPane() (+16 more)
 
 ### Community 216 - "ambient-motion.ts"
-Cohesion: 0.21
-Nodes (11): LandingOrbits(), ambientActive(), emit(), Listener, listeners, markRoot(), setAmbientCovered(), subscribeAmbient() (+3 more)
+Cohesion: 0.12
+Nodes (22): mountSurfaces(), paths, reduced, speeds, syncMotion(), visibility, mount(), @paper-design/shaders (+14 more)
 
 ### Community 217 - "sidebar/tsconfig.json"
 Cohesion: 0.29
@@ -1177,33 +1189,33 @@ Nodes (6): ADR-028: Turn-level handoff to another provider, Alternatives conside
 Cohesion: 0.29
 Nodes (6): Global constraints, Local Profile Implementation Plan, Review, Task 1: Native profile preferences and safe export, Task 2: Real activity selectors and the Profile page, Task 3: Share card and verification
 
-### Community 222 - "start"
-Cohesion: 0.40
-Nodes (5): preserves_multibyte_text_between_pty_reads(), AppHandle, String, start(), Utf8Stream
+### Community 222 - "AgentActivity.tsx"
+Cohesion: 0.10
+Nodes (22): Agent activity v2 previews, ActivityItem, ActivityKind, ActivityStep, InputQuestion, TurnActivity, ChildRow(), ChildStepRow() (+14 more)
 
 ### Community 223 - "Environment Context Implementation Plan"
 Cohesion: 0.33
 Nodes (5): Constraints, Environment Context Implementation Plan, Interfaces, Tasks, Verification
 
-### Community 225 - "create_session_locked"
-Cohesion: 0.23
-Nodes (12): CreateSessionRequest, Owner, create_session(), create_session_locked(), create_session_native(), isolated_worktree(), AppData, PathBuf (+4 more)
+### Community 225 - "ResizablePanels"
+Cohesion: 0.38
+Nodes (17): clamp(), ResizablePanels(), begin(), collapse(), commit(), finish(), glide(), limits() (+9 more)
 
-### Community 227 - "BrowserManager"
-Cohesion: 0.14
-Nodes (14): NSView, appkit_frame(), browser_set_bounds(), BrowserBounds, BrowserManager, is_allowed_browser_url(), MainThreadMarker, Option (+6 more)
+### Community 227 - "RichTextEditor"
+Cohesion: 0.17
+Nodes (16): atBlockStart(), cleanClone(), clipBand(), ensureFilled(), indent(), insertAfter(), normalizeUrl(), outdent() (+8 more)
 
 ### Community 228 - "commit_title.rs"
 Cohesion: 0.10
 Nodes (39): Action, argv(), bounded(), capture(), commit_title_action(), fixed_argv_has_isolation_and_no_resume(), Job, kill() (+31 more)
 
-### Community 229 - "browser.rs"
-Cohesion: 0.08
-Nodes (26): objc2_web_kit, ANNOTATE_CANCEL_SCRIPT, annotate_finish(), ANNOTATE_FINISH_SCRIPT, ANNOTATE_START_SCRIPT, annotation_parse_is_bounded_and_requires_a_selector(), browser_annotate_finish(), BrowserAnnotation (+18 more)
+### Community 229 - "FrameStream.swift"
+Cohesion: 0.16
+Nodes (11): CoreGraphics, CoreImage, CoreVideo, Foundation, ImageIO, IOSurface, encodePNG(), Data (+3 more)
 
-### Community 230 - "PullRequestDetail.tsx"
-Cohesion: 0.05
-Nodes (68): InboxPage, PullRequestsPage, Automation, GithubDetail, GithubFailedCheck, GithubInbox, GithubItem, GithubItemKind (+60 more)
+### Community 230 - "github-inbox.ts"
+Cohesion: 0.14
+Nodes (20): GithubDetail, GithubFailedCheck, GithubInbox, GithubItem, GithubItemKind, combine(), PullRequestsPage(), STATES (+12 more)
 
 ### Community 231 - "persist.rs"
 Cohesion: 0.08
@@ -1219,15 +1231,15 @@ Nodes (18): assets, here, icon, pages, rows, script, brands, Card (+10 more)
 
 ### Community 235 - "ref_node_fs"
 Cohesion: 0.04
-Nodes (53): directory, files, port, here, mime, root, script, style (+45 more)
+Nodes (52): directory, files, port, here, mime, root, script, style (+44 more)
 
 ### Community 237 - "ADR-036: Native-owned skill discovery and explicit portable invocations"
 Cohesion: 0.33
 Nodes (5): ADR-036: Native-owned skill discovery and explicit portable invocations, Alternatives considered, Consequences, Context, Decision
 
-### Community 238 - "in-view-title.tsx"
-Cohesion: 0.25
-Nodes (10): clientSnapshot(), enter, InViewTitle(), InViewTitleProps, InViewTitleVariant, src_components_arc_in_view_title_in_view_title_module, reveal(), serverSnapshot() (+2 more)
+### Community 238 - "accordion.tsx"
+Cohesion: 0.14
+Nodes (13): @radix-ui/react-accordion, Accordion(), AccordionItem, AccordionProps, contentClosed, contentMotion, contentOpen, contentStill (+5 more)
 
 ### Community 239 - "Option"
 Cohesion: 0.18
@@ -1238,16 +1250,16 @@ Cohesion: 0.17
 Nodes (17): crate, mutex, Journal, journals_rotate_with_bounded_owned_files_and_refuse_symlinks(), logs_are_opt_in_metadata_only_and_suppress_unchanged_snapshots(), MAX_BYTES, observe(), prepare() (+9 more)
 
 ### Community 242 - "notifications_macos.rs"
-Cohesion: 0.14
-Nodes (20): objc2_app_kit, objc2_user_notifications, rcblock, retained, DelegateIvars, error(), install(), permission() (+12 more)
+Cohesion: 0.12
+Nodes (23): objc2, objc2_app_kit, objc2_user_notifications, rcblock, retained, DelegateIvars, error(), install() (+15 more)
 
 ### Community 244 - "Session"
 Cohesion: 0.17
 Nodes (11): HandoffOrigin, ImportOrigin, ForkOrigin, NativeThread, ExecutionOptions, Session, SessionStatus, UsageLimit (+3 more)
 
 ### Community 245 - "split-button.tsx"
-Cohesion: 0.08
-Nodes (26): @radix-ui/react-dropdown-menu, DropdownContent(), DropdownItem, DropdownMenu(), DropdownMenuProps, Highlight, src_components_arc_dropdown_menu_dropdown_menu_module, TriggerLabel() (+18 more)
+Cohesion: 0.13
+Nodes (18): fadeIn, fadeOut, Glyph, glyphIn, glyphOut, iconEnter, iconIn, iconKey() (+10 more)
 
 ### Community 246 - "card.tsx"
 Cohesion: 0.12
@@ -1258,20 +1270,20 @@ Cohesion: 0.25
 Nodes (7): ToastDemo(), getServerSnapshot(), layoutStack(), subscribeVisibility(), ToastStack(), useStore(), useToastStack()
 
 ### Community 249 - "super"
-Cohesion: 0.18
-Nodes (11): CloseGuard, Decision, running_and_spawn_admission_require_one_dialog(), image_results_become_image_blocks_with_remaining_text(), String, Value, run(), Server (+3 more)
+Cohesion: 0.19
+Nodes (11): CloseGuard, Decision, running_and_spawn_admission_require_one_dialog(), goals_are_bounded_clearable_and_quoted_without_changing_the_request(), legacy_sessions_have_no_goal_and_saved_goals_survive_reload(), prompt(), Option, Result (+3 more)
 
-### Community 250 - ".new"
-Cohesion: 0.25
-Nodes (17): BrowserNavigationDelegate, capture(), close(), copy_link(), main_window_pointer(), new_tab(), on_main(), open() (+9 more)
+### Community 250 - "Error"
+Cohesion: 0.45
+Nodes (6): Into, Serialize, Error, ErrorPayload, Self, String
 
 ### Community 251 - "UI Arc integration"
-Cohesion: 0.22
-Nodes (9): Composer metal surface, Conversation surfaces and replies, Keybindings, New thread orbit background, Product typography, Shared window navigation in Settings, Sidebar rows and hover cards, UI Arc integration (+1 more)
+Cohesion: 0.25
+Nodes (8): Composer metal surface, Conversation surfaces and replies, Keybindings, New thread orbit background, Product typography, Shared window navigation in Settings, Sidebar rows and hover cards, UI Arc integration
 
 ### Community 252 - "commit-title.test.ts"
 Cohesion: 0.21
-Nodes (7): CommitTitleResult, CommitTitleApi, CommitTitleRequest, TitleOutcome, deferred(), fixture(), title
+Nodes (8): CommitTitleResult, WorkspaceChanges(), CommitTitleApi, CommitTitleRequest, TitleOutcome, deferred(), fixture(), title
 
 ### Community 253 - "ADR-031: Branch-owned read-only pull requests and checks"
 Cohesion: 0.29
@@ -1293,9 +1305,9 @@ Nodes (17): command, deserialize, Action, local_server_action(), localhost_port(
 Cohesion: 0.40
 Nodes (4): Editor repair and turn review previews, Scope, Steps, Verification
 
-### Community 259 - "ADR-019-header-environment-dock-and-editors.md"
-Cohesion: 0.06
-Nodes (28): ADR-019: Header environment card, right dock and workspace editors, Alternatives considered, Consequences, Context, ADR-022: Explicit branch listing, switch and creation from the new-thread landing, Alternatives considered, Consequences, Context (+20 more)
+### Community 259 - "General settings: Synara reference map"
+Cohesion: 0.33
+Nodes (6): Context and notes, Feature mapping, General settings: Synara reference map, Implemented first stage, Reference and presentation, Switchyard-specific settings to retain
 
 ### Community 260 - "context-menu.tsx"
 Cohesion: 0.19
@@ -1313,9 +1325,9 @@ Nodes (16): BranchInfo, default_account_id(), EditorAppIcon, EditorInstall, File
 Cohesion: 0.28
 Nodes (7): boxTransition(), contentTransition(), ExpandableCard(), ExpandableCardProps, src_components_arc_expandable_card_expandable_card_module, still, wordMotion
 
-### Community 268 - "RichTextEditor"
-Cohesion: 0.15
-Nodes (23): atBlockStart(), blockAt(), clipBand(), indent(), insertAfter(), insertBefore(), isElement(), isText() (+15 more)
+### Community 268 - "tidy"
+Cohesion: 0.22
+Nodes (15): BLOCK_TAGS, blockAt(), COUNTED, DROP, insertBefore(), isElement(), isText(), offsetToPoint() (+7 more)
 
 ### Community 269 - "ADR-038: App-owned computer use with per-app approval"
 Cohesion: 0.40
@@ -1337,41 +1349,41 @@ Nodes (16): confirmed(), diff(), failures(), graphql(), job_log(), lookup_error(
 Cohesion: 0.12
 Nodes (16): Cited Findings, Cited Findings, Cited Findings, Gaps, Gaps, Gaps, Inferences, Inferences (+8 more)
 
-### Community 274 - "Cited Findings"
-Cohesion: 0.12
-Nodes (16): Cited Findings, Cited Findings, Cited Findings, Gaps, Gaps, Gaps, Inferences, Inferences (+8 more)
+### Community 274 - "O que existe hoje e onde há lacunas?"
+Cohesion: 0.13
+Nodes (15): Cited Findings, Cited Findings, Gaps, Gaps, Gaps, Inferences, Inferences, Inferences (+7 more)
 
-### Community 275 - "ADR-047: Per-session transcript files with content-addressed writes"
-Cohesion: 0.29
-Nodes (7): ADR-047: Per-session transcript files with content-addressed writes, Alternatives considered, Consequences, Context, Decision, Current architecture (performance-relevant), AppData
+### Community 275 - "DeviceFrame.tsx"
+Cohesion: 0.23
+Nodes (11): DeviceKind, DeviceScreen, DeviceSpec, HardwareButton, metrics(), Nub, NUB_ACTIONS, paths() (+3 more)
 
 ### Community 276 - "chat-markdown.ts"
-Cohesion: 0.24
-Nodes (10): Inline(), MarkdownBlock, cells(), ChatBlock, ChatInline, ChatListItem, fileReference(), findClose() (+2 more)
+Cohesion: 0.18
+Nodes (13): Inline(), MarkdownBlock, openLink(), List, Quote, cells(), ChatBlock, ChatInline (+5 more)
 
-### Community 277 - "ADR-016: Native-owned transcript forks and message bookmarks"
-Cohesion: 0.40
-Nodes (5): ADR-016: Native-owned transcript forks and message bookmarks, Alternatives considered, Consequences, Context, Decision
+### Community 277 - "progress.tsx"
+Cohesion: 0.18
+Nodes (9): exitFast, fadeOut, iconIn, src_components_arc_progress_progress_module, Progress(), ProgressProps, shown, textIn (+1 more)
 
 ### Community 278 - "changes-review/main.tsx"
-Cohesion: 0.14
-Nodes (18): Change, counts(), ExampleFile, files, linesDiff(), pairedDiff(), App(), Confirmation (+10 more)
+Cohesion: 0.15
+Nodes (17): Change, counts(), ExampleFile, files, linesDiff(), pairedDiff(), App(), Confirmation (+9 more)
 
-### Community 280 - "Embedded Browser Phases 2–3 Implementation Plan (executed)"
-Cohesion: 0.29
-Nodes (6): Constraints, Embedded Browser Phases 2–3 Implementation Plan (executed), Interfaces, Phase 2, Phase 3, Verification
-
-### Community 281 - "composer-metal.ts"
+### Community 280 - "verify-document-reader.mjs"
 Cohesion: 0.22
-Nodes (13): mountSurfaces(), paths, reduced, speeds, syncMotion(), visibility, @paper-design/shaders, ComposerContour() (+5 more)
+Nodes (5): @napi-rs/canvas, objects, offsets, pdf, xref
+
+### Community 281 - "SortableDataTable"
+Cohesion: 0.36
+Nodes (8): comparable(), isEmpty(), SortableDataTable(), clearSelection(), commit(), onKeyDown(), onRowClick(), toggleRow()
 
 ### Community 282 - "ADR-056: Second opinion"
 Cohesion: 0.33
 Nodes (5): ADR-056: Second opinion, Alternatives considered, Consequences, Context, Decision
 
 ### Community 283 - "BrowserPanel"
-Cohesion: 0.10
-Nodes (12): Constraints, Embedded Browser Phase 1 Implementation Plan, Interfaces, Phases 2–3 (own plans), Tasks, Verification, BrowserSessionState, BrowserTabState (+4 more)
+Cohesion: 0.06
+Nodes (23): Constraints, Embedded Browser Phase 1 Implementation Plan, Interfaces, Phases 2–3 (own plans), Tasks, Verification, Constraints, Embedded Browser Phases 2–3 Implementation Plan (executed) (+15 more)
 
 ### Community 284 - "Sidebar rail implementation plan"
 Cohesion: 0.50
@@ -1382,7 +1394,7 @@ Cohesion: 0.33
 Nodes (5): ADR-057: Context usage and compaction, Alternatives considered, Consequences, Context, Decision
 
 ### Community 286 - "O que está implementado de fato, e qual a confiança na comparação?"
-Cohesion: 0.18
+Cohesion: 0.17
 Nodes (11): Cited Findings, Cited Findings, Gaps, Gaps, Inferences, Inferences, O que está implementado de fato, e qual a confiança na comparação?, O que vale implementar no Switchyard, sem repetir o que já existe? (+3 more)
 
 ### Community 287 - "TagInput"
@@ -1417,17 +1429,17 @@ Nodes (5): ADR-008: Rust owns Session execution and transcript state, Alternativ
 Cohesion: 0.40
 Nodes (5): Credential and cache boundary, Earned Codex resets, Named accounts, Provider usage footer, Read-only verification
 
-### Community 295 - "session_export.rs"
-Cohesion: 0.20
-Nodes (13): export_conversation(), file_name(), MAX_MARKDOWN, pick_destination(), AppHandle, Option, Path, PathBuf (+5 more)
+### Community 295 - "tauri"
+Cohesion: 0.18
+Nodes (14): export_conversation(), file_name(), MAX_MARKDOWN, pick_destination(), AppHandle, Option, Path, PathBuf (+6 more)
 
 ### Community 296 - "sidebar-icons.tsx"
 Cohesion: 0.18
 Nodes (7): assets, libraries, Library, Material, materials, Menu, menus
 
 ### Community 297 - "ADR-030: Owner-bound Environment references and bookmark navigation"
-Cohesion: 0.29
-Nodes (7): ADR-030: Owner-bound Environment references and bookmark navigation, Alternatives considered, Consequences, Context, Current product surface, Original decision, Security review
+Cohesion: 0.40
+Nodes (5): ADR-030: Owner-bound Environment references and bookmark navigation, Alternatives considered, Consequences, Context, Current product surface
 
 ### Community 298 - "ADR-058: Mermaid diagrams"
 Cohesion: 0.33
@@ -1450,8 +1462,8 @@ Cohesion: 0.29
 Nodes (6): ADR-049: Side chats beside a working session, Alternatives considered, Consequences, Context, Decision, IPC security review
 
 ### Community 303 - "ADR-044: Explicit empty workspace entries through native ownership"
-Cohesion: 0.29
-Nodes (6): ADR-044: Explicit empty workspace entries through native ownership, Alternatives considered, Amendment (2026-10-03): explicit Move to Trash, Consequences, Context, Decision
+Cohesion: 0.40
+Nodes (5): ADR-044: Explicit empty workspace entries through native ownership, Alternatives considered, Amendment (2026-10-03): explicit Move to Trash, Consequences, Context
 
 ### Community 304 - "InlineEdit"
 Cohesion: 0.33
@@ -1505,9 +1517,9 @@ Nodes (5): ADR-064: CI auto-fix, Alternatives considered, Consequences, Context,
 Cohesion: 0.22
 Nodes (7): AgentInstall, AgentProviderId, HandoffOrigin, ImportOrigin, ProviderAccount, ProviderUpdateResult, QueuedPromptContext
 
-### Community 319 - "ArcComponentExplorer.tsx"
-Cohesion: 0.18
-Nodes (11): src_components_arc_catalog, ArcDemoName, ArcPreview(), previews, ArcComponentExplorer(), categories, copy, isDemoName() (+3 more)
+### Community 319 - "previews.tsx"
+Cohesion: 0.04
+Nodes (52): @radix-ui/react-switch, src_components_arc_catalog, ArcDemoName, ArcPreview(), data, DemoState, options, person (+44 more)
 
 ### Community 320 - "ADR-054: Global window snap"
 Cohesion: 0.29
@@ -1521,24 +1533,24 @@ Nodes (8): Automation, ProjectLook, AppData, Project, HashMap, ProviderAccount, 
 Cohesion: 0.83
 Nodes (3): cputime(), helpers(), measure-idle.sh script
 
-### Community 323 - "goals.rs"
-Cohesion: 0.46
-Nodes (7): goals_are_bounded_clearable_and_quoted_without_changing_the_request(), legacy_sessions_have_no_goal_and_saved_goals_survive_reload(), prompt(), Option, Result, String, validate()
+### Community 323 - "RPCErrorCode"
+Cohesion: 0.22
+Nodes (9): RPCErrorCode, inputNotDelivered, internalError, invalidParams, invalidRequest, methodNotFound, notAttached, parseError (+1 more)
 
 ### Community 324 - "ADR-010: Claude approvals use native stream-json and exact resume"
 Cohesion: 0.40
 Nodes (5): ADR-010: Claude approvals use native stream-json and exact resume, Alternatives considered, Consequences, Context, Decision
 
-### Community 325 - "CommentThread"
-Cohesion: 0.29
-Nodes (7): authorsOf(), CommentThread, countTree(), find(), mapTree(), newId(), pathTo()
+### Community 325 - "Findings"
+Cohesion: 0.25
+Nodes (7): Findings, Idle work, Memory growth, Persistence and locks (native), Plan, Startup, Streaming and rendering
 
 ### Community 327 - "ADR-052: Inbox, Tasks and a customizable rail"
 Cohesion: 0.33
 Nodes (5): ADR-052: Inbox, Tasks and a customizable rail, Alternatives considered, Consequences, Context, Decision
 
 ### Community 328 - "ADR-050: Review inbox for pull requests and issues"
-Cohesion: 0.40
+Cohesion: 0.50
 Nodes (4): ADR-050: Review inbox for pull requests and issues, Alternatives considered, Context, Decision
 
 ### Community 329 - "review-inbox-strings.ts"
@@ -1602,20 +1614,20 @@ Cohesion: 0.40
 Nodes (4): automationsEnglish, automationsPortuguese, strings, ADR-0051
 
 ### Community 345 - "profile-settings-synara-map.md"
-Cohesion: 0.12
-Nodes (14): ADR-021: Read-only import of Claude Code and Codex conversations, Alternatives considered, Consequences, Context, Decision, ADR-032: Local identity, retained activity and bounded image export, Alternatives considered, Consequences (+6 more)
+Cohesion: 0.09
+Nodes (19): ADR-016: Native-owned transcript forks and message bookmarks, Alternatives considered, Consequences, Context, Decision, ADR-021: Read-only import of Claude Code and Codex conversations, Alternatives considered, Consequences (+11 more)
 
-### Community 346 - "create_workspace_entry"
-Cohesion: 0.60
-Nodes (5): create_workspace_entry(), create_workspace_entry_native(), FileEntry, WorkspaceEntryKind, workspace_entry_creation_requires_live_session_project_and_destination()
+### Community 346 - "MarkdownPreview"
+Cohesion: 0.36
+Nodes (6): inline(), MarkdownPreview(), MarkdownBlock, MarkdownInline, parseInline(), parseMarkdown()
 
 ### Community 347 - "Message"
 Cohesion: 0.40
 Nodes (5): AgentEvent, Message, MessageRole, Steer, TurnActivity
 
 ### Community 348 - "convertBlock"
-Cohesion: 0.24
-Nodes (10): appendNodes(), cleanClone(), convertBlock(), ensureFilled(), linesToNodes(), mergeAdjacentLists(), moveChildren(), outdent() (+2 more)
+Cohesion: 0.40
+Nodes (6): appendNodes(), convertBlock(), linesToNodes(), mergeAdjacentLists(), moveChildren(), plainText()
 
 ### Community 349 - "workspace-pages-strings.ts"
 Cohesion: 0.40
@@ -1649,9 +1661,13 @@ Nodes (5): ADR-059: Project folder colour, emoji and logo, Alternatives consider
 Cohesion: 0.50
 Nodes (3): splitEnglish, splitPortuguese, strings
 
-### Community 360 - "ADR-014: Scoped authenticated quota reads and account identity"
-Cohesion: 0.40
-Nodes (5): ADR-014: Scoped authenticated quota reads and account identity, Alternatives considered, Consequences, Context, Decision
+### Community 359 - "ADR-066: iOS Simulator pane"
+Cohesion: 0.33
+Nodes (5): ADR-066: iOS Simulator pane, Alternatives considered, Consequences, Context, Decision
+
+### Community 360 - "Evolua o Switchyard fechando ciclos reais"
+Cohesion: 0.33
+Nodes (6): A comparação considera versões diferentes e uma base já completa, Consultar à parte e acompanhar sessões são necessidades distintas, Evolua o Switchyard fechando ciclos reais, Próximos pedidos e entrega exigem autorização visível, Três melhorias aproveitam diretamente o trabalho existente, Três propostas concretas para abrir agora
 
 ### Community 361 - ".validate_controls"
 Cohesion: 0.40
@@ -1661,6 +1677,14 @@ Nodes (3): ProjectLook, Result, valid_github_pin()
 Cohesion: 0.50
 Nodes (3): sidebarUsageEnglish, sidebarUsagePortuguese, strings
 
+### Community 363 - "ADR-022: Explicit branch listing, switch and creation from the new-thread landing"
+Cohesion: 0.40
+Nodes (5): ADR-022: Explicit branch listing, switch and creation from the new-thread landing, Alternatives considered, Consequences, Context, Decision
+
+### Community 365 - "ADR-029: Sidebar organization as owner-validated settings"
+Cohesion: 0.40
+Nodes (5): ADR-029: Sidebar organization as owner-validated settings, Alternatives considered, Consequences, Context, Decision
+
 ### Community 366 - "ADR-060: Composer app commands and conversation export"
 Cohesion: 0.33
 Nodes (5): ADR-060: Composer app commands and conversation export, Alternatives considered, Consequences, Context, Decision
@@ -1669,33 +1693,45 @@ Nodes (5): ADR-060: Composer app commands and conversation export, Alternatives 
 Cohesion: 0.33
 Nodes (5): ADR-063: Usage-limit notice and resume at reset, Alternatives considered, Consequences, Context, Decision
 
-### Community 368 - "ADR-015: Isolated provider accounts with session profile binding"
-Cohesion: 0.40
-Nodes (5): ADR-015: Isolated provider accounts with session profile binding, Alternatives considered, Consequences, Context, Decision
+### Community 368 - "app-splash.ts"
+Cohesion: 0.70
+Nodes (4): dismissAppSplash(), leave(), motionReduced(), ms()
+
+### Community 369 - "prompt-context.ts"
+Cohesion: 0.60
+Nodes (3): PromptContext, withPromptContext(), workspaceContext()
+
+### Community 370 - "ADR-019: Header environment card, right dock and workspace editors"
+Cohesion: 0.50
+Nodes (4): ADR-019: Header environment card, right dock and workspace editors, Alternatives considered, Consequences, Context
+
+### Community 371 - "General Settings Implementation Plan"
+Cohesion: 0.50
+Nodes (3): Constraints, General Settings Implementation Plan, Verification
 
 ### Community 372 - "computer-strings.ts"
 Cohesion: 0.50
 Nodes (3): computerEnglish, computerPortuguese, strings
 
 ## Knowledge Gaps
-- **2048 isolated node(s):** `ADR-0048`, `T`, `shots`, `frame`, `name` (+2043 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3032 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **57 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2098 isolated node(s):** `ADR-0048`, `T`, `shots`, `frame`, `name` (+2093 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3127 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **53 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Runtime guide` connect `Transport` to `decisions/README.md`?**
-  _High betweenness centrality (0.374) - this node is a cross-community bridge._
+  _High betweenness centrality (0.355) - this node is a cross-community bridge._
 - **Why does `Transport and security` connect `Transport` to `SwitchyardClient`?**
-  _High betweenness centrality (0.373) - this node is a cross-community bridge._
-- **Why does `SwitchyardClient` connect `SwitchyardClient` to `react`, `Performance and resource audit`, `isCancelledTitle`, `useTranslation`, `ADR-030: Owner-bound Environment references and bookmark navigation`, `.listen`, `ComposerAddMenu.tsx`, `EnvironmentPanel.tsx`, `ADR-044: Explicit empty workspace entries through native ownership`, `Transport`, `Cited Findings`, `workspace-tools.tsx`, `BrowserPanel`, `commit-title.test.ts`?**
-  _High betweenness centrality (0.332) - this node is a cross-community bridge._
+  _High betweenness centrality (0.355) - this node is a cross-community bridge._
+- **Why does `SwitchyardClient` connect `SwitchyardClient` to `Findings`, `useTranslation`, `ComposerAddMenu.tsx`, `Message`, `client/index.ts`, `types.ts`, `Transport`, `workspace-tools-git.ts`, `phosphor.tsx`, `BrowserPanel`, `commit-title.test.ts`?**
+  _High betweenness centrality (0.329) - this node is a cross-community bridge._
 - **What connects `ADR-0048`, `T`, `shots` to the rest of the system?**
-  _2048 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2098 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `claude.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.0851063829787234 - nodes in this community are weakly interconnected._
-- **Should `react` be split into smaller, more focused modules?**
-  _Cohesion score 0.04044357469015003 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09634551495016612 - nodes in this community are weakly interconnected._
+- **Should `SidebarRows.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.048539518900343644 - nodes in this community are weakly interconnected._
 - **Should `dictation.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.05714285714285714 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09230769230769231 - nodes in this community are weakly interconnected._

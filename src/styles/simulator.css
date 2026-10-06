@@ -1,0 +1,34 @@
+@layer components {
+  /* iOS Simulator pane (ADR-066): header picker, the drawn device and a control rail. */
+  .simulator-pane { display: flex; height: 100%; min-height: 0; flex-direction: column; }
+  .simulator-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); }
+  .simulator-picker { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; color: var(--text-secondary); }
+  .simulator-picker:hover:not(:disabled), .simulator-picker[data-state="open"] { background: var(--navigation-hover); color: var(--text-primary); }
+  .simulator-picker:disabled { opacity: .6; cursor: default; }
+  .simulator-menu { min-width: 320px; }
+  .simulator-menu [role="menuitem"] > span:last-child { flex: 1; min-width: 0; }
+  .simulator-menu-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; gap: 18px; }
+  .simulator-menu-row > span:last-child { text-align: right; white-space: nowrap; }
+  .simulator-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; color: var(--text-muted); }
+  .simulator-icon:hover { background: var(--navigation-hover); color: var(--text-primary); }
+  .simulator-body { position: relative; min-height: 0; flex: 1; outline: none; }
+  .simulator-stage { display: flex; height: 100%; min-height: 0; align-items: center; justify-content: center; padding: 24px; container-type: size; }
+  .simulator-device { position: relative; transition: transform var(--motion-normal) var(--ease-out); }
+  .simulator-layer { pointer-events: none; position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
+  .simulator-shadow { filter: drop-shadow(0 2px 6px rgb(0 0 0 / .2)) drop-shadow(0 12px 32px rgb(0 0 0 / .25)); }
+  .simulator-screen { position: absolute; overflow: hidden; background: #000; }
+  .simulator-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; transition: opacity var(--motion-normal) var(--ease-out); }
+  .simulator-message { position: absolute; inset: 0; display: grid; place-items: center; padding: 0 12%; text-align: center; color: rgb(255 255 255 / .55); pointer-events: none; }
+  .simulator-nub { position: absolute; border-radius: 999px; cursor: pointer; transition: transform var(--motion-fast) var(--ease-out); }
+  .simulator-nub[data-side="left"]:active { transform: translateX(1.5px); }
+  .simulator-nub[data-side="right"]:active { transform: translateX(-1.5px); }
+  .simulator-nub[data-side="top"]:active { transform: translateY(1.5px); }
+  .simulator-nub:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .simulator-rail { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 0 14px; }
+  .simulator-rail button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--text-muted); }
+  .simulator-rail button:hover:not(:disabled) { background: var(--navigation-hover); color: var(--text-primary); }
+  .simulator-rail button:disabled { opacity: .45; cursor: default; }
+  .simulator-rail button[aria-pressed="true"] { color: var(--text-primary); }
+  .simulator-rail button[data-recording] { color: var(--danger); }
+  .simulator-rail-gap { width: 1px; height: 16px; margin: 0 6px; background: var(--border-subtle); }
+}

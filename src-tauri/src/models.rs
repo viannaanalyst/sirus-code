@@ -478,6 +478,8 @@ pub struct AppSettings {
     pub confirm_archive: bool,
     /// Chat behavior: ask before closing a terminal tab.
     pub confirm_terminal_close: bool,
+    /// Chat behavior: open the Simulator pane when an agent starts using a simulator (ADR-066).
+    pub auto_open_simulator: bool,
     /// Sessions marked Done in the Activity view and when; newer activity reopens them.
     pub done_sessions: Vec<DoneSession>,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
@@ -594,6 +596,7 @@ impl Default for AppSettings {
             diff_word_wrap: false,
             confirm_archive: false,
             confirm_terminal_close: true,
+            auto_open_simulator: true,
             done_sessions: Vec::new(),
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),

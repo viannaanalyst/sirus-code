@@ -54,7 +54,7 @@ import {
   type SettingsSectionId,
 } from "@/lib/settings";
 
-export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review" | "sidechat";
+export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review" | "sidechat" | "simulator";
 export interface DockPane {
   id: string;
   kind: DockPaneKind;
@@ -2323,6 +2323,11 @@ export async function bindRealtime() {
       void store.selectSession(sessionId);
     }));
     unlisteners.push(await client.onWindowSnap((event) => { void receiveWindowSnap(event); }));
+    // An agent attaching a simulator opens its pane once, when Chat behavior allows it.
+    unlisteners.push(await client.onSimulatorOpen(({ sessionId }) => {
+      const store = useAppStore.getState();
+      if (store.settings.autoOpenSimulator && store.selectedSessionId === sessionId) store.openDockPane("simulator");
+    }));
     unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
     void useAppStore.getState().ciAutofixAction({ type: "status" });
     unlisteners.push(await client.onAutomationsChanged(() => {

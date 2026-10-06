@@ -53,6 +53,7 @@ mod pull_requests;
 mod session_export;
 mod side_chat;
 mod sidebar;
+mod simulator;
 mod skills;
 mod tasks;
 mod team;
@@ -113,6 +114,7 @@ pub fn run() {
             std::fs::create_dir_all(&app_dir)?;
             let data_path = app_dir.join("state.json");
             browser_mcp::init(app.handle().clone(), app_dir.clone());
+            simulator::init(app.handle().clone(), &app_dir);
             let worktree_root = app_dir.join("worktrees");
             std::fs::create_dir_all(&worktree_root)?;
             let data = persist::load_or_create(&data_path)?;
@@ -165,6 +167,7 @@ pub fn run() {
             automations::automation_action,
             ci_autofix::ci_autofix_action,
             local_servers::local_server_action,
+            simulator::simulator_action,
             tasks::task_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
@@ -293,6 +296,7 @@ pub fn run() {
             }
             if matches!(event, tauri::RunEvent::Exit) {
                 attachment_platform::remove_paste_listener();
+                simulator::shutdown_all();
                 let state = app.state::<Arc<AppState>>();
                 if let Err(error) = state.shutdown() {
                     tracing::error!(%error, "cannot persist application shutdown");

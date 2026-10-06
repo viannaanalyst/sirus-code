@@ -264,6 +264,7 @@ export interface AppSettings {
   diffWordWrap: boolean;
   confirmArchive: boolean;
   confirmTerminalClose: boolean;
+  autoOpenSimulator: boolean;
   /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
   doneSessions: { id: string; at: string }[];
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */
@@ -844,3 +845,15 @@ export interface CiFixState {
   updatedAt: string;
 }
 export type CiFixAction = { type: "status" } | { type: "setEnabled"; sessionId: string; enabled: boolean };
+
+/** iOS Simulator pane (ADR-066). */
+export interface SimulatorDevice { udid: string; name: string; runtime: string; booted: boolean; family: "phone" | "tablet" }
+export interface SimulatorAttached { udid: string; name: string; family: "phone" | "tablet"; pixelWidth: number; pixelHeight: number; input: boolean }
+export interface SimulatorFrame { udid: string; sequence: number; keyframe: boolean; config: boolean; data: string }
+export type SimulatorAction =
+  | { type: "probe" } | { type: "list" } | { type: "attach"; udid: string } | { type: "detach" }
+  | { type: "tap"; x: number; y: number } | { type: "touch"; phase: "down" | "move" | "up"; x: number; y: number }
+  | { type: "swipe"; startX: number; startY: number; endX: number; endY: number }
+  | { type: "key"; usage: number; phase?: "down" | "up" } | { type: "text"; text: string }
+  | { type: "button"; name: "home" | "lock" | "volume-up" | "volume-down" }
+  | { type: "screenshot" } | { type: "record"; start: boolean } | { type: "shutdown"; udid: string; confirm: true };

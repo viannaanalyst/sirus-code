@@ -8,6 +8,12 @@ import { forwardRef, type ComponentType, type SVGProps } from "react";
 import type { Icon as PhosphorIcon, IconWeight } from "@phosphor-icons/react";
 import {
   AppWindow as PhAppWindow,
+  DeviceMobile as PhDeviceMobile,
+  RectangleDashed as PhRectangleDashed,
+  Power as PhPower,
+  Camera as PhCameraIcon,
+  House as PhHouseIcon,
+  DeviceRotate as PhDeviceRotate,
   Archive as PhArchive,
   ArrowBendDownRight as PhArrowBendDownRight,
   ArrowBendUpLeft as PhArrowBendUpLeft,
@@ -365,7 +371,6 @@ export const TextSearch = adapt(PhListMagnifyingGlass, "TextSearch");
 export const Trash2 = adapt(PhTrash, "Trash2");
 export const TriangleAlert = adapt(PhWarning, "TriangleAlert");
 export const Undo2 = adapt(PhArrowUUpLeft, "Undo2");
-export const Unlink = adapt(PhLinkBreak, "Unlink");
 export const UserRound = adapt(PhUser, "UserRound");
 export const Users = adapt(PhUsers, "Users");
 export const Wrench = adapt(PhWrench, "Wrench");
@@ -375,3 +380,11 @@ export const Zap = adapt(PhLightning, "Zap");
 export const Inbox = adapt(PhTray, "Inbox");
 export const ListTodo = adapt(PhListChecks, "ListTodo");
 export const GripVertical = adapt(PhDotsSixVertical, "GripVertical");
+export const Smartphone = adapt(PhDeviceMobile, "Smartphone");
+export const RecordDot = adapt(PhRecord, "RecordDot");
+export const PowerIcon = adapt(PhPower, "PowerIcon");
+export const Unlink = adapt(PhLinkBreak, "Unlink");
+export const CameraShot = adapt(PhCameraIcon, "CameraShot");
+export const HomeButton = adapt(PhHouseIcon, "HomeButton");
+export const RotateView = adapt(PhDeviceRotate, "RotateView");
+export const ScreenDashed = adapt(PhRectangleDashed, "ScreenDashed");

@@ -575,6 +575,22 @@ export class SwitchyardClient {
     return this.transport.listen<import("./types").ComputerSnapshot>("computer-state", handler);
   }
 
+  simulatorAction<T = unknown>(action: import("./types").SimulatorAction) {
+    return this.transport.invoke<T>("simulator_action", { action });
+  }
+
+  onSimulatorFrame(handler: (frame: import("./types").SimulatorFrame) => void) {
+    return this.transport.listen<import("./types").SimulatorFrame>("simulator-frame", handler);
+  }
+
+  onSimulatorState(handler: (state: { attached: import("./types").SimulatorAttached | null }) => void) {
+    return this.transport.listen<{ attached: import("./types").SimulatorAttached | null }>("simulator-state", handler);
+  }
+
+  onSimulatorOpen(handler: (event: { sessionId: string }) => void) {
+    return this.transport.listen<{ sessionId: string }>("simulator-open", handler);
+  }
+
   onBrowserState(handler: (state: import("./types").BrowserSessionState) => void) {
     return this.transport.listen<import("./types").BrowserSessionState>("browser-state", handler);
   }
