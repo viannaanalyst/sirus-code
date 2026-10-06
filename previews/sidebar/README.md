@@ -1,6 +1,6 @@
 # Sidebar studies
 
-Five interactive, isolated sidebar studies using Switchyard typography, color and
+Five interactive, isolated sidebar studies using Sirus Code typography, color and
 motion tokens, Lucide icons, the existing Tooltip primitive and bundled provider
 SVGs. No production Sidebar, store, native IPC or persisted state is changed.
 
@@ -35,7 +35,7 @@ they do not copy Synara's Central icon assets.
 - `ThreadHoverCardContent.tsx`: full title/time, project, branch, optional worktree,
   model, effort and optional live status. Synara additionally supports PR/source
   folder metadata when available. Sample rows omit PRs, rather than implying
-  Switchyard has Synara's pull request integration.
+  Sirus Code has Synara's pull request integration.
 - Pinned sessions appear in **Fixadas**; these previews remove them from nested
   project lists, and unpinning returns them. Projects stay in **Projetos**.
 

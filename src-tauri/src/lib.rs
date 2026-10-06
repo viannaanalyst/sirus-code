@@ -35,7 +35,6 @@ mod git;
 mod git_workspace;
 mod github_inbox;
 mod goals;
-mod legacy_data;
 mod local_servers;
 mod mcp_stdio;
 mod models;
@@ -103,26 +102,15 @@ pub fn run() {
             let resolver = app.path();
             let app_dir = resolver.app_data_dir()?;
             #[cfg(debug_assertions)]
-            let (app_dir, migrate_legacy) = if let Some(path) = std::env::var_os("SIRUS_DATA_DIR") {
+            let app_dir = if let Some(path) = std::env::var_os("SIRUS_DATA_DIR") {
                 let path = std::path::PathBuf::from(path);
                 if !path.is_absolute() {
                     return Err("SIRUS_DATA_DIR must be absolute".into());
                 }
-                (path, false)
+                path
             } else {
-                (app_dir, true)
+                app_dir
             };
-            #[cfg(not(debug_assertions))]
-            let migrate_legacy = true;
-            if migrate_legacy {
-                match legacy_data::migrate(&app_dir) {
-                    Ok(true) => {
-                        tracing::info!("moved app data from the previous Sirus Code install")
-                    }
-                    Ok(false) => {}
-                    Err(_) => tracing::warn!("previous Sirus Code app data could not be moved"),
-                }
-            }
             std::fs::create_dir_all(&app_dir)?;
             {
                 // Keep a small crash breadcrumb without persisting panic payloads
@@ -381,7 +369,6 @@ async fn open_path(
         roots.push(state.worktree_root.clone());
         if let Some(parent) = state.data_path.parent() {
             roots.push(parent.to_path_buf());
-            roots.extend(crate::legacy_data::worktree_root(parent));
         }
         if let Some(path) = &data.settings.worktree_base_path {
             roots.push(path.into());

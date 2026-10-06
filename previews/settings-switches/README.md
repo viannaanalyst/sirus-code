@@ -1,6 +1,6 @@
 # Settings switch studies
 
-Three interactive, offline-capable studies matching Switchyard's dark surfaces,
+Three interactive, offline-capable studies matching Sirus Code's dark surfaces,
 native system typography, bundled orbital glyph and Lucide icons.
 
 1. **Prata suave** — satin silver thumb, a bounded settling animation and a subtle check.

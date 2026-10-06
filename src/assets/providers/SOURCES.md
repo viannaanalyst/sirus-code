@@ -14,4 +14,4 @@ Bundled locally; no runtime hotlinking. These are vendor glyphs, without favicon
 | Pi | `pi.svg` | [Official logo](https://pi.dev/logo-auto.svg), original colored pixel mark; whitespace cropped. |
 | Devin | `devin.svg` | [Official favicon](https://devin.ai/favicon.svg), no tile in the source; monochrome shape preserved. |
 
-Legacy PNG and placeholder files are retained for previous standalone previews but are not used by product provider/model controls. Vendor trademarks remain their owners' property. Do not replace them with generated illustrations or recolor them to Switchyard's accent.
+Legacy PNG and placeholder files are retained for previous standalone previews but are not used by product provider/model controls. Vendor trademarks remain their owners' property. Do not replace them with generated illustrations or recolor them to Sirus Code's accent.

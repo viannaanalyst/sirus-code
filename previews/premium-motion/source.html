@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Switchyard · Movimento premium: Configurações e abertura do app</title>
+<title>Sirus Code · Movimento premium: Configurações e abertura do app</title>
 <style>
   :root {
     --bg0: #0c0c0c; --bg1: #111111; --bg2: #191919; --bg3: #242424; --elev: #1c1c1c;
@@ -283,10 +283,10 @@ const SECTIONS = [
 ];
 const ORDER = SECTIONS.flatMap(([, items]) => items.map(([id]) => id));
 const CONTENT = {
-  general: ["Preferências do app e da barra lateral.", [["Padrões", [["Novos threads", "Onde cada novo thread começa.", "Local"], ["Idioma", "Idioma da interface.", "Português (Brasil)"], ["Reabrir último projeto", "Ao iniciar o Switchyard.", true]]], ["Organização da barra lateral", [["Ordem dos projetos", "Fixados ficam primeiro.", "Manual"], ["Ordem das conversas", "Dentro de cada projeto.", "Criação"]]]]],
+  general: ["Preferências do app e da barra lateral.", [["Padrões", [["Novos threads", "Onde cada novo thread começa.", "Local"], ["Idioma", "Idioma da interface.", "Português (Brasil)"], ["Reabrir último projeto", "Ao iniciar o Sirus Code.", true]]], ["Organização da barra lateral", [["Ordem dos projetos", "Fixados ficam primeiro.", "Manual"], ["Ordem das conversas", "Dentro de cada projeto.", "Criação"]]]]],
   profile: ["Sua identidade local e atividade.", [["Identidade", [["Nome de exibição", "Aparece no cartão de perfil.", "Gabriel"], ["Foto", "Imagem local, nunca enviada.", "Alterar"]]], ["Atividade", [["Mostrar heatmap", "Atividade dos seus threads.", true]]]]],
   appearance: ["Tema, vidro e tipografia.", [["Tema", [["Modo", "Claro, escuro ou do sistema.", "Escuro"], ["Vidro na janela", "Translucidez do macOS.", true], ["Opacidade da barra lateral", "Quanto do fundo aparece.", "72%"]]], ["Movimento", [["Animações", "Transições da interface.", true], ["Reduzir movimento", "Também segue o macOS.", false]]]]],
-  notifications: ["Quando e como o Switchyard avisa você.", [["Canais", [["No app", "Avisos dentro da janela.", true], ["Sistema", "Banners do macOS.", true], ["Som", "Toca ao concluir.", "Vidro"]]], ["Eventos", [["Pedidos de permissão", "Quando um agente pede aprovação.", true], ["Conclusão", "Quando um turno termina.", true]]]]],
+  notifications: ["Quando e como o Sirus Code avisa você.", [["Canais", [["No app", "Avisos dentro da janela.", true], ["Sistema", "Banners do macOS.", true], ["Som", "Toca ao concluir.", "Vidro"]]], ["Eventos", [["Pedidos de permissão", "Quando um agente pede aprovação.", true], ["Conclusão", "Quando um turno termina.", true]]]]],
   keybindings: ["Atalhos de teclado.", [["Navegação", [["Paleta de comandos", "", "⌘K"], ["Nova sessão", "", "⌘N"], ["Barra lateral", "", "⌘B"], ["Configurações", "", "⌘,"]]], ["Espaço de trabalho", [["Terminal", "", "⌘`"], ["Navegador", "", "⌥⌘B"]]]]],
   providers: ["CLIs detectadas neste Mac.", [["Instalados", [["Codex", "codex 0.48 · conectado", true], ["Claude Code", "claude 2.1 · conectado", true], ["OpenCode", "opencode 1.4", true]]], ["Disponíveis", [["Cursor", "Não encontrado no PATH.", false], ["Grok", "Não encontrado no PATH.", false]]]]],
   skills: ["Skills locais que os agentes podem usar.", [["Catálogo", [["frontend-design", "~/.agents/skills", true], ["systematic-debugging", "~/.agents/skills", true], ["writing-plans", "~/.agents/skills", false]]]]],

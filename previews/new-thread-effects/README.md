@@ -1,6 +1,6 @@
 # New thread effect previews
 
-Three original silver/graphite background directions, presented in the same Switchyard New thread composition with the actual logo, import banner layout, product typography/dimensions and shared metallic composer. The approved **Órbitas** drawing is shared with the product through `src/lib/landing-orbits.ts`, and the comparison opens at **100% intensity / Fast**, matching the product. These are visual previews only: workspace/model/approval labels are illustrative, Send is simulated, and no native IPC or project state is changed by the previews.
+Three original silver/graphite background directions, presented in the same Sirus Code New thread composition with the actual logo, import banner layout, product typography/dimensions and shared metallic composer. The approved **Órbitas** drawing is shared with the product through `src/lib/landing-orbits.ts`, and the comparison opens at **100% intensity / Fast**, matching the product. These are visual previews only: workspace/model/approval labels are illustrative, Send is simulated, and no native IPC or project state is changed by the previews.
 
 ## Open
 

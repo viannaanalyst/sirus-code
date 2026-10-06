@@ -24,7 +24,7 @@ function renderThreads() {
       const icon = document.createElement("img"); icon.src = `assets/${session.icon}.svg`; icon.alt = ""; icon.className = session.mono ? "mono" : "";
       const text = document.createElement("span"); text.className = "thread-copy";
       const title = document.createElement("span"); title.className = "thread-title"; title.textContent = session.title;
-      const metadata = document.createElement("span"); metadata.className = "thread-meta"; metadata.textContent = `switchyard · ${session.time}`;
+      const metadata = document.createElement("span"); metadata.className = "thread-meta"; metadata.textContent = `sirus · ${session.time}`;
       text.append(title, metadata); row.append(icon, text);
       if (hasDraft(state, session.id)) {
         const glyph = document.createElement("span"); glyph.className = "pencil"; glyph.innerHTML = pencil;

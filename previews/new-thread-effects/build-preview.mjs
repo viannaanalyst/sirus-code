@@ -8,7 +8,7 @@ import { log } from "node:console";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
-const outDir = await mkdtemp(join(tmpdir(), "switchyard-new-thread-"));
+const outDir = await mkdtemp(join(tmpdir(), "sirus-new-thread-"));
 await build({ root, build: { outDir, emptyOutDir: false, rollupOptions: { input: join(here, "index.html") } } });
 let html = await readFile(join(outDir, "previews/new-thread-effects/index.html"), "utf8");
 const script = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/);

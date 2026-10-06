@@ -1,5 +1,5 @@
 // Simulated API for the real ChangesPane; never calls Git, a CLI or the network.
-import type { SwitchyardClient } from "@/client";
+import type { SirusClient } from "@/client";
 import type { GitHistoryEntry, GitWorkspaceEntry, GitWorkspaceSnapshot } from "@/client/types";
 import { fixtureRoot, fixtureSessionId, observePreviewCreation, previewFile } from "./workspace-tools-files";
 
@@ -36,7 +36,7 @@ observePreviewCreation(path => {
 });
 let titleJob: { sessionId: string; requestId: string; cancel: () => void } | null = null;
 let titleSequence = 0;
-export const previewGit: Pick<SwitchyardClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" | "gitPush" | "gitCommitTitle" | "cancelCommitTitle"> = {
+export const previewGit: Pick<SirusClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" | "gitPush" | "gitCommitTitle" | "cancelCommitTitle"> = {
   async gitCommitTitle(sessionId, token, requestId) {
     owned(sessionId); current(token);
     if (titleJob) throw new Error("Another commit title request is already running");

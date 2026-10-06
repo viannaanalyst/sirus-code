@@ -27,10 +27,10 @@ function Icon({ library, menu, filled = false }: { library: Library; menu: Menu;
 }
 
 function Content({ menu }: { menu: Menu }) {
-  if (menu === "home") return <><div className="project-row"><span className="folder-symbol" aria-hidden="true" />Switchyard <span>⌄</span></div><div className="thread-row active-thread">Ajustar a barra lateral</div><div className="thread-row">Leitor de documentos</div><div className="thread-row">Uma ideia nova</div><div className="project-row"><span className="folder-symbol" aria-hidden="true" />Meu próximo projeto <span>›</span></div><p className="workspace-note">Seus projetos e conversas,<br/>sempre por perto.</p></>;
-  if (menu === "kanban") return <><div className="project-row">Switchyard</div><div className="mini-board">{["A fazer", "Em curso", "Concluído"].map((label, i) => <div key={label}><h4>{label}</h4><div className="task-card">{["Nova ideia", "Barra lateral", "Documentos"][i]}</div></div>)}</div><p className="workspace-note">Uma visão das sessões<br/>de cada projeto.</p></>;
+  if (menu === "home") return <><div className="project-row"><span className="folder-symbol" aria-hidden="true" />Sirus Code <span>⌄</span></div><div className="thread-row active-thread">Ajustar a barra lateral</div><div className="thread-row">Leitor de documentos</div><div className="thread-row">Uma ideia nova</div><div className="project-row"><span className="folder-symbol" aria-hidden="true" />Meu próximo projeto <span>›</span></div><p className="workspace-note">Seus projetos e conversas,<br/>sempre por perto.</p></>;
+  if (menu === "kanban") return <><div className="project-row">Sirus Code</div><div className="mini-board">{["A fazer", "Em curso", "Concluído"].map((label, i) => <div key={label}><h4>{label}</h4><div className="task-card">{["Nova ideia", "Barra lateral", "Documentos"][i]}</div></div>)}</div><p className="workspace-note">Uma visão das sessões<br/>de cada projeto.</p></>;
   if (menu === "archived") return <><div className="project-row">Conversas arquivadas</div><div className="thread-row">Explorar o projeto</div><div className="thread-row">Primeiro protótipo</div><p className="workspace-note">As conversas guardadas<br/>continuam acessíveis.</p></>;
-  return <><div className="project-row">Personalize o Switchyard</div>{["Geral", "Aparência", "Provedores", "Atalhos do teclado"].map(label => <div className="settings-row" key={label}>{label}<span>›</span></div>)}<p className="workspace-note">O menu da engrenagem<br/>abre as configurações.</p></>;
+  return <><div className="project-row">Personalize o Sirus Code</div>{["Geral", "Aparência", "Provedores", "Atalhos do teclado"].map(label => <div className="settings-row" key={label}>{label}<span>›</span></div>)}<p className="workspace-note">O menu da engrenagem<br/>abre as configurações.</p></>;
 }
 
 function Preview() {
@@ -42,7 +42,7 @@ function Preview() {
   const choice = libraries.find(library => library.id === selected)!;
   return <main className="icon-preview" data-theme={theme} data-material={material} data-size={size}>
     <div className="preview-shell">
-      <header className="page-heading"><div><span className="eyebrow">SWITCHYARD / BARRA LATERAL</span><h1>Uma casa para os nossos menus.</h1><p>Casa preenchida, fundo arredondado e os ícones que fazem sentido no nosso app.</p></div><span className="preview-label">Prévia interativa</span></header>
+      <header className="page-heading"><div><span className="eyebrow">SIRUS / BARRA LATERAL</span><h1>Uma casa para os nossos menus.</h1><p>Casa preenchida, fundo arredondado e os ícones que fazem sentido no nosso app.</p></div><span className="preview-label">Prévia interativa</span></header>
       <div className="preview-controls">
         <div className="control-group"><span>Tema</span><div className="segmented" role="group" aria-label="Tema">{(["dark", "light"] as const).map(value => <button key={value} aria-pressed={theme === value} onClick={() => setTheme(value)}>{value === "dark" ? "Escuro" : "Claro"}</button>)}</div></div>
         <div className="control-group"><span>Fundo do botão</span><div className="segmented" role="group" aria-label="Fundo do botão">{materials.map(value => <button key={value.id} aria-pressed={material === value.id} onClick={() => setMaterial(value.id)}>{value.label}</button>)}</div></div>
@@ -52,7 +52,7 @@ function Preview() {
         {libraries.map((library, index) => <article className="library-card" key={library.id} data-selected={library.id === selected}>
           <div className="card-heading"><span className="option-number">0{index + 1}</span><h2>{library.name}</h2>{library.id === "phosphor" && <span className="recommendation">Minha escolha</span>}</div>
           <div className="mock-window">
-            <div className="mock-titlebar"><div className="traffic-lights" aria-hidden="true"><i/><i/><i/></div><span>Switchyard</span></div>
+            <div className="mock-titlebar"><div className="traffic-lights" aria-hidden="true"><i/><i/><i/></div><span>Sirus Code</span></div>
             <div className="mock-body">
               <nav className="mock-rail" aria-label={`Menus com ${library.name}`}>
                 {menus.map(item => <button key={item.id} className="rail-button" aria-label={item.label} title={item.label} aria-current={menu === item.id ? "page" : undefined} onClick={() => { setMenu(item.id); setSelected(library.id); }}><Icon library={library.id} menu={item.id} filled={menu === item.id}/></button>)}

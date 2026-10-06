@@ -18,7 +18,7 @@ dialog are simulated. Favorite choices remain browser-local.
 
 ## Current product and references
 
-- Switchyard [`SessionPane.tsx`](../../src/components/SessionPane.tsx) currently
+- Sirus Code [`SessionPane.tsx`](../../src/components/SessionPane.tsx) currently
   renders text/code output, streaming placeholders and requests above the
   composer. [`AgentRequests.tsx`](../../src/components/AgentRequests.tsx) already
   handles typed, native-owned questions and one-request approvals. Session/Message

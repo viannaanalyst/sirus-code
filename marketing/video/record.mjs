@@ -1,4 +1,4 @@
-// Records the product demo: the real Switchyard UI (demo IPC) inside stage.html, with a scripted
+// Records the product demo: the real Sirus Code UI (demo IPC) inside stage.html, with a scripted
 // camera, cursor and captions. Frames come from Chromium's screencast at 1080p and ffmpeg builds the MP4.
 // Usage: node marketing/video/record.mjs [en|pt] [output.mp4]   (needs `npx vite --port 5199` running)
 import { execFileSync } from "node:child_process";
@@ -9,7 +9,7 @@ import { join } from "node:path";
 const PLAYWRIGHT = process.env.PLAYWRIGHT_MODULE ?? "playwright";
 const { chromium } = await import(PLAYWRIGHT);
 const lang = process.argv[2] === "pt" ? "pt" : "en";
-const output = process.argv[3] ?? join(process.env.HOME, "Downloads", `switchyard-demo-${lang}.mp4`);
+const output = process.argv[3] ?? join(process.env.HOME, "Downloads", `sirus-demo-${lang}.mp4`);
 const BASE = process.env.STUDIO_BASE ?? "http://localhost:5199";
 const here = new URL(".", import.meta.url).pathname;
 const pt = lang === "pt";
@@ -25,7 +25,7 @@ const T = {
   end: pt ? "Grátis e open source · macOS" : "Free and open source · macOS",
 };
 
-const frames = mkdtempSync(join(tmpdir(), "switchyard-frames-"));
+const frames = mkdtempSync(join(tmpdir(), "sirus-frames-"));
 const browser = await chromium.launch({ args: ["--force-color-profile=srgb", "--disable-features=CalculateNativeWinOcclusion"] });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
 await page.addInitScript({ path: join(here, "demo-ipc.js") });
@@ -63,7 +63,7 @@ await studio("load", `${BASE}/?demo&lang=${lang}`);
 await page.waitForFunction(() => { const f = document.getElementById("app"); return f.contentDocument && !f.contentDocument.getElementById("app-splash") && f.contentDocument.querySelector("[data-draft-owner]"); }, null, { timeout: 45000, polling: 250 });
 await wait(600);
 await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
-await studio("card", `<div><img src="/switchyard-glyph.png" alt=""><h1>Switchyard</h1><p>${T.tagline}</p></div>`);
+await studio("card", `<div><img src="/sirus-glyph.png" alt=""><h1>Sirus Code</h1><p>${T.tagline}</p></div>`);
 await wait(2600);
 await studio("hideCard");
 await studio("showWindow");
@@ -128,7 +128,7 @@ await wait(900);
 // End card.
 await studio("caption", "");
 await studio("dimWindow", true, 800);
-await studio("card", `<div><img src="/switchyard-glyph.png" alt=""><h1>${T.tagline}</h1><p>${T.end}</p><div class="chips"><span>Codex</span><span>Claude Code</span><span>OpenCode</span><span>Cursor</span><span>+5 CLIs</span></div></div>`);
+await studio("card", `<div><img src="/sirus-glyph.png" alt=""><h1>${T.tagline}</h1><p>${T.end}</p><div class="chips"><span>Codex</span><span>Claude Code</span><span>OpenCode</span><span>Cursor</span><span>+5 CLIs</span></div></div>`);
 await wait(3000);
 
 await cdp.send("Page.stopScreencast");

@@ -193,15 +193,12 @@ fn roots(home: Option<&Path>, portable: &Path, context: &Context) -> Vec<Root> {
                 scope: "project".into(),
             });
         }
-        // `.switchyard/skills` is the folder name from before the Sirus Code rebrand.
-        for folder in [".sirus/skills", ".switchyard/skills"] {
-            out.push(Root {
-                path: cwd.join(folder),
-                boundary: cwd.clone(),
-                origin: "sirus".into(),
-                scope: "project".into(),
-            });
-        }
+        out.push(Root {
+            path: cwd.join(".sirus/skills"),
+            boundary: cwd.clone(),
+            origin: "sirus".into(),
+            scope: "project".into(),
+        });
     }
     out.push(Root {
         path: portable.into(),

@@ -28,7 +28,7 @@ const state = useAppStore.getState();
 const outlinePreview = new URLSearchParams(window.location.search).has("outline");
 if (outlinePreview) {
   initial.messages = [
-    ["Como funciona o projeto?", "O Switchyard organiza projetos, sessões, agentes e worktrees. Cada sessão conserva seu próprio histórico."],
+    ["Como funciona o projeto?", "O Sirus Code organiza projetos, sessões, agentes e worktrees. Cada sessão conserva seu próprio histórico."],
     ["Adicionar sugestões de skills com /", "As sugestões aparecem no composer. As setas navegam, Enter seleciona e Escape fecha a lista."],
     ["Quero mencionar os arquivos com @", "O menu usa os arquivos do workspace da sessão. Selecionar um arquivo insere sua referência no pedido."],
     ["Abrir PDF, DOCX e planilhas no painel lateral", "Os anexos abrem no painel lateral. Você pode consultar o documento e continuar lendo a conversa."],

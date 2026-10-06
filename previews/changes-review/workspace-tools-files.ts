@@ -3,7 +3,7 @@ import { client } from "@/client";
 import type { FileEntry, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 
-export const fixtureRoot = "/preview/switchyard";
+export const fixtureRoot = "/preview/sirus";
 export const fixtureSessionId = "workspace-preview";
 const stamp = "2026-10-03T12:00:00Z";
 const initialFiles: Record<string, string | null> = {
@@ -55,7 +55,7 @@ const session: Session = {
   createdAt: stamp, lastActivityAt: stamp, lastError: null, messages: [],
 };
 useAppStore.setState(state => ({
-  projects: [{ id: "preview-project", name: "switchyard", path: fixtureRoot, addedAt: stamp, lastOpenedAt: stamp }],
+  projects: [{ id: "preview-project", name: "sirus", path: fixtureRoot, addedAt: stamp, lastOpenedAt: stamp }],
   sessions: [session], selectedProjectId: "preview-project", selectedSessionId: fixtureSessionId,
   mainView: "session", settings: { ...state.settings, locale: "pt-BR", animations: false, reduceMotion: true },
   refreshGitStatus: async () => undefined,

@@ -1,6 +1,6 @@
 # Dictation composer studies
 
-Five interactive visual studies built around Switchyard's current composer,
+Five interactive visual studies built around Sirus Code's current composer,
 design tokens, typography, orbital glyph and shared Paper metallic material:
 
 1. **Silver line** — the reference's full-width recording strip and waveform.

@@ -14,7 +14,7 @@ import deepseek from "../../src/assets/models/deepseek.svg?inline";
 const studies = [
   { id: "silver", name: "Prata essencial", note: "Pastas de traço fino, linhas leves e ações que aparecem só quando você precisa." },
   { id: "fold", name: "Dobras de metal", note: "Pastas com profundidade em prata acetinada. Uma sidebar um pouco mais tátil, sem perder a calma." },
-  { id: "orbit", name: "Órbita", note: "Um detalhe orbital na pasta e um reflexo suave na sessão ativa. A identidade do Switchyard em escala pequena." },
+  { id: "orbit", name: "Órbita", note: "Um detalhe orbital na pasta e um reflexo suave na sessão ativa. A identidade do Sirus Code em escala pequena." },
   { id: "rails", name: "Trilhos", note: "Pastas azuladas e uma linha discreta conectando as sessões. A hierarquia fica mais fácil de percorrer." },
   { id: "layers", name: "Camadas", note: "Pastas translúcidas e projetos em grupos suaves. Mais separação visual para quem trabalha com vários projetos." },
 ] as const;
@@ -23,16 +23,16 @@ type Project = { id: string; name: string; path: string; pinned: boolean; expand
 type Session = { id: string; project: string; title: string; brand: "openai" | "claude" | "deepseek"; model: string; effort: string; branch: string; pinned: boolean; archived: boolean; isolated: boolean; time: string; running?: boolean; handoff?: boolean };
 type Card = { kind: "project" | "session"; id: string; x: number; y: number };
 const initialProjects: Project[] = [
-  { id: "sy", name: "switchyard", path: "~/Projetos/switchyard", pinned: false, expanded: true },
+  { id: "sy", name: "sirus", path: "~/Projetos/sirus-code", pinned: false, expanded: true },
   { id: "pa", name: "peticionaaqui", path: "~/Projetos/peticionaaqui", pinned: false, expanded: true },
   { id: "ic", name: "inchurch-contrato", path: "~/Projetos/inchurch-contrato", pinned: false, expanded: false },
 ];
 const initialSessions: Session[] = [
   { id: "s1", project: "sy", title: "Refinar o composer e o ditado", brand: "openai", model: "GPT-6 Luna", effort: "Extra alto", branch: "main", pinned: true, archived: false, isolated: false, time: "agora" },
-  { id: "s2", project: "sy", title: "Uma nova sidebar para o Switchyard", brand: "claude", model: "Opus 5", effort: "Alto", branch: "switchyard/sidebar", pinned: false, archived: false, isolated: true, time: "12 min", running: true },
+  { id: "s2", project: "sy", title: "Uma nova sidebar para o Sirus Code", brand: "claude", model: "Opus 5", effort: "Alto", branch: "sirus/sidebar", pinned: false, archived: false, isolated: true, time: "12 min", running: true },
   { id: "s3", project: "sy", title: "Revisar os ícones dos modelos", brand: "deepseek", model: "DeepSeek V4.1 Flash", effort: "Máximo", branch: "main", pinned: false, archived: false, isolated: false, time: "1 h", handoff: true },
   { id: "s4", project: "pa", title: "Analisar a estrutura do projeto", brand: "openai", model: "GPT-6 Luna", effort: "Alto", branch: "main", pinned: false, archived: false, isolated: false, time: "2 h" },
-  { id: "s5", project: "pa", title: "Ajustar a página de documentos", brand: "claude", model: "Opus 5", effort: "Alto", branch: "switchyard/documentos", pinned: false, archived: false, isolated: true, time: "3 h" },
+  { id: "s5", project: "pa", title: "Ajustar a página de documentos", brand: "claude", model: "Opus 5", effort: "Alto", branch: "sirus/documentos", pinned: false, archived: false, isolated: true, time: "3 h" },
   { id: "s6", project: "ic", title: "Implementações no contrato", brand: "deepseek", model: "DeepSeek V4.1 Flash", effort: "Alto", branch: "main", pinned: false, archived: false, isolated: false, time: "ontem" },
 ];
 const brands = { openai, claude, deepseek };
@@ -98,15 +98,15 @@ function App() {
   const popupProject = card?.kind === "project" ? projects.find(row => row.id === card.id) : undefined;
   const popupSession = card?.kind === "session" ? sessions.find(row => row.id === card.id) : undefined;
   return <>
-    <header className="preview-header"><a className="ui-brand" href="./"><img src="/switchyard-glyph.png" alt="" />Switchyard <span className="ui-caption">/ sidebar</span></a><button type="button" className="reset-button ui-control" onClick={reset}><RotateCcw />Reiniciar preview</button></header>
+    <header className="preview-header"><a className="ui-brand" href="./"><img src="/sirus-glyph.png" alt="" />Sirus Code <span className="ui-caption">/ sidebar</span></a><button type="button" className="reset-button ui-control" onClick={reset}><RotateCcw />Reiniciar preview</button></header>
     <main className="preview-main">
-      <div className="preview-intro"><p className="ui-caption eyebrow">CINCO ESTUDOS / NAVEGAÇÃO</p><h1 className="ui-title">Seus projetos. Cada sessão no seu lugar.</h1><p className="ui-body">Pastas, pins e detalhes no hover — com o acabamento do Switchyard.</p></div>
+      <div className="preview-intro"><p className="ui-caption eyebrow">CINCO ESTUDOS / NAVEGAÇÃO</p><h1 className="ui-title">Seus projetos. Cada sessão no seu lugar.</h1><p className="ui-body">Pastas, pins e detalhes no hover — com o acabamento do Sirus Code.</p></div>
       <div className="study-tabs" role="tablist" aria-label="Estilo da sidebar">{studies.map((row, index) => <button type="button" key={row.id} id={`tab-${row.id}`} role="tab" aria-selected={row.id === variant} aria-controls="preview-panel" tabIndex={row.id === variant ? 0 : -1} onClick={() => { setVariant(row.id); setCard(null); const url = new URL(location.href); url.searchParams.set("style", row.id); history.replaceState(null, "", url); }} onKeyDown={event => { const movement = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0; if (!movement && event.key !== "Home" && event.key !== "End") return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? studies.length - 1 : (index + movement + studies.length) % studies.length; setVariant(studies[next].id); setCard(null); document.getElementById(`tab-${studies[next].id}`)?.focus(); }}><span className="ui-micro">0{index + 1}</span>{row.name}</button>)}</div>
       <section className="preview-window" id="preview-panel" role="tabpanel" aria-labelledby={`tab-${variant}`} onKeyDown={event => { if (event.key === "Escape") { setCard(null); setEditing(null); } }}>
         <div className="window-titlebar"><span className="traffic-lights" aria-hidden="true"><i /><i /><i /></span><span className="window-context ui-caption"><PanelLeft /><ChevronLeft /><ChevronRight />{activeProject?.name}</span><span className="ui-micro window-label">PREVIEW INTERATIVO</span></div>
         <div className="window-body">
           <aside className="sidebar" aria-label="Sidebar de demonstração">
-            <div className="sidebar-brand"><span className="ui-brand">Switchyard</span><Action label="Buscar sessões" onClick={() => { setSearching(value => !value); setFilter(""); }}><Search /></Action></div>
+            <div className="sidebar-brand"><span className="ui-brand">Sirus Code</span><Action label="Buscar sessões" onClick={() => { setSearching(value => !value); setFilter(""); }}><Search /></Action></div>
             <nav className="sidebar-nav" aria-label="Navegação"><button className="nav-row ui-control" onClick={() => setNotice("Nova sessão no projeto selecionado — ação simulada.")}><SquarePen />Nova sessão<span className="ui-micro">⌘N</span></button><button className="nav-row ui-control" onClick={() => setNotice("Abrir Kanban — ação simulada.")}><Columns3 />Kanban</button><button className="nav-row ui-control" onClick={() => setArchivedView(value => !value)} aria-pressed={archivedView}><Archive />Arquivadas<span className="ui-micro">{sessions.filter(row => row.archived).length || ""}</span></button><button className="nav-row ui-control subdued" onClick={() => setNotice("Caixa de entrada — apenas demonstração visual.")}><Inbox />Caixa de entrada</button><button className="nav-row ui-control subdued" onClick={() => setNotice("Automações — apenas demonstração visual.")}><Workflow />Automações</button></nav>
             {searching && <label className="sidebar-search"><Search /><input autoFocus value={filter} onChange={event => setFilter(event.target.value)} className="ui-control" placeholder="Buscar sessões…" aria-label="Buscar sessões" /><Action label="Fechar busca" onClick={() => { setSearching(false); setFilter(""); }}><X /></Action></label>}
             <div className="sidebar-scroll">

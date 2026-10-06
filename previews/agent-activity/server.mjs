@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 const directory = path.dirname(fileURLToPath(import.meta.url));
-const port = Number(process.env.SWITCHYARD_PREVIEW_PORT || 4178);
+const port = Number(process.env.SIRUS_PREVIEW_PORT || 4178);
 const files = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/index.html", ["index.html", "text/html; charset=utf-8"]],
@@ -12,7 +12,7 @@ const files = new Map([
   ["/assets/geist.woff2", ["assets/geist.woff2", "font/woff2"]],
   ["/assets/geist-mono.woff2", ["assets/geist-mono.woff2", "font/woff2"]],
   ["/assets/codex.svg", ["assets/codex.svg", "image/svg+xml"]],
-  ["/assets/switchyard.svg", ["assets/switchyard.svg", "image/svg+xml"]],
+  ["/assets/sirus.svg", ["assets/sirus.svg", "image/svg+xml"]],
   ["/assets/wallpaper.svg", ["assets/wallpaper.svg", "image/svg+xml"]],
 ]);
 createServer(async (request, response) => {

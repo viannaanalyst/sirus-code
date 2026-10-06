@@ -20,7 +20,7 @@ function renderList(){
    if(hasDraft(state,session.id)){const pencil=document.createElement('span');pencil.className='draft-pencil';pencil.innerHTML=glyph('pencil');pencil.setAttribute('role','img');pencil.setAttribute('aria-label','Rascunho não enviado');pencil.title='Rascunho não enviado';first.append(pencil);}
    else if(session.running){const spinner=document.createElement('span');spinner.className='thread-spinner';spinner.setAttribute('role','img');spinner.setAttribute('aria-label','Em execução');first.append(spinner);}
    const second=document.createElement('span');second.className='thread-second';
-   const project=document.createElement('span');project.className='project-chip';project.innerHTML='<img src="assets/switchyard.svg" alt="">';const name=document.createElement('span');name.textContent=session.project;project.append(name);second.append(project);
+   const project=document.createElement('span');project.className='project-chip';project.innerHTML='<img src="assets/sirus.svg" alt="">';const name=document.createElement('span');name.textContent=session.project;project.append(name);second.append(project);
    if(session.branch!=='main'){const workspace=document.createElement('span');workspace.className='workspace-glyph';workspace.innerHTML=glyph('workspace');workspace.title='Worktree de exemplo';second.append(workspace);}
    if(session.pr){const pr=document.createElement('span');pr.className=`pr-chip ${session.prState}`;pr.innerHTML=glyph('pr');const number=document.createElement('span');number.textContent=`#${session.pr}`;pr.append(number);second.append(pr);}
    const branch=document.createElement('span');branch.className='branch-chip';branch.innerHTML=glyph('branch');const label=document.createElement('span');label.textContent=session.branch;branch.append(label);second.append(branch);
@@ -33,7 +33,7 @@ function renderList(){
  if(focusedId)threads.querySelector(`[data-id="${focusedId}"]`)?.focus();
 }
 function renderSelection(){const row=state.sessions.find(row=>row.id===state.active);$('session-title').textContent=row.title;$('session-project').textContent=`${row.project} · ${row.branch}`;$('model-name').textContent=row.model;$('composer-model').textContent=row.model;$('send').disabled=!hasDraft(state,row.id);$('clear').disabled=!hasDraft(state,row.id);}
-function scope(value){state.scope=value;$('scope-label').textContent=({all:'Toda atividade',drafts:'Rascunhos',switchyard:'Switchyard',fisioae:'Fisioae'})[value];document.querySelectorAll('details.workspace-picker,details.scope-picker').forEach(node=>{const restore=node.contains(document.activeElement);node.open=false;if(restore)node.querySelector('summary')?.focus();});renderList();}
+function scope(value){state.scope=value;$('scope-label').textContent=({all:'Toda atividade',drafts:'Rascunhos',sirus:'Sirus Code',fisioae:'Fisioae'})[value];document.querySelectorAll('details.workspace-picker,details.scope-picker').forEach(node=>{const restore=node.contains(document.activeElement);node.open=false;if(restore)node.querySelector('summary')?.focus();});renderList();}
 document.querySelectorAll('[data-scope]').forEach(button=>button.addEventListener('click',()=>scope(button.dataset.scope)));
 $('search-toggle').addEventListener('click',()=>{const open=$('search-wrap').hidden;$('search-wrap').hidden=!open;$('search-toggle').setAttribute('aria-expanded',String(open));if(open)$('search').focus();else{state.query='';$('search').value='';renderList();}});
 $('search').addEventListener('input',event=>{state.query=event.target.value;renderList();});
@@ -44,7 +44,7 @@ for(const id of ['clear','send'])$(id).addEventListener('click',()=>{updateDraft
 $('new-session').addEventListener('click',()=>{history.push(state.active);newSession(state);composer.value='';$('search').value='';scope('all');renderSelection();composer.focus();$('feedback').textContent='Nova sessão de exemplo. Escreva para criar um rascunho.';});
 $('back').addEventListener('click',()=>{const id=history.pop();if(id){composer.value=select(state,id);renderSelection();renderList();}});
 const app=document.querySelector('.app');const panel=$('panel');let panelSection='home',peekSection=null,revision=0,leaveTimer=null,overPanel=false,keyboardPanel=false,suppressRailFocus=false;
-const sectionNames={home:'Switchyard',project:'Projetos',board:'Kanban',archived:'Sessões arquivadas',settings:'Configurações'};
+const sectionNames={home:'Sirus Code',project:'Projetos',board:'Kanban',archived:'Sessões arquivadas',settings:'Configurações'};
 function stopClose(){clearTimeout(leaveTimer);leaveTimer=null;}
 function renderPanel(){
  const collapsed=app.classList.contains('panel-collapsed');const visible=!collapsed||peekSection!==null;const view=peekSection??panelSection;
@@ -56,7 +56,7 @@ function renderPanel(){
  for(const node of [document.querySelector('.thread-scroll'),document.querySelector('.activity-toolbar'),$('new-session'),$('search-toggle'),$('drafts-toggle'),document.querySelector('.sidebar-footer')])node.hidden=!home;
  if(!home)$('search-wrap').hidden=true;
  const other=$('section-preview');other.hidden=home;other.replaceChildren();
- const entries=view==='project'?['Switchyard · 4 sessões','Fisioae · 2 sessões']:view==='board'?['Switchyard','Fisioae']:view==='archived'?['Revisão anterior · exemplo arquivado']:view==='settings'?['Geral','Perfil','Aparência','Notificações','Provedores','Agent skills','Atalhos']:[];
+ const entries=view==='project'?['Sirus Code · 4 sessões','Fisioae · 2 sessões']:view==='board'?['Sirus Code','Fisioae']:view==='archived'?['Revisão anterior · exemplo arquivado']:view==='settings'?['Geral','Perfil','Aparência','Notificações','Provedores','Agent skills','Atalhos']:[];
  for(const label of entries){const button=document.createElement('button');button.className='section-link';button.textContent=label;button.addEventListener('click',()=>{$('feedback').textContent=`${label} · ação simulada na prévia.`;});other.append(button);}
 }
 function dismissPeek(restore=false){const target=peekSection??panelSection;stopClose();peekSection=null;revision++;renderPanel();if(restore){suppressRailFocus=true;document.querySelector(`[data-view="${target}"]`)?.focus();suppressRailFocus=false;}}

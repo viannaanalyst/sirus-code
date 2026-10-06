@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Switchyard · Equipe (Etapa 2)</title>
+<title>Sirus Code · Equipe (Etapa 2)</title>
 <style>
   :root {
     --bg: #070707; --surface: #111; --side: #0c0c0c; --elev: #191919; --control: #242424; --hover: rgb(255 255 255 / .05);
@@ -337,7 +337,7 @@ function workerRow(t, compact) {
     <span class="name">${prov(t.provider)}<span class="t">${esc(t.title)}</span></span>
     <span class="end">${w.secs ? fmt(w.secs) : ""}${compact ? "" : `<button class="btn ghost" style="height:24px;padding:0 7px" title="Abrir sessão">${I.open}</button>`}</span>
     <span class="sub">${t.model} · ${stateText(t)}</span>
-  </div>${run.ask === t.id ? `<div class="ask${ent("ask-" + variant)}"><b>${I.lock} Rodar <code>npm install @react-oauth/google</code>?</b><div class="muted" style="margin-top:2px">Pedido pelo ajudante “${esc(t.title)}” · worktree switchyard/login-ui</div><div class="acts"><button class="btn primary" data-approve>Permitir uma vez</button><button class="btn" data-approve>Recusar</button><button class="btn ghost">Abrir sessão</button></div></div>` : ""}`;
+  </div>${run.ask === t.id ? `<div class="ask${ent("ask-" + variant)}"><b>${I.lock} Rodar <code>npm install @react-oauth/google</code>?</b><div class="muted" style="margin-top:2px">Pedido pelo ajudante “${esc(t.title)}” · worktree sirus/login-ui</div><div class="acts"><button class="btn primary" data-approve>Permitir uma vez</button><button class="btn" data-approve>Recusar</button><button class="btn ghost">Abrir sessão</button></div></div>` : ""}`;
 }
 function teamCard() {
   const running = Object.values(run.workers).some(w => w.state === "running" || w.state === "needs" || w.state === "blocked");
@@ -346,7 +346,7 @@ function teamCard() {
 }
 function conflictNote(t) {
   if (!conflict() || t.id !== "ui") return "";
-  return `<div class="warnbox">${I.warn} ${run.workers.api.merged ? "“Rota OAuth” já entrou e também mudou <code>package.json</code>. Se houver conflito ao juntar, nada é aplicado: o Switchyard mostra o conflito e você decide." : "Também altera <code>package.json</code>, que “Rota OAuth” mudou. Junte “Rota OAuth” primeiro; se houver conflito, você decide antes de continuar."}</div>`;
+  return `<div class="warnbox">${I.warn} ${run.workers.api.merged ? "“Rota OAuth” já entrou e também mudou <code>package.json</code>. Se houver conflito ao juntar, nada é aplicado: o Sirus Code mostra o conflito e você decide." : "Também altera <code>package.json</code>, que “Rota OAuth” mudou. Junte “Rota OAuth” primeiro; se houver conflito, você decide antes de continuar."}</div>`;
 }
 function reviewRows(compact) {
   const order = ["api", "ui", "tests"];
@@ -357,7 +357,7 @@ function reviewRows(compact) {
     return `<div class="wk"><span class="dot" data-s="${w.merged ? "merged" : "done"}"></span>
       <span class="name">${prov(t.provider)}<span class="t">${n + 1}. ${esc(t.title)}</span></span>
       <span class="end">${w.merged ? `<span class="ok">${I.check} Juntado</span>` : `<button class="btn ghost" style="height:24px">${I.diff} Ver diff</button>${mergeButton(t)}`}</span>
-      <span class="sub"><span class="diffline">${files.length} ${files.length === 1 ? "arquivo" : "arquivos"} · <b>+${add}</b> <s>−${del}</s> · switchyard/${t.id === "ui" ? "login-ui" : t.id === "api" ? "login-api" : "login-tests"}</span></span>
+      <span class="sub"><span class="diffline">${files.length} ${files.length === 1 ? "arquivo" : "arquivos"} · <b>+${add}</b> <s>−${del}</s> · sirus/${t.id === "ui" ? "login-ui" : t.id === "api" ? "login-api" : "login-tests"}</span></span>
     </div>${w.merged ? "" : conflictNote(t)}`;
   }).join("");
 }

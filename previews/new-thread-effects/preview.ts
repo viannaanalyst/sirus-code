@@ -90,7 +90,7 @@ function selectEffect(next: Effect, updateUrl = true) {
   document.querySelectorAll<HTMLButtonElement>("button[data-effect]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.effect === effect)));
   get<HTMLElement>("#effect-number").textContent = `0${choices.indexOf(effect) + 1} / 03`;
   get<HTMLElement>("#effect-description").textContent = descriptions[effect];
-  document.title = `Switchyard · ${["Maré de prata", "Véu de luz", "Órbitas"][choices.indexOf(effect)]}`;
+  document.title = `Sirus Code · ${["Maré de prata", "Véu de luz", "Órbitas"][choices.indexOf(effect)]}`;
   if (updateUrl) { const url = new URL(location.href); url.searchParams.set("effect", effect); history.replaceState(null, "", url); }
   render();
 }

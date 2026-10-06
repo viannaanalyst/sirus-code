@@ -29,11 +29,11 @@ Sirus Code is a desktop app that may stay open for hours. Its goal is to stay cl
 | --- | --- | --- |
 | Launch → app process | 0.09 s | 0.08 s |
 | Launch → WebKit helpers | 0.27 s | 0.25 s |
-| Idle CPU, `switchyard` | 5.7 % | 5.8 % |
+| Idle CPU, `sirus-code` | 5.7 % | 5.8 % |
 | Idle CPU, WebKit GPU | 7.3 % | 7.4 % |
 | Idle CPU, WebKit WebContent | 6.0 % | 6.0 % |
 | **Idle CPU, total** | **≈19 %** | **19.1 %** |
-| Footprint, `switchyard` | 33 MB | 37 MB |
+| Footprint, `sirus-code` | 33 MB | 37 MB |
 | Footprint, WebContent | 118 MB | 117 MB |
 | Footprint, GPU | 76 MB | 76 MB |
 | Footprint, Networking | 5 MB | 5 MB |

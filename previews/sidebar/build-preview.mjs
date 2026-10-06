@@ -7,7 +7,7 @@ import { log } from "node:console";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
-const outDir = await mkdtemp(join(tmpdir(), "switchyard-sidebar-"));
+const outDir = await mkdtemp(join(tmpdir(), "sirus-sidebar-"));
 await build({ root, build: { outDir, emptyOutDir: false, assetsInlineLimit: Infinity, rolldownOptions: { input: join(here, "index.html") } } });
 let html = await readFile(join(outDir, "previews/sidebar/index.html"), "utf8");
 const script = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/);
@@ -21,7 +21,7 @@ const asset = async path => {
   if (!type) throw new Error(`Unexpected asset: ${path}`);
   return `data:${type};base64,${(await readFile(join(outDir, path))).toString("base64")}`;
 };
-js = js.replaceAll("/switchyard-glyph.png", await asset("/switchyard-glyph.png"));
+js = js.replaceAll("/sirus-glyph.png", await asset("/sirus-glyph.png"));
 for (const match of [...css.matchAll(/url\((?:["'])?(\/assets\/[^)"']+)(?:["'])?\)/g)]) css = css.replace(match[0], `url("${await asset(match[1])}")`);
 html = html.replace(script[0], () => `<script type="module">${js.replaceAll("</script", "<\\/script")}</script>`).replace(style[0], () => `<style>${css}</style>`);
 for (const match of [...html.matchAll(/(?:src|href)="(\/[^"]+)"/g)]) html = html.replace(match[0], match[0].replace(match[1], await asset(match[1])));

@@ -1,6 +1,6 @@
 # Premium motion previews
 
-Open `index.html` directly. `source.html` is the editable source; `node build.mjs` embeds a downscaled copy of `public/switchyard-glyph.png` to produce the self-contained `index.html`. No dependencies, native IPC or network access.
+Open `index.html` directly. `source.html` is the editable source; `node build.mjs` embeds a downscaled copy of `public/sirus-glyph.png` to produce the self-contained `index.html`. No dependencies, native IPC or network access.
 
 Two tabs, each with options that combine:
 

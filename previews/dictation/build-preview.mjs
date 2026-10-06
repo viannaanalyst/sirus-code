@@ -8,7 +8,7 @@ import { log } from "node:console";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
-const outDir = await mkdtemp(join(tmpdir(), "switchyard-dictation-"));
+const outDir = await mkdtemp(join(tmpdir(), "sirus-dictation-"));
 await build({ root, build: { outDir, emptyOutDir: false, rolldownOptions: { input: join(here, "index.html") } } });
 let html = await readFile(join(outDir, "previews/dictation/index.html"), "utf8");
 const script = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/);

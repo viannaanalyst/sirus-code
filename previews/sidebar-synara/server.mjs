@@ -4,7 +4,7 @@ const port = 4194;
 const files = new Map([
  ["/",["index.html","text/html; charset=utf-8"]],
  ...["index.html","preview.css","preview.js","state.mjs"].map(name=>[`/${name}`,[name,name.endsWith("html")?"text/html; charset=utf-8":name.endsWith("css")?"text/css; charset=utf-8":"text/javascript; charset=utf-8"]]),
- ...["switchyard","wallpaper","openai","deepseek","kimi","claude"].map(name=>[`/assets/${name}.svg`,[`assets/${name}.svg`,"image/svg+xml"]]),
+ ...["sirus","wallpaper","openai","deepseek","kimi","claude"].map(name=>[`/assets/${name}.svg`,[`assets/${name}.svg`,"image/svg+xml"]]),
  ["/assets/geist.woff2",["assets/geist.woff2","font/woff2"]],
 ]);
 createServer(async(request,response)=>{

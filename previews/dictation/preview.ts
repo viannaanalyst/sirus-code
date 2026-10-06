@@ -8,12 +8,12 @@ export const variants = {
   silver: { name: "Linha de prata", title: "Sua referência, com o nosso acabamento.", description: "Uma linha contínua cede espaço à onda de voz. Prata, contraste suave e toda a largura do composer." },
   capsule: { name: "Cápsula", title: "Tudo em uma pequena peça de metal.", description: "Microfone e onda dentro de uma cápsula central. Compacta, precisa e com o mesmo acabamento dos nossos controles." },
   orbit: { name: "Órbita", title: "O ditado também entra em órbita.", description: "Um ponto percorre duas trajetórias em torno do microfone. A identidade da nossa logo, traduzida em um controle vivo." },
-  rails: { name: "Trilhos", title: "Sua voz encontra um caminho.", description: "Dois fios prateados se cruzam enquanto a luz percorre os trilhos. Uma conexão entre o nome Switchyard e o movimento da voz." },
+  rails: { name: "Trilhos", title: "Sua voz encontra um caminho.", description: "Dois fios prateados se cruzam enquanto a luz percorre os trilhos. Uma conexão entre o nome Sirus Code e o movimento da voz." },
   halo: { name: "Halo", title: "Um sinal discreto de que estamos ouvindo.", description: "Anéis suaves se expandem ao redor do microfone. Um gesto simples, com pouco movimento e bastante espaço para a sua ideia." },
 } as const;
 type Variant = keyof typeof variants;
 const choices = Object.keys(variants) as Variant[];
-const sample = "Crie uma página de projetos com busca e filtros, seguindo o visual do Switchyard.";
+const sample = "Crie uma página de projetos com busca e filtros, seguindo o visual do Sirus Code.";
 
 const paths: Record<string, string> = {
   session: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/>',

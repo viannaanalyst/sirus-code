@@ -72,7 +72,7 @@ function option(value, title, description, recommended = false) {
 }
 function renderRequest() {
   if (state.scenario === 'permission') {
-    $('request').innerHTML = `<div class="request-card"><div class="request-eyebrow">${icon('shield')}<span>Permissão necessária</span><span>GPT-6.1-Sol</span></div><h3>Executar os testes do projeto?</h3><p class="request-description">O agente quer verificar se a alteração mantém o comportamento atual.</p><div class="permission-command">npm test</div><p class="permission-path">Projeto: switchyard · ambiente local</p><div class="request-actions"><button class="secondary" data-permission="decline">Recusar</button><button class="primary" data-permission="accept">Permitir uma vez ${icon('check')}</button></div><p class="request-note">Vale apenas para este pedido. Esta prévia não executa comandos.</p></div>`;
+    $('request').innerHTML = `<div class="request-card"><div class="request-eyebrow">${icon('shield')}<span>Permissão necessária</span><span>GPT-6.1-Sol</span></div><h3>Executar os testes do projeto?</h3><p class="request-description">O agente quer verificar se a alteração mantém o comportamento atual.</p><div class="permission-command">npm test</div><p class="permission-path">Projeto: sirus · ambiente local</p><div class="request-actions"><button class="secondary" data-permission="decline">Recusar</button><button class="primary" data-permission="accept">Permitir uma vez ${icon('check')}</button></div><p class="request-note">Vale apenas para este pedido. Esta prévia não executa comandos.</p></div>`;
     return;
   }
   if (state.scenario !== 'question') { $('request').innerHTML = ''; return; }
@@ -142,7 +142,7 @@ document.addEventListener('click', event => {
   if (button.dataset.headerAction) { notice('Controle ilustrativo: passe o mouse ou use Tab para ver o tooltip.'); return; }
   if (button.id === 'favorite') {
     state.favorite = { variant:state.variant,theme:state.theme,tooltip:state.tooltip };
-    try { localStorage.setItem('switchyard-activity-preview-choice',JSON.stringify(state.favorite)); } catch { /* Preview works with storage disabled. */ }
+    try { localStorage.setItem('sirus-activity-preview-choice',JSON.stringify(state.favorite)); } catch { /* Preview works with storage disabled. */ }
     render(); notice(`Marcado: ${({'line':'01 · Linha discreta','trail':'02 · Trilha','panel':'03 · Painel'})[state.variant]} + tooltip ${state.tooltip === 'shortcut' ? 'Atalho' : state.tooltip === 'micro' ? 'Micro' : 'Contexto'}.`);
   }
 });
@@ -170,5 +170,5 @@ document.addEventListener('visibilitychange', () => document.body.classList.togg
 const observer = new IntersectionObserver(entries => { document.body.classList.toggle('paused-motion', document.hidden || !entries[0].isIntersecting); });
 observer.observe($('activity'));
 setInterval(() => { if (state.scenario !== 'running' || document.hidden) return; document.querySelectorAll('[data-elapsed]').forEach(node => { node.textContent = elapsedLabel(); }); },1000);
-try { state.favorite = JSON.parse(localStorage.getItem('switchyard-activity-preview-choice') || 'null'); } catch { /* Invalid saved preview choices are ignored. */ }
+try { state.favorite = JSON.parse(localStorage.getItem('sirus-activity-preview-choice') || 'null'); } catch { /* Invalid saved preview choices are ignored. */ }
 render(); renderTooltips();

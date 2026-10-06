@@ -9,7 +9,7 @@ const files = new Map([
   ["/assets/geist.woff2", ["assets/geist.woff2", "font/woff2"]],
   ["/assets/wallpaper.svg", ["assets/wallpaper.svg", "image/svg+xml"]],
   ["/assets/codex.svg", ["assets/codex.svg", "image/svg+xml"]],
-  ["/assets/switchyard.svg", ["assets/switchyard.svg", "image/svg+xml"]],
+  ["/assets/sirus.svg", ["assets/sirus.svg", "image/svg+xml"]],
 ]);
 createServer(async (request, response) => {
   const file = files.get(new URL(request.url, `http://127.0.0.1:${port}`).pathname);

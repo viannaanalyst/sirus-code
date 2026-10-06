@@ -19,7 +19,7 @@ export function selectSession(state, id) {
   return state.drafts[id] ?? "";
 }
 export function sessionGroups(state) {
-  if (state.variant === "inline") return [{ name: "Projeto · switchyard", rows: sessions }];
+  if (state.variant === "inline") return [{ name: "Projeto · sirus", rows: sessions }];
   const drafts = sessions.filter(session => hasDraft(state, session.id));
   return [ ...(drafts.length ? [{ name: "Rascunhos", rows: drafts }] : []),
     { name: "Recentes", rows: sessions.filter(session => !hasDraft(state, session.id)) } ];

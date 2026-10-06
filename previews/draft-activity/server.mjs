@@ -7,7 +7,7 @@ const files = new Map([
   ["/preview.css", ["preview.css", "text/css; charset=utf-8"]],
   ["/preview.js", ["preview.js", "text/javascript; charset=utf-8"]],
   ["/state.mjs", ["state.mjs", "text/javascript; charset=utf-8"]],
-  ...["switchyard", "wallpaper", "openai", "deepseek", "kimi", "claude"].map(name => [`/assets/${name}.svg`, [`assets/${name}.svg`, "image/svg+xml"]]),
+  ...["sirus", "wallpaper", "openai", "deepseek", "kimi", "claude"].map(name => [`/assets/${name}.svg`, [`assets/${name}.svg`, "image/svg+xml"]]),
   ["/assets/geist.woff2", ["assets/geist.woff2", "font/woff2"]],
 ]);
 createServer(async (request, response) => {

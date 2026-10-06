@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
-const outDir = await mkdtemp(join(tmpdir(), "switchyard-composer-metal-"));
+const outDir = await mkdtemp(join(tmpdir(), "sirus-composer-metal-"));
 await build({ root, build: { outDir, emptyOutDir: false, rollupOptions: { input: join(here, "index.html") } } });
 let html = await readFile(join(outDir, "previews/composer-metal/index.html"), "utf8");
 const script = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/);
