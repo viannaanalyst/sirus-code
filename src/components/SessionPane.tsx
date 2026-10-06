@@ -33,7 +33,7 @@ import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
 import { HandoffMarker } from "@/components/HandoffMarker";
 import { ProviderSwitchScene } from "@/components/ProviderSwitchScene";
-import { AstroBackdrop, AstroIcon } from "@/components/astros/AstroArt";
+import { AstroIcon } from "@/components/astros/AstroArt";
 import { AstroHeader } from "@/components/astros/AstroHeader";
 import { AstroCards } from "@/components/astros/AstroCard";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
@@ -128,7 +128,6 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   return (
     <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
       {empty && !passive && !astro ? <LandingOrbits /> : null}
-      {astro ? <AstroBackdrop background={astro.background} color={astro.color} /> : null}
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {astro && !passive ? <AstroHeader astro={astro} /> : null}

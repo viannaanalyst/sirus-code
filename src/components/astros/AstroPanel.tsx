@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Astro, Automation } from "@/client/types";
-import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { AutomationDialog } from "@/components/automations/AutomationDialog";
-import { AstroIcon } from "@/components/astros/AstroArt";
 import { Pencil, Play, Plus, Trash2 } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { runState, scheduleLabel } from "@/lib/automations";
@@ -12,27 +10,8 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Switch } from "@/primitives/Switch";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 
-/** An Astro's memory and habits (ADR-069). */
-export function AstroPanel() {
-  const t = useTranslation();
-  const panel = useAppStore((state) => state.astroPanel);
-  const astro = useAppStore((state) => panel ? state.astros?.find((item) => item.id === panel.astroId) ?? null : null);
-  const close = () => useAppStore.getState().setAstroPanel(null);
-  return <Dialog open={Boolean(panel && astro)} onOpenChange={(open) => { if (!open) close(); }}>
-    {astro && panel ? <DialogContent title={astro.name} description={t("astros.details")} className="w-[min(640px,calc(100vw-32px))]">
-      <div className="astro-panel" style={{ "--astro": astro.color } as React.CSSProperties}>
-        <div className="astro-panel-tabs" role="tablist">
-          <span className="mr-2"><AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={26} /></span>
-          {(["memory", "habits"] as const).map((tab) => <button key={tab} type="button" role="tab" aria-selected={panel.tab === tab} className="astro-panel-tab ui-control"
-            onClick={() => useAppStore.getState().setAstroPanel({ astroId: astro.id, tab })}>{t(tab === "memory" ? "astros.memory" : "astros.habits")}</button>)}
-        </div>
-        {panel.tab === "memory" ? <MemoryTab astro={astro} /> : <HabitsTab astro={astro} />}
-      </div>
-    </DialogContent> : null}
-  </Dialog>;
-}
-
-function MemoryTab({ astro }: { astro: Astro }) {
+/** Memory and Habits pages of the Astro drawer (ADR-069). */
+export function MemoryTab({ astro }: { astro: Astro }) {
   const t = useTranslation();
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
@@ -48,7 +27,7 @@ function MemoryTab({ astro }: { astro: Astro }) {
       <input className="automation-control ui-control flex-1" value={text} maxLength={400} placeholder={t("astros.memoryPlaceholder")} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void add(); }} />
       <InteractiveButton disabled={!text.trim()} onClick={() => void add()}>{t("astros.remember")}</InteractiveButton>
     </div>
-    <div className="scroll-thin flex max-h-[46vh] flex-col gap-1.5 overflow-y-auto">
+    <div className="scroll-thin flex flex-col gap-1.5 overflow-y-auto">
       {astro.memory.length === 0 ? <p className="py-4 text-center ui-caption text-text-muted">{t("astros.memoryEmpty")}</p> : null}
       {astro.memory.map((fact) => <div key={fact.id} className="astro-fact">
         <time className="ui-caption tabular-nums text-text-muted">{new Date(fact.createdAt).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" })}</time>
@@ -64,7 +43,7 @@ function MemoryTab({ astro }: { astro: Astro }) {
   </div>;
 }
 
-function HabitsTab({ astro }: { astro: Astro }) {
+export function HabitsTab({ astro }: { astro: Astro }) {
   const t = useTranslation();
   const locale = useAppStore((state) => state.settings.locale);
   const snapshot = useAppStore((state) => state.automations);
@@ -75,7 +54,7 @@ function HabitsTab({ astro }: { astro: Astro }) {
   const action = useAppStore.getState().automationAction;
   return <div className="flex flex-col gap-3">
     <p className="ui-caption text-text-muted">{t("astros.habitsHint")}</p>
-    <div className="scroll-thin flex max-h-[46vh] flex-col gap-2 overflow-y-auto">
+    <div className="scroll-thin flex flex-col gap-2 overflow-y-auto">
       {habits.length === 0 ? <p className="py-4 text-center ui-caption text-text-muted">{t("astros.habitsEmpty")}</p> : null}
       {habits.map((habit) => {
         const runs = (snapshot?.runs ?? []).filter((run) => run.automationId === habit.id).slice(-20);
@@ -88,7 +67,7 @@ function HabitsTab({ astro }: { astro: Astro }) {
           {runs.length ? <div className="flex items-center gap-[3px]" aria-label={t("astros.lastRuns")}>
             {runs.map((run) => { const state = runState(run, sessions); const label = `${new Date(run.startedAt).toLocaleString()} · ${state}`;
               return run.sessionId && state !== "missing" ? <button key={run.id} type="button" title={`${label} — ${t("astros.openRun")}`} aria-label={`${t("astros.openRun")}: ${label}`} className={cn("astro-run", `astro-run-${state}`)}
-                onClick={() => { const sessionId = run.sessionId!; useAppStore.getState().setAstroPanel(null); void useAppStore.getState().selectSession(sessionId); }} />
+                onClick={() => { const sessionId = run.sessionId!; useAppStore.getState().setAstroDrawer(null); void useAppStore.getState().selectSession(sessionId); }} />
                 : <i key={run.id} title={label} className={cn("astro-run", `astro-run-${state}`)} />; })}
           </div> : null}
           <div className="flex gap-1.5">

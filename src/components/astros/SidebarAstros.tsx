@@ -1,22 +1,20 @@
 import { useEffect } from "react";
-import { AstroDialog } from "@/components/astros/AstroDialog";
+import { AstroDrawer } from "@/components/astros/AstroDrawer";
 import { AstroIcon } from "@/components/astros/AstroArt";
 import { Plus } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
-import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { astroActivity } from "@/lib/astro-activity";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import "@/styles/astros.css";
 
-/** Astros on the rail (ADR-069): one button each, then New Astro. Owns the Astro dialog. */
+/** Astros on the rail (ADR-069): one button each, then New Astro, which opens its drawer. */
 export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
   const t = useTranslation();
   const astros = useAppStore((state) => state.astros);
-  const dialog = useAppStore((state) => state.astroDialog);
   const selectedSessionId = useAppStore((state) => state.selectedSessionId);
   const mainView = useAppStore((state) => state.mainView);
   const sessions = useAppStore(selectSessionsMeta);
   useEffect(() => { if (astros === null) void useAppStore.getState().loadAstros(); }, [astros]);
-  const editing = dialog?.editingId ? astros?.find((astro) => astro.id === dialog.editingId) ?? null : null;
   return <>
     <span className="sidebar-rail-divider" aria-hidden="true" />
     {astros?.map((astro) => {
@@ -28,9 +26,9 @@ export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
       </button>;
     })}
     <button type="button" className="sidebar-rail-button sidebar-rail-astro-add" aria-label={t("astros.new")} title={t("astros.new")}
-      onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); useAppStore.getState().setAstroDialog({ editingId: null }); }}>
+      onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); void useAppStore.getState().createAstro(t("astros.newName")); }}>
       <Plus size={16} />
     </button>
-    <AstroDialog open={dialog !== null} editing={editing} onClose={() => useAppStore.getState().setAstroDialog(null)} />
+    <AstroDrawer />
   </>;
 }

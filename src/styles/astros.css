@@ -42,5 +42,36 @@
   .astro-card-link:hover { background: var(--surface-muted); border-color: var(--text-muted); }
   button.astro-run { cursor: pointer; }
   button.astro-run:hover { opacity: 1; transform: scaleY(1.15); }
+  .astro-drawer { width: min(400px, calc(100vw - 24px)); }
+  .astro-drawer-page { display: flex; flex-direction: column; gap: 10px; }
+  .astro-drawer-back { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 2px 6px 2px 2px; border-radius: 7px; color: var(--text-muted); }
+  .astro-drawer-back:hover { color: var(--text-primary); background: var(--surface-muted); }
+  .astro-drawer-identity { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 4px 0 18px; border-bottom: 1px solid var(--border-subtle); }
+  .astro-drawer-name { width: 100%; text-align: center; background: transparent; border: 0; border-radius: 8px; padding: 4px 8px; color: var(--text-primary); }
+  .astro-drawer-name:hover { background: var(--surface-muted); }
+  .astro-drawer-name:focus-visible { outline: 2px solid var(--focus-ring); background: var(--surface-muted); }
+  .astro-drawer-icons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; width: 100%; }
+  .astro-drawer-icon { display: grid; place-items: center; aspect-ratio: 1; border-radius: 9px; border: 1px solid transparent; transition: background var(--motion-fast) var(--ease-out); }
+  .astro-drawer-icon:hover { background: var(--surface-muted); }
+  .astro-drawer-icon[aria-checked="true"] { background: var(--surface); border-color: var(--border-default); }
+  .astro-drawer-colors { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .astro-swatch-custom { position: relative; overflow: hidden; cursor: pointer; background: conic-gradient(#ff5f6d, #ffc371, #f9f871, #6ee7b7, #60a5fa, #a78bfa, #f472b6, #ff5f6d); }
+  .astro-swatch-custom input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .astro-swatch-chosen { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+  .astro-drawer-fields { display: flex; flex-direction: column; gap: 8px; padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
+  .astro-drawer-field { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: start; gap: 10px; min-height: 32px; }
+  .astro-drawer-field > span:first-child { padding-top: 6px; }
+  .astro-drawer-select, .astro-drawer-add { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 8px; border-radius: 999px; color: var(--text-secondary); }
+  .astro-drawer-select:hover, .astro-drawer-add:hover { background: var(--accent-muted); color: var(--text-primary); }
+  .astro-drawer-add { align-self: flex-start; color: var(--text-muted); }
+  .astro-drawer-project { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 2px 0 8px; color: var(--text-primary); }
+  .astro-drawer-links { display: flex; flex-direction: column; padding: 8px 0; }
+  .astro-drawer-link { display: flex; align-items: center; gap: 10px; padding: 10px 8px; border-radius: 10px; transition: background var(--motion-fast) var(--ease-out); }
+  .astro-drawer-link:hover { background: var(--surface-muted); }
+  .astro-drawer-footer { display: flex; flex-direction: column; gap: 2px; margin-top: 24px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+  .astro-drawer-danger { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; border-radius: 10px; text-align: left; }
+  .astro-drawer-danger > span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--danger); }
+  .astro-drawer-danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+  .astro-drawer-soul { min-height: 52vh; resize: vertical; padding: 10px 12px; line-height: 1.55; }
   @media (max-width: 760px) { .astro-dialog { grid-template-columns: 1fr; } .astro-dialog-preview { min-height: 160px; } .astro-icon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 }

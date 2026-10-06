@@ -96,6 +96,7 @@ function withWorkspace(
   return { terminalWorkspacesBySession: { ...state.terminalWorkspacesBySession, [sessionId]: workspace } };
 }
 /** Main column: conversation, Kanban board or the review inbox (ADR-050). */
+export type AstroDrawerPage = "main" | "soul" | "habits" | "memory";
 export type MainView = "session" | "kanban" | "pulls" | "automations" | "inbox" | "tasks";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
@@ -269,12 +270,12 @@ interface AppStore {
   astros: import("@/client/types").Astro[] | null;
   loadAstros: () => Promise<void>;
   /** The Astro memory and habits panel. Memory-only. */
-  astroPanel: { astroId: string; tab: "memory" | "habits" } | null;
-  setAstroPanel: (panel: { astroId: string; tab: "memory" | "habits" } | null) => void;
+  /** The Astro details drawer and its page. Memory-only. */
+  astroDrawer: { astroId: string; page: AstroDrawerPage } | null;
+  setAstroDrawer: (drawer: { astroId: string; page: AstroDrawerPage } | null) => void;
+  /** Creates an Astro with a starting look in the current project and opens its drawer. */
+  createAstro: (name: string) => Promise<void>;
   astroMemory: (action: Extract<import("@/client/types").AstroAction, { type: "remember" | "editFact" | "forget" }>) => Promise<void>;
-  /** The Astro dialog: `editingId` null creates one. Memory-only. */
-  astroDialog: { editingId: string | null } | null;
-  setAstroDialog: (dialog: { editingId: string | null } | null) => void;
   saveAstro: (input: import("@/client/types").AstroInput) => Promise<import("@/client/types").Astro | null>;
   openAstro: (id: string) => Promise<void>;
   deleteAstro: (id: string) => Promise<void>;
@@ -843,8 +844,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   ciAutoFix: [],
   astros: null,
-  astroDialog: null,
-  astroPanel: null,
+  astroDrawer: null,
   tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
@@ -1604,8 +1604,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  setAstroDialog: (astroDialog) => set({ astroDialog }),
-  setAstroPanel: (astroPanel) => set({ astroPanel }),
+  setAstroDrawer: (astroDrawer) => set({ astroDrawer }),
+  createAstro: async (name) => {
+    const state = get();
+    const projectId = state.selectedProjectId ?? state.projects[0]?.id ?? null;
+    if (!projectId) { set({ error: "Add a project first: an Astro works in at least one." }); return; }
+    const icons = ["planeta", "saturno", "lua", "sol", "estrela", "foguete", "cometa", "galaxia"] as const;
+    const colors = ["#8c9bff", "#d97757", "#74aa9c", "#f2a541", "#e86ba8", "#5fb3f9", "#c9a2ff"];
+    const used = state.astros?.length ?? 0;
+    const created = await get().saveAstro({ id: null, name, icon: icons[used % icons.length], style: "pixel", color: colors[used % colors.length], background: "liso", projectIds: [projectId], soul: "" });
+    if (!created) return;
+    await get().openAstro(created.id);
+    set({ astroDrawer: { astroId: created.id, page: "main" } });
+  },
   astroMemory: async (action) => {
     try { set({ astros: await client.astroAction<import("@/client/types").Astro[]>(action) }); }
     catch (error) { set({ error: formatUnknownError(error) }); }
