@@ -45,6 +45,18 @@ fn npm_managed(path: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The binary sits in `~/.opencode/bin`, where OpenCode's install script puts it.
+fn curl_installed_opencode(path: &str) -> bool {
+    let Some(home) = std::env::var_os("HOME") else {
+        return false;
+    };
+    let root = std::path::Path::new(&home).join(".opencode").join("bin");
+    std::fs::canonicalize(path)
+        .ok()
+        .zip(std::fs::canonicalize(root).ok())
+        .is_some_and(|(binary, root)| binary.starts_with(root))
+}
+
 enum UpdatePlan {
     Npm(&'static str),
     Command(String, Vec<String>),
@@ -52,7 +64,7 @@ enum UpdatePlan {
 
 /// Fixed update strategy per detection: npm-managed installs update through
 /// npm; a natively installed Claude Code updates through its own `update`
-/// subcommand. Nothing else gets a one-click update.
+/// subcommand, and a script-installed OpenCode through `upgrade --method curl`. Nothing else gets a one-click update.
 fn update_plan(install: &crate::models::AgentInstall) -> Option<UpdatePlan> {
     if !install.installed {
         return None;
@@ -67,6 +79,17 @@ fn update_plan(install: &crate::models::AgentInstall) -> Option<UpdatePlan> {
         return Some(UpdatePlan::Command(
             path.to_string(),
             vec!["update".to_string()],
+        ));
+    }
+    // OpenCode's own installer puts it in ~/.opencode/bin; it upgrades itself.
+    if install.id == AgentProviderId::OpenCode && curl_installed_opencode(path) {
+        return Some(UpdatePlan::Command(
+            path.to_string(),
+            vec![
+                "upgrade".to_string(),
+                "--method".to_string(),
+                "curl".to_string(),
+            ],
         ));
     }
     None
