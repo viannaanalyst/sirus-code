@@ -6,7 +6,7 @@
 
 ADR-029 introduced the native user-facing browser and reserved Phase 3 for
 agent control. Synara exposes `browser_*` tools over MCP, but it can do so
-because Chromium/CDP already runs the pages. Switchyard drives WKWebView on
+because Chromium/CDP already runs the pages. Sirus Code drives WKWebView on
 the main thread and has no CDP; it also has no MCP gateway.
 
 Alternatives evaluated:
@@ -33,14 +33,14 @@ Alternatives evaluated:
   bridge. No window is created; `main.rs` exits before Tauri starts.
 - **Injection** happens where the adapters spawn CLIs: Claude gets
   `--mcp-config <file>` (0600 file in app data, command = this binary);
-  Codex gets `-c mcp_servers.switchyard_browser.*` overrides before
+  Codex gets `-c mcp_servers.sirus_browser.*` overrides before
   `app-server` (command/args/env, token passed by env, never argv); OpenCode
   gets an `mcp` entry merged into the inline `OPENCODE_CONFIG_CONTENT` it
   already receives. Other adapters keep no browser tools.
 - **Tools** (fixed, bounded): `browser_status`, `browser_tabs`,
   `browser_open`, `browser_navigate`, `browser_back`, `browser_forward`,
   `browser_reload`, `browser_screenshot` (PNG image content, 8 MiB cap),
-  `browser_snapshot` (≤200 interactive elements with `data-switchyard-ref`
+  `browser_snapshot` (≤200 interactive elements with `data-sirus-ref`
   refs), `browser_click`, `browser_type`, `browser_scroll`, `browser_logs`
   (≤200 entries), `browser_close`. Navigation stays on the http(s) allowlist;
   `file:` and downloads remain unavailable; arguments are length-checked and

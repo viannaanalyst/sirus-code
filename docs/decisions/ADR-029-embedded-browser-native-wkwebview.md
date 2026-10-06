@@ -4,11 +4,11 @@
 
 ## Context
 
-The product owner wants the Synara-class embedded browser in Switchyard:
+The product owner wants the Synara-class embedded browser in Sirus Code:
 a per-session browser pane with tabs and an address bar, plus agent-facing
 browser tools over MCP (navigate, snapshot, click, type, screenshot, …).
 Synara is Electron, so each tab is a Chromium `WebContentsView` and agents
-drive it over CDP through a private pipe. Switchyard is Tauri 2 on macOS
+drive it over CDP through a private pipe. Sirus Code is Tauri 2 on macOS
 (WKWebView/WebKit), which has no `WebContentsView` and no CDP.
 
 Alternatives evaluated (October 2026):

@@ -35,6 +35,7 @@ mod git;
 mod git_workspace;
 mod github_inbox;
 mod goals;
+mod legacy_data;
 mod local_servers;
 mod mcp_stdio;
 mod models;
@@ -83,7 +84,7 @@ pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("switchyard=info")),
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("sirus_code=info")),
         )
         .init();
 
@@ -92,7 +93,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .menu(native_menu)
         .on_menu_event(|app, event| {
-            if event.id().as_ref() == "switchyard-quit" {
+            if event.id().as_ref() == "sirus-quit" {
                 // Custom native Quit goes through RunEvent::ExitRequested. macOS
                 // predefined Quit calls NSApp terminate: and bypasses that event.
                 app.exit(0);
@@ -102,15 +103,26 @@ pub fn run() {
             let resolver = app.path();
             let app_dir = resolver.app_data_dir()?;
             #[cfg(debug_assertions)]
-            let app_dir = if let Some(path) = std::env::var_os("SWITCHYARD_DATA_DIR") {
+            let (app_dir, migrate_legacy) = if let Some(path) = std::env::var_os("SIRUS_DATA_DIR") {
                 let path = std::path::PathBuf::from(path);
                 if !path.is_absolute() {
-                    return Err("SWITCHYARD_DATA_DIR must be absolute".into());
+                    return Err("SIRUS_DATA_DIR must be absolute".into());
                 }
-                path
+                (path, false)
             } else {
-                app_dir
+                (app_dir, true)
             };
+            #[cfg(not(debug_assertions))]
+            let migrate_legacy = true;
+            if migrate_legacy {
+                match legacy_data::migrate(&app_dir) {
+                    Ok(true) => {
+                        tracing::info!("moved app data from the previous Sirus Code install")
+                    }
+                    Ok(false) => {}
+                    Err(_) => tracing::warn!("previous Sirus Code app data could not be moved"),
+                }
+            }
             std::fs::create_dir_all(&app_dir)?;
             {
                 // Keep a small crash breadcrumb without persisting panic payloads
@@ -179,7 +191,7 @@ pub fn run() {
                 app.state::<Arc<AppState>>().inner().clone(),
             );
             #[cfg(debug_assertions)]
-            if std::env::var("SWITCHYARD_DEVTOOLS").as_deref() == Ok("1") {
+            if std::env::var("SIRUS_DEVTOOLS").as_deref() == Ok("1") {
                 if let Some(window) = app.get_webview_window("main") {
                     window.open_devtools();
                 }
@@ -294,7 +306,7 @@ pub fn run() {
             editor::write_text_file,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Switchyard")
+        .expect("error while building Sirus Code")
         .run(|app, event| {
             match &event {
                 tauri::RunEvent::Ready => {
@@ -369,6 +381,7 @@ async fn open_path(
         roots.push(state.worktree_root.clone());
         if let Some(parent) = state.data_path.parent() {
             roots.push(parent.to_path_buf());
+            roots.extend(crate::legacy_data::worktree_root(parent));
         }
         if let Some(path) = &data.settings.worktree_base_path {
             roots.push(path.into());
@@ -380,7 +393,7 @@ async fn open_path(
     };
     if !allowed {
         return Err(crate::error::Error::invalid_path(
-            "directory is outside registered projects and Switchyard data",
+            "directory is outside registered projects and Sirus Code data",
         ));
     }
     app.opener()
@@ -469,8 +482,8 @@ fn native_menu(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri:
                 &PredefinedMenuItem::separator(app)?,
                 &MenuItem::with_id(
                     app,
-                    "switchyard-quit",
-                    "Quit Switchyard",
+                    "sirus-quit",
+                    "Quit Sirus Code",
                     true,
                     Some("CmdOrCtrl+Q"),
                 )?,
@@ -511,9 +524,9 @@ fn request_close(app: &tauri::AppHandle, prevent: impl FnOnce()) {
         close::Decision::Ask => {
             prevent();
             let (title, message, accept, cancel) = if portuguese {
-                ("Fechar Switchyard?", "Há sessões em execução. Fechar interromperá os agentes. As sessões e suas mensagens serão mantidas.", "Fechar e interromper", "Continuar executando")
+                ("Fechar Sirus Code?", "Há sessões em execução. Fechar interromperá os agentes. As sessões e suas mensagens serão mantidas.", "Fechar e interromper", "Continuar executando")
             } else {
-                ("Close Switchyard?", "Sessions are running. Closing will interrupt agents. Sessions and their messages will be kept.", "Close and interrupt", "Keep running")
+                ("Close Sirus Code?", "Sessions are running. Closing will interrupt agents. Sessions and their messages will be kept.", "Close and interrupt", "Keep running")
             };
             let app = app.clone();
             let callback_app = app.clone();

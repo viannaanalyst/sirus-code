@@ -22,7 +22,7 @@ import type {
 
 type SharedListener = { handlers: Set<(payload: unknown) => void>; ready: Promise<() => void> };
 
-export class SwitchyardClient {
+export class SirusClient {
   private readonly transport: Transport;
   private readonly shared = new Map<string, SharedListener>();
   constructor(transport: Transport) { this.transport = transport; }
@@ -345,7 +345,7 @@ export class SwitchyardClient {
     return this.transport.invoke<Session>("handoff_session", { sessionId, messageId, agent, model, newWorktree });
   }
 
-  /** Stops a localhost server only when Switchyard started it; resolves to the processes signalled. */
+  /** Stops a localhost server only when Sirus Code started it; resolves to the processes signalled. */
   stopLocalServer(sessionId: string, url: string) {
     return this.transport.invoke<number>("local_server_action", { action: { type: "stop", sessionId, url } });
   }
@@ -602,7 +602,7 @@ export class SwitchyardClient {
 
 }
 
-export const client = new SwitchyardClient(new LocalTransport());
+export const client = new SirusClient(new LocalTransport());
 
 function isCancelledTitle(value: unknown): boolean {
   return !!value && typeof value === "object" && Object.keys(value).length === 1 && (value as Record<string, unknown>).type === "cancelled";

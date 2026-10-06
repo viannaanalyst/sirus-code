@@ -386,7 +386,7 @@ mod tests {
                 .lines()
                 .map_while(std::result::Result::ok)
             {
-                if let Some(value) = line.split("SWITCHYARD_BG:").last() {
+                if let Some(value) = line.split("SIRUS_BG:").last() {
                     if let Ok(pid) = value.trim().parse::<i32>() {
                         let _ = sender.send(pid);
                     }
@@ -404,7 +404,7 @@ mod tests {
             terminal_id: "owned-job-test".into(),
         };
         terminal
-            .write("setopt HUP; sleep 30 & print -r -- SWITCHYARD_BG:$!\n")
+            .write("setopt HUP; sleep 30 & print -r -- SIRUS_BG:$!\n")
             .unwrap();
         let job = receiver.recv_timeout(std::time::Duration::from_secs(2));
         let groups = job.as_ref().ok().map(|job| {

@@ -482,7 +482,7 @@ mod trash_tests {
 
     #[test]
     fn trash_refuses_roots_reserved_folders_linked_parents_and_outside_paths() {
-        let root = std::env::temp_dir().join(format!("switchyard-trash-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-trash-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(root.join("src")).unwrap();
         std::fs::create_dir_all(root.join(".git")).unwrap();
         std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
@@ -497,7 +497,7 @@ mod trash_tests {
         #[cfg(unix)]
         {
             let outside =
-                std::env::temp_dir().join(format!("switchyard-trash-out-{}", uuid::Uuid::new_v4()));
+                std::env::temp_dir().join(format!("sirus-trash-out-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&outside).unwrap();
             std::fs::write(outside.join("keep.txt"), "keep").unwrap();
             std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();

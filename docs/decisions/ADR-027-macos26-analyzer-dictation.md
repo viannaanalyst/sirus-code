@@ -18,7 +18,7 @@ streaming audio input; `SFSpeechRecognizer` remains the only streaming path.
 ## Decision
 
 - `dictation.rs` records the microphone with `AVAudioEngine` into a private,
-  bounded temporary `.caf` file (`switchyard-dictation-<uuid>.caf` in the OS
+  bounded temporary `.caf` file (`sirus-dictation-<uuid>.caf` in the OS
   temp directory, capped at 300 s) and transcribes it once on stop with
   `DictationTranscriber` (`shortForm` content hint, `punctuation`) through the
   `speech` crate. There is no `dictation` event: `stop_dictation(cancel)`

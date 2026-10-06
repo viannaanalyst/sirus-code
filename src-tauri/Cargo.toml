@@ -1,12 +1,12 @@
 [package]
-name = "switchyard"
+name = "sirus-code"
 version = "0.1.0"
 description = "Desktop workspace for AI-assisted software development"
-authors = ["Switchyard"]
+authors = ["Sirus Code"]
 edition = "2021"
 
 [lib]
-name = "switchyard_lib"
+name = "sirus_code_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

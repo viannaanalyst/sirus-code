@@ -30,7 +30,7 @@ const http = createServer(async (request, response) => {
   } catch { response.writeHead(404).end(); }
 });
 await new Promise(resolve => http.listen(0, "127.0.0.1", resolve));
-const profile = await mkdtemp(join(tmpdir(), "switchyard-editor-regression-"));
+const profile = await mkdtemp(join(tmpdir(), "sirus-editor-regression-"));
 const chrome = spawn(binary, ["--headless", "--disable-gpu", "--no-sandbox", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "--no-first-run", "--window-size=1500,1050", "about:blank"], { stdio: "ignore" });
 let socket;
 const pending = new Map(), errors = [];
@@ -123,7 +123,7 @@ try {
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[role=region]'), '::-webkit-scrollbar').display"), "none");
   assert.equal(await evaluate("!!document.querySelector('[data-section=projects]')"), false);
   const geometry = () => evaluate("(() => { const v=document.querySelector('[role=region]'), a=document.querySelector('[data-latest-turn] article'); return {top:a.getBoundingClientRect().top-v.getBoundingClientRect().top,padding:parseFloat(getComputedStyle(v).paddingTop),scroll:v.scrollTop,end:v.scrollHeight-v.scrollTop-v.clientHeight,height:v.clientHeight}; })()");
-  await writeFile("/tmp/switchyard-layout-fixture.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
+  await writeFile("/tmp/sirus-layout-fixture.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
   let position = await geometry();
   assert.ok(Math.abs(position.top - position.padding) <= 2, JSON.stringify(position));
   await click("[data-action=send]"); position = await geometry();
@@ -173,7 +173,7 @@ try {
   const deletion = await evaluate("(() => {const d=document.querySelector('[role=dialog]'),b=d.querySelector('button[type=submit]'),h=d.firstElementChild;return {color:getComputedStyle(b).backgroundColor,token:getComputedStyle(document.documentElement).getPropertyValue('--danger').trim(),height:d.getBoundingClientRect().height,gap:b.getBoundingClientRect().top-h.getBoundingClientRect().bottom};})()");
   assert.equal(deletion.color, "rgb(229, 72, 77)");
   assert.ok(deletion.height < 190 && deletion.gap <= 16, JSON.stringify(deletion));
-  await writeFile("/tmp/switchyard-delete-dialog.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
+  await writeFile("/tmp/sirus-delete-dialog.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
   await evaluate("document.querySelector('[role=dialog] button[type=submit]').focus()"); await settle();
   assert.equal(await evaluate("!!document.querySelector('.sidebar-hover-card')"), false, "Keyboard navigation within confirmation never opens a background card");
   await evaluate("[...document.querySelectorAll('[role=dialog] button')].find(row => row.textContent.includes('Cancelar')).click()"); await delay(200); await settle();
@@ -222,7 +222,7 @@ try {
     await aligned();
   }
   await click("[data-mode=conversation]"); await click("[data-material=dark]");
-  await writeFile("/tmp/switchyard-layout-fixture.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
+  await writeFile("/tmp/sirus-layout-fixture.png", Buffer.from((await command("Page.captureScreenshot", { format: "png" })).data, "base64"));
   assert.deepEqual(errors, [], "No runtime or CSP errors in the isolated preview");
   console.log("Headless fixture regression: nonce-only CSP, real CodeMirror gutter layout/edit/shortcut, file review split/unified, Markdown, glass popup, completion summary, mock Undo/Keep/Revert, actual SessionPane send/stream/resize/history/bookmark scrolling and Sidebar frame/hover/title-only rows, compact icons, composer-aligned usage, six conversation materials and unchanged landing/handoff, compact red deletion and menu/modal hover ownership passed");
 } finally {

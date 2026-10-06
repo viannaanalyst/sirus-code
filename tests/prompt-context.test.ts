@@ -27,9 +27,9 @@ test("a draft requests isolation without naming an uncreated workspace or branch
 });
 
 test("existing Session context identifies its actual isolated destination", () => {
-  const session = { worktree: { path: "/owned/worktree", branch: "switchyard/task", isolated: true } } as Session;
+  const session = { worktree: { path: "/owned/worktree", branch: "sirus/task", isolated: true } } as Session;
   const data = JSON.parse(workspaceContext("/checkout", session, false).content);
   assert.equal(data.workspace, "/owned/worktree");
-  assert.equal(data.branch, "switchyard/task");
+  assert.equal(data.branch, "sirus/task");
   assert.equal(data.isolated, true);
 });

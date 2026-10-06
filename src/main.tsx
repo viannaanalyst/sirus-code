@@ -16,7 +16,7 @@ function showFatal(error?: unknown) {
   const panel = document.createElement("div");
   panel.className = "flex h-screen flex-col items-center justify-center gap-4 bg-background-0 text-text-primary";
   const message = document.createElement("p");
-  message.textContent = english ? "Switchyard could not render this view." : "O Switchyard não conseguiu exibir esta tela.";
+  message.textContent = english ? "Sirus Code could not render this view." : "O Sirus Code não conseguiu exibir esta tela.";
   const retry = document.createElement("button");
   retry.className = "rounded-lg border border-border-subtle px-4 py-2";
   retry.textContent = english ? "Reload" : "Recarregar";

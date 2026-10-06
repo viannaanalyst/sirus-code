@@ -46,9 +46,9 @@ conversation, and commits the orchestration completion. Failure attempts to
 restore the rescue snapshot; an unrepairable failure retains it and reports the
 partial state. Stale refs are cleaned up only after successful completion.
 
-## Switchyard boundary and review proposal
+## Sirus Code boundary and review proposal
 
-Switchyard currently exposes workspace Git status/diff and read-only tool
+Sirus Code currently exposes workspace Git status/diff and read-only tool
 observations. It has no native turn checkpoint, provider conversation rollback,
 or turn-files Undo API. The previews at `previews/changes-review` demonstrate the
 card, selected-file right diff, separate confirmation texts and local example

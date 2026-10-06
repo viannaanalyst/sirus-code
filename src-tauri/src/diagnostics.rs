@@ -135,7 +135,7 @@ pub fn observe(state_path: &Path, data: &AppData) {
         .observe(state_path, data)
         .is_err()
     {
-        tracing::warn!("Switchyard lifecycle diagnostics could not be written");
+        tracing::warn!("Sirus Code lifecycle diagnostics could not be written");
     }
 }
 

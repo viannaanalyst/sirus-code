@@ -4,11 +4,11 @@
 
 ## Context
 
-Synara Beta shows a live, touchable iOS Simulator in its right dock, and agents can drive it to test the apps they build. The owner uses Xcode and asked for the same pane, with the same device drawing, in Switchyard.
+Synara Beta shows a live, touchable iOS Simulator in its right dock, and agents can drive it to test the apps they build. The owner uses Xcode and asked for the same pane, with the same device drawing, in Sirus Code.
 
 ## Decision
 
-**Native helper.** `src-tauri/native/simulator-helper` holds Synara's device helper (MIT, attribution in its `LICENSE`), renamed for Switchyard.
+**Native helper.** `src-tauri/native/simulator-helper` holds Synara's device helper (MIT, attribution in its `LICENSE`), renamed for Sirus Code.
 
 - The helper drives a booted simulator headless through CoreSimulator/SimulatorKit, which it `dlopen`s from the selected Xcode. It needs no Screen Recording or Accessibility permission.
 - `simulator.rs` embeds the sources and compiles them on first use with the person's own `xcrun clang`/`swiftc`, into app data keyed by Xcode build and source hash.
@@ -37,19 +37,19 @@ Input:
 **Lifecycle.**
 
 - There is one attached device app-wide.
-- Switchyard boots at most 3 simulators. One it booted shuts down 10 minutes after it is detached, when the person switches to another device, and on quit. Simulators the person booted are never shut down automatically.
+- Sirus Code boots at most 3 simulators. One it booted shuts down 10 minutes after it is detached, when the person switches to another device, and on quit. Simulators the person booted are never shut down automatically.
 - After a fresh boot, attach waits briefly: `bootstatus` returns before SpringBoard accepts touches.
 - Every command is a fixed argv: `/usr/bin/xcrun simctl …` or the helper.
 
 ## Consequences
 
-- **Positive:** the person and the agent can see and drive an iOS app without leaving Switchyard, and without granting extra macOS permissions.
+- **Positive:** the person and the agent can see and drive an iOS app without leaving Sirus Code, and without granting extra macOS permissions.
 - **Negative:**
   - The helper relies on private Xcode frameworks, so a new Xcode can break it. Rebuilding per Xcode build limits this, and failures are reported in the pane.
   - The first open spends a few seconds compiling.
   - The simulated device cannot really rotate; rotate only turns the view.
   - Text input covers printable ASCII.
-  - Apps inside a simulator crash as macOS processes, so their crash dialogs (for example "MobileCal quit unexpectedly" on a first boot) come from macOS, not Switchyard.
+  - Apps inside a simulator crash as macOS processes, so their crash dialogs (for example "MobileCal quit unexpectedly" on a first boot) come from macOS, not Sirus Code.
 
 ## Alternatives considered
 

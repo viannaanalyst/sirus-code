@@ -9,11 +9,11 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 | ADR | Decision | Status |
 | --- | --- | --- |
 | [001](ADR-001-tauri-react-not-electron.md) | Desktop shell is Tauri 2 + React/Vite, not Electron or Next.js | Accepted |
-| [002](ADR-002-client-transport-boundary.md) | UI talks only to Switchyard Client API over a Transport | Accepted |
+| [002](ADR-002-client-transport-boundary.md) | UI talks only to Sirus Code Client API over a Transport | Accepted |
 | [003](ADR-003-cli-agent-providers.md) | Agents are host CLIs behind `AgentProviderId`, not embedded SDKs | Accepted |
 | [004](ADR-004-git-argv-no-destructive-defaults.md) | Git via argv; no automatic destructive operations | Accepted |
 | [005](ADR-005-local-json-persistence.md) | Local-first atomic JSON in app data; no account or cloud | Accepted |
-| [006](ADR-006-radix-owned-visuals.md) | Radix for behaviour; Switchyard-owned visuals, not stock shadcn | Accepted |
+| [006](ADR-006-radix-owned-visuals.md) | Radix for behaviour; Sirus Code-owned visuals, not stock shadcn | Accepted |
 | [007](ADR-007-pty-is-user-shell-only.md) | PTY always launches `$SHELL` in the session cwd | Accepted |
 | [008](ADR-008-native-session-lifecycle.md) | Rust owns Session execution and transcript state | Accepted |
 | [009](ADR-009-native-codex-interaction.md) | Codex app-server interaction stays typed and native-owned | Accepted |
@@ -83,6 +83,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-064: CI auto-fix](ADR-064-ci-auto-fix.md) — owner-enabled loop that fixes failing PR checks with an automatic turn, then commits and pushes the session branch.
 - [ADR-066: iOS Simulator pane](ADR-066-ios-simulator-pane.md) — live, touchable iOS simulator in the dock through a locally compiled CoreSimulator helper, plus agent tools.
 - [ADR-065: Environment Git actions, worktree handoff and stopping servers](ADR-065-environment-git-actions.md) — explicit fast-forward Pull, Create PR, handoff into a new snapshot worktree and stopping only app-started localhost servers.
+- [ADR-067: Sirus Code rebrand and legacy data move](ADR-067-sirus-code-rebrand.md) — new name, identifier and mark; one-time move of app data from `com.switchyard.app`, leaving existing worktrees in place.
 
 ## Template
 

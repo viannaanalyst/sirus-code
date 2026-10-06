@@ -7,8 +7,8 @@ import type { Session, TeamTask, TurnReview } from "../src/client/types.ts";
 const session = (id: string, extra: Partial<Session> = {}): Session => ({ id, title: id, projectId: "p", agent: "codex", status: "idle", createdAt: "t", lastActivityAt: "t", worktree: { path: "/x", branch: "main", isolated: false }, messages: [], lastError: null, ...extra });
 
 test("the coordinator's plan block never shows, even while it streams", () => {
-  assert.equal(stripTeamPlan("I split it.\n<switchyard_team_plan>{\"tasks\":[]}</switchyard_team_plan>"), "I split it.");
-  assert.equal(stripTeamPlan("I split it.\n<switchyard_team_plan>{\"tas"), "I split it.");
+  assert.equal(stripTeamPlan("I split it.\n<sirus_team_plan>{\"tasks\":[]}</sirus_team_plan>"), "I split it.");
+  assert.equal(stripTeamPlan("I split it.\n<sirus_team_plan>{\"tas"), "I split it.");
   assert.equal(stripTeamPlan("No plan here"), "No plan here");
 });
 

@@ -1,6 +1,6 @@
 # Session notifications implementation plan
 
-**Goal:** Bring Synara's Notifications settings to Switchyard and add independently configurable approval, question and completion sounds.
+**Goal:** Bring Synara's Notifications settings to Sirus Code and add independently configurable approval, question and completion sounds.
 
 **Architecture:** Native lifecycle events alone produce alerts. One closed `notification_action` command reports authorization, explicitly requests it, previews an allowlisted sound or sends a fixed test. React uses the existing Client and Arc controls; settings persist through `save_settings`.
 
@@ -12,7 +12,7 @@
 - [x] Add Notifications navigation and a standard Settings page with Arc dropdowns, compact switches, sound previews, native permission state and a test action. One Restore defaults button at the top. Deliver app notices through existing store and Arc surfaces; clicks select the owned session without approving anything.
 - [x] Test migration, dedupe, lifecycle exclusions, callback identity, settings reset and real SSR controls. Run TypeScript/lint/tests, Rust fmt/tests/Clippy and desktop build/signature checks. Document the IPC review in ADR-034 and update Graphify incrementally; record external check failures separately below.
 
-Synara reference inspected locally: `apps/web/src/components/settings/DesktopSettingsPanels.tsx` and `notifications/taskCompletion.logic.ts`. Its two controls are Activity toasts and Desktop notifications, with Test; completion and approval/question events already exist. Per-event sounds are a Switchyard extension.
+Synara reference inspected locally: `apps/web/src/components/settings/DesktopSettingsPanels.tsx` and `notifications/taskCompletion.logic.ts`. Its two controls are Activity toasts and Desktop notifications, with Test; completion and approval/question events already exist. Per-event sounds are a Sirus Code extension.
 
 ## Verification evidence
 

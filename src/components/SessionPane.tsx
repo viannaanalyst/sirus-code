@@ -116,7 +116,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         {empty ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-8">
             <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
-              <img data-landing-glyph={passive ? undefined : ""} src="/switchyard-glyph.png" alt="" draggable={false} className={cn("mb-4 w-auto opacity-95", passive ? "h-[36px]" : "h-[54px]")} />
+              <img data-landing-glyph={passive ? undefined : ""} src="/sirus-glyph.png" alt="" draggable={false} className={cn("mb-4 w-auto opacity-95", passive ? "h-[36px]" : "h-[54px]")} />
               <h2 className="ui-title text-text-primary">{title}</h2>
               {!project && !passive ? <button type="button" onClick={() => void openProject()} className="mt-4 ui-body text-accent">{t("project.open")}</button> : null}
             </div>

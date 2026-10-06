@@ -35,7 +35,7 @@ try {
         assert.ok(!html.includes("sidebar-panel-footer"));
         assert.ok(!html.includes(locale === "pt-BR" ? "Recolher barra lateral" : "Collapse sidebar"));
         const header = html.slice(html.indexOf("sidebar-panel-header"), html.indexOf("sidebar-new-thread"));
-        assert.ok(header.includes("Switchyard") && !header.includes("Fixture project"), "the header shows the fixed product name, not the selected project");
+        assert.ok(header.includes("Sirus Code") && !header.includes("Fixture project"), "the header shows the fixed product name, not the selected project");
       }
     }
   }

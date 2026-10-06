@@ -51,7 +51,7 @@ Source details:
   and [export helper](../../../synara/apps/web/src/components/profile/shareCardExport.ts)
   implement the optional export flow.
 
-## Switchyard data availability
+## Sirus Code data availability
 
 The [settings sections](../../src/lib/settings.ts) include Profile beside General.
 [Message and Session](../../src/client/types.ts) retain transcript timestamps and

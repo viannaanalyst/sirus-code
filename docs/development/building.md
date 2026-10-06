@@ -1,4 +1,4 @@
-# Building and running Switchyard
+# Building and running Sirus Code
 
 ## Requirements
 
@@ -37,31 +37,31 @@ npm run build:desktop
 
 `npm run build` runs `tsc && vite build` (the frontend Tauri consumes).
 
-Format Rust with `cargo fmt` when you touch `src-tauri`. These checks are local; CI is not configured. The desktop script applies `tauri.local.conf.json`, generating a local debug app at `src-tauri/target/debug/bundle/macos/Switchyard.app` using the configured `MonoCode Local Signing` identity. This is not a notarized distribution/release. Verify the local artifact with `codesign --verify --deep --strict src-tauri/target/debug/bundle/macos/Switchyard.app`. The existing `.app` identifier warning is retained to avoid changing the persisted app-data identity.
+Format Rust with `cargo fmt` when you touch `src-tauri`. These checks are local; CI is not configured. The desktop script applies `tauri.local.conf.json`, generating a local debug app at `src-tauri/target/debug/bundle/macos/Sirus Code.app` using the configured `MonoCode Local Signing` identity. This is not a notarized distribution/release. Verify the local artifact with `codesign --verify --deep --strict src-tauri/target/debug/bundle/macos/Sirus Code.app`. The existing `.app` identifier warning is retained to avoid changing the persisted app-data identity.
 
 Tauri also merges `tauri.macos.conf.json` automatically on macOS. Its main-window array repeats the base dimensions/titlebar settings and enables transparent WebView backing for native Appearance. Keep both window definitions aligned when changing window configuration. Other targets use the opaque base window. Font assets and original licenses are bundled locally; see [font provenance](bundled-fonts.md) and [Appearance authority](../decisions/ADR-033-persisted-appearance-and-native-glass.md).
 
 ## Data on disk
 
-- State index: `~/Library/Application Support/com.switchyard.app/state.json` (projects, settings, drafts, session metadata)
-- Transcripts: `…/com.switchyard.app/sessions/<session-id>.json`, one per session ([ADR-047](../decisions/ADR-047-per-session-transcript-files.md))
-- One-time migration backup: `…/com.switchyard.app/state.json.pre-split-backup`
-- Isolated worktrees: `…/com.switchyard.app/worktrees/{project_id}/`
+- State index: `~/Library/Application Support/com.siruscode.app/state.json` (projects, settings, drafts, session metadata)
+- Transcripts: `…/com.siruscode.app/sessions/<session-id>.json`, one per session ([ADR-047](../decisions/ADR-047-per-session-transcript-files.md))
+- One-time migration backup: `…/com.siruscode.app/state.json.pre-split-backup`
+- Isolated worktrees: `…/com.siruscode.app/worktrees/{project_id}/`
 
 Removing a project from the sidebar deletes metadata only, not the user’s folder.
 
-For isolated development validation, debug builds accept an absolute `SWITCHYARD_DATA_DIR` environment variable. It changes state/worktree storage for that launched process only; release builds ignore it. Never launch a second instance against the same user state for a smoke test.
+For isolated development validation, debug builds accept an absolute `SIRUS_DATA_DIR` environment variable. It changes state/worktree storage for that launched process only; release builds ignore it. Never launch a second instance against the same user state for a smoke test.
 
 ### Duplicate Spotlight entries
 
-The fixed identifier `com.switchyard.app` also names the native data and WebKit
+The fixed identifier `com.siruscode.app` also names the native data and WebKit
 directories. macOS can mistake their `.app` suffix for an application bundle
 and register them without an `Info.plist`. If search shows duplicate entries,
-exclude only `~/Library/Application Support/com.switchyard.app` and
-`~/Library/WebKit/com.switchyard.app` in Spotlight's **Search Privacy** list
+exclude only `~/Library/Application Support/com.siruscode.app` and
+`~/Library/WebKit/com.siruscode.app` in Spotlight's **Search Privacy** list
 ([Apple instructions](https://support.apple.com/en-gb/guide/mac-help/mchl1bb43b84/mac)).
 Unregister those two exact directory paths with `lsregister -u`, retaining the
-real signed `Switchyard.app` registration. Do not delete user data, reset the
+real signed `Sirus Code.app` registration. Do not delete user data, reset the
 entire Launch Services database, or change the persisted app identifier.
 
 ## Graphify
@@ -88,4 +88,4 @@ cargo test --manifest-path src-tauri/Cargo.toml live_cursor_workspace -- --ignor
 cargo test --manifest-path src-tauri/Cargo.toml live_claude_catalog -- --ignored --nocapture
 ```
 
-The Codex and Claude native fixtures exercise exact continuation and host approval refusal; Claude also approves one reviewable Write. Legacy raw-CLI smoke tests remain opt-in. `SWITCHYARD_SMOKE_MODEL` optionally selects an actual CLI model for the legacy workspace fixtures. Cursor uses Auto-review with sandbox enabled (requires a compatible CLI); the edit test verifies actual safe writes. `live_claude_catalog` initializes the CLI without a user prompt or inference. Tests cap execution, stop only their owned process group on timeout and assert the original checkout is unchanged. Passing does not guarantee all account models or every vendor permission flow.
+The Codex and Claude native fixtures exercise exact continuation and host approval refusal; Claude also approves one reviewable Write. Legacy raw-CLI smoke tests remain opt-in. `SIRUS_SMOKE_MODEL` optionally selects an actual CLI model for the legacy workspace fixtures. Cursor uses Auto-review with sandbox enabled (requires a compatible CLI); the edit test verifies actual safe writes. `live_claude_catalog` initializes the CLI without a user prompt or inference. Tests cap execution, stop only their owned process group on timeout and assert the original checkout is unchanged. Passing does not guarantee all account models or every vendor permission flow.

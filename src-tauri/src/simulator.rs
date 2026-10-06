@@ -11,7 +11,7 @@
 //!
 //! Lifecycle and safety:
 //! - one app-wide attached device; the renderer and agent tools share it;
-//! - devices Switchyard booted are capped at 3 and shut down 10 minutes after
+//! - devices Sirus Code booted are capped at 3 and shut down 10 minutes after
 //!   detach, on switching away and on quit; devices the person booted are never
 //!   shut down automatically;
 //! - every command is a fixed argv (`/usr/bin/xcrun simctl …`, the helper);
@@ -258,7 +258,7 @@ async fn build(sim: &Sim) -> Result<PathBuf> {
         .dir
         .join("helper")
         .join(format!("{build_id}-{}", source_hash()));
-    let binary = root.join("switchyard-simulator-helper");
+    let binary = root.join("sirus-simulator-helper");
     if binary.is_file() {
         return Ok(binary);
     }
@@ -542,7 +542,7 @@ async fn boot(sim: &Sim, udid: &str) -> Result<()> {
     if sim.booted.lock().len() >= MAX_BOOTED {
         return Err(Error::new(
             "limit",
-            "Switchyard already started 3 simulators. Shut one down first.",
+            "Sirus Code already started 3 simulators. Shut one down first.",
         ));
     }
     let output = run(&["simctl", "boot", udid], Duration::from_secs(120)).await?;
@@ -712,7 +712,7 @@ async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
     }
     detach(sim).await;
     boot(sim, udid).await?;
-    // Switching away shuts down the device Switchyard booted for the previous one.
+    // Switching away shuts down the device Sirus Code booted for the previous one.
     if let Some(previous) = previous.filter(|previous| previous != udid) {
         shutdown_owned(sim, &previous).await;
     }
@@ -759,7 +759,7 @@ async fn detach(sim: &Arc<Sim>) {
     stop_stream(sim).await;
     if let Some(previous) = previous {
         emit_state(sim);
-        // A device Switchyard booted shuts down after a while unless it is attached again.
+        // A device Sirus Code booted shuts down after a while unless it is attached again.
         if sim.booted.lock().contains(&previous.udid) {
             let owner = sim.clone();
             tauri::async_runtime::spawn(async move {
@@ -783,7 +783,7 @@ async fn shutdown_owned(sim: &Sim, udid: &str) {
     }
 }
 
-/// On quit: stop recording and shut down every simulator Switchyard booted.
+/// On quit: stop recording and shut down every simulator Sirus Code booted.
 pub fn shutdown_all() {
     let Some(sim) = SIM.get().cloned() else {
         return;
@@ -1019,7 +1019,7 @@ pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
 pub fn tool_definitions() -> Vec<Value> {
     let point = json!({ "type": "object", "properties": { "x": { "type": "number", "description": "0..1 from the left" }, "y": { "type": "number", "description": "0..1 from the top" } }, "required": ["x", "y"] });
     vec![
-        json!({ "name": "simulator_list", "description": "List iOS simulators (name, runtime, booted) and the one attached to the Switchyard Simulator pane.", "inputSchema": { "type": "object", "properties": {} } }),
+        json!({ "name": "simulator_list", "description": "List iOS simulators (name, runtime, booted) and the one attached to the Sirus Code Simulator pane.", "inputSchema": { "type": "object", "properties": {} } }),
         json!({ "name": "simulator_boot", "description": "Boot (if needed) and attach an iOS simulator by udid or exact name; it opens in the person's Simulator pane.", "inputSchema": { "type": "object", "properties": { "udid": { "type": "string" }, "name": { "type": "string" } } } }),
         json!({ "name": "simulator_install", "description": "Install a built .app bundle (path inside this session's workspace) on the attached simulator.", "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } }),
         json!({ "name": "simulator_launch", "description": "Launch an installed app by bundle identifier on the attached simulator.", "inputSchema": { "type": "object", "properties": { "bundleId": { "type": "string" } }, "required": ["bundleId"] } }),

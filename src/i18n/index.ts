@@ -134,7 +134,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
 
 export function translate(locale: Locale, key: string, params?: Record<string, string | number>): string {
   const errorMessage = /^(?:agent|git|invalid|invalid_path|not_found|persist|confirmation_required|diff|native|attachment|profile|invalid_settings): (.+)$/s.exec(key)?.[1];
-  // Translate only Switchyard's known messages, preserving raw external errors.
+  // Translate only Sirus Code's known messages, preserving raw external errors.
   const text = dictionaries[locale]?.[key] ?? dictionaries.en[key] ??
     (errorMessage ? dictionaries[locale]?.[errorMessage] ?? dictionaries.en[errorMessage] : undefined) ?? key;
   return params ? text.replace(/\{(\w+)\}/g, (match, name: string) => String(params[name] ?? match)) : text;

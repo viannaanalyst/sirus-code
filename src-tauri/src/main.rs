@@ -2,10 +2,10 @@
 
 fn main() {
     if std::env::args().any(|argument| argument == "--mcp-browser") {
-        std::process::exit(switchyard_lib::run_browser_mcp());
+        std::process::exit(sirus_code_lib::run_browser_mcp());
     }
     if std::env::args().any(|argument| argument == "--mcp-computer") {
-        std::process::exit(switchyard_lib::run_computer_mcp());
+        std::process::exit(sirus_code_lib::run_computer_mcp());
     }
-    switchyard_lib::run()
+    sirus_code_lib::run()
 }

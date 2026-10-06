@@ -1,5 +1,5 @@
 //! Scheduled automations (ADR-051): a project, a prompt, a provider/model and a
-//! schedule. While Switchyard is open, a single native timer starts each due run
+//! schedule. While Sirus Code is open, a single native timer starts each due run
 //! as a normal session through the same `send_prompt` admission as the Send
 //! button. Runs use the automation's approval profile (Ask by default, so tool
 //! approvals wait for the person) and an isolated worktree by default.
@@ -707,7 +707,7 @@ pub fn start(app: AppHandle) {
                         if matches!(automation.schedule, Schedule::Once { .. }) {
                             automation.enabled = false;
                         }
-                        automation.last_error = Some("Missed while Switchyard was closed.".into());
+                        automation.last_error = Some("Missed while Sirus Code was closed.".into());
                         stale = true;
                     } else {
                         due.push(automation.id.clone());

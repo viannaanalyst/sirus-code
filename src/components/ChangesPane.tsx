@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Sparkles, GitCommitHorizontal, ArrowUpFromLine } from "@/components/icons/phosphor";
-import { client, type SwitchyardClient } from "@/client";
+import { client, type SirusClient } from "@/client";
 import type { FileChange, GitWorkspaceEntry, GitWorkspaceSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
@@ -14,7 +14,7 @@ import { DiffViewer } from "./DiffViewer";
 import { GitHistory } from "./GitHistory";
 import "@/styles/changes.css";
 
-type Api = Pick<SwitchyardClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" | "gitPush" | "gitCommitTitle" | "cancelCommitTitle"> & Partial<Pick<SwitchyardClient, "gitWorkspaceHistory">>;
+type Api = Pick<SirusClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" | "gitPush" | "gitCommitTitle" | "cancelCommitTitle"> & Partial<Pick<SirusClient, "gitWorkspaceHistory">>;
 type Props = { sessionId: string; workspacePath: string; api?: Api };
 type Selection = { entry: GitWorkspaceEntry; staged: boolean };
 

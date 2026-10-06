@@ -16,8 +16,8 @@ use crate::error::{Error, Result};
 use crate::models::{AgentProviderId, AppData, ApprovalMode, Session, SessionStatus};
 
 pub const MAX_TASKS: usize = 3;
-const PLAN_OPEN: &str = "<switchyard_team_plan>";
-const PLAN_CLOSE: &str = "</switchyard_team_plan>";
+const PLAN_OPEN: &str = "<sirus_team_plan>";
+const PLAN_CLOSE: &str = "</sirus_team_plan>";
 const MAX_PLAN_BYTES: usize = 32 * 1024;
 const MAX_TITLE_CHARS: usize = 120;
 const MAX_INSTRUCTION_CHARS: usize = 4000;
@@ -162,7 +162,7 @@ pub fn planning_prompt(request: &str, catalog: &Catalog) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        "You are the coordinator of a small team of coding agents in Switchyard. Investigate the request and the repository read-only, then propose a plan. Do not edit files.\n\n\
+        "You are the coordinator of a small team of coding agents in Sirus Code. Investigate the request and the repository read-only, then propose a plan. Do not edit files.\n\n\
 Split the work into 1 to {MAX_TASKS} tasks that different agents can do in parallel, each in its own copy of the repository. Prefer fewer tasks; use 1 task when the work is small. Give each task a short title, complete self-contained instructions, and the files or folders it may change (relative paths: exact files or \"folder/**\"). A task may wait for one earlier task with \"after\". Avoid giving two tasks the same files.\n\n\
 Assign each task to one of these agents, using the provider and model ids exactly as listed (use null for the provider's default model):\n{agents}\n\n\
 Write one short sentence explaining the split, then end your reply with exactly one block:\n\
@@ -346,7 +346,7 @@ pub fn parse_plan(
 /// The worker receives only its own task, never the coordinator transcript.
 pub fn worker_prompt(task: &TeamTask) -> String {
     format!(
-        "You are one member of a Switchyard team, working in your own copy of the repository.\n\n\
+        "You are one member of a Sirus Code team, working in your own copy of the repository.\n\n\
 Task: {}\n\n{}\n\n\
 Only change these paths: {}. Do not commit, create or switch branches, push, or change files outside these paths. When you finish, reply with a short summary of what you changed.",
         task.title,
@@ -614,7 +614,7 @@ pub fn recover(data: &mut AppData) -> bool {
         match team.status {
             TeamStatus::Planning => {
                 team.status = TeamStatus::Failed;
-                team.error = Some("Planning was interrupted when Switchyard closed.".into());
+                team.error = Some("Planning was interrupted when Sirus Code closed.".into());
                 changed = true;
             }
             TeamStatus::Running => {
@@ -912,7 +912,7 @@ pub async fn team_action(
 }
 
 /// Commits a helper's remaining changes to its own app-owned branch (hooks and signing
-/// disabled, fixed Switchyard identity). Nothing is discarded: the branch keeps the work
+/// disabled, fixed Sirus Code identity). Nothing is discarded: the branch keeps the work
 /// after its worktree is removed. Fails if the worktree is still dirty afterwards.
 fn preserve_helper_work(path: &Path, title: &str) -> Result<()> {
     if !crate::git::status(path)?.dirty {
@@ -923,19 +923,16 @@ fn preserve_helper_work(path: &Path, title: &str) -> Result<()> {
         return Err(Error::git("Cannot save a helper's changes before cleanup."));
     }
     let identity = [
-        ("GIT_AUTHOR_NAME", std::ffi::OsStr::new("Switchyard")),
-        (
-            "GIT_AUTHOR_EMAIL",
-            std::ffi::OsStr::new("team@switchyard.local"),
-        ),
-        ("GIT_COMMITTER_NAME", std::ffi::OsStr::new("Switchyard")),
+        ("GIT_AUTHOR_NAME", std::ffi::OsStr::new("Sirus Code")),
+        ("GIT_AUTHOR_EMAIL", std::ffi::OsStr::new("team@sirus.local")),
+        ("GIT_COMMITTER_NAME", std::ffi::OsStr::new("Sirus Code")),
         (
             "GIT_COMMITTER_EMAIL",
-            std::ffi::OsStr::new("team@switchyard.local"),
+            std::ffi::OsStr::new("team@sirus.local"),
         ),
     ];
     let message = format!(
-        "Switchyard team task: {}",
+        "Sirus Code team task: {}",
         title.chars().take(120).collect::<String>()
     );
     let committed = crate::git::run_env(
@@ -1113,15 +1110,12 @@ pub(crate) fn snapshot_base(cwd: &Path, scratch: &Path) -> Result<String> {
         }
         let tree = String::from_utf8_lossy(&tree.stdout).trim().to_owned();
         let identity = [
-            ("GIT_AUTHOR_NAME", std::ffi::OsStr::new("Switchyard")),
-            (
-                "GIT_AUTHOR_EMAIL",
-                std::ffi::OsStr::new("switchyard@localhost"),
-            ),
-            ("GIT_COMMITTER_NAME", std::ffi::OsStr::new("Switchyard")),
+            ("GIT_AUTHOR_NAME", std::ffi::OsStr::new("Sirus Code")),
+            ("GIT_AUTHOR_EMAIL", std::ffi::OsStr::new("sirus@localhost")),
+            ("GIT_COMMITTER_NAME", std::ffi::OsStr::new("Sirus Code")),
             (
                 "GIT_COMMITTER_EMAIL",
-                std::ffi::OsStr::new("switchyard@localhost"),
+                std::ffi::OsStr::new("sirus@localhost"),
             ),
         ];
         let commit = crate::git::run_env(
@@ -1132,7 +1126,7 @@ pub(crate) fn snapshot_base(cwd: &Path, scratch: &Path) -> Result<String> {
                 "-p",
                 &head,
                 "-m",
-                "Switchyard team: uncommitted changes",
+                "Sirus Code team: uncommitted changes",
             ],
             &identity,
         )?;
@@ -1178,7 +1172,7 @@ fn rebase_helper(
                 "push",
                 "--include-untracked",
                 "-m",
-                "Switchyard team: resolve",
+                "Sirus Code team: resolve",
             ],
         )?;
     }
@@ -1543,7 +1537,7 @@ mod tests {
                 "add",
                 "-q",
                 "-b",
-                "switchyard/helper-1",
+                "sirus/helper-1",
                 tree.to_str().unwrap(),
             ],
         )
@@ -1552,15 +1546,12 @@ mod tests {
         std::fs::write(tree.join("new.md"), "notes\n").unwrap();
         preserve_helper_work(&tree, "Paginate orders").unwrap();
         assert!(!crate::git::status(&tree).unwrap().dirty);
-        let log = crate::git::run_ok(
-            &root,
-            &["log", "-1", "--format=%an %s", "switchyard/helper-1"],
-        )
-        .unwrap();
-        assert_eq!(log, "Switchyard Switchyard team task: Paginate orders");
+        let log =
+            crate::git::run_ok(&root, &["log", "-1", "--format=%an %s", "sirus/helper-1"]).unwrap();
+        assert_eq!(log, "Sirus Code Sirus Code team task: Paginate orders");
         let files = crate::git::run_ok(
             &root,
-            &["show", "--name-only", "--format=", "switchyard/helper-1"],
+            &["show", "--name-only", "--format=", "sirus/helper-1"],
         )
         .unwrap();
         assert!(files.contains("file.txt") && files.contains("new.md"));
@@ -1569,9 +1560,7 @@ mod tests {
         let removed =
             crate::git::run(&root, &["worktree", "remove", "--", tree.to_str().unwrap()]).unwrap();
         assert!(removed.status.success());
-        assert!(
-            crate::git::run_ok(&root, &["rev-parse", "--verify", "switchyard/helper-1"]).is_ok()
-        );
+        assert!(crate::git::run_ok(&root, &["rev-parse", "--verify", "sirus/helper-1"]).is_ok());
     }
 
     /// Live contract check: the real CLI, read-only in a disposable repository, must
@@ -1839,7 +1828,7 @@ mod tests {
                 &repo.0.join("worktrees"),
                 &format!("{name}-0000000"),
                 name,
-                "switchyard/{session-name}-{id}",
+                "sirus/{session-name}-{id}",
                 &head,
             )
             .unwrap();
@@ -1939,7 +1928,7 @@ mod tests {
             &repo.0.join("worktrees"),
             "seed-0000000",
             "seed",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
             &base,
         )
         .unwrap();
@@ -1983,7 +1972,7 @@ mod tests {
                 &repo.0.join("worktrees"),
                 &format!("{name}-0000000"),
                 name,
-                "switchyard/{session-name}-{id}",
+                "sirus/{session-name}-{id}",
                 &head,
             )
             .unwrap();

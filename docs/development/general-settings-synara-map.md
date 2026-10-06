@@ -15,12 +15,12 @@ and a desktop Beta channel card precede those groups when supported.
 row padding. Rows place their label/description on the left and the control on
 the right. Modified preferences can expose a per-setting Reset button.
 `components/settings/SettingControls.tsx` owns select, segmented and reset controls.
-These are presentation references; Switchyard remains React/Vite/Tauri with its
+These are presentation references; Sirus Code remains React/Vite/Tauri with its
 existing primitives and Client/Transport boundary.
 
 ## Feature mapping
 
-| Synara General item | Switchyard today | Application path |
+| Synara General item | Sirus Code today | Application path |
 | --- | --- | --- |
 | Default provider | General selector uses the nine-provider registry and existing save action | Installed/enabled options only; affects future sessions, preserves compatible models and clears foreign defaults |
 | New threads: Local / New worktree | `defaultSessionWorkspace`: Ask / Current checkout / New worktree; shown in General and Worktrees | Keep the extra Ask option and existing draft/worktree admission |
@@ -45,7 +45,7 @@ existing primitives and Client/Transport boundary.
 | Beta channel card (desktop-specific) | No app beta updater or second app/data channel | Do not reuse vendor CLI update checks as an app updater |
 | Restore defaults | One General header action; no per-row resets | Existing serialized save restores General preferences only; other pages, manual order, pins and reference text remain intact |
 
-## Switchyard-specific settings to retain
+## Sirus Code-specific settings to retain
 
 The current General panel also exposes Language, Reopen last project,
 Confirm closing running sessions, Reopen newest session, and an unavailable app
@@ -54,7 +54,7 @@ must remain intact. Provider CLI update checks live under Providers and are
 independent from app updates.
 
 The existing preference path is `SettingsPanels → SettingsPage.onSave →
-app-store.saveSettings → SwitchyardClient.saveSettings → LocalTransport → native
+app-store.saveSettings → SirusClient.saveSettings → LocalTransport → native
 save_settings`. New persisted fields must remain aligned in TypeScript/Rust and
 normalize legacy state. See [ADR-019](../decisions/ADR-019-header-environment-dock-and-editors.md)
 (Environment), [ADR-005](../decisions/ADR-005-local-json-persistence.md) (persistence)
@@ -81,7 +81,7 @@ existing Arc Textarea and native ownership/persistence. General has one silver
 Orbit switch per section and one General page reset. Hiding a section retains its content.
 
 Synara's `EnvironmentPinnedSection` additionally offers completion/rename;
-Switchyard implements the approved jump/unpin scope over existing bookmarks.
+Sirus Code implements the approved jump/unpin scope over existing bookmarks.
 `EnvironmentNotesSection` supplies the per-thread reference behavior, and
 `EnvironmentProjectInstructionsSection` supplies the project reference. Copying
 or appending instructions into notes is outside this implementation. Neither

@@ -65,10 +65,10 @@ pub async fn start(
         command.arg("--mcp-config").arg(config);
         // The browser tools are fixed and bounded; approve them up front so the
         // stdio permission bridge never sees an unsupported MCP prompt.
-        command.args(["--allowedTools", "mcp__switchyard_browser"]);
+        command.args(["--allowedTools", "mcp__sirus_browser"]);
         // Computer tools are gated by the app's per-app approval, not per call.
         if crate::computer_mcp::endpoint(&session.id).is_some() {
-            command.args(["--allowedTools", "mcp__switchyard_computer"]);
+            command.args(["--allowedTools", "mcp__sirus_computer"]);
         }
     }
     command.args([
@@ -882,7 +882,7 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                 Event::Pending(pending) => {
                     approvals += 1;
                     if allow
-                        && !matches!(&pending.kind,PendingRequestKind::Tool{name,input,..} if name=="Write" && input["file_path"].as_str().is_some_and(|path|path.ends_with("/switchyard-claude.txt")))
+                        && !matches!(&pending.kind,PendingRequestKind::Tool{name,input,..} if name=="Write" && input["file_path"].as_str().is_some_and(|path|path.ends_with("/sirus-claude.txt")))
                     {
                         return Err(Error::agent("Unexpected tool in harmless fixture"));
                     }
@@ -939,23 +939,23 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
             &repo.0.join("workspaces"),
             "claudenative",
             "Claude native test",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
         )
         .unwrap();
         let mut session = session(&tree.path);
-        let (native,output,approvals)=live_turn(&session,"This is a disposable integration test. Remember the exact phrase SWITCHYARD_CLAUDE_REMEMBER_751. Use only the Write tool to create exactly one file switchyard-claude.txt in the current workspace containing SWITCHYARD_CLAUDE_OK followed by a newline. Do not read other files, run shell commands, use network tools, install anything, or inspect configuration/authentication. Reply SWITCHYARD_CLAUDE_OK.",true).await;
+        let (native,output,approvals)=live_turn(&session,"This is a disposable integration test. Remember the exact phrase SIRUS_CLAUDE_REMEMBER_751. Use only the Write tool to create exactly one file sirus-claude.txt in the current workspace containing SIRUS_CLAUDE_OK followed by a newline. Do not read other files, run shell commands, use network tools, install anything, or inspect configuration/authentication. Reply SIRUS_CLAUDE_OK.",true).await;
         assert!(approvals > 0);
-        assert!(output.contains("SWITCHYARD_CLAUDE_OK"));
+        assert!(output.contains("SIRUS_CLAUDE_OK"));
         assert_eq!(
-            std::fs::read_to_string(std::path::Path::new(&tree.path).join("switchyard-claude.txt"))
+            std::fs::read_to_string(std::path::Path::new(&tree.path).join("sirus-claude.txt"))
                 .unwrap(),
-            "SWITCHYARD_CLAUDE_OK\n"
+            "SIRUS_CLAUDE_OK\n"
         );
-        assert!(!repo.cwd().join("switchyard-claude.txt").exists());
+        assert!(!repo.cwd().join("sirus-claude.txt").exists());
         session.native_thread = Some(native.clone());
         let (resumed,output,_)=live_turn(&session,"Without tools or filesystem access, repeat the exact phrase I asked you to remember in the previous turn. Reply with that phrase only.",false).await;
         assert_eq!(native.thread_id, resumed.thread_id);
-        assert!(output.contains("SWITCHYARD_CLAUDE_REMEMBER_751"));
+        assert!(output.contains("SIRUS_CLAUDE_REMEMBER_751"));
     }
     #[tokio::test]
     #[ignore = "real existing Claude CLI login; native host tool denial"]
@@ -963,9 +963,9 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
         let repo = crate::git::tests::Repo::new();
         let mut session = session(&repo.cwd().to_string_lossy());
         session.worktree.path = repo.cwd().to_string_lossy().into();
-        let (_,output,approvals)=live_turn(&session,"This is a disposable approval test. Request the Write tool to create denied.txt in the current workspace with the word harmless. The host will decline. Do not retry or use alternatives. After denial reply SWITCHYARD_CLAUDE_DENIED_OK. Do not read other files, use shell/network tools, inspect authentication/configuration, or change permissions.",false).await;
+        let (_,output,approvals)=live_turn(&session,"This is a disposable approval test. Request the Write tool to create denied.txt in the current workspace with the word harmless. The host will decline. Do not retry or use alternatives. After denial reply SIRUS_CLAUDE_DENIED_OK. Do not read other files, use shell/network tools, inspect authentication/configuration, or change permissions.",false).await;
         assert!(approvals > 0);
         assert!(!repo.cwd().join("denied.txt").exists());
-        assert!(output.contains("SWITCHYARD_CLAUDE_DENIED_OK"));
+        assert!(output.contains("SIRUS_CLAUDE_DENIED_OK"));
     }
 }

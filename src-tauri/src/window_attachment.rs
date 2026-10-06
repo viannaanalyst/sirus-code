@@ -69,7 +69,7 @@ mod platform {
     }
     define_class!(
         #[unsafe(super(NSObject))]
-        #[name = "SwitchyardWindowAttachmentPicker"]
+        #[name = "SirusWindowAttachmentPicker"]
         #[ivars = Ivars]
         struct Observer;
         unsafe impl NSObjectProtocol for Observer {}
@@ -200,7 +200,7 @@ mod platform {
                 config.setAllowedPickerModes(SCContentSharingPickerMode::SingleWindow);
                 config.setAllowsChangingSelectedContent(false);
                 let excluded =
-                    NSArray::from_retained_slice(&[NSString::from_str("com.switchyard.app")]);
+                    NSArray::from_retained_slice(&[NSString::from_str("com.siruscode.app")]);
                 config.setExcludedBundleIDs(&excluded);
                 picker.setDefaultConfiguration(&config);
                 picker.addObserver(ProtocolObject::from_ref(&*observer));

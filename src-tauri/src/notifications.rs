@@ -408,7 +408,7 @@ pub async fn notification_action(
                 id: uuid::Uuid::new_v4().to_string(),
                 session_id: String::new(),
                 kind: Kind::Completion,
-                title: "Switchyard".into(),
+                title: "Sirus Code".into(),
                 body: if portuguese {
                     "Teste de notificação. Seus avisos de atividade aparecerão aqui."
                 } else {

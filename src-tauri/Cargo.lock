@@ -3865,6 +3865,50 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
+name = "sirus-code"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "block2",
+ "chrono",
+ "csv",
+ "global-hotkey",
+ "image",
+ "libc",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-application-services",
+ "objc2-avf-audio",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-foundation",
+ "objc2-screen-capture-kit",
+ "objc2-user-notifications",
+ "objc2-web-kit",
+ "parking_lot",
+ "portable-pty",
+ "reqwest",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "sha2",
+ "similar",
+ "speech",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "which",
+ "zip",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3996,50 +4040,6 @@ dependencies = [
  "base64 0.21.7",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "switchyard"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "block2",
- "chrono",
- "csv",
- "global-hotkey",
- "image",
- "libc",
- "objc2",
- "objc2-app-kit",
- "objc2-application-services",
- "objc2-avf-audio",
- "objc2-core-foundation",
- "objc2-core-graphics",
- "objc2-foundation",
- "objc2-screen-capture-kit",
- "objc2-user-notifications",
- "objc2-web-kit",
- "parking_lot",
- "portable-pty",
- "reqwest",
- "roxmltree",
- "serde",
- "serde_json",
- "sha2",
- "similar",
- "speech",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "which",
- "zip",
 ]
 
 [[package]]

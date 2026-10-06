@@ -14,19 +14,19 @@ NS_ASSUME_NONNULL_BEGIN
 /// Hardware buttons addressable over HID. Rotation is deliberately absent: the
 /// simulator exposes no rotation button, so orientation changes go through
 /// `simctl` at the UI level instead (see HEADER.md).
-typedef NS_ENUM(NSInteger, SwitchyardHardwareButton) {
-  SwitchyardHardwareButtonHome,
-  SwitchyardHardwareButtonLock,
-  SwitchyardHardwareButtonSide,
-  SwitchyardHardwareButtonSiri,
-  SwitchyardHardwareButtonVolumeUp,
-  SwitchyardHardwareButtonVolumeDown,
+typedef NS_ENUM(NSInteger, SirusHardwareButton) {
+  SirusHardwareButtonHome,
+  SirusHardwareButtonLock,
+  SirusHardwareButtonSide,
+  SirusHardwareButtonSiri,
+  SirusHardwareButtonVolumeUp,
+  SirusHardwareButtonVolumeDown,
 };
 
 /// Returns NO (and fills `name`-specific errors) for an unknown button name.
-BOOL SwitchyardHardwareButtonFromName(NSString *name, SwitchyardHardwareButton *outButton);
+BOOL SirusHardwareButtonFromName(NSString *name, SirusHardwareButton *outButton);
 
-@interface SwitchyardHIDBridge : NSObject
+@interface SirusHIDBridge : NSObject
 
 /// Connects a HID client to `device` (a `SimDevice`). Returns NO on failure.
 - (BOOL)attachToDevice:(id)device
@@ -70,9 +70,9 @@ BOOL SwitchyardHardwareButtonFromName(NSString *name, SwitchyardHardwareButton *
 /// Returns the count of characters that had no mapping (skipped).
 - (NSInteger)typeText:(NSString *)text NS_SWIFT_NAME(type(text:));
 
-- (void)sendButton:(SwitchyardHardwareButton)button down:(BOOL)down
+- (void)sendButton:(SirusHardwareButton)button down:(BOOL)down
     NS_SWIFT_NAME(sendButton(_:down:));
-- (void)tapButton:(SwitchyardHardwareButton)button NS_SWIFT_NAME(tapButton(_:));
+- (void)tapButton:(SirusHardwareButton)button NS_SWIFT_NAME(tapButton(_:));
 
 @end
 

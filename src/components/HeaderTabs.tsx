@@ -70,7 +70,7 @@ function ProjectSwitcher() {
   return <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) setQuery(""); setCursor(0); }}>
     <PopoverTrigger asChild>
       <button type="button" className="header-project" aria-label={t("tabs.switchProject")}>
-        <span className="truncate">{project?.name ?? "Switchyard"}</span>
+        <span className="truncate">{project?.name ?? "Sirus Code"}</span>
         {elsewhere && <span className="header-tab-status" data-status="waiting" aria-label={t("tabs.waitingElsewhere")} role="img" />}
         <ChevronDown size={12} aria-hidden="true" />
       </button>

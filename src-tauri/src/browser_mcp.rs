@@ -10,9 +10,9 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use tauri::Emitter;
 
-pub const SOCKET_ENV: &str = "SWITCHYARD_BROWSER_SOCKET";
-pub const TOKEN_ENV: &str = "SWITCHYARD_BROWSER_TOKEN";
-const MCP_SERVER_NAME: &str = "switchyard_browser";
+pub const SOCKET_ENV: &str = "SIRUS_BROWSER_SOCKET";
+pub const TOKEN_ENV: &str = "SIRUS_BROWSER_TOKEN";
+const MCP_SERVER_NAME: &str = "sirus_browser";
 
 #[derive(Clone)]
 pub struct Endpoint {

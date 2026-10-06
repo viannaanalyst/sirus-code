@@ -452,7 +452,7 @@ pub(crate) async fn execute(
     provider_errors: &mut mpsc::Receiver<String>,
     emit: &mut impl FnMut(Event) -> Result<()>,
 ) -> Result<bool> {
-    let init=request(wire,"initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Switchyard","version":"0.1.0"}}),cancel).await?;
+    let init=request(wire,"initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Sirus Code","version":"0.1.0"}}),cancel).await?;
     if init["protocolVersion"] != 1 {
         return Err(Error::agent("Unsupported OpenCode ACP version"));
     }
@@ -472,7 +472,7 @@ pub(crate) async fn execute(
             .and_then(|endpoint| {
                 let exe = std::env::current_exe().ok()?;
                 Some(json!({
-                    "name": "switchyard_browser",
+                    "name": "sirus_browser",
                     "command": exe.to_string_lossy(),
                     "args": ["--mcp-browser"],
                     "env": [
@@ -847,8 +847,7 @@ mod tests {
     }
     #[test]
     fn approval_requires_native_once_options_and_jailed_diff() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-acp-diff-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-diff-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
         let mut params = json!({"toolCall":{"toolCallId":"edit","kind":"edit","content":[{"type":"diff","path":format!("{cwd}/new.txt"),"oldText":"","newText":"new"}]},"options":[{"kind":"allow_once","optionId":"once"},{"kind":"reject_once","optionId":"reject"}]});
@@ -870,8 +869,7 @@ mod tests {
     }
     #[test]
     fn approval_rejects_ambiguous_and_unbounded_native_options() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-acp-options-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-options-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
         let base = json!({"toolCall":{"toolCallId":"edit","kind":"edit","content":[{"type":"diff","path":format!("{cwd}/new.txt"),"oldText":"","newText":"new"}]},"options":[{"kind":"allow_once","optionId":"once"},{"kind":"reject_once","optionId":"reject"}]});
@@ -911,8 +909,7 @@ mod tests {
     }
     #[tokio::test]
     async fn native_replay_once_only_and_foreign_reply() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-acp-wire-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-wire-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
         let script = r#"import json,sys,time
@@ -1033,7 +1030,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                 Event::Pending(pending) => {
                     approvals += 1;
                     if !matches!(decision, ApprovalDecision::Decline)
-                        && !matches!(&pending.kind,PendingRequestKind::FileChange{changes,..} if changes.iter().all(|c|c.path.ends_with("/switchyard-opencode.txt")))
+                        && !matches!(&pending.kind,PendingRequestKind::FileChange{changes,..} if changes.iter().all(|c|c.path.ends_with("/sirus-opencode.txt")))
                     {
                         return Err(Error::agent("Unexpected tool in harmless fixture"));
                     }
@@ -1088,7 +1085,7 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
     #[tokio::test]
     #[ignore = "real existing OpenCode login; isolated disposable fixture"]
     async fn live_opencode_write_and_exact_followup() {
-        let root = std::env::temp_dir().join(format!("switchyard-acp-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
         std::fs::write(
@@ -1098,10 +1095,10 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
         .unwrap();
         let mut s = session(&cwd);
         s.model = Some("opencode/big-pickle".into());
-        let (native,text,count)=live_turn(&s,"Use the write or apply_patch tool to create switchyard-opencode.txt containing exactly ACP_NATIVE_7. Do not run shell commands. Remember secret word TANGERINE7 for the next turn.",ApprovalDecision::Accept).await;
+        let (native,text,count)=live_turn(&s,"Use the write or apply_patch tool to create sirus-opencode.txt containing exactly ACP_NATIVE_7. Do not run shell commands. Remember secret word TANGERINE7 for the next turn.",ApprovalDecision::Accept).await;
         assert!(count > 0, "No host approval. Fixture output: {text}");
         assert_eq!(
-            std::fs::read_to_string(root.join("switchyard-opencode.txt"))
+            std::fs::read_to_string(root.join("sirus-opencode.txt"))
                 .unwrap()
                 .trim(),
             "ACP_NATIVE_7"
@@ -1116,23 +1113,21 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
     #[tokio::test]
     #[ignore = "real existing OpenCode login; isolated disposable fixture"]
     async fn live_opencode_refusal() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-acp-deny-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-deny-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
-        let (_,_,n)=live_turn(&session(&cwd),"Use write or apply_patch to create switchyard-opencode.txt containing ACP_NATIVE_7. Do not run shell commands.",ApprovalDecision::Decline).await;
+        let (_,_,n)=live_turn(&session(&cwd),"Use write or apply_patch to create sirus-opencode.txt containing ACP_NATIVE_7. Do not run shell commands.",ApprovalDecision::Decline).await;
         assert!(n > 0);
-        assert!(!root.join("switchyard-opencode.txt").exists());
+        assert!(!root.join("sirus-opencode.txt").exists());
     }
     #[tokio::test]
     #[ignore = "real existing OpenCode login; isolated disposable fixture"]
     async fn live_opencode_cancel_pending_edit() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-acp-cancel-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-acp-cancel-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         let cwd = root.canonicalize().unwrap().to_string_lossy().into_owned();
-        let (_,_,count)=live_turn(&session(&cwd),"Use write or apply_patch to create switchyard-opencode.txt containing ACP_NATIVE_7. Do not run shell commands.",ApprovalDecision::Cancel).await;
+        let (_,_,count)=live_turn(&session(&cwd),"Use write or apply_patch to create sirus-opencode.txt containing ACP_NATIVE_7. Do not run shell commands.",ApprovalDecision::Cancel).await;
         assert!(count > 0);
-        assert!(!root.join("switchyard-opencode.txt").exists());
+        assert!(!root.join("sirus-opencode.txt").exists());
     }
 }

@@ -5,7 +5,7 @@
 ## Context
 
 The lazy Files tree can open existing files in the editor, but creating a file
-or folder requires leaving Switchyard. Giving the webview filesystem access
+or folder requires leaving Sirus Code. Giving the webview filesystem access
 would bypass the session/worktree and Client/Transport boundaries. Reusing an
 editor overwrite operation would also introduce ambiguous replacement behavior.
 
@@ -17,7 +17,7 @@ editor overwrite operation would also introduce ambiguous replacement behavior.
   keeps errors and the entered name, and disables cancellation after native
   creation starts. Collapse closes descendants without loading them. A created
   file opens through the existing editor callback and explicit Save semantics.
-- `SwitchyardClient.createWorkspaceEntry` admits only a session ID, the closed
+- `SirusClient.createWorkspaceEntry` admits only a session ID, the closed
   `file | directory` kind, one name and an optional parent. The allowlisted
   `create_workspace_entry` command derives the canonical root from the owned
   session, checks shutdown and live ownership, and holds the metadata admission

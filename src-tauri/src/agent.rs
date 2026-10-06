@@ -530,7 +530,7 @@ pub(crate) fn finalize_session(
         session
             .last_error
             .clone()
-            .or_else(|| Some("Execution was interrupted when Switchyard closed.".into()))
+            .or_else(|| Some("Execution was interrupted when Sirus Code closed.".into()))
     } else {
         None
     };
@@ -864,12 +864,12 @@ mod tests {
     }
     #[test]
     fn a_late_process_exit_preserves_shutdown_interruption() {
-        let mut session: Session = serde_json::from_value(serde_json::json!({"id":"s","title":"Test","projectId":"p","agent":"codex","status":"stopped","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/unused","branch":"main","isolated":false},"lastError":"Execution was interrupted when Switchyard closed.","messages":[]})).unwrap();
+        let mut session: Session = serde_json::from_value(serde_json::json!({"id":"s","title":"Test","projectId":"p","agent":"codex","status":"stopped","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/unused","branch":"main","isolated":false},"lastError":"Execution was interrupted when Sirus Code closed.","messages":[]})).unwrap();
         finalize_session(&mut session, Some(0), true, false, true, None);
         assert_eq!(session.status, SessionStatus::Stopped);
         assert_eq!(
             session.last_error.as_deref(),
-            Some("Execution was interrupted when Switchyard closed.")
+            Some("Execution was interrupted when Sirus Code closed.")
         );
         session.status = SessionStatus::Failed;
         session.last_error = Some("Output limit".into());
@@ -1082,15 +1082,15 @@ mod tests {
             &repo.0.join("workspaces"),
             "smoke001",
             "Live provider smoke",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
         )
         .unwrap();
-        let edit_prompt = "This is a disposable Switchyard integration test. Create exactly one file named switchyard-smoke.txt in the current workspace containing SWITCHYARD_OK followed by a newline. Do not modify any other file, use network, install dependencies, or read authentication/configuration files. Then respond with SWITCHYARD_OK.";
+        let edit_prompt = "This is a disposable Sirus Code integration test. Create exactly one file named sirus-smoke.txt in the current workspace containing SIRUS_OK followed by a newline. Do not modify any other file, use network, install dependencies, or read authentication/configuration files. Then respond with SIRUS_OK.";
         let (prompt, expected, seconds) = match mode {
-            SmokeMode::Edit => (edit_prompt, "SWITCHYARD_OK", 120),
-            SmokeMode::Analysis => ("This is a disposable Switchyard read-only integration test. Reply only SWITCHYARD_ANALYSIS_OK. Do not read or write files, execute tools, use network tools, or inspect authentication/configuration.", "SWITCHYARD_ANALYSIS_OK", 45),
+            SmokeMode::Edit => (edit_prompt, "SIRUS_OK", 120),
+            SmokeMode::Analysis => ("This is a disposable Sirus Code read-only integration test. Reply only SIRUS_ANALYSIS_OK. Do not read or write files, execute tools, use network tools, or inspect authentication/configuration.", "SIRUS_ANALYSIS_OK", 45),
         };
-        let model = std::env::var("SWITCHYARD_SMOKE_MODEL").ok();
+        let model = std::env::var("SIRUS_SMOKE_MODEL").ok();
         let (process, mut started) = start(
             provider,
             tree.path.clone(),
@@ -1155,15 +1155,15 @@ mod tests {
             SmokeMode::Edit => {
                 assert_eq!(
                     std::fs::read_to_string(
-                        std::path::Path::new(&tree.path).join("switchyard-smoke.txt")
+                        std::path::Path::new(&tree.path).join("sirus-smoke.txt")
                     )
                     .unwrap(),
-                    "SWITCHYARD_OK\n"
+                    "SIRUS_OK\n"
                 );
                 assert!(status
                     .changes
                     .iter()
-                    .any(|file| file.path == "switchyard-smoke.txt"));
+                    .any(|file| file.path == "sirus-smoke.txt"));
             }
             SmokeMode::Analysis => assert!(
                 !status.dirty,
@@ -1171,7 +1171,7 @@ mod tests {
             ),
         }
         assert!(
-            !repo.cwd().join("switchyard-smoke.txt").exists(),
+            !repo.cwd().join("sirus-smoke.txt").exists(),
             "isolated workspace must not edit checkout"
         );
     }

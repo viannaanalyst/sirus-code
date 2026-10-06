@@ -28,12 +28,12 @@
 - [x] `browser_mcp.rs`: endpoint registry, `init` in `lib.rs` setup, `0700` directory + `0600` socket bridge with constant-time tokens, newline JSON framing, session ownership revalidation, `--mcp-browser` stdio MCP child (`initialize`, `ping`, `tools/list`, `tools/call`, `-32601`), image + `isError` content.
 - [x] `browser.rs` page actions: document-start bridge script (human-input timestamps, bounded console buffer), `callAsyncJavaScript` with JSON-string arguments, snapshot/click/type/scroll/logs, `mcp_*` operations (status/open/navigate/back/forward/reload/capture/close).
 - [x] Tools: 14 fixed definitions with bounded inputs and args validation (`valid_ref`, `valid_selector`, action result mapping, human interruption).
-- [x] Injection: Claude `--mcp-config` 0600 file; Codex `-c mcp_servers.switchyard_browser.*` with token env; OpenCode `mcp` entry merged into its inline config. Other adapters unchanged.
+- [x] Injection: Claude `--mcp-config` 0600 file; Codex `-c mcp_servers.sirus_browser.*` with token env; OpenCode `mcp` entry merged into its inline config. Other adapters unchanged.
 - [x] Checks: `cargo fmt/check/clippy/test` green (186+ tests), stdio protocol exercised against a fake bridge (initialize, tools/list, screenshot image, `isError`, unknown method), signed bundle relaunched.
 
 ## Interfaces
 
-`browser_mcp::init(app, data_dir)`, `browser_mcp::ensure_endpoint(session_id)`, `browser_mcp::claude_mcp_config(session_id)`, `browser_mcp::run_stdio()`; child env `SWITCHYARD_BROWSER_SOCKET` / `SWITCHYARD_BROWSER_TOKEN`.
+`browser_mcp::init(app, data_dir)`, `browser_mcp::ensure_endpoint(session_id)`, `browser_mcp::claude_mcp_config(session_id)`, `browser_mcp::run_stdio()`; child env `SIRUS_BROWSER_SOCKET` / `SIRUS_BROWSER_TOKEN`.
 
 Bridge frame: `{id, token, tool, arguments}` → `{id, ok, result|error}`. MCP tools listed in ADR-030.
 

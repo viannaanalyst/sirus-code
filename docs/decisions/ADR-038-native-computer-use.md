@@ -4,7 +4,7 @@
 
 ## Context
 
-Agents that can see and operate Mac apps unlock tasks outside the repository. Synara ships this by embedding a patched upstream driver (Cua `cua-driver`, about 1 MB of patches) behind roughly 40 MCP tools. It is slow (Calculator turn 26.6 s versus 17.2 s for Codex's own plugin), has no persistent "agent is in control" indicator, and grants a whole chat access to the whole computer. Switchyard already hosts the embedded browser as an app-owned MCP server (`--mcp-browser`, private socket, per-session token; ADR-030 browser bridge), which is the right shape for this too.
+Agents that can see and operate Mac apps unlock tasks outside the repository. Synara ships this by embedding a patched upstream driver (Cua `cua-driver`, about 1 MB of patches) behind roughly 40 MCP tools. It is slow (Calculator turn 26.6 s versus 17.2 s for Codex's own plugin), has no persistent "agent is in control" indicator, and grants a whole chat access to the whole computer. Sirus Code already hosts the embedded browser as an app-owned MCP server (`--mcp-browser`, private socket, per-session token; ADR-030 browser bridge), which is the right shape for this too.
 
 ## Decision
 
@@ -21,7 +21,7 @@ Agents that can see and operate Mac apps unlock tasks outside the repository. Sy
 
 - **Off by default.** `AppSettings.computerUseEnabled` gates whether Codex, Claude and OpenCode turns receive the server. Turning it off revokes everything.
 - **Per-app approval** per session, memory-only. The tool call waits up to 120 s for an in-session card ("Codex wants to use Calculator"), and the Dock bounces. Grants are never persisted.
-- **Fixed blocklist:** password managers, Keychain, System Settings, SecurityAgent, terminals, Script Editor/Automator/Shortcuts and Switchyard itself. Typing into a shell would bypass provider sandboxes and approvals.
+- **Fixed blocklist:** password managers, Keychain, System Settings, SecurityAgent, terminals, Script Editor/Automator/Shortcuts and Sirus Code itself. Typing into a shell would bypass provider sandboxes and approvals.
 - **Planning is read-only:** only observe and screenshot are allowed.
 - **Stop:**
   - A physical Escape (global key monitor, ignoring the agent's own Escape) revokes every grant and declines pending approvals.
@@ -34,7 +34,7 @@ Agents that can see and operate Mac apps unlock tasks outside the repository. Sy
   - The renderer never supplies apps, paths, URLs or input.
 - **History:** memory-only, 200 entries, without typed text.
 
-Claude receives the server in the same `--mcp-config` file and `--allowedTools mcp__switchyard_computer`. Codex receives `-c` overrides with `default_tools_approval_mode="approve"`. OpenCode receives an ACP MCP server. The per-app approval replaces the per-call vendor prompt.
+Claude receives the server in the same `--mcp-config` file and `--allowedTools mcp__sirus_computer`. Codex receives `-c` overrides with `default_tools_approval_mode="approve"`. OpenCode receives an ACP MCP server. The per-app approval replaces the per-call vendor prompt.
 
 ## Consequences
 

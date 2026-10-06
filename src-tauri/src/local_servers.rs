@@ -1,5 +1,5 @@
 //! Stopping a local development server from the Environment card. Only a
-//! process that Switchyard itself started (a terminal shell's child or an agent's
+//! process that Sirus Code itself started (a terminal shell's child or an agent's
 //! tool) can be stopped: the listener of a localhost port is found with a fixed
 //! `lsof` probe, its parent chain must reach this app's process, and it gets
 //! SIGTERM. Servers started outside the app are never touched.
@@ -128,7 +128,7 @@ pub async fn local_server_action(
     if stopped == 0 {
         return Err(Error::new(
             "forbidden",
-            "This server was not started by Switchyard, so it is left running.",
+            "This server was not started by Sirus Code, so it is left running.",
         ));
     }
     Ok(stopped)

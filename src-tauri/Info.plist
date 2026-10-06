@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>O Switchyard usa o microfone apenas enquanto você dita uma mensagem.</string>
+  <string>O Sirus Code usa o microfone apenas enquanto você dita uma mensagem.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>O Switchyard transforma seu ditado em texto no composer.</string>
+  <string>O Sirus Code transforma seu ditado em texto no composer.</string>
 </dict>
 </plist>

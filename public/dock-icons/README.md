@@ -5,13 +5,12 @@ Runtime selection and original-icon restoration are defined in
 Native alternatives are embedded from `src-tauri/icons/`; their PNG bytes must
 match the corresponding thumbnails here.
 
-## White
+## Sirus Code mark
 
-`white.png` derives from the owner's supplied white orbital icon. Its exterior
-checkerboard was baked into the source image. The built-in `image_gen` tool
-produced genuine exterior alpha and a continuous silver rim, retaining the
-white tile and orbital artwork. No CLI image-generation fallback was used.
-
-Final prompt:
-
-> Edit target: supplied white orbital Dock icon. Preserve exactly the white background tile and existing chrome orbital symbol, two crossing ribbons and three spheres. Produce a clean application-icon PNG with real transparent exterior. REQUIRED specific edge correction: add a clean continuous medium-gray metallic rim around the white tile, roughly 4 pixels wide at 1024 resolution, sharply defining the exact rounded-square silhouette. This gray rim must be geometrically smooth on all four straight sides and rounded corners; no white pixels may extend beyond this rim. Do not cut through or distort the orbital artwork. Transparent outside the gray rim, no checkerboard, no external shadow, no fragments. Centered square artwork with a modest transparent margin. Smooth antialiased silhouette is essential.
+All three tiles derive from the owner's supplied silver Sirus Code "S" orbit
+artwork (1254 px, black background). Alpha is recovered from brightness, and
+the mark is composited onto a macOS rounded-square tile (824 px tile with a
+100 px margin on a 1024 px canvas): `default.png` on near-black, `smoked-glass.png`
+on translucent graphite with a top sheen, and `white.png` with a darkened mark on
+light grey. The bundle `icon.icns` uses a higher-contrast copy of the mark for
+the 16–64 px sizes, where the hairline orbits would otherwise blur.

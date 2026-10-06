@@ -42,7 +42,7 @@ pub fn create_isolated_at(
         .replace("{session-name}", &slug_title)
         .replace("{id}", &short_id);
     let mut branch = if branch.trim().is_empty() {
-        format!("switchyard/{slug_title}-{short_id}")
+        format!("sirus/{slug_title}-{short_id}")
     } else {
         branch
     };
@@ -129,7 +129,7 @@ mod tests {
             &parent,
             "11111111-a",
             "Fix tabs",
-            "switchyard/{session-name}",
+            "sirus/{session-name}",
         )
         .unwrap();
         let second = create_isolated(
@@ -137,7 +137,7 @@ mod tests {
             &parent,
             "22222222-b",
             "Fix tabs",
-            "switchyard/{session-name}",
+            "sirus/{session-name}",
         )
         .unwrap();
         assert_ne!(first.branch, second.branch);
@@ -151,7 +151,7 @@ mod tests {
             &repo.0.join("worktrees"),
             "11111111-a",
             "Fix",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
         )
         .unwrap();
         assert!(remove(&repo.cwd(), &tree, false).is_err());

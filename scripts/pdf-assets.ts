@@ -13,7 +13,7 @@ export function pdfAssets(root: string): Plugin {
   }
   assets.set("pdfjs/LICENSE", readFileSync(path.join(root, "node_modules/pdfjs-dist/LICENSE")));
   return {
-    name: "switchyard-local-pdf-assets",
+    name: "sirus-local-pdf-assets",
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         const name = request.url?.split("?")[0]?.slice(1) ?? "";

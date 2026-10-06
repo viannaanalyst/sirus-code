@@ -123,7 +123,7 @@ export function SettingsPanels({
           </SettingsRow>
           <SettingsRow
             title={t("Confirm destructive Git actions")}
-            description={t("Cannot be turned off. Switchyard never runs reset --hard, clean -fd, or worktree remove --force automatically.")}
+            description={t("Cannot be turned off. Sirus Code never runs reset --hard, clean -fd, or worktree remove --force automatically.")}
           >
             <Switch checked onChange={() => undefined} disabled />
           </SettingsRow>
@@ -236,7 +236,7 @@ export function SettingsPanels({
         <SettingsRow title={t("Developer logs")} description={t("Stores bounded lifecycle counts locally. Prompts, output, paths and credentials are excluded.")}>
           <Switch checked={settings.developerLogs} onChange={(developerLogs) => onSave({ ...settings, developerLogs })} />
         </SettingsRow>
-        <SettingsRow title={t("Open Switchyard data directory")} description={host?.dataDir ?? ""}>
+        <SettingsRow title={t("Open Sirus Code data directory")} description={host?.dataDir ?? ""}>
           <InteractiveButton
             variant="toolbar"
             disabled={!host?.dataDir}
@@ -344,11 +344,11 @@ function ResetSettingsButton() {
       variant="secondary"
       className="text-danger"
       onClick={() => setConfirming(true)}
-    >{t("Reset Switchyard settings")}</InteractiveButton>
+    >{t("Reset Sirus Code settings")}</InteractiveButton>
     <ConfirmDialog
       open={confirming}
       onOpenChange={setConfirming}
-      title={t("Reset Switchyard settings")}
+      title={t("Reset Sirus Code settings")}
       description={t("settings.resetConfirm")}
       confirmLabel={t("Reset")}
       onConfirm={() => saveSettings({ ...defaultSettings, defaultAgent: useAppStore.getState().settings.defaultAgent })}

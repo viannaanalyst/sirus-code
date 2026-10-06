@@ -6,12 +6,12 @@
 
 /// An empty AXPTranslatorResponse, returned when a request cannot be satisfied.
 /// The translator requires *some* response object; nil wedges the read.
-id SwitchyardEmptyTranslatorResponse(void);
+id SirusEmptyTranslatorResponse(void);
 
 // Attribute reads go through objc_msgSend casts rather than declared headers:
 // every one of these classes is private, and a wrong @interface would be a
 // silent ABI mismatch instead of a nil.
-static id SwitchyardMsgSend0(id target, NSString *selectorName) {
+static id SirusMsgSend0(id target, NSString *selectorName) {
   SEL selector = NSSelectorFromString(selectorName);
   if (![target respondsToSelector:selector]) {
     return nil;
@@ -19,12 +19,12 @@ static id SwitchyardMsgSend0(id target, NSString *selectorName) {
   return ((id (*)(id, SEL))objc_msgSend)(target, selector);
 }
 
-static NSString *SwitchyardStringAttribute(id element, NSString *selectorName) {
-  id value = SwitchyardMsgSend0(element, selectorName);
+static NSString *SirusStringAttribute(id element, NSString *selectorName) {
+  id value = SirusMsgSend0(element, selectorName);
   return [value isKindOfClass:NSString.class] ? value : nil;
 }
 
-static BOOL SwitchyardBoolAttribute(id element, NSString *selectorName) {
+static BOOL SirusBoolAttribute(id element, NSString *selectorName) {
   SEL selector = NSSelectorFromString(selectorName);
   if (![element respondsToSelector:selector]) {
     return NO;
@@ -34,7 +34,7 @@ static BOOL SwitchyardBoolAttribute(id element, NSString *selectorName) {
 
 // `accessibilityValue` is genuinely `id`; anything not JSON-representable is
 // rendered with -description so the tree never fails to serialize.
-static id SwitchyardJSONValue(id value) {
+static id SirusJSONValue(id value) {
   if (value == nil) {
     return NSNull.null;
   }
@@ -44,7 +44,7 @@ static id SwitchyardJSONValue(id value) {
   return [value description] ?: NSNull.null;
 }
 
-@implementation SwitchyardAXBridge {
+@implementation SirusAXBridge {
   dispatch_queue_t _callbackQueue;
   id _translator;
 }
@@ -56,7 +56,7 @@ static id SwitchyardJSONValue(id value) {
     // requests from inside a completion handler, and each one blocks waiting for
     // its own completion. On a serial queue that nesting deadlocks the moment a
     // tree needs more than one round-trip.
-    _callbackQueue = dispatch_queue_create("com.switchyard.simulator-helper.ax", DISPATCH_QUEUE_CONCURRENT);
+    _callbackQueue = dispatch_queue_create("com.siruscode.simulator-helper.ax", DISPATCH_QUEUE_CONCURRENT);
     _requestTimeout = 5.0;
   }
   return self;
@@ -108,7 +108,7 @@ static id SwitchyardJSONValue(id value) {
 
   id (^callback)(id) = ^id(id request) {
     if (device == nil) {
-      return SwitchyardEmptyTranslatorResponse();
+      return SirusEmptyTranslatorResponse();
     }
     dispatch_group_t group = dispatch_group_create();
     dispatch_group_enter(group);
@@ -126,9 +126,9 @@ static id SwitchyardJSONValue(id value) {
     if (dispatch_group_wait(group, deadline) != 0) {
       // A wedged accessibility service must not hang the caller: an empty
       // response ends the read with a partial tree instead of blocking forever.
-      return SwitchyardEmptyTranslatorResponse();
+      return SirusEmptyTranslatorResponse();
     }
-    return response ?: SwitchyardEmptyTranslatorResponse();
+    return response ?: SirusEmptyTranslatorResponse();
   };
   return [callback copy];
 }
@@ -138,7 +138,7 @@ static id SwitchyardJSONValue(id value) {
 - (nullable NSDictionary *)frontmostTreeWithMaxDepth:(NSInteger)maxDepth error:(NSError **)error {
   if (_translator == nil) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.ax"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.ax"
                                    code:1
                                userInfo:@{NSLocalizedDescriptionKey: @"accessibility translator unavailable"}];
     }
@@ -164,7 +164,7 @@ static id SwitchyardJSONValue(id value) {
   dispatch_semaphore_wait(resolved, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(30 * NSEC_PER_SEC)));
   if (translation == nil) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.ax"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.ax"
                                    code:2
                                userInfo:@{NSLocalizedDescriptionKey: @"no frontmost application (SpringBoard may still be starting)"}];
     }
@@ -180,7 +180,7 @@ static id SwitchyardJSONValue(id value) {
   id element = ((id (*)(id, SEL, id))objc_msgSend)(_translator, elementSelector, translation);
   if (element == nil) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.ax"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.ax"
                                    code:3
                                userInfo:@{NSLocalizedDescriptionKey: @"translation produced no platform element"}];
     }
@@ -193,7 +193,7 @@ static id SwitchyardJSONValue(id value) {
 - (NSDictionary *)serializeElement:(id)element depth:(NSInteger)depth maxDepth:(NSInteger)maxDepth {
   NSMutableDictionary *node = [NSMutableDictionary new];
 
-  NSString *role = SwitchyardStringAttribute(element, @"accessibilityRole");
+  NSString *role = SirusStringAttribute(element, @"accessibilityRole");
   // Roles come back AX-prefixed ("AXButton"); the contract wants the bare role.
   if ([role hasPrefix:@"AX"] && role.length > 2) {
     node[@"role"] = [role substringFromIndex:2];
@@ -201,19 +201,19 @@ static id SwitchyardJSONValue(id value) {
     node[@"role"] = role;
   }
 
-  NSString *label = SwitchyardStringAttribute(element, @"accessibilityLabel");
+  NSString *label = SirusStringAttribute(element, @"accessibilityLabel");
   if (label.length > 0) {
     node[@"label"] = label;
   }
-  id value = SwitchyardJSONValue(SwitchyardMsgSend0(element, @"accessibilityValue"));
+  id value = SirusJSONValue(SirusMsgSend0(element, @"accessibilityValue"));
   if (value != NSNull.null) {
     node[@"value"] = value;
   }
-  NSString *identifier = SwitchyardStringAttribute(element, @"accessibilityIdentifier");
+  NSString *identifier = SirusStringAttribute(element, @"accessibilityIdentifier");
   if (identifier.length > 0) {
     node[@"identifier"] = identifier;
   }
-  NSString *title = SwitchyardStringAttribute(element, @"accessibilityTitle");
+  NSString *title = SirusStringAttribute(element, @"accessibilityTitle");
   if (title.length > 0) {
     node[@"title"] = title;
   }
@@ -243,14 +243,14 @@ static id SwitchyardJSONValue(id value) {
 
   // AXCheckBox covers both checkboxes and switches on iOS; the subrole is what
   // distinguishes them, and an agent needs it to know "0"/"1" means off/on.
-  NSString *subrole = SwitchyardStringAttribute(element, @"accessibilitySubrole");
+  NSString *subrole = SirusStringAttribute(element, @"accessibilitySubrole");
   if ([subrole hasPrefix:@"AX"] && subrole.length > 2) {
     node[@"subrole"] = [subrole substringFromIndex:2];
   } else if (subrole.length > 0) {
     node[@"subrole"] = subrole;
   }
 
-  node[@"enabled"] = @(SwitchyardBoolAttribute(element, @"isAccessibilityEnabled"));
+  node[@"enabled"] = @(SirusBoolAttribute(element, @"isAccessibilityEnabled"));
 
   if (depth >= maxDepth) {
     // Depth-capped rather than dropped, so a pathological tree still returns.
@@ -258,7 +258,7 @@ static id SwitchyardJSONValue(id value) {
     return node;
   }
 
-  id rawChildren = SwitchyardMsgSend0(element, @"accessibilityChildren");
+  id rawChildren = SirusMsgSend0(element, @"accessibilityChildren");
   if ([rawChildren isKindOfClass:NSArray.class] && [rawChildren count] > 0) {
     NSMutableArray *children = [NSMutableArray new];
     for (id child in (NSArray *)rawChildren) {
@@ -277,7 +277,7 @@ static id SwitchyardJSONValue(id value) {
 
 @end
 
-id SwitchyardEmptyTranslatorResponse(void) {
+id SirusEmptyTranslatorResponse(void) {
   Class responseClass = NSClassFromString(@"AXPTranslatorResponse");
   SEL emptySelector = NSSelectorFromString(@"empty");
   if (responseClass == nil || ![responseClass respondsToSelector:emptySelector]) {

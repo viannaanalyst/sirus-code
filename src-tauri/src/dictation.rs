@@ -35,7 +35,7 @@ mod platform {
 
     /// Recording is bounded so a forgotten session cannot fill the disk.
     const MAX_RECORDING_SECONDS: usize = 300;
-    const TEMP_PREFIX: &str = "switchyard-dictation-";
+    const TEMP_PREFIX: &str = "sirus-dictation-";
 
     struct Session {
         engine: Retained<AVAudioEngine>,

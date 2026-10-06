@@ -48,6 +48,6 @@ pub enum WorkspaceEntryKind { File, Directory }
 - [ ] Collapse all closes expanded directories, clears descendant selection and returns to the root; do not re-enumerate the whole workspace or add search.
 - [ ] After success refresh visible directory listings, expand the selected parent, select the new entry and open a new file in the existing editor through onOpenFile. Guard late results against session/worktree changes or unmount so a response cannot overwrite the next workspace UI.
 - [ ] Run focused native fixture tests, frontend typecheck/lint and existing sidebar/editor checks where the change touches their contracts. Do not run paid inference or Git mutations on user repositories.
-- [ ] Write a report with modified files, exact verification commands/results and security limitations to `/tmp/switchyard-explorer-report.md`.
+- [ ] Write a report with modified files, exact verification commands/results and security limitations to `/tmp/sirus-explorer-report.md`.
 
-**Review baseline:** `/tmp/switchyard-explorer-before/`. Root agent will generate a unified diff, review this task, update ADR/AGENTS, run final checks and update Graphify.
+**Review baseline:** `/tmp/sirus-explorer-before/`. Root agent will generate a unified diff, review this task, update ADR/AGENTS, run final checks and update Graphify.

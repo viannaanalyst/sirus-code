@@ -6,7 +6,7 @@ Competitive evidence reviewed on **2026-09-30** to support the overnight MVP mis
 
 Only official product pages, repositories, and maintainer documentation were used. Features below are documented by their maintainers; the competing applications were **not** installed or exercised. Performance claims and marketing demonstrations are not benchmarks. Repository `main` may describe capabilities ahead of a stable release.
 
-| Product | Verified identity and documented behavior | Lesson for Switchyard |
+| Product | Verified identity and documented behavior | Lesson for Sirus Code |
 | --- | --- | --- |
 | Synara | Its repository distinguishes project, thread, provider session, and workspace tools. It documents provider/model choice per task, managed worktrees for parallel changes, terminal and diff surfaces, and provider handoffs. [Official repository](https://github.com/Emanuele-web04/synara) | Preserve ownership of every task's checkout and keep execution adjacent to review. |
 | MonoCode | This research refers to `hardbeat920/monocode`, the desktop coding-agent UI, rather than unrelated educational products with the same name. Its README documents sessions with provider, model, and checkout/worktree selection; its optional operator interface can create unsent drafts. [Official repository](https://github.com/hardbeat920/monocode) | Make the session destination explicit before execution; a draft must remain distinct from a running task. |
@@ -15,13 +15,13 @@ Only official product pages, repositories, and maintainer documentation were use
 
 Additional useful evidence:
 
-- MonoCode's changelog reports fixes for saved models changing while catalogs load, transcript scroll jumping during updates, hidden-sidebar subscription churn, and credential refresh races. These are concrete regression scenarios to assess in Switchyard, not evidence that Switchyard already has these bugs. [Maintainer changelog](https://github.com/hardbeat920/monocode/blob/main/CHANGELOG.md)
+- MonoCode's changelog reports fixes for saved models changing while catalogs load, transcript scroll jumping during updates, hidden-sidebar subscription churn, and credential refresh races. These are concrete regression scenarios to assess in Sirus Code, not evidence that Sirus Code already has these bugs. [Maintainer changelog](https://github.com/hardbeat920/monocode/blob/main/CHANGELOG.md)
 - T3 Code documents keyboard navigation in model pickers, workspace shortcuts, and terminal-focus exclusions for shortcuts. [Keybinding reference](https://github.com/pingdotgg/t3code/blob/main/docs/user/keybindings.md)
-- T3 Code documents cleanup eligibility checks that exclude active sessions, shared worktrees, and user changes. Switchyard can adopt checks for explicit removal while retaining its stricter prohibition on automatic removal. [Project settings reference](https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md)
+- T3 Code documents cleanup eligibility checks that exclude active sessions, shared worktrees, and user changes. Sirus Code can adopt checks for explicit removal while retaining its stricter prohibition on automatic removal. [Project settings reference](https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md)
 
 ## NOW — close the local desktop loop
 
-The priorities and acceptance criteria below are Switchyard proposals inferred from the evidence and the overnight mission. They do not assert feature parity.
+The priorities and acceptance criteria below are Sirus Code proposals inferred from the evidence and the overnight mission. They do not assert feature parity.
 
 | Priority | Proposal | Acceptance criteria | Dependency / guardrail |
 | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ The priorities and acceptance criteria below are Switchyard proposals inferred f
 | P1 | Fast provider/model navigation | Cached detection does not block Settings opening. Explicit refresh shows pending/error states. Favorites and model search include provider identity and remain usable with arrows, Enter, and Escape. | Discovery results must come from actual CLI capabilities or a documented adapter strategy. |
 | P1 | Complete keyboard path | Add/open project, create session, choose model/workspace, send/stop, inspect diff, and open terminal work by keyboard. Cmd+B persists sidebar visibility; focus returns to the trigger after overlays close. | Central shortcut matcher; terminal input must retain its own editing shortcuts. |
 | P1 | Review at the session boundary | Changed-file list and diff identify the active session path/branch. Refresh on relevant lifecycle/user events; selecting another session cannot retain another worktree's stale result. | Git CLI argv, request identity checks, no aggressive polling. |
-| P1 | Clear provider limitation states | Installation, execution failure, unavailable catalog, and unsupported capability have distinct messages. A missing catalog never presents invented model availability. | Existing CLI authentication remains outside Switchyard. |
+| P1 | Clear provider limitation states | Installation, execution failure, unavailable catalog, and unsupported capability have distinct messages. A missing catalog never presents invented model availability. | Existing CLI authentication remains outside Sirus Code. |
 
 ## Current implementation status
 
@@ -62,5 +62,5 @@ Do not implement these during the overnight mission: no RemoteTransport, mobile 
 
 - No competitor runtime, authentication, throughput, accessibility, or security behavior was tested.
 - No code or brand asset was copied from competing applications. Official provider assets need their own provenance check.
-- The backlog ranks engineering value for Switchyard; it does not rank competitors or infer unsupported CLI behavior from their integrations.
+- The backlog ranks engineering value for Sirus Code; it does not rank competitors or infer unsupported CLI behavior from their integrations.
 - Recheck upstream documentation before implementing a runtime-specific protocol. The local adapter and installed CLI remain the source of truth for actual availability.

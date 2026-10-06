@@ -32,7 +32,7 @@ that belong to that project. Both are local reference text, not provider input,
 composer drafts, recap context or writes to `AGENTS.md`.
 
 The sole new IPC is `save_context_text(key, value, flush) -> Result<()>`, reached
-through `SwitchyardClient` and `LocalTransport`. `context_text.rs` validates exact
+through `SirusClient` and `LocalTransport`. `context_text.rs` validates exact
 existing owners (including a session's project), keys up to 256 bytes, text up to
 16,384 UTF-16 units and 64 KiB. Empty text removes the record. Load and metadata
 removal prune orphaned, empty or oversized entries.

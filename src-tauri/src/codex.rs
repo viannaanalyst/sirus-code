@@ -171,25 +171,25 @@ pub async fn start(
         if let Ok(exe) = std::env::current_exe() {
             let values = [
                 (
-                    "mcp_servers.switchyard_browser.command",
+                    "mcp_servers.sirus_browser.command",
                     format!("{:?}", exe.to_string_lossy()),
                 ),
                 (
-                    "mcp_servers.switchyard_browser.args",
+                    "mcp_servers.sirus_browser.args",
                     "[\"--mcp-browser\"]".to_string(),
                 ),
                 (
-                    "mcp_servers.switchyard_browser.env.SWITCHYARD_BROWSER_SOCKET",
+                    "mcp_servers.sirus_browser.env.SIRUS_BROWSER_SOCKET",
                     format!("{:?}", endpoint.socket.to_string_lossy()),
                 ),
                 (
-                    "mcp_servers.switchyard_browser.env.SWITCHYARD_BROWSER_TOKEN",
+                    "mcp_servers.sirus_browser.env.SIRUS_BROWSER_TOKEN",
                     format!("{:?}", endpoint.token),
                 ),
                 // Integrated browser tools are fixed and bounded; no per-call
                 // prompt (the app already interrupts on human page input).
                 (
-                    "mcp_servers.switchyard_browser.default_tools_approval_mode",
+                    "mcp_servers.sirus_browser.default_tools_approval_mode",
                     "\"approve\"".to_string(),
                 ),
             ];
@@ -295,7 +295,7 @@ impl Wire {
         cancel: &mut watch::Receiver<bool>,
     ) -> Result<Value> {
         self.sequence += 1;
-        let id = format!("switchyard-{}", self.sequence);
+        let id = format!("sirus-{}", self.sequence);
         self.send(json!({"id":id,"method":method,"params":params}))
             .await?;
         tokio::time::timeout(Duration::from_secs(30), async {
@@ -405,7 +405,7 @@ async fn execute(
     cancel: &mut watch::Receiver<bool>,
     emit: &mut impl FnMut(Event) -> Result<()>,
 ) -> Result<bool> {
-    wire.request("initialize", json!({"clientInfo":{"name":"switchyard","title":"Switchyard","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true}}),cancel).await?;
+    wire.request("initialize", json!({"clientInfo":{"name":"sirus","title":"Sirus Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true}}),cancel).await?;
     wire.send(json!({"method":"initialized"})).await?;
     let (sandbox, approval, reviewer) = crate::execution::codex_policy(&run.session.execution);
     let mut params = json!({"cwd":run.cwd,"sandbox":sandbox,"approvalPolicy":approval,"approvalsReviewer":reviewer});
@@ -526,7 +526,7 @@ async fn execute(
                 _ = cancel.changed() => {
                     // Native interruption first, bounded fallback cleanup is performed by monitor.
                     wire.sequence += 1;
-                    wire.send(json!({"id":format!("switchyard-{}",wire.sequence),"method":"turn/interrupt","params":{"threadId":thread_id,"turnId":turn_id}})).await?;
+                    wire.send(json!({"id":format!("sirus-{}",wire.sequence),"method":"turn/interrupt","params":{"threadId":thread_id,"turnId":turn_id}})).await?;
                     let _ = tokio::time::timeout(Duration::from_secs(2), async {
                         while let Ok(value) = wire.read().await {
                             if value["method"] == "turn/completed" && value["params"]["turn"]["id"] == turn_id { break; }
@@ -1269,15 +1269,15 @@ else:
             &repo.0.join("workspaces"),
             "codexnative",
             "Native Codex smoke",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
         )
         .unwrap();
         let mut session = session();
         session.native_thread = None;
         session.worktree = tree.clone();
-        session.model = std::env::var("SWITCHYARD_SMOKE_MODEL").ok();
+        session.model = std::env::var("SIRUS_SMOKE_MODEL").ok();
         let prompts = [
-            "This is a disposable Switchyard integration test. Remember the exact phrase SWITCHYARD_NATIVE_REMEMBER_741. Create exactly one file switchyard-native.txt in the current workspace containing SWITCHYARD_NATIVE_OK followed by a newline. Do not change other files, use network tools, install dependencies, or read authentication/configuration files. Reply SWITCHYARD_NATIVE_OK.",
+            "This is a disposable Sirus Code integration test. Remember the exact phrase SIRUS_NATIVE_REMEMBER_741. Create exactly one file sirus-native.txt in the current workspace containing SIRUS_NATIVE_OK followed by a newline. Do not change other files, use network tools, install dependencies, or read authentication/configuration files. Reply SIRUS_NATIVE_OK.",
             "Without any tools or filesystem access, repeat the exact phrase I asked you to remember in the previous turn. Reply with that phrase only.",
         ];
         let mut first_thread = None;
@@ -1341,19 +1341,19 @@ else:
             let identity = native.expect("native thread identity");
             if index == 0 {
                 first_thread = Some(identity.thread_id.clone());
-                assert!(output.contains("SWITCHYARD_NATIVE_OK"));
+                assert!(output.contains("SIRUS_NATIVE_OK"));
                 assert_eq!(
                     std::fs::read_to_string(
-                        std::path::Path::new(&tree.path).join("switchyard-native.txt")
+                        std::path::Path::new(&tree.path).join("sirus-native.txt")
                     )
                     .unwrap(),
-                    "SWITCHYARD_NATIVE_OK\n"
+                    "SIRUS_NATIVE_OK\n"
                 );
-                assert!(!repo.cwd().join("switchyard-native.txt").exists());
+                assert!(!repo.cwd().join("sirus-native.txt").exists());
             } else {
                 assert_eq!(Some(&identity.thread_id), first_thread.as_ref());
                 assert!(
-                    output.contains("SWITCHYARD_NATIVE_REMEMBER_741"),
+                    output.contains("SIRUS_NATIVE_REMEMBER_741"),
                     "Native follow-up did not remember prior turn"
                 );
             }
@@ -1370,13 +1370,13 @@ else:
             &repo.0.join("workspaces"),
             "codexapproval",
             "Codex approval smoke",
-            "switchyard/{session-name}-{id}",
+            "sirus/{session-name}-{id}",
         )
         .unwrap();
         let mut session = session();
         session.native_thread = None;
         session.worktree = tree.clone();
-        let prompt="This is a disposable host-approval integration test. Request one-time host approval using sandbox_permissions=require_escalated to execute exactly /usr/bin/true, with justification: harmless host approval routing test. Do not execute without requesting approval. The host will decline; do not retry or choose alternatives. After denial reply SWITCHYARD_DENIED_OK. Do not read or write files, use network tools, inspect authentication/configuration, or change permissions.";
+        let prompt="This is a disposable host-approval integration test. Request one-time host approval using sandbox_permissions=require_escalated to execute exactly /usr/bin/true, with justification: harmless host approval routing test. Do not execute without requesting approval. The host will decline; do not retry or choose alternatives. After denial reply SIRUS_DENIED_OK. Do not read or write files, use network tools, inspect authentication/configuration, or change permissions.";
         let (process, mut started) = start(
             session.clone(),
             tree.path.clone(),
@@ -1455,7 +1455,7 @@ else:
         for receiver in acknowledgements {
             assert!(receiver.await.unwrap().is_ok());
         }
-        assert!(output.contains("SWITCHYARD_DENIED_OK"));
+        assert!(output.contains("SIRUS_DENIED_OK"));
         assert!(
             !crate::git::status(std::path::Path::new(&tree.path))
                 .unwrap()

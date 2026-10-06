@@ -4,7 +4,7 @@
 
 ## Context
 
-Switchyard needs the nine provider identities visible in Synara while preserving local Session/worktree ownership and truthful native capabilities. Antigravity, Factory Droid, Pi and Devin offer headless CLIs, but their interaction protocols and permission guarantees differ from the three existing native-resume adapters.
+Sirus Code needs the nine provider identities visible in Synara while preserving local Session/worktree ownership and truthful native capabilities. Antigravity, Factory Droid, Pi and Devin offer headless CLIs, but their interaction protocols and permission guarantees differ from the three existing native-resume adapters.
 
 ## Decision
 

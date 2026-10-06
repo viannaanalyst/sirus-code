@@ -45,7 +45,7 @@ Native command: `commit_title_action(state, action)`. Serde rejects unknown fiel
 - [x] Implement/test selection/account binding, fixed isolated argv, strict structured output parsing, empty/oversized/multiline/error replies, request ownership and concurrency.
 - [x] Implement/test owned bounded stdin/stdout/stderr capture, deadline/cancel/shutdown/drop cleanup with disposable fake children. Do not infer CLI success from parseable output alone.
 - [x] Wire native command and shutdown, write ADR including capability/security review and boundaries. Extend ADR-045 to point at the replacement title flow.
-- [x] Run focused Rust tests, format/check/clippy as appropriate, record evidence and source diff in `/tmp/switchyard-ai-commit-native-report.md` and `/tmp/switchyard-ai-commit-native.diff`.
+- [x] Run focused Rust tests, format/check/clippy as appropriate, record evidence and source diff in `/tmp/sirus-ai-commit-native-report.md` and `/tmp/sirus-ai-commit-native.diff`.
 - [x] Obtain scoped spec/code-quality review and resolve findings before Task 2.
 
 ## Task 2: Client and Changes UI
@@ -66,13 +66,13 @@ The client sends only the closed actions above and maps a cancelled generation t
 - [x] Replace local title generator with provider request lifecycle; remove dead metadata-only behavior/tests. Test typing during pending generation, cancellation, unmount/owner changes and late replies with deterministic fake APIs, without native inference.
 - [x] Update both locales, including native error translations and disclosure that prepared code is sent to the provider.
 - [x] Update the existing browser preview using simulated generation/cancel/provider/partial responses; clearly label simulated behavior and never call a provider.
-- [x] Run focused tests, typecheck/lint/build; record report/diff under `/tmp/switchyard-ai-commit-ui-*`.
+- [x] Run focused tests, typecheck/lint/build; record report/diff under `/tmp/sirus-ai-commit-ui-*`.
 - [x] Obtain scoped review and resolve findings.
 
 ## Final verification
 
 - [x] Whole-feature security/spec review from source snapshots.
-- [x] Required frontend and native checks, Graphify incremental update and desktop bundle build. Run disposable live inference only with a synthetic diff and no user repository/credentials read by Switchyard; report any unavailable runtime honestly.
+- [x] Required frontend and native checks, Graphify incremental update and desktop bundle build. Run disposable live inference only with a synthetic diff and no user repository/credentials read by Sirus Code; report any unavailable runtime honestly.
 - [x] Confirm bundle completion and share the updated application and browser preview links. Do not quit the person's app, replace /Applications or perform real commit/push.
 
 Verification completed: native294 passed19ignored; frontend217 plus verification scripts passed, final utility lifecycle15 tests passed; typecheck/lint/build/preview builds, format/check/clippy, synthetic native Codex/Claude inference and desktop signature passed. Scoped and final reviews approved. Rendered gate/attribution component coverage remains a minor follow-up; existing chunk-size warnings remain.

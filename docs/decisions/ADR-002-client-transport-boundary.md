@@ -1,4 +1,4 @@
-# ADR-002: UI talks only to the Switchyard Client API
+# ADR-002: UI talks only to the Sirus Code Client API
 
 **Status:** Accepted
 
@@ -9,7 +9,7 @@ The same Session must eventually be controllable from desktop, browser, and iPho
 ## Decision
 
 ```
-UI → SwitchyardClient (`src/client`) → Transport → core
+UI → SirusClient (`src/client`) → Transport → core
 ```
 
 Today `LocalTransport` dynamically imports Tauri `invoke` / `listen`. `RemoteTransport` does not exist. The only intended Tauri imports outside `local-transport.ts` are none.

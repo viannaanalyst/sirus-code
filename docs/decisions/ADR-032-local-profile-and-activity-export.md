@@ -5,8 +5,8 @@
 ## Context
 
 The owner requested Synara's Profile and activity-sharing experience within
-Switchyard's settings. Synara has historical token and deletion-preserving
-activity ledgers; Switchyard retains transcripts and current session choices.
+Sirus Code's settings. Synara has historical token and deletion-preserving
+activity ledgers; Sirus Code retains transcripts and current session choices.
 Quota snapshots cannot supply lifetime token totals. Browser clipboard/download
 and arbitrary social URL bridges would cross the existing native trust boundary.
 

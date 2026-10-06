@@ -1,4 +1,4 @@
-/* Arc UI MIT foundation, adapted to the Switchyard theme and keyboard contract. */
+/* Arc UI MIT foundation, adapted to the Sirus Code theme and keyboard contract. */
 :root {
   color-scheme: dark;
   --neutral-0: oklch(100% 0 0);
@@ -39,7 +39,7 @@
   --control-on-subtle: color-mix(in oklch, var(--control-on) 10%, transparent);
   /* Slider fills. Same as --control-on except neutral dark, where a mid grey keeps the white thumb distinct. */
   --control-fill: var(--control-on);
-  /* Switchyard keeps a visible focus ring for keyboard users. */
+  /* Sirus Code keeps a visible focus ring for keyboard users. */
   --focus-ring: var(--accent);
   
   

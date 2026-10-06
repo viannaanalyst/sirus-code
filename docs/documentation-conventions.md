@@ -1,6 +1,6 @@
 # Documentation conventions
 
-How Switchyard is documented, and why. Read this before writing or restructuring documentation.
+How Sirus Code is documented, and why. Read this before writing or restructuring documentation.
 
 **The rule everything else serves:**
 
@@ -8,7 +8,7 @@ How Switchyard is documented, and why. Read this before writing or restructuring
 
 Documentation that does not serve that is duplication or a changelog. Git already has the changelog.
 
-This file is adapted from the documentation conventions used in other Gabriel Vianna software projects (notably Lume). The frameworks stay. The *application* of those frameworks is Switchyard-specific: a local-first Tauri desktop host for coding agents, not a browser, not a business-process repo, not an Electron chat wrapper.
+This file is adapted from the documentation conventions used in other Gabriel Vianna software projects (notably Lume). The frameworks stay. The *application* of those frameworks is Sirus Code-specific: a local-first Tauri desktop host for coding agents, not a browser, not a business-process repo, not an Electron chat wrapper.
 
 ## Language
 
@@ -48,10 +48,10 @@ Adopted, because they answer questions this codebase actually has:
 
 ### C4 Model — architecture
 
-Simon Brown's four levels. Switchyard uses **two**, and no more:
+Simon Brown's four levels. Sirus Code uses **two**, and no more:
 
 - **Level 1, Context:** a local desktop app that talks to the OS, Git, and already-installed coding-agent CLIs (Codex, Claude Code). No required cloud. README + AGENTS.md opening.
-- **Level 2, Containers:** React UI (Vite webview) ↔ Switchyard Client API ↔ LocalTransport ↔ Tauri IPC ↔ Rust core. This is a *build and trust-boundary* fact, not a pretty diagram. `src/client`, `src-tauri/src/lib.rs`, and AGENTS.md are the authority.
+- **Level 2, Containers:** React UI (Vite webview) ↔ Sirus Code Client API ↔ LocalTransport ↔ Tauri IPC ↔ Rust core. This is a *build and trust-boundary* fact, not a pretty diagram. `src/client`, `src-tauri/src/lib.rs`, and AGENTS.md are the authority.
 
 Level 3 (components) is the source tree. Level 4 (code) is the code. **Do not draw those.** A diagram that drifts is worse than none.
 
@@ -69,7 +69,7 @@ Michael Nygard's format. Highest-value docs in this repo: they capture reasoning
 
 Not a folder structure to fill:
 
-| Quadrant | In Switchyard today |
+| Quadrant | In Sirus Code today |
 | --- | --- |
 | **Tutorial** | README “Uso inicial” |
 | **How-to** | `docs/development/building.md` |
@@ -86,7 +86,7 @@ If a doc mixes quadrants and it hurts, split it. Do not split preemptively.
 | --- | --- |
 | **BPMN** | A real multi-actor process with branches (release with approvals). Never for code flow. |
 | **SIPOC** | Scoping inputs/consumers *outside* the repo. Not needed for V1. |
-| **RACI** | More than three people share recurring responsibility. Switchyard is currently one owner plus coding agents; a RACI would be theatre. |
+| **RACI** | More than three people share recurring responsibility. Sirus Code is currently one owner plus coding agents; a RACI would be theatre. |
 | **VSM** | Measuring lead time in a repeated process with a wait state. Plausible later for release, not now. |
 | **Data dictionary** | When persisted JSON grows a public schema with non-obvious field values. `src-tauri/src/models.rs` + `src/client/types.ts` are the schema today. |
 
@@ -145,6 +145,6 @@ A new file must earn itself: separate audience or separate lifecycle. ADRs are s
 
 ## Repository skills vs AGENTS.md
 
-Keep agent instructions in `AGENTS.md`. A skill under `.agents/skills/` or `.cursor/skills/` **in this repo** is only justified if it captures a repeatable Switchyard-specific procedure too detailed for AGENTS.md (for example: adding an AgentProvider end-to-end, or a worktree safety checklist with commands).
+Keep agent instructions in `AGENTS.md`. A skill under `.agents/skills/` or `.cursor/skills/` **in this repo** is only justified if it captures a repeatable Sirus Code-specific procedure too detailed for AGENTS.md (for example: adding an AgentProvider end-to-end, or a worktree safety checklist with commands).
 
 Nothing has been created in-repo. Host skills (Graphify, React, Tauri-adjacent, review) live in the developer’s environment — see AGENTS.md § Skills.

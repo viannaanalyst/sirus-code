@@ -379,7 +379,7 @@ fn from_bytes(name: String, bytes: Vec<u8>) -> Result<PreparedAttachment> {
         .filter(|e| e.len() <= 12 && e.bytes().all(|c| c.is_ascii_alphanumeric()));
     let suffix = extension.map(|e| format!(".{e}")).unwrap_or_default();
     let mut file = tempfile::Builder::new()
-        .prefix("switchyard-reference-")
+        .prefix("sirus-reference-")
         .suffix(&suffix)
         .tempfile()
         .map_err(|_| Error::new("attachment", "Cannot prepare attachment snapshot."))?;
@@ -958,8 +958,7 @@ mod tests {
     }
     #[test]
     fn snapshots_are_bounded_text_or_nonrecursive_folder_names() {
-        let root =
-            std::env::temp_dir().join(format!("switchyard-attachment-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-attachment-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(root.join("large.txt"), "á".repeat(MAX_BYTES)).unwrap();
         let file = snapshot(&root.join("large.txt"), false).unwrap();
@@ -980,8 +979,7 @@ mod tests {
     fn selected_fifo_is_rejected_without_blocking_and_unicode_truncation_is_valid() {
         use std::ffi::CString;
         use std::os::unix::ffi::OsStrExt;
-        let root =
-            std::env::temp_dir().join(format!("switchyard-attachment-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("sirus-attachment-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir(&root).unwrap();
         let pipe = root.join("pipe");
         let name = CString::new(pipe.as_os_str().as_bytes()).unwrap();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SwitchyardClient } from "../src/client/index.ts";
+import { SirusClient } from "../src/client/index.ts";
 import type { Transport } from "../src/client/transport.ts";
 import type { PtyOutputEvent } from "../src/client/types.ts";
 
@@ -15,7 +15,7 @@ test("terminal output uses one native listener fanned out to every terminal", as
       return () => { removals += 1; native.delete(event); };
     },
   };
-  const client = new SwitchyardClient(transport);
+  const client = new SirusClient(transport);
   const seen: string[] = [];
   const first = await client.onPtyOutput((event) => seen.push(`1:${event.data}`));
   const second = await client.onPtyOutput((event) => seen.push(`2:${event.data}`));

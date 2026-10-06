@@ -163,7 +163,7 @@ mod macos {
     use std::ffi::{c_int, c_void};
     use std::sync::OnceLock;
 
-    const BACKING_ID: &str = "switchyard.appearance-glass-backing";
+    const BACKING_ID: &str = "sirus.appearance-glass-backing";
     const BLUR_RADIUS: c_int = 24;
     const SMOKED_DOCK: &[u8] = include_bytes!("../icons/dock-smoked-glass.png");
     const WHITE_DOCK: &[u8] = include_bytes!("../icons/dock-white.png");

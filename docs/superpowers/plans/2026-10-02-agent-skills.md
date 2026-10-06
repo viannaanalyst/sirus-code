@@ -1,8 +1,8 @@
 # Agent skills implementation plan
 
-**Goal:** Bring Synara's grouped, cross-provider skill settings and MonoCode's search/preview/composer selection into Switchyard's existing design.
+**Goal:** Bring Synara's grouped, cross-provider skill settings and MonoCode's search/preview/composer selection into Sirus Code's existing design.
 
-**Architecture:** Native bounded discovery reads only SKILL.md files under fixed skills roots and owned project/worktree roots. A closed catalog/preview IPC accepts owned IDs, never filesystem paths. Enable/disable preferences belong to AppSettings and affect Switchyard's catalog and explicit skill invocation only; provider installations are untouched. Native prompt preparation resolves an explicit leading `/skill-name` invocation, prefers the selected provider's copy, and inlines bounded instructions without modifying the persisted visible prompt or approval policies.
+**Architecture:** Native bounded discovery reads only SKILL.md files under fixed skills roots and owned project/worktree roots. A closed catalog/preview IPC accepts owned IDs, never filesystem paths. Enable/disable preferences belong to AppSettings and affect Sirus Code's catalog and explicit skill invocation only; provider installations are untouched. Native prompt preparation resolves an explicit leading `/skill-name` invocation, prefers the selected provider's copy, and inlines bounded instructions without modifying the persisted visible prompt or approval policies.
 
 **Constraints:** Existing Client/Transport boundary; no new dependencies, credentials, shell/fs capabilities, installer, skill execution or file deletion. No Computer Use: inspect both local reference repositories and validate through code/tests/build. No Git metadata is available in this checkout.
 

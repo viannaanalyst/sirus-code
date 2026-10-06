@@ -11,7 +11,7 @@ try {
   const { SheetReader } = await server.ssrLoadModule("/src/components/SheetReader.tsx");
   const { ComposerContextChips } = await server.ssrLoadModule("/src/components/ComposerAddMenu.tsx");
   const { useAppStore } = await server.ssrLoadModule("/src/store/app-store.ts");
-  const { client, SwitchyardClient } = await server.ssrLoadModule("/src/client/index.ts");
+  const { client, SirusClient } = await server.ssrLoadModule("/src/client/index.ts");
   const store = () => useAppStore.getState();
   const settings = store().settings;
   const project = { id: "reader-project", name: "Fixture", path: "/fixture", addedAt: "time", lastOpenedAt: "time" };
@@ -73,7 +73,7 @@ try {
   assert.equal(store().dockPanes.length, 8);
   client.releasePromptAttachments = originalRelease;
   const calls = [];
-  const api = new SwitchyardClient({ invoke: async (command, args) => { calls.push({ command, args }); return { type: "word", blocks: [] }; }, listen: async () => () => {} });
+  const api = new SirusClient({ invoke: async (command, args) => { calls.push({ command, args }); return { type: "word", blocks: [] }; }, listen: async () => () => {} });
   await api.attachmentPreview(owner, file.id);
   assert.deepEqual(calls, [{ command: "attachment_preview", args: { owner, id: file.id } }]);
   console.log("Document reader: safe Word/sheet/chip rendering in both locales, virtual rows, opaque IPC, landing, transfer, removal and bounded tabs passed");
@@ -88,7 +88,7 @@ const objects = [
   "<< /Type /Catalog /Pages 2 0 R >>",
   "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
   "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>",
-  stream("Switchyard attachment reader"),
+  stream("Sirus Code attachment reader"),
   "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>",
   stream("Second document page"),
   "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
@@ -105,7 +105,7 @@ try {
   for (const number of [1, 2]) {
     const page = await doc.getPage(number);
     const text = await page.getTextContent();
-    assert.ok(text.items.some((item) => "str" in item && item.str.includes(number === 1 ? "Switchyard" : "Second")));
+    assert.ok(text.items.some((item) => "str" in item && item.str.includes(number === 1 ? "Sirus Code" : "Second")));
     const viewport = page.getViewport({ scale: 1 });
     const canvas = createCanvas(viewport.width, viewport.height);
     await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;

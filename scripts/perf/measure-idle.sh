@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Measures Switchyard launch timing, idle CPU and memory on macOS.
-# Usage: scripts/perf/measure-idle.sh [path/to/Switchyard.app] [settle-seconds] [sample-seconds] [focused|background]
+# Measures Sirus Code launch timing, idle CPU and memory on macOS.
+# Usage: scripts/perf/measure-idle.sh [path/to/Sirus Code.app] [settle-seconds] [sample-seconds] [focused|background]
 # "background" activates Finder after launch, so the app is measured without window focus.
 # Attribution: the app process by bundle path; WebKit helpers are the WebContent/GPU/Networking
 # processes that appear after launch (a launch-diff heuristic, documented in docs/PERFORMANCE.md).
 set -euo pipefail
-APP="${1:-src-tauri/target/debug/bundle/macos/Switchyard.app}"
+APP="${1:-src-tauri/target/debug/bundle/macos/Sirus Code.app}"
 SETTLE="${2:-20}"
 SAMPLE="${3:-60}"
 MODE="${4:-focused}"
-BIN="$APP/Contents/MacOS/switchyard"
+BIN="$APP/Contents/MacOS/sirus-code"
 helpers() { pgrep -f 'com.apple.WebKit.(WebContent|GPU|Networking).xpc' | sort || true; }
-if pgrep -f "$BIN" >/dev/null; then echo "Switchyard is already running; quit it first." >&2; exit 1; fi
+if pgrep -f "$BIN" >/dev/null; then echo "Sirus Code is already running; quit it first." >&2; exit 1; fi
 before=$(helpers)
 t0=$(python3 -c 'import time; print(time.time())')
 open -n "$APP"

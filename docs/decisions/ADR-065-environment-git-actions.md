@@ -4,7 +4,7 @@
 
 ## Context
 
-Synara's Environment card offers Pull, Create PR, "Hand off to new worktree" and a stop button for detected local servers. Switchyard lacked all four. Each one touches the network, GitHub or processes, so each needed a security review. The owner approved all four.
+Synara's Environment card offers Pull, Create PR, "Hand off to new worktree" and a stop button for detected local servers. Sirus Code lacked all four. Each one touches the network, GitHub or processes, so each needed a security review. The owner approved all four.
 
 ## Decision
 
@@ -35,15 +35,15 @@ Synara's Environment card offers Pull, Create PR, "Hand off to new worktree" and
 
 - A new closed `local_server_action { stop { sessionId, url } }` accepts only an http(s) URL on localhost, 127.0.0.1, ::1 or 0.0.0.0 with a port.
 - It finds the listener with a fixed `/usr/sbin/lsof -nP -iTCP:<port> -sTCP:LISTEN -t` probe (bounded, cleared environment, 3 s).
-- It walks each PID's parent chain with fixed `/bin/ps`, at most 64 hops, and sends SIGTERM only to processes that descend from Switchyard itself: terminal shells' children or agent tools.
-- Anything else is refused with "not started by Switchyard".
+- It walks each PID's parent chain with fixed `/bin/ps`, at most 64 hops, and sends SIGTERM only to processes that descend from Sirus Code itself: terminal shells' children or agent tools.
+- Anything else is refused with "not started by Sirus Code".
 
 ## Consequences
 
 - **Positive:** the Environment card covers the everyday Git and server actions without leaving the app.
 - **Negative:**
   - Pull and Create PR reach the network with the person's Git and `gh` credentials. Both are explicit, confirmed actions.
-  - A same-user process could still start a server under a Switchyard terminal and have it stopped. That is the intended scope: the app only stops servers it started.
+  - A same-user process could still start a server under a Sirus Code terminal and have it stopped. That is the intended scope: the app only stops servers it started.
 
 ## Alternatives considered
 

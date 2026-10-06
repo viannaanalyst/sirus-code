@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CommitTitleRequest, type CommitTitleApi } from "../src/lib/commit-title";
-import { SwitchyardClient } from "../src/client/index";
+import { SirusClient } from "../src/client/index";
 import type { CommitTitleResult } from "../src/client/types";
 import type { Transport } from "../src/client/transport";
 
@@ -77,18 +77,18 @@ function transport(response: unknown, calls: { command: string; args?: Record<st
 }
 test("client uses only closed generate/cancel actions and maps cancellation to null", async () => {
   const calls: { command: string; args?: Record<string, unknown> }[] = [];
-  const client = new SwitchyardClient(transport(title, calls));
+  const client = new SirusClient(transport(title, calls));
   assert.deepEqual(await client.gitCommitTitle("session", "token", "uuid"), title);
   assert.deepEqual(calls[0], { command: "commit_title_action", args: { action: { type: "generate", sessionId: "session", expectedIndex: "token", requestId: "uuid" } } });
-  const cancelled = new SwitchyardClient(transport({ type: "cancelled" }, calls));
+  const cancelled = new SirusClient(transport({ type: "cancelled" }, calls));
   assert.equal(await cancelled.gitCommitTitle("session", "token", "uuid"), null);
   await cancelled.cancelCommitTitle("session", "uuid");
   assert.deepEqual(calls.at(-1), { command: "commit_title_action", args: { action: { type: "cancel", sessionId: "session", requestId: "uuid" } } });
 });
 test("client refuses open, invalid, multiline and wrong-provider replies", async () => {
   for (const response of [null, {}, { type: "cancelled", extra: true }, { ...title, extra: true }, { ...title, title: "" }, { ...title, title: " padded " }, { ...title, title: "line\nline" }, { ...title, title: "x".repeat(73) }, { ...title, provider: "cursor" }, { ...title, partial: "false" }]) {
-    const client = new SwitchyardClient(transport(response, []));
+    const client = new SirusClient(transport(response, []));
     await assert.rejects(client.gitCommitTitle("session", "token", "uuid"));
   }
-  await assert.rejects(new SwitchyardClient(transport(title, [])).cancelCommitTitle("session", "uuid"));
+  await assert.rejects(new SirusClient(transport(title, [])).cancelCommitTitle("session", "uuid"));
 });

@@ -8,7 +8,7 @@ V1 has no account, no login, no required server. Projects, sessions, messages, u
 
 ## Decision
 
-Persist `AppData` as pretty JSON at `{app_data}/state.json` (`~/Library/Application Support/com.switchyard.app/` on macOS). Writes are temp-file + rename (`persist.rs`). Runtime process maps (agents, PTYs) are **not** persisted.
+Persist `AppData` as pretty JSON at `{app_data}/state.json` (`~/Library/Application Support/com.siruscode.app/` on macOS). Writes are temp-file + rename (`persist.rs`). Runtime process maps (agents, PTYs) are **not** persisted.
 
 Drafts are native-owned, validated against existing Session/Project IDs, and never sent during restoration. Per-key frontend saves are serialized/coalesced. Native writes use an edit-driven 250 ms leading checkpoint; other state saves and graceful shutdown flush the latest admitted text. This is not a crash-proof journal: edits between checkpoints may remain unsaved while idle. Removing metadata prunes its drafts and rejects late writes.
 

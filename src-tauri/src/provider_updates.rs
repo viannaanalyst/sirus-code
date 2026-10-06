@@ -105,7 +105,7 @@ fn registry_client() -> Result<&'static reqwest::Client> {
             .timeout(REGISTRY_TIMEOUT)
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
-            .user_agent("switchyard")
+            .user_agent("sirus")
             .build()
             .map_err(|_| ())
     })

@@ -59,7 +59,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
         ]} />)}
     </SettingsGroup>
     <SettingsGroup title={t("Startup")} card>
-      {booleanRow("openLastProject", "Reopen last project", "Automatically reopen the last active project when Switchyard starts.")}
+      {booleanRow("openLastProject", "Reopen last project", "Automatically reopen the last active project when Sirus Code starts.")}
       {booleanRow("restorePreviousSessions", "Reopen newest session", "Reopen the newest-created session in the last project. Other sessions remain in the sidebar; agents do not start automatically.")}
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card>

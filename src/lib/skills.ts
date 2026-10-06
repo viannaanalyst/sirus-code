@@ -16,7 +16,7 @@ export function filterSkills(skills: readonly AgentSkill[], query: string, disab
 export function skillSections(skills: readonly AgentSkill[]) {
   const groups = new Map<string, AgentSkill[]>();
   for (const skill of skills) {
-    const key = skill.sources.some(source => source.scope === "project") ? "project" : skill.sources.length > 1 ? "shared" : skill.sources[0]?.origin ?? "switchyard";
+    const key = skill.sources.some(source => source.scope === "project") ? "project" : skill.sources.length > 1 ? "shared" : skill.sources[0]?.origin ?? "sirus";
     groups.set(key, [...(groups.get(key) ?? []), skill]);
   }
   return [...groups].sort(([a], [b]) => (a === "project" ? -2 : a === "shared" ? -1 : 0) - (b === "project" ? -2 : b === "shared" ? -1 : 0) || a.localeCompare(b));

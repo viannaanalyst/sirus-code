@@ -6,7 +6,7 @@
 
 Synara's new-thread landing lets the user pick the project, the workspace mode
 (Local project / New worktree) and the branch (search, switch, create) before
-typing. Switchyard only had these choices in the New session dialog and no
+typing. Sirus Code only had these choices in the New session dialog and no
 branch surface at all.
 
 ## Decision

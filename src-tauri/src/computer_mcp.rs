@@ -19,16 +19,16 @@ use crate::commands::AppState;
 use crate::computer::{self, AppInfo, MouseButton};
 use crate::error::{Error, Result as IpcResult};
 
-pub const SOCKET_ENV: &str = "SWITCHYARD_COMPUTER_SOCKET";
-pub const TOKEN_ENV: &str = "SWITCHYARD_COMPUTER_TOKEN";
-pub const SERVER_NAME: &str = "switchyard_computer";
+pub const SOCKET_ENV: &str = "SIRUS_COMPUTER_SOCKET";
+pub const TOKEN_ENV: &str = "SIRUS_COMPUTER_TOKEN";
+pub const SERVER_NAME: &str = "sirus_computer";
 const APPROVAL_TIMEOUT: Duration = Duration::from_secs(120);
 const HISTORY_LIMIT: usize = 200;
 /// The person must have left keyboard and mouse alone this long before an app is brought forward.
 const FOREGROUND_IDLE: f64 = 1.5;
 
 /// Never controllable: secrets, system security, shells/automation (typing into
-/// them would bypass provider sandboxes and approvals) and Switchyard itself.
+/// them would bypass provider sandboxes and approvals) and Sirus Code itself.
 const BLOCKED: &[(&str, &str)] = &[
     ("com.1password.1password", "1Password"),
     ("com.agilebits.onepassword7", "1Password 7"),
@@ -48,7 +48,7 @@ const BLOCKED: &[(&str, &str)] = &[
     ("com.apple.scripteditor2", "Script Editor"),
     ("com.apple.automator", "Automator"),
     ("com.apple.shortcuts", "Shortcuts"),
-    ("com.switchyard.app", "Switchyard"),
+    ("com.siruscode.app", "Sirus Code"),
 ];
 
 pub fn is_blocked(bundle_id: &str) -> bool {
@@ -582,7 +582,7 @@ fn observation(
 #[cfg(target_os = "macos")]
 fn execute(app: &AppHandle, session_id: &str, tool: &str, args: &Value) -> Result<Value, String> {
     if !enabled() {
-        return Err("Computer use is turned off. The person can enable it in Switchyard Settings → Computer.".into());
+        return Err("Computer use is turned off. The person can enable it in Sirus Code Settings → Computer.".into());
     }
     let (provider, planning, locale) = session_context(app, session_id)
         .ok_or_else(|| "this session no longer exists".to_string())?;
@@ -916,12 +916,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn blocklist_covers_secrets_shells_and_switchyard() {
+    fn blocklist_covers_secrets_shells_and_sirus() {
         for id in [
             "com.apple.Terminal",
             "com.googlecode.iterm2",
             "com.apple.keychainaccess",
-            "com.switchyard.app",
+            "com.siruscode.app",
             "com.apple.systempreferences",
         ] {
             assert!(is_blocked(id), "{id} must be blocked");

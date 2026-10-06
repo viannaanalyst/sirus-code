@@ -193,17 +193,20 @@ fn roots(home: Option<&Path>, portable: &Path, context: &Context) -> Vec<Root> {
                 scope: "project".into(),
             });
         }
-        out.push(Root {
-            path: cwd.join(".switchyard/skills"),
-            boundary: cwd.clone(),
-            origin: "switchyard".into(),
-            scope: "project".into(),
-        });
+        // `.switchyard/skills` is the folder name from before the Sirus Code rebrand.
+        for folder in [".sirus/skills", ".switchyard/skills"] {
+            out.push(Root {
+                path: cwd.join(folder),
+                boundary: cwd.clone(),
+                origin: "sirus".into(),
+                scope: "project".into(),
+            });
+        }
     }
     out.push(Root {
         path: portable.into(),
         boundary: portable.parent().unwrap_or(portable).into(),
-        origin: "switchyard".into(),
+        origin: "sirus".into(),
         scope: "user".into(),
     });
     if let Some(home) = home {
@@ -478,7 +481,7 @@ fn instructions(
         if context.disabled.contains(&name) {
             return Err(Error::new(
                 "invalid",
-                "This skill is disabled in Switchyard.",
+                "This skill is disabled in Sirus Code.",
             ));
         }
         if !names.insert(name) {
@@ -501,7 +504,7 @@ fn instructions(
                         .as_ref()
                         .is_none_or(|p| p.key() != s.origin),
                     s.origin != "agents",
-                    s.origin != "switchyard",
+                    s.origin != "sirus",
                     &s.path,
                 )
             })
@@ -583,7 +586,7 @@ mod tests {
             Root {
                 path: portable.clone(),
                 boundary: portable.clone(),
-                origin: "switchyard".into(),
+                origin: "sirus".into(),
                 scope: "user".into(),
             },
             Root {

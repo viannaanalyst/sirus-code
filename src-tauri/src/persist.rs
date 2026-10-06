@@ -83,7 +83,7 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
     for session in &mut data.sessions {
         if session.status.is_active() {
             session.status = crate::models::SessionStatus::Stopped;
-            session.last_error = Some("Execution was interrupted when Switchyard closed.".into());
+            session.last_error = Some("Execution was interrupted when Sirus Code closed.".into());
             recovered = true;
         }
         crate::activity::recover(session);

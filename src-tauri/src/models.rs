@@ -464,7 +464,7 @@ pub struct AppSettings {
     /// Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue.
     pub steer_while_running: bool,
     /// Owner-authorized CI auto-fix: failing PR checks start an automatic fix turn,
-    /// then Switchyard commits and pushes the session branch (ADR-064).
+    /// then Sirus Code commits and pushes the session branch (ADR-064).
     pub ci_auto_fix: bool,
     /// Chat behavior: Enter while dictating stops and sends instead of only stopping.
     pub dictation_enter_sends: bool,
@@ -641,7 +641,7 @@ impl Default for AppSettings {
             git_show_untracked: true,
             git_confirm_destructive: true,
             worktree_location: WorktreeLocationPref::Automatic,
-            worktree_branch_pattern: "switchyard/{session-name}".into(),
+            worktree_branch_pattern: "sirus/{session-name}".into(),
             terminal_use_system_shell: true,
             terminal_font_size: 13,
             terminal_cursor_style: "block".into(),

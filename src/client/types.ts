@@ -576,7 +576,7 @@ export interface ProviderModelList {
   models: DiscoveredModel[];
 }
 
-export interface SwitchyardError {
+export interface SirusError {
   code: string;
   message: string;
 }

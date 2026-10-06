@@ -17,18 +17,18 @@ contains color/preset controls, UI/code fonts, solid/translucent material,
 sidebar-only scope, opacity, blur and contrast. Font override is ignored while
 the separate system-UI-font preference is enabled.
 
-| Control | Synara behavior | Switchyard adaptation |
+| Control | Synara behavior | Sirus Code adaptation |
 | --- | --- | --- |
 | Theme | Light, Dark, System; per-variant theme packs | Keep the three modes, one standard palette per variant |
 | Window material | Solid/translucent, then sidebar-only switch | One closed selector: Solid, Translucent sidebar, Translucent window |
 | Opacity | 0–100%, saved separately for dark/light | Theme-specific tint opacity; hide control in Solid mode |
 | Blur | Native automatic vibrancy or adjustable background blur | Start with the native standard material; do not promise an adjustable desktop-blur radius |
-| Dock icon | Platform-specific visual choices; three stable macOS choices | Bundled Switchyard variants, current/light/dark artwork; no renderer-selected path |
+| Dock icon | Platform-specific visual choices; three stable macOS choices | Bundled Sirus Code variants, current/light/dark artwork; no renderer-selected path |
 | UI font | Theme font input or system-font override | One global family selector, system default plus curated local/bundled choices |
 | Code font | Per-theme monospace family | One global code/editor family, preserving the existing monospace fallback |
 | Base text size | 11–18 px, default 13; UI/chat scale proportionally | Extend the existing shared typography scale without changing spacing |
 | Terminal font | Suggested or typed installed monospace family | Independent local/bundled family selector, no remote font loading |
-| Terminal size | 10–22 px, default 12 | Independent size; preserve Switchyard's existing 13 px default |
+| Terminal size | 10–22 px, default 12 | Independent size; preserve Sirus Code's existing 13 px default |
 | Density | Compact/default/comfortable; spacing independent of text size | Retain existing density control |
 | Chat width | Standard/wide/full | Optional follow-up, separate from the requested visual material |
 | Time format/smoothing | System/12h/24h and macOS font smoothing | Secondary follow-ups; not required for the first adaptation |
@@ -44,7 +44,7 @@ clarification; implement it in the real Appearance page.
 Synara's [theme domain](../../../synara/apps/web/src/theme/theme.logic.ts)
 stores scope/tint separately per variant. Default tint is 72% dark and 38% light,
 with sidebar-only enabled and automatic blur. These are reference values,
-not verified Switchyard visual defaults.
+not verified Sirus Code visual defaults.
 
 ## Baseline inspected before implementation
 
@@ -76,13 +76,13 @@ which require transparent window backing. Tauri's
 documents the transparent-background feature. The precise backing configuration,
 titlebar/traffic-light behavior, fullscreen and contrast must be checked in the
 packaged app before claiming visual parity with MonoCode. Native API availability
-is verified; the resulting Switchyard visual effect has not been exercised.
+is verified; the resulting Sirus Code visual effect has not been exercised.
 
 AppKit's application-icon setter is present in the existing Objective-C binding.
 A runtime Dock override can use embedded images and reapply a saved closed icon
 ID on startup. This is separate from changing the installed app/Finder icon;
 Synara additionally synchronizes its bundle icon. Do not modify the signed
-Switchyard bundle merely to change the running Dock icon.
+Sirus Code bundle merely to change the running Dock icon.
 
 ## MonoCode glass reference
 
@@ -96,10 +96,10 @@ desktop blur. Sidebar and body share the same tint instead of painting repeated
 glass coats. Native glass is deliberately disabled in its light theme. Its macOS
 implementation combines private `CGSSetWindowBackgroundBlurRadius` with a 1%
 AppKit visual-effect backing to stabilize rendering. These facts do not establish
-that Switchyard's standard Tauri material will be identical.
+that Sirus Code's standard Tauri material will be identical.
 
 The revised browser preview uses a single tinted, blurred window surface and
-transparent content in whole-window mode. Its light glass is a Switchyard design
+transparent content in whole-window mode. Its light glass is a Sirus Code design
 extension, not behavior copied from MonoCode. Both effects remain simulations
 over a browser backdrop; the application and native window remain unchanged.
 

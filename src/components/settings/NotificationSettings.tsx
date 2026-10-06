@@ -46,7 +46,7 @@ export function NotificationSettings({ settings, onSave }: { settings: AppSettin
     { key: "questions", sound: "questionSound", label: "Questions from the agent", description: "When an agent asks you to choose or answer." },
     { key: "completion", sound: "completionSound", label: "Task completed", description: "When a turn finishes successfully. Cancelled and failed turns do not notify." },
   ] as const;
-  return <div className="general-settings"><SettingsSection title={t("Notifications")} description={t("Choose how Switchyard alerts you when work finishes or needs your attention.")}
+  return <div className="general-settings"><SettingsSection title={t("Notifications")} description={t("Choose how Sirus Code alerts you when work finishes or needs your attention.")}
     headerAction={<InteractiveButton variant="secondary" glow={false} disabled={Object.entries(defaultNotifications).every(([key, value]) => prefs[key as keyof typeof prefs] === value)} onClick={() => onSave(resetNotificationSettings(settings))}><RotateCcw size={14} aria-hidden="true" />{t("Restore defaults")}</InteractiveButton>}>
     <SettingsGroup title={t("Activity alerts")} card>
       <SettingsRow title={t("Activity toasts")} description={t("Show an in-app alert for sessions you are not currently viewing.")}>{toggle("toasts", "Activity toasts")}</SettingsRow>
@@ -57,7 +57,7 @@ export function NotificationSettings({ settings, onSave }: { settings: AppSettin
         {toggle("system", "System notifications")}
       </SettingsRow>
       <SettingsRow title={t("Notification sounds")} description={t("Play the selected cue. Uses your system output volume.")}>{toggle("sounds", "Notification sounds")}</SettingsRow>
-      <SettingsRow title={t("Notify while app is in focus")} description={t("Also show system alerts and play sounds while Switchyard is active.")}>{toggle("foreground", "Notify while app is in focus")}</SettingsRow>
+      <SettingsRow title={t("Notify while app is in focus")} description={t("Also show system alerts and play sounds while Sirus Code is active.")}>{toggle("foreground", "Notify while app is in focus")}</SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Events and sounds")} card>
       {rows.map(row => <SettingsRow key={row.key} title={t(row.label)} description={t(row.description)}>

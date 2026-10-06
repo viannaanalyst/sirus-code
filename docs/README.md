@@ -5,7 +5,7 @@ Official repository documentation is **English**. See [documentation conventions
 | Document | Role |
 | --- | --- |
 | [`../AGENTS.md`](../AGENTS.md) | How agents work in this repo, plus the architecture they must not violate |
-| [`documentation-conventions.md`](documentation-conventions.md) | How to document Switchyard |
+| [`documentation-conventions.md`](documentation-conventions.md) | How to document Sirus Code |
 | [`decisions/`](decisions/README.md) | Why irreversible decisions were made |
 | [`development/building.md`](development/building.md) | How to build, typecheck, lint, test and run |
 | [`development/runtime.md`](development/runtime.md) | Provider/model/session/worktree/transport runtime guide and limits |

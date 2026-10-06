@@ -266,7 +266,7 @@ async fn list_additional(provider: AgentProviderId, binary: &str) -> ProviderMod
         return empty(provider, "cli", "CLI catalog probe failed or timed out. Check the executable and sign in through its CLI, then refresh.");
     };
     if !output.status.success() {
-        return empty(provider, "cli", "CLI catalog is unavailable. Sign in through the provider CLI, then refresh. No login was started by Switchyard.");
+        return empty(provider, "cli", "CLI catalog is unavailable. Sign in through the provider CLI, then refresh. No login was started by Sirus Code.");
     }
     let text = String::from_utf8_lossy(&output.stdout);
     let models = match provider {
@@ -336,7 +336,7 @@ fn claude_docs_catalog(cli_installed: bool) -> ProviderModelList {
 async fn list_claude(binary: &str) -> ProviderModelList {
     // Safe mode keeps the user's authentication, but skips project/global hooks,
     // customizations and MCP servers. No user message or inference is sent.
-    let request = br#"{"type":"control_request","request_id":"switchyard_catalog","request":{"subtype":"initialize","hooks":null}}
+    let request = br#"{"type":"control_request","request_id":"sirus_catalog","request":{"subtype":"initialize","hooks":null}}
 "#;
     let result = crate::cli_output::request(
         binary,
@@ -355,7 +355,7 @@ async fn list_claude(binary: &str) -> ProviderModelList {
         DISCOVER_TIMEOUT,
         |value| {
             if value.get("type")?.as_str()? != "control_response"
-                || value.pointer("/response/request_id")?.as_str()? != "switchyard_catalog"
+                || value.pointer("/response/request_id")?.as_str()? != "sirus_catalog"
             {
                 return None;
             }
@@ -554,11 +554,11 @@ fn parse_codex_json(stdout: &str) -> Result<Vec<DiscoveredModel>, String> {
 
 async fn list_cursor(binary: &str) -> ProviderModelList {
     // Read-only ACP extension: no session, prompt, auth mutation or parameter writes.
-    let input = br#"{"jsonrpc":"2.0","id":"switchyard_init","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Switchyard","version":"0.1.0"}}}
-{"jsonrpc":"2.0","id":"switchyard_models","method":"cursor/list_available_models","params":{}}
+    let input = br#"{"jsonrpc":"2.0","id":"sirus_init","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Sirus Code","version":"0.1.0"}}}
+{"jsonrpc":"2.0","id":"sirus_models","method":"cursor/list_available_models","params":{}}
 "#;
     let metadata = crate::cli_output::request(binary, &["acp"], input, DISCOVER_TIMEOUT, |v| {
-        (v["id"] == "switchyard_models")
+        (v["id"] == "sirus_models")
             .then(|| v.get("result").cloned().unwrap_or(serde_json::Value::Null))
     })
     .await

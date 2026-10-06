@@ -78,7 +78,7 @@ export function ProviderUpdateToast() {
           ) : null}
         </div>
         {updatable.length === 0 ? (
-          <p className="mt-2 ui-caption text-text-muted">{t("A newer version is available, but Switchyard could not identify a safe one-click update command for this installation.")}</p>
+          <p className="mt-2 ui-caption text-text-muted">{t("A newer version is available, but Sirus Code could not identify a safe one-click update command for this installation.")}</p>
         ) : null}
         {updateError ? (
           <motion.p

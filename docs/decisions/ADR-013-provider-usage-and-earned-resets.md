@@ -4,7 +4,7 @@
 
 ## Context
 
-The composer footer needs account quota snapshots and available Codex resets. MonoCode provides a useful reference, but its renderer-owned subprocesses, credential readers and polling are outside Switchyard's authority model. Redeeming an earned reset consumes a finite account credit.
+The composer footer needs account quota snapshots and available Codex resets. MonoCode provides a useful reference, but its renderer-owned subprocesses, credential readers and polling are outside Sirus Code's authority model. Redeeming an earned reset consumes a finite account credit.
 
 ## Decision
 

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composerContextForOwner, composerDebugging, composerPlanning, composerPrompt } from "../src/lib/composer-context.ts";
 import { useAppStore } from "../src/store/app-store.ts";
-import { client, SwitchyardClient } from "../src/client/index.ts";
+import { client, SirusClient } from "../src/client/index.ts";
 import type { Session, SendPromptRequest } from "../src/client/types.ts";
 
 const session: Session = { id: "extras-owner", projectId: "extras-project", agent: "codex", title: "Task", status: "idle", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null, goal: "Persistent objective" };
@@ -50,7 +50,7 @@ test("successful sends retain modes and goals, clear binary references and merge
 
 test("the capture Client sends only its draft owner and no renderer window identity", async () => {
   const calls: unknown[] = [];
-  const fixture = new SwitchyardClient({ invoke: async (command, args) => { calls.push({ command, args }); return [] as never; }, listen: async () => () => {} });
+  const fixture = new SirusClient({ invoke: async (command, args) => { calls.push({ command, args }); return [] as never; }, listen: async () => () => {} });
   await fixture.capturePromptWindow("session:extras-owner");
   assert.deepEqual(calls, [{ command: "capture_prompt_window", args: { owner: "session:extras-owner" } }]);
 });

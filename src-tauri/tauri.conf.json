@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Switchyard",
+  "productName": "Sirus Code",
   "version": "0.1.0",
-  "identifier": "com.switchyard.app",
+  "identifier": "com.siruscode.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Switchyard",
+        "title": "Sirus Code",
         "width": 1440,
         "height": 900,
         "minWidth": 1080,

@@ -65,7 +65,7 @@ export const defaultSettings: AppSettings = {
   gitShowUntracked: true,
   gitConfirmDestructive: true,
   worktreeLocation: "automatic",
-  worktreeBranchPattern: "switchyard/{session-name}",
+  worktreeBranchPattern: "sirus/{session-name}",
   terminalUseSystemShell: true,
   terminalFontSize: 13,
   terminalCursorStyle: "block",

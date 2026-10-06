@@ -76,7 +76,7 @@ impl Drop for Lease {
 struct PrivateDir(PathBuf);
 impl PrivateDir {
     fn new() -> Result<Self> {
-        let path = std::env::temp_dir().join(format!("switchyard-title-{}", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("sirus-title-{}", uuid::Uuid::new_v4()));
         let mut builder = std::fs::DirBuilder::new();
         #[cfg(unix)]
         {

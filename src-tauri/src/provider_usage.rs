@@ -160,11 +160,11 @@ impl UsageState {
     ) -> Result<T> {
         let mut cancel = self.cancel.subscribe();
         if *cancel.borrow() {
-            return Err(Error::agent("Switchyard is closing"));
+            return Err(Error::agent("Sirus Code is closing"));
         }
         tokio::select! {
             biased;
-            _ = cancel.changed() => Err(Error::agent("Switchyard is closing")),
+            _ = cancel.changed() => Err(Error::agent("Sirus Code is closing")),
             result = tokio::time::timeout(Duration::from_secs(seconds), work) => result.map_err(|_| Error::agent("Usage operation timed out. Refresh usage before trying again."))?,
         }
     }
@@ -447,7 +447,7 @@ impl Probe {
     }
     async fn initialize(&mut self, provider: &AgentProviderId) -> Result<()> {
         if *provider == AgentProviderId::Codex {
-            self.rpc("initialize", json!({"clientInfo":{"name":"switchyard_usage","title":"Switchyard","version":"0.1.0"},"capabilities":{"experimentalApi":true}})).await?;
+            self.rpc("initialize", json!({"clientInfo":{"name":"sirus_usage","title":"Sirus Code","version":"0.1.0"},"capabilities":{"experimentalApi":true}})).await?;
             self.wire.send(json!({"method":"initialized"})).await?;
             // Fixed, read-only identity request. Never refresh or manage authentication.
             if let Ok(value) = self
@@ -830,7 +830,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         // Isolate the desktop environment in a child test process, never mutate
         // global PATH/HOME while other tests run or read real vendor credentials.
-        if let Some(binary) = std::env::var_os("SWITCHYARD_USAGE_PATH_FIXTURE") {
+        if let Some(binary) = std::env::var_os("SIRUS_USAGE_PATH_FIXTURE") {
             let value = tokio::time::timeout(Duration::from_secs(15), async {
                 let mut probe =
                     Probe::start(binary.to_str().unwrap(), &AgentProviderId::Codex, None)
@@ -850,11 +850,11 @@ mod tests {
         let repo = crate::git::tests::Repo::new();
         let bin = repo.0.join(".local/bin");
         std::fs::create_dir_all(&bin).unwrap();
-        let runtime = bin.join("switchyard-usage-runtime");
+        let runtime = bin.join("sirus-usage-runtime");
         std::fs::write(&runtime, "#!/bin/sh\nexec /usr/bin/python3 \"$@\"\n").unwrap();
         std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700)).unwrap();
         let binary = repo.0.join("codex-fixture");
-        std::fs::write(&binary, r#"#!/usr/bin/env switchyard-usage-runtime
+        std::fs::write(&binary, r#"#!/usr/bin/env sirus-usage-runtime
 import json,sys
 for line in sys.stdin:
     v=json.loads(line)
@@ -874,7 +874,7 @@ for line in sys.stdin:
             ])
             .env("PATH", "/usr/bin:/bin")
             .env("HOME", &repo.0)
-            .env("SWITCHYARD_USAGE_PATH_FIXTURE", &binary)
+            .env("SIRUS_USAGE_PATH_FIXTURE", &binary)
             .output()
             .unwrap();
         assert!(

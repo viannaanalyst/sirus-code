@@ -377,7 +377,7 @@ mod platform {
         WORKER.get_or_init(|| {
             let (tx, rx) = mpsc::channel::<Job>();
             std::thread::Builder::new()
-                .name("switchyard-computer".into())
+                .name("sirus-computer".into())
                 .spawn(move || {
                     let mut driver = Driver::default();
                     while let Ok(job) = rx.recv() {
@@ -410,7 +410,7 @@ mod platform {
 
     fn ax_error(error: AXError) -> String {
         match error {
-            AXError::APIDisabled => "Accessibility permission is not granted to Switchyard".into(),
+            AXError::APIDisabled => "Accessibility permission is not granted to Sirus Code".into(),
             AXError::CannotComplete => "the application did not respond".into(),
             AXError::ActionUnsupported => "that element does not support this action".into(),
             AXError::AttributeUnsupported => "that element does not support this value".into(),
@@ -496,7 +496,7 @@ mod platform {
     fn main_window(pid: i32, title: Option<&str>) -> Result<CFRetained<AXUIElement>, String> {
         if !unsafe { AXIsProcessTrusted() } {
             return Err(
-                "Accessibility permission is not granted to Switchyard. Open Settings → Computer."
+                "Accessibility permission is not granted to Sirus Code. Open Settings → Computer."
                     .into(),
             );
         }
@@ -886,7 +886,7 @@ mod platform {
     /// Captures the app window that best matches `frame`, longest side ≤ `max_side` pixels.
     pub fn screenshot(pid: i32, frame: Frame, max_side: f64) -> Result<Image, String> {
         if !CGPreflightScreenCaptureAccess() {
-            return Err("Screen Recording permission is not granted to Switchyard. Open Settings → Computer.".into());
+            return Err("Screen Recording permission is not granted to Sirus Code. Open Settings → Computer.".into());
         }
         let (tx, rx) = mpsc::channel::<Result<Image, String>>();
         let handler = RcBlock::new(
@@ -964,7 +964,7 @@ mod platform {
         define_class!(
             #[unsafe(super(NSObject))]
             #[thread_kind = MainThreadOnly]
-            #[name = "SwitchyardComputerStopTarget"]
+            #[name = "SirusComputerStopTarget"]
             struct StopTarget;
 
             unsafe impl NSObjectProtocol for StopTarget {}
@@ -1203,7 +1203,7 @@ mod platform {
         }
 
         /// Physical Escape anywhere stops computer control. Installed once; needs Accessibility.
-        /// A global monitor never sees keys sent to Switchyard itself, so a local monitor
+        /// A global monitor never sees keys sent to Sirus Code itself, so a local monitor
         /// covers Escape pressed in the app; it passes the event on to the app's own shortcuts.
         pub fn install_escape_monitor() {
             MONITOR.with(|cell| {

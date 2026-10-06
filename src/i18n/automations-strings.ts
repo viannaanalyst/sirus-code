@@ -7,7 +7,7 @@ const strings: Record<string, [string, string]> = {
   "automations.create": ["Create", "Criar"],
   "automations.none": ["No automations yet", "Nenhuma automação ainda"],
   "automations.emptyHint": ["Pick an automation in the panel to see its runs, or schedule a new one.", "Escolha uma automação no painel para ver as execuções, ou agende uma nova."],
-  "automations.dialogHint": ["Runs start a new session with this prompt while Switchyard is open.", "Cada execução abre uma sessão nova com este prompt enquanto o Switchyard está aberto."],
+  "automations.dialogHint": ["Runs start a new session with this prompt while Sirus Code is open.", "Cada execução abre uma sessão nova com este prompt enquanto o Sirus Code está aberto."],
   "automations.active": ["Active", "Ativas"],
   "automations.paused": ["Paused", "Pausadas"],
   "automations.pausedShort": ["Paused", "Pausada"],
@@ -86,7 +86,7 @@ const strings: Record<string, [string, string]> = {
   "automations.run.skipped": ["Skipped", "Pulada"],
   "automations.run.missing": ["Session deleted", "Sessão apagada"],
   "Paused after 3 failed runs in a row.": ["Paused after 3 failed runs in a row.", "Pausada depois de 3 execuções seguidas com falha."],
-  "Missed while Switchyard was closed.": ["Missed while Switchyard was closed.", "Perdida enquanto o Switchyard estava fechado."],
+  "Missed while Sirus Code was closed.": ["Missed while Sirus Code was closed.", "Perdida enquanto o Sirus Code estava fechado."],
   "The previous run is still working.": ["The previous run is still working.", "A execução anterior ainda está trabalhando."],
 };
 export const automationsEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));

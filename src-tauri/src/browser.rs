@@ -779,7 +779,7 @@ pub(crate) mod platform {
     /// entry, Escape cancels. No renderer-provided script ever reaches the page.
     const ANNOTATE_START_SCRIPT: &str = r##"
 (() => {
-  const KEY = "__switchyardAnnotations";
+  const KEY = "__sirusAnnotations";
   const current = window[KEY];
   if (current && current.active) return "already";
   const entries = [];
@@ -870,7 +870,7 @@ pub(crate) mod platform {
 
     const ANNOTATE_FINISH_SCRIPT: &str = r#"
 (() => {
-  const current = window.__switchyardAnnotations;
+  const current = window.__sirusAnnotations;
   if (!current) return "[]";
   const raw = JSON.stringify(current.entries || []);
   current.cancel();
@@ -880,7 +880,7 @@ pub(crate) mod platform {
 
     const ANNOTATE_CANCEL_SCRIPT: &str = r#"
 (() => {
-  const current = window.__switchyardAnnotations;
+  const current = window.__sirusAnnotations;
   if (current) current.cancel();
   return "cancelled";
 })()
@@ -890,16 +890,16 @@ pub(crate) mod platform {
     /// a bounded console log buffer for `browser_logs`.
     const PAGE_BRIDGE_SCRIPT: &str = r##"
 (() => {
-  window.__switchyardHumanAt = window.__switchyardHumanAt || 0;
-  const mark = () => { window.__switchyardHumanAt = Date.now(); };
+  window.__sirusHumanAt = window.__sirusHumanAt || 0;
+  const mark = () => { window.__sirusHumanAt = Date.now(); };
   document.addEventListener("pointerdown", mark, true);
   document.addEventListener("keydown", mark, true);
   document.addEventListener("wheel", mark, true);
-  window.__switchyardLogs = window.__switchyardLogs || [];
+  window.__sirusLogs = window.__sirusLogs || [];
   const push = (level, args) => {
     try {
-      window.__switchyardLogs.push({ level, text: Array.from(args).map(String).join(" ").slice(0, 500), at: Date.now() });
-      if (window.__switchyardLogs.length > 200) window.__switchyardLogs.shift();
+      window.__sirusLogs.push({ level, text: Array.from(args).map(String).join(" ").slice(0, 500), at: Date.now() });
+      if (window.__sirusLogs.length > 200) window.__sirusLogs.shift();
     } catch {}
   };
   for (const level of ["log", "warn", "error", "info"]) {
@@ -920,7 +920,7 @@ for (const el of nodes) {
   const rect = el.getBoundingClientRect();
   if (rect.width < 1 || rect.height < 1) continue;
   const ref = "e" + (++count);
-  el.setAttribute("data-switchyard-ref", ref);
+  el.setAttribute("data-sirus-ref", ref);
   elements.push({
     ref,
     tag: el.tagName.toLowerCase(),
@@ -937,8 +937,8 @@ return JSON.stringify({ url: location.href, title: document.title, elements });
 const input = JSON.parse(args);
 const ref = input.ref;
 const selector = input.selector;
-if (Date.now() - (window.__switchyardHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
-const target = ref ? document.querySelector("[data-switchyard-ref='" + ref + "']") : (selector ? document.querySelector(selector) : null);
+if (Date.now() - (window.__sirusHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
+const target = ref ? document.querySelector("[data-sirus-ref='" + ref + "']") : (selector ? document.querySelector(selector) : null);
 if (!target) return JSON.stringify({ ok: false, error: "element not found" });
 target.scrollIntoView({ block: "center" });
 target.click();
@@ -951,8 +951,8 @@ const ref = input.ref;
 const selector = input.selector;
 const text = input.text;
 const submit = input.submit;
-if (Date.now() - (window.__switchyardHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
-const target = ref ? document.querySelector("[data-switchyard-ref='" + ref + "']") : (selector ? document.querySelector(selector) : null);
+if (Date.now() - (window.__sirusHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
+const target = ref ? document.querySelector("[data-sirus-ref='" + ref + "']") : (selector ? document.querySelector(selector) : null);
 if (!target) return JSON.stringify({ ok: false, error: "element not found" });
 target.focus();
 const next = text ?? "";
@@ -977,7 +977,7 @@ return JSON.stringify({ ok: true });
     const SCROLL_SCRIPT: &str = r##"
 const input = JSON.parse(args);
 const dy = input.dy;
-if (Date.now() - (window.__switchyardHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
+if (Date.now() - (window.__sirusHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
 window.scrollBy({ top: dy ?? 0, left: 0, behavior: "auto" });
 return JSON.stringify({ ok: true, y: window.scrollY });
 "##;
@@ -985,9 +985,9 @@ return JSON.stringify({ ok: true, y: window.scrollY });
     const LOGS_SCRIPT: &str = r##"
 const input = JSON.parse(args);
 const clear = input.clear;
-const logs = window.__switchyardLogs || [];
+const logs = window.__sirusLogs || [];
 const result = JSON.stringify(logs.slice(-200));
-if (clear) window.__switchyardLogs = [];
+if (clear) window.__sirusLogs = [];
 return result;
 "##;
 

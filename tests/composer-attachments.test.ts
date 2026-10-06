@@ -4,7 +4,7 @@ import { annotatedImageName, appendAttachments, isAttachmentPaste, pastedFiles, 
 import { composerPrompt } from "../src/lib/composer-context.ts";
 
 test("paste intercepts screenshot paths with spaces, quoted paths, and file URIs while preserving normal text", () => {
-  for (const value of ["/var/folders/T/images/Switchyard 2026-10-01 14.52.29.png", "'/tmp/a b.pdf'", '"/tmp/data.csv"', "file:///tmp/test.docx"]) assert.equal(isAttachmentPaste(value), true);
+  for (const value of ["/var/folders/T/images/Sirus Code 2026-10-01 14.52.29.png", "'/tmp/a b.pdf'", '"/tmp/data.csv"', "file:///tmp/test.docx"]) assert.equal(isAttachmentPaste(value), true);
   for (const value of ["ordinary text", "https://example.com/a.png", "Use /tmp/a.png please", "/tmp/a.png\ntext", "./relative.png"]) assert.equal(isAttachmentPaste(value), false);
 });
 test("pasted files preserve PNG, PDF, CSV, DOCX and opaque binary bytes without text decoding", async () => {

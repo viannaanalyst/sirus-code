@@ -29,7 +29,7 @@ export function SkillsSettings({ settings }: { settings: AppSettings }) {
   const previewGeneration = useRef(0);
   const invalidatePreview = useCallback(() => { previewGeneration.current++; }, []);
   useEffect(() => { invalidatePreview(); setPreview(null); return invalidatePreview; }, [key, invalidatePreview]);
-  const sourceLabel = (origin: string) => origin === "agents" ? t("skills.sharedOrigin") : origin === "switchyard" ? "Switchyard" : PROVIDERS.find(p => p.id === origin)?.name ?? origin;
+  const sourceLabel = (origin: string) => origin === "agents" ? t("skills.sharedOrigin") : origin === "sirus" ? "Sirus Code" : PROVIDERS.find(p => p.id === origin)?.name ?? origin;
   const openPreview = async (skill: AgentSkill, source: SkillSource) => {
     const generation = ++previewGeneration.current;
     setPreview({ name: skill.name, path: source.path, document: null, error: null });

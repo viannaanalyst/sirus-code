@@ -778,12 +778,11 @@ pub(crate) mod tests {
     pub(crate) struct Repo(pub(crate) std::path::PathBuf);
     impl Repo {
         pub(crate) fn new() -> Self {
-            let path =
-                std::env::temp_dir().join(format!("switchyard-test-{}", uuid::Uuid::new_v4()));
+            let path = std::env::temp_dir().join(format!("sirus-test-{}", uuid::Uuid::new_v4()));
             fs::create_dir_all(path.join("repo")).unwrap();
             let repo = Self(path);
             run_ok(&repo.cwd(), &["init", "-q"]).unwrap();
-            run_ok(&repo.cwd(), &["config", "user.name", "Switchyard Test"]).unwrap();
+            run_ok(&repo.cwd(), &["config", "user.name", "Sirus Code Test"]).unwrap();
             run_ok(
                 &repo.cwd(),
                 &["config", "user.email", "test@example.invalid"],
@@ -853,7 +852,7 @@ pub(crate) mod tests {
             &parent,
             "guarded",
             "Guarded",
-            "switchyard/{session-name}",
+            "sirus/{session-name}",
         );
         assert!(
             result.is_err(),
@@ -863,7 +862,7 @@ pub(crate) mod tests {
         assert!(!repo.cwd().join("configured-hook-ran.txt").exists());
         assert!(!format!("{}", result.unwrap_err()).contains("printf"));
         let output = std::process::Command::new("git")
-            .args(["branch", "--list", "switchyard/guarded-guarded"])
+            .args(["branch", "--list", "sirus/guarded-guarded"])
             .current_dir(repo.cwd())
             .output()
             .unwrap();
@@ -872,7 +871,7 @@ pub(crate) mod tests {
 
     #[test]
     fn config_override_cannot_hide_hook_or_filter_guards() {
-        const FIXTURE: &str = "SWITCHYARD_GIT_CONFIG_FIXTURE";
+        const FIXTURE: &str = "SIRUS_GIT_CONFIG_FIXTURE";
         if let Some(path) = std::env::var_os(FIXTURE) {
             let cwd = std::path::PathBuf::from(path);
             let destination = cwd.parent().unwrap().join("override-tree");
@@ -998,7 +997,7 @@ pub(crate) mod tests {
             &repo.0.join("trees"),
             "hooktest",
             "Hooks",
-            "switchyard/{id}",
+            "sirus/{id}",
         )
         .unwrap();
         assert!(
@@ -1036,7 +1035,7 @@ pub(crate) mod tests {
             &repo.0.join("trees"),
             "filter01",
             "Filters",
-            "switchyard/{id}",
+            "sirus/{id}",
         );
         assert!(result.is_err(), "external filter must be refused");
         assert!(!sentinel.exists(), "external filter ran");

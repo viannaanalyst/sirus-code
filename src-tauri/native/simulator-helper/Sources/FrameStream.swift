@@ -56,7 +56,7 @@ enum FrameEnvelope {
 /// the reader can frame without parsing the bitstream.
 final class FrameSocketWriter {
   private let descriptor: Int32
-  private let queue = DispatchQueue(label: "com.switchyard.simulator-helper.socket")
+  private let queue = DispatchQueue(label: "com.siruscode.simulator-helper.socket")
   private let stateLock = NSLock()
   private var closed = false
   private var descriptorClosed = false
@@ -201,7 +201,7 @@ final class FrameStream {
   private let deviceIdBytes: [UInt8]
   private let writer: FrameSocketWriter
   private let keyframeIntervalSeconds: Double
-  private let encodeQueue = DispatchQueue(label: "com.switchyard.simulator-helper.encode")
+  private let encodeQueue = DispatchQueue(label: "com.siruscode.simulator-helper.encode")
 
   private let damageCallbackUUID = NSUUID()
   private let surfaceCallbackUUID = NSUUID()

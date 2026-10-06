@@ -47,7 +47,7 @@ pub struct AppState {
 impl AppState {
     pub fn ensure_running(&self) -> Result<()> {
         if self.closing.load(Ordering::Acquire) {
-            return Err(Error::agent("Switchyard is closing"));
+            return Err(Error::agent("Sirus Code is closing"));
         }
         Ok(())
     }
@@ -74,7 +74,7 @@ impl AppState {
                 session.status = SessionStatus::Stopped;
                 crate::activity::sync(session);
                 session.last_error =
-                    Some("Execution was interrupted when Switchyard closed.".into());
+                    Some("Execution was interrupted when Sirus Code closed.".into());
             }
             session.pending_requests.clear();
             // A stream can fail before its process monitor publishes finality.
@@ -2234,7 +2234,7 @@ mod tests {
             &repo.0.join("source-trees"),
             "aaaaaaaa-source",
             "Source",
-            "switchyard/{session-name}",
+            "sirus/{session-name}",
         )
         .unwrap();
         let data: AppData = serde_json::from_value(serde_json::json!({

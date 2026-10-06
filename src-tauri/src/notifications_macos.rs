@@ -98,10 +98,10 @@ pub(super) async fn show(app: &AppHandle, notice: &Notice) -> Result<()> {
                 content.setTitle(&NSString::from_str(&notice.title));
                 content.setBody(&NSString::from_str(&notice.body));
                 let identifier = if notice.session_id.is_empty() {
-                    format!("switchyard.test:{}", uuid::Uuid::new_v4())
+                    format!("sirus.test:{}", uuid::Uuid::new_v4())
                 } else {
                     format!(
-                        "switchyard.session:{}/{}",
+                        "sirus.session:{}/{}",
                         notice.session_id,
                         uuid::Uuid::new_v4()
                     )
@@ -170,8 +170,10 @@ pub(super) fn play(choice: Sound) -> Result<()> {
     })
 }
 pub(super) fn open_settings() {
-    // Fixed Switchyard destination only; not a renderer-selected URL or app.
-    if let Some(url) = objc2_foundation::NSURL::URLWithString(&NSString::from_str("x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.switchyard.app")) {
+    // Fixed Sirus Code destination only; not a renderer-selected URL or app.
+    if let Some(url) = objc2_foundation::NSURL::URLWithString(&NSString::from_str(
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=com.siruscode.app",
+    )) {
         NSWorkspace::sharedWorkspace().openURL(&url);
     }
 }
@@ -180,7 +182,7 @@ struct DelegateIvars {
 }
 define_class!(
     #[unsafe(super(NSObject))]
-    #[name = "SwitchyardNotificationDelegate"]
+    #[name = "SirusNotificationDelegate"]
     #[ivars = DelegateIvars]
     struct NotificationDelegate;
     unsafe impl NSObjectProtocol for NotificationDelegate {}
@@ -244,7 +246,7 @@ define_class!(
 );
 fn session_from_identifier(identifier: &str) -> Option<&str> {
     let id = identifier
-        .strip_prefix("switchyard.session:")?
+        .strip_prefix("sirus.session:")?
         .split('/')
         .next()?;
     uuid::Uuid::parse_str(id).ok()?;
@@ -267,14 +269,11 @@ mod tests {
     fn click_identifiers_only_resolve_native_session_uuids() {
         let id = uuid::Uuid::new_v4().to_string();
         assert_eq!(
-            session_from_identifier(&format!("switchyard.session:{id}/notification")),
+            session_from_identifier(&format!("sirus.session:{id}/notification")),
             Some(id.as_str())
         );
-        assert_eq!(session_from_identifier("switchyard.test:123"), None);
-        assert_eq!(
-            session_from_identifier("switchyard.session:../../file"),
-            None
-        );
+        assert_eq!(session_from_identifier("sirus.test:123"), None);
+        assert_eq!(session_from_identifier("sirus.session:../../file"), None);
     }
     #[test]
     fn delegate_protocol_methods_are_registered() {

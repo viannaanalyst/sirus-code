@@ -1,7 +1,7 @@
 import type { Session, Team, TeamTask } from "@/client/types";
 
-const PLAN_OPEN = "<switchyard_team_plan>";
-const PLAN_CLOSE = "</switchyard_team_plan>";
+const PLAN_OPEN = "<sirus_team_plan>";
+const PLAN_CLOSE = "</sirus_team_plan>";
 
 /** Hides the coordinator's machine-readable plan block (also while it streams). */
 export function stripTeamPlan(text: string): string {

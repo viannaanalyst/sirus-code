@@ -16,7 +16,7 @@ typedef struct {
   unsigned int msgh_local_port;
   unsigned int msgh_voucher_port;
   unsigned int msgh_id;
-} SwitchyardIndigoMachHeader;
+} SirusIndigoMachHeader;
 
 typedef struct {
   unsigned int field1;
@@ -37,7 +37,7 @@ typedef struct {
   double field16;
   double field17;
   double field18;
-} SwitchyardIndigoTouch;
+} SirusIndigoTouch;
 
 typedef struct {
   unsigned int eventSource;
@@ -45,27 +45,27 @@ typedef struct {
   unsigned int eventTarget;
   unsigned int keyCode;
   unsigned int field5;
-} SwitchyardIndigoButton;
+} SirusIndigoButton;
 
 typedef union {
-  SwitchyardIndigoTouch touch;
-  SwitchyardIndigoButton button;
+  SirusIndigoTouch touch;
+  SirusIndigoButton button;
   unsigned char raw[144];
-} SwitchyardIndigoEvent;
+} SirusIndigoEvent;
 
 typedef struct {
   unsigned int field1;
   unsigned long long timestamp;
   unsigned int field3;
-  SwitchyardIndigoEvent event;
-} SwitchyardIndigoPayload;
+  SirusIndigoEvent event;
+} SirusIndigoPayload;
 
 typedef struct {
-  SwitchyardIndigoMachHeader header;
+  SirusIndigoMachHeader header;
   unsigned int innerSize;
   unsigned char eventType;
-  SwitchyardIndigoPayload payload;
-} SwitchyardIndigoMessage;
+  SirusIndigoPayload payload;
+} SirusIndigoMessage;
 
 #pragma pack(pop)
 
@@ -91,57 +91,57 @@ static const int kButtonOpUp = 0x2;
 // The mouse/touch seed message target, ported from idb.
 static const int kTouchTarget = 0x32;
 
-typedef SwitchyardIndigoMessage *(*SwitchyardIndigoButtonFn)(int keyCode, int op, int target);
-typedef SwitchyardIndigoMessage *(*SwitchyardIndigoKeyboardFn)(uint32_t usage, int op);
-typedef SwitchyardIndigoMessage *(*SwitchyardIndigoMouseFn)(CGPoint *point0, CGPoint *point1, int target,
+typedef SirusIndigoMessage *(*SirusIndigoButtonFn)(int keyCode, int op, int target);
+typedef SirusIndigoMessage *(*SirusIndigoKeyboardFn)(uint32_t usage, int op);
+typedef SirusIndigoMessage *(*SirusIndigoMouseFn)(CGPoint *point0, CGPoint *point1, int target,
                                                     int eventType, BOOL extra);
-typedef SwitchyardIndigoMessage *(*SwitchyardIndigoArbitraryFn)(int target, uint32_t page, uint32_t usage,
+typedef SirusIndigoMessage *(*SirusIndigoArbitraryFn)(int target, uint32_t page, uint32_t usage,
                                                         int op);
 
-BOOL SwitchyardHardwareButtonFromName(NSString *name, SwitchyardHardwareButton *outButton) {
+BOOL SirusHardwareButtonFromName(NSString *name, SirusHardwareButton *outButton) {
   NSDictionary<NSString *, NSNumber *> *map = @{
-    @"home": @(SwitchyardHardwareButtonHome),
-    @"lock": @(SwitchyardHardwareButtonLock),
-    @"side": @(SwitchyardHardwareButtonSide),
-    @"siri": @(SwitchyardHardwareButtonSiri),
-    @"volume-up": @(SwitchyardHardwareButtonVolumeUp),
-    @"volume-down": @(SwitchyardHardwareButtonVolumeDown),
+    @"home": @(SirusHardwareButtonHome),
+    @"lock": @(SirusHardwareButtonLock),
+    @"side": @(SirusHardwareButtonSide),
+    @"siri": @(SirusHardwareButtonSiri),
+    @"volume-up": @(SirusHardwareButtonVolumeUp),
+    @"volume-down": @(SirusHardwareButtonVolumeDown),
   };
   NSNumber *found = map[name.lowercaseString];
   if (found == nil) {
     return NO;
   }
   if (outButton != NULL) {
-    *outButton = (SwitchyardHardwareButton)found.integerValue;
+    *outButton = (SirusHardwareButton)found.integerValue;
   }
   return YES;
 }
 
-static int SwitchyardButtonSource(SwitchyardHardwareButton button) {
+static int SirusButtonSource(SirusHardwareButton button) {
   switch (button) {
-    case SwitchyardHardwareButtonHome: return kButtonSourceHome;
-    case SwitchyardHardwareButtonLock: return kButtonSourceLock;
-    case SwitchyardHardwareButtonSide: return kButtonSourceSide;
-    case SwitchyardHardwareButtonSiri: return kButtonSourceSiri;
-    case SwitchyardHardwareButtonVolumeUp:
-    case SwitchyardHardwareButtonVolumeDown: return -1;
+    case SirusHardwareButtonHome: return kButtonSourceHome;
+    case SirusHardwareButtonLock: return kButtonSourceLock;
+    case SirusHardwareButtonSide: return kButtonSourceSide;
+    case SirusHardwareButtonSiri: return kButtonSourceSiri;
+    case SirusHardwareButtonVolumeUp:
+    case SirusHardwareButtonVolumeDown: return -1;
   }
   return kButtonSourceHome;
 }
 
 /// Consumer-page usage for the two volume keys, or 0 for the buttons that
 /// travel as Indigo button events instead.
-static uint32_t SwitchyardConsumerUsage(SwitchyardHardwareButton button) {
+static uint32_t SirusConsumerUsage(SirusHardwareButton button) {
   switch (button) {
-    case SwitchyardHardwareButtonVolumeUp: return kHIDUsageVolumeIncrement;
-    case SwitchyardHardwareButtonVolumeDown: return kHIDUsageVolumeDecrement;
+    case SirusHardwareButtonVolumeUp: return kHIDUsageVolumeIncrement;
+    case SirusHardwareButtonVolumeDown: return kHIDUsageVolumeDecrement;
     default: return 0;
   }
 }
 
 /// USB HID usage for a printable ASCII character, plus whether shift is needed.
 /// Returns 0 for characters with no mapping.
-static uint32_t SwitchyardUsageForCharacter(unichar c, BOOL *outShift) {
+static uint32_t SirusUsageForCharacter(unichar c, BOOL *outShift) {
   BOOL shift = NO;
   uint32_t usage = 0;
 
@@ -205,13 +205,13 @@ static uint32_t SwitchyardUsageForCharacter(unichar c, BOOL *outShift) {
 
 static const uint32_t kUsageLeftShift = 225;
 
-@implementation SwitchyardHIDBridge {
+@implementation SirusHIDBridge {
   id _client;
   dispatch_queue_t _sendQueue;
-  SwitchyardIndigoButtonFn _buttonFn;
-  SwitchyardIndigoKeyboardFn _keyboardFn;
-  SwitchyardIndigoMouseFn _mouseFn;
-  SwitchyardIndigoArbitraryFn _arbitraryFn;
+  SirusIndigoButtonFn _buttonFn;
+  SirusIndigoKeyboardFn _keyboardFn;
+  SirusIndigoMouseFn _mouseFn;
+  SirusIndigoArbitraryFn _arbitraryFn;
   NSInteger _undelivered;
 }
 
@@ -250,7 +250,7 @@ static const uint32_t kUsageLeftShift = 225;
   }
   if (kit == NULL) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.hid"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.hid"
                                    code:1
                                userInfo:@{NSLocalizedDescriptionKey:
                                             [NSString stringWithFormat:@"cannot load SimulatorKit at %@",
@@ -259,13 +259,13 @@ static const uint32_t kUsageLeftShift = 225;
     return NO;
   }
 
-  _arbitraryFn = (SwitchyardIndigoArbitraryFn)dlsym(kit, "IndigoHIDMessageForHIDArbitrary");
-  _buttonFn = (SwitchyardIndigoButtonFn)dlsym(kit, "IndigoHIDMessageForButton");
-  _keyboardFn = (SwitchyardIndigoKeyboardFn)dlsym(kit, "IndigoHIDMessageForKeyboardArbitrary");
-  _mouseFn = (SwitchyardIndigoMouseFn)dlsym(kit, "IndigoHIDMessageForMouseNSEvent");
+  _arbitraryFn = (SirusIndigoArbitraryFn)dlsym(kit, "IndigoHIDMessageForHIDArbitrary");
+  _buttonFn = (SirusIndigoButtonFn)dlsym(kit, "IndigoHIDMessageForButton");
+  _keyboardFn = (SirusIndigoKeyboardFn)dlsym(kit, "IndigoHIDMessageForKeyboardArbitrary");
+  _mouseFn = (SirusIndigoMouseFn)dlsym(kit, "IndigoHIDMessageForMouseNSEvent");
   if (_buttonFn == NULL || _keyboardFn == NULL || _mouseFn == NULL || _arbitraryFn == NULL) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.hid"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.hid"
                                    code:2
                                userInfo:@{NSLocalizedDescriptionKey: @"SimulatorKit Indigo symbols missing"}];
     }
@@ -278,7 +278,7 @@ static const uint32_t kUsageLeftShift = 225;
   }
   if (clientClass == nil) {
     if (error) {
-      *error = [NSError errorWithDomain:@"com.switchyard.simulator-helper.hid"
+      *error = [NSError errorWithDomain:@"com.siruscode.simulator-helper.hid"
                                    code:3
                                userInfo:@{NSLocalizedDescriptionKey: @"SimDeviceLegacyHIDClient class missing"}];
     }
@@ -291,7 +291,7 @@ static const uint32_t kUsageLeftShift = 225;
   id client = ((id (*)(id, SEL, id, NSError **))objc_msgSend)(allocated, initSelector, device, &initError);
   if (client == nil) {
     if (error) {
-      *error = initError ?: [NSError errorWithDomain:@"com.switchyard.simulator-helper.hid"
+      *error = initError ?: [NSError errorWithDomain:@"com.siruscode.simulator-helper.hid"
                                                 code:4
                                             userInfo:@{NSLocalizedDescriptionKey: @"HID client init failed"}];
     }
@@ -299,11 +299,11 @@ static const uint32_t kUsageLeftShift = 225;
   }
 
   _client = client;
-  _sendQueue = dispatch_queue_create("com.switchyard.simulator-helper.hid", DISPATCH_QUEUE_SERIAL);
+  _sendQueue = dispatch_queue_create("com.siruscode.simulator-helper.hid", DISPATCH_QUEUE_SERIAL);
   return YES;
 }
 
-- (void)sendMessage:(SwitchyardIndigoMessage *)message {
+- (void)sendMessage:(SirusIndigoMessage *)message {
   if (_client == nil || message == NULL) {
     [self noteUndelivered];
     return;
@@ -312,7 +312,7 @@ static const uint32_t kUsageLeftShift = 225;
   void (^completion)(NSError *) = ^(NSError *sendError) {
     // Errors here are per-event and non-fatal; the stream keeps going.
   };
-  ((void (*)(id, SEL, SwitchyardIndigoMessage *, BOOL, dispatch_queue_t, void (^)(NSError *)))objc_msgSend)(
+  ((void (*)(id, SEL, SirusIndigoMessage *, BOOL, dispatch_queue_t, void (^)(NSError *)))objc_msgSend)(
       _client, selector, message, YES, _sendQueue, completion);
 }
 
@@ -322,7 +322,7 @@ static const uint32_t kUsageLeftShift = 225;
     return;
   }
   CGPoint point = CGPointMake(x, y);
-  SwitchyardIndigoMessage *seed = _mouseFn(&point, NULL, kTouchTarget, down ? kButtonOpDown : kButtonOpUp, NO);
+  SirusIndigoMessage *seed = _mouseFn(&point, NULL, kTouchTarget, down ? kButtonOpDown : kButtonOpUp, NO);
   if (seed == NULL) {
     [self noteUndelivered];
     return;
@@ -330,8 +330,8 @@ static const uint32_t kUsageLeftShift = 225;
 
   // A touch is delivered as two payloads in one message; the seed only supplies
   // the first, so it is duplicated and the digitizer fields fixed up.
-  size_t stride = sizeof(SwitchyardIndigoPayload);
-  SwitchyardIndigoMessage *message = calloc(1, sizeof(SwitchyardIndigoMessage) + stride);
+  size_t stride = sizeof(SirusIndigoPayload);
+  SirusIndigoMessage *message = calloc(1, sizeof(SirusIndigoMessage) + stride);
   if (message == NULL) {
     free(seed);
     [self noteUndelivered];
@@ -342,14 +342,14 @@ static const uint32_t kUsageLeftShift = 225;
   message->payload.field1 = 0x0000000b;
   message->payload.timestamp = mach_absolute_time();
 
-  memcpy(&message->payload.event.touch, &seed->payload.event.touch, sizeof(SwitchyardIndigoTouch));
+  memcpy(&message->payload.event.touch, &seed->payload.event.touch, sizeof(SirusIndigoTouch));
   message->payload.event.touch.xRatio = x;
   message->payload.event.touch.yRatio = y;
 
   void *first = &message->payload;
   void *second = (void *)((uintptr_t)first + stride);
   memcpy(second, first, stride);
-  SwitchyardIndigoPayload *secondPayload = (SwitchyardIndigoPayload *)second;
+  SirusIndigoPayload *secondPayload = (SirusIndigoPayload *)second;
   secondPayload->event.touch.field1 = 0x00000001;
   secondPayload->event.touch.field2 = 0x00000002;
 
@@ -390,7 +390,7 @@ static const uint32_t kUsageLeftShift = 225;
     [self noteUndelivered];
     return;
   }
-  SwitchyardIndigoMessage *message = _keyboardFn(usage, down ? kButtonOpDown : kButtonOpUp);
+  SirusIndigoMessage *message = _keyboardFn(usage, down ? kButtonOpDown : kButtonOpUp);
   [self sendMessage:message];
 }
 
@@ -406,7 +406,7 @@ static const uint32_t kUsageLeftShift = 225;
   for (NSUInteger index = 0; index < length; index++) {
     unichar character = [text characterAtIndex:index];
     BOOL needsShift = NO;
-    uint32_t usage = SwitchyardUsageForCharacter(character, &needsShift);
+    uint32_t usage = SirusUsageForCharacter(character, &needsShift);
     if (usage == 0) {
       skipped++;
       continue;
@@ -424,9 +424,9 @@ static const uint32_t kUsageLeftShift = 225;
   return skipped;
 }
 
-- (void)sendButton:(SwitchyardHardwareButton)button down:(BOOL)down {
+- (void)sendButton:(SirusHardwareButton)button down:(BOOL)down {
   int op = down ? kButtonOpDown : kButtonOpUp;
-  uint32_t consumerUsage = SwitchyardConsumerUsage(button);
+  uint32_t consumerUsage = SirusConsumerUsage(button);
 
   if (consumerUsage != 0) {
     if (_arbitraryFn == NULL) {
@@ -441,10 +441,10 @@ static const uint32_t kUsageLeftShift = 225;
     [self noteUndelivered];
     return;
   }
-  [self sendMessage:_buttonFn(SwitchyardButtonSource(button), op, kButtonTargetHardware)];
+  [self sendMessage:_buttonFn(SirusButtonSource(button), op, kButtonTargetHardware)];
 }
 
-- (void)tapButton:(SwitchyardHardwareButton)button {
+- (void)tapButton:(SirusHardwareButton)button {
   [self sendButton:button down:YES];
   usleep(90000);
   [self sendButton:button down:NO];

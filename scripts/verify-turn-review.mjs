@@ -8,7 +8,7 @@ try {
   const { TurnChangeSummary } = await server.ssrLoadModule("/src/components/TurnChangeSummary.tsx");
   const { TurnReviewPane } = await server.ssrLoadModule("/src/components/TurnReviewPane.tsx");
   const { useAppStore } = await server.ssrLoadModule("/src/store/app-store.ts");
-  const { client, SwitchyardClient } = await server.ssrLoadModule("/src/client/index.ts");
+  const { client, SirusClient } = await server.ssrLoadModule("/src/client/index.ts");
   const file = { path: "src/<script>.ts", kind: "modified", additions: 2, deletions: 1, binary: false, diff: "--- a/src/file.ts\n+++ b/src/file.ts\n@@ -1 +1,2 @@\n-old\n+new\n+<script>unsafe</script>\n" };
   const review = { files: [file, { ...file, path: "binary.bin", binary: true, additions: 0, deletions: 0, diff: null }, { ...file, path: "third.ts" }, { ...file, path: "fourth.ts" }], partial: false, sharedWorkspace: true, keptAt: null, expired: false };
   const activity = { provider: "codex", model: null, startedAt: 0, endedAt: 1, waitingSince: null, pausedMs: 0, status: "completed", items: [], truncated: false, review };
@@ -17,7 +17,7 @@ try {
   const settings = store().settings;
   const nativeReview = globalThis.structuredClone(review);
   const calls = [];
-  const fixtureClient = new SwitchyardClient({ invoke: async (command, args) => { calls.push({ command, args }); return { ...nativeReview, keptAt: "accepted" }; }, listen: async () => () => {} });
+  const fixtureClient = new SirusClient({ invoke: async (command, args) => { calls.push({ command, args }); return { ...nativeReview, keptAt: "accepted" }; }, listen: async () => () => {} });
   await fixtureClient.keepTurnChanges("s", "m");
   assert.deepEqual(calls, [{ command: "keep_turn_changes", args: { sessionId: "s", messageId: "m" } }]);
   useAppStore.setState({ sessions: [session], selectedSessionId: "s", dockPanes: [] });

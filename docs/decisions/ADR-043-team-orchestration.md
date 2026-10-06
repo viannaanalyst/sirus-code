@@ -4,7 +4,7 @@
 
 ## Context
 
-People want to split one request across several coding agents, possibly different providers and models, and still review the result like any other change. A model-driven loop that spawns agents, answers their approvals or merges on its own would widen authority beyond the person's choices. Provider-native subagents (ADR-035) stay inside one provider and cannot do this. Claude Code agent teams only form in interactive sessions, while Switchyard runs Claude headless.
+People want to split one request across several coding agents, possibly different providers and models, and still review the result like any other change. A model-driven loop that spawns agents, answers their approvals or merges on its own would widen authority beyond the person's choices. Provider-native subagents (ADR-035) stay inside one provider and cannot do this. Claude Code agent teams only form in interactive sessions, while Sirus Code runs Claude headless.
 
 ## Decision
 
@@ -17,7 +17,7 @@ A **Team** is an opt-in, one-shot composer mode (`+` → Equipe). It is memory-o
    - Only Codex, Claude Code or OpenCode may coordinate, because these providers have verified planning turns.
    - The process prompt is wrapped with coordinator instructions and the offered catalog: enabled team providers with at most 8 cached native models each. The persisted user message keeps the visible text.
 
-   When the turn settles, `team.rs` extracts the last `<switchyard_team_plan>` JSON block and validates it as untrusted input:
+   When the turn settles, `team.rs` extracts the last `<sirus_team_plan>` JSON block and validates it as untrusted input:
    - 1–3 tasks;
    - unique ids of 16 characters or less;
    - printable titles of 120 characters or less, and instructions of 4000 or less;
@@ -54,7 +54,7 @@ A **Team** is an opt-in, one-shot composer mode (`+` → Equipe). It is memory-o
    `stash` joined the native filter guards. Merge refuses any patch that still adds conflict markers.
 
    Merged work is reviewed and committed with the existing Changes/Commit flow.
-5. **Cleanup.** `cleanup { confirm: true }` removes the helpers' sessions and worktrees through the existing confirmed removal, once the team is done or stopped. Merges apply patches without commits, so each helper worktree still holds its edits; cleanup first commits them to the helper's own `switchyard/...` branch (fixed Switchyard identity, hooks and signing disabled) so the worktree is clean and is removed without force. Nothing is discarded, and the branches stay for inspection or manual deletion.
+5. **Cleanup.** `cleanup { confirm: true }` removes the helpers' sessions and worktrees through the existing confirmed removal, once the team is done or stopped. Merges apply patches without commits, so each helper worktree still holds its edits; cleanup first commits them to the helper's own `sirus/...` branch (fixed Sirus Code identity, hooks and signing disabled) so the worktree is clean and is removed without force. Nothing is discarded, and the branches stay for inspection or manual deletion.
 
 ### Recovery and limits
 
