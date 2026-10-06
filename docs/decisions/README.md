@@ -83,7 +83,8 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-064: CI auto-fix](ADR-064-ci-auto-fix.md) — owner-enabled loop that fixes failing PR checks with an automatic turn, then commits and pushes the session branch.
 - [ADR-066: iOS Simulator pane](ADR-066-ios-simulator-pane.md) — live, touchable iOS simulator in the dock through a locally compiled CoreSimulator helper, plus agent tools.
 - [ADR-065: Environment Git actions, worktree handoff and stopping servers](ADR-065-environment-git-actions.md) — explicit fast-forward Pull, Create PR, handoff into a new snapshot worktree and stopping only app-started localhost servers.
-- [ADR-067: Sirus Code rebrand and legacy data move](ADR-067-sirus-code-rebrand.md) — new name, identifier and mark; one-time move of app data from `com.switchyard.app`, leaving existing worktrees in place.
+- [ADR-067: Sirus Code identity](ADR-067-sirus-code-rebrand.md) — name, identifier and mark; no traces of the previous name are kept in code or data.
+- [ADR-068: Provider switch motion](ADR-068-provider-switch-motion.md) — picker orbit swap, a 5 s logo-assembly scene per provider on switch, and the handoff card flying into a transcript marker.
 
 ## Template
 
