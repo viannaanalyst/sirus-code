@@ -48,8 +48,8 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
     }
     let decoder: VideoDecoder | null = null;
     let parameters: Uint8Array | null = null;
+    let drainInitialKeyframe = true;
     let disposed = false;
-    let timestamp = 0;
     let gate = createFrameGateState();
     let lastResync = 0;
     const resync = () => {
@@ -116,8 +116,20 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
         data.set(payload, parameters.length);
         parameters = null;
       }
-      timestamp += 16_000;
-      try { decoder.decode(new EncodedVideoChunk({ type: keyframe ? "key" : "delta", timestamp, data })); }
+      try {
+        decoder.decode(new EncodedVideoChunk({ type: keyframe ? "key" : "delta", timestamp: Math.round(frame.timestampMs * 1000), data }));
+        if (keyframe && drainInitialKeyframe) {
+          drainInitialKeyframe = false;
+          gate = { phase: "awaiting-keyframe", lastSequence: frame.sequence };
+          void decoder.flush().then(() => {
+            if (disposed) return;
+            // WebKit needs a flush to present an otherwise idle first frame.
+            // Flush requires a fresh keyframe afterward, so restart the stream once.
+            lastResync = 0;
+            resync();
+          }).catch(fail);
+        }
+      }
       catch (reason) { fail(reason); }
     };
     const pending = client.onSimulatorFrames((frames) => { for (const frame of frames) onFrame(frame); });

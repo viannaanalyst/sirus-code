@@ -849,7 +849,7 @@ export type CiFixAction = { type: "status" } | { type: "setEnabled"; sessionId: 
 /** iOS Simulator pane (ADR-066). */
 export interface SimulatorDevice { udid: string; name: string; runtime: string; booted: boolean; family: "phone" | "tablet" }
 export interface SimulatorAttached { udid: string; name: string; family: "phone" | "tablet"; pixelWidth: number; pixelHeight: number; input: boolean }
-export interface SimulatorFrame { udid: string; sequence: number; keyframe: boolean; config: boolean; data: string }
+export interface SimulatorFrame { udid: string; sequence: number; timestampMs: number; keyframe: boolean; config: boolean; data: string }
 export type SimulatorAction =
   | { type: "probe" } | { type: "list" } | { type: "attach"; udid: string } | { type: "detach" }
   | { type: "tap"; x: number; y: number } | { type: "touch"; phase: "down" | "move" | "up"; x: number; y: number }

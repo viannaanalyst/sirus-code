@@ -1,7 +1,7 @@
 # Graph Report - switchyard  (2026-10-05)
 
 ## Corpus Check
-- 698 files · ~849,882 words
+- 698 files · ~849,968 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 161 file(s) not represented in the graph (top: .css 138, (none) 20, .csv 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5f8b962f`
+- Built from commit: `b423d2f9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -1744,11 +1744,11 @@ Nodes (4): Implemented adaptation, Reference behavior, Switchyard data availabil
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Runtime guide` connect `Transport` to `runtime.md`?**
-  _High betweenness centrality (0.350) - this node is a cross-community bridge._
+  _High betweenness centrality (0.354) - this node is a cross-community bridge._
 - **Why does `Transport and security` connect `Transport` to `SwitchyardClient`?**
-  _High betweenness centrality (0.350) - this node is a cross-community bridge._
+  _High betweenness centrality (0.353) - this node is a cross-community bridge._
 - **Why does `SwitchyardClient` connect `SwitchyardClient` to `Performance and resource audit`, `client/index.ts`, `types.ts`, `Transport`, `workspace-tools.tsx`, `isCancelledTitle`, `phosphor.tsx`, `BrowserPanel`, `commit-title.test.ts`?**
-  _High betweenness centrality (0.334) - this node is a cross-community bridge._
+  _High betweenness centrality (0.338) - this node is a cross-community bridge._
 - **What connects `ADR-0048`, `T`, `shots` to the rest of the system?**
   _2102 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `claude.rs` be split into smaller, more focused modules?**

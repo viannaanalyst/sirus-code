@@ -609,6 +609,16 @@ fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> 
             let flags = envelope[3];
             let (keyframe, config) = (flags & 1 != 0, flags & 2 != 0);
             let sequence = u32::from_le_bytes([envelope[4], envelope[5], envelope[6], envelope[7]]);
+            let timestamp_ms = f64::from_bits(u64::from_le_bytes([
+                envelope[8],
+                envelope[9],
+                envelope[10],
+                envelope[11],
+                envelope[12],
+                envelope[13],
+                envelope[14],
+                envelope[15],
+            ]));
             let id_length = envelope[16] as usize;
             let Some(payload) = envelope.get(17 + id_length..) else {
                 continue;
@@ -630,6 +640,7 @@ fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> 
             frames.push(json!({
                 "udid": udid,
                 "sequence": sequence,
+                "timestampMs": timestamp_ms,
                 "keyframe": keyframe,
                 "config": config,
                 "data": base64::engine::general_purpose::STANDARD.encode(payload),
