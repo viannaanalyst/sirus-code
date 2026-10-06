@@ -19,6 +19,9 @@
 .trigger[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 /* Grows out of the trigger's calendar icon and returns there on close. */
 .popover { position: absolute; z-index: 20; top: calc(100% + 8px); left: 0; width: min(320px, calc(100vw - 32px)); overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 16px; background: var(--surface-raised); box-shadow: var(--shadow-floating); transform-origin: 22px -8px; will-change: transform, opacity; }
+/* Host: flips above or to the trailing edge when the surrounding dialog would cut it (fit-popover.ts). */
+.popover[data-above] { top: auto; bottom: calc(100% + 8px); transform-origin: 22px calc(100% + 8px); }
+.popover[data-align-end] { left: auto; right: 0; }
 /* On phone widths the calendar matches the field instead of running past the screen edge. */
 @media (max-width: 360px) { .popover { right: 0; width: auto; } }
 .footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; border-top: 1px solid var(--border-subtle); padding-top: 11px; color: var(--text-muted); font-size: var(--text-xs); }

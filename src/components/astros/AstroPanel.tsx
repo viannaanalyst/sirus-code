@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import field from "@/components/arc/input/input.module.css";
 import type { Astro, Automation } from "@/client/types";
 import { AutomationDialog } from "@/components/automations/AutomationDialog";
 import { Pencil, Play, Plus, Trash2 } from "@/components/icons/phosphor";
@@ -24,14 +25,14 @@ export function MemoryTab({ astro }: { astro: Astro }) {
   return <div className="flex flex-col gap-3">
     <p className="ui-caption text-text-muted">{t("astros.memoryHint")}</p>
     <div className="flex gap-2">
-      <input className="automation-control ui-control flex-1" value={text} maxLength={400} placeholder={t("astros.memoryPlaceholder")} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void add(); }} />
+      <input className={`${field.input} flex-1`} value={text} maxLength={400} placeholder={t("astros.memoryPlaceholder")} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void add(); }} />
       <InteractiveButton disabled={!text.trim()} onClick={() => void add()}>{t("astros.remember")}</InteractiveButton>
     </div>
     <div className="scroll-thin flex flex-col gap-1.5 overflow-y-auto">
       {astro.memory.length === 0 ? <p className="py-4 text-center ui-caption text-text-muted">{t("astros.memoryEmpty")}</p> : null}
       {astro.memory.map((fact) => <div key={fact.id} className="astro-fact">
         <time className="ui-caption tabular-nums text-text-muted">{new Date(fact.createdAt).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" })}</time>
-        {editing?.id === fact.id ? <input autoFocus className="automation-control ui-control flex-1" value={editing.text} maxLength={400}
+        {editing?.id === fact.id ? <input autoFocus className={`${field.input} flex-1`} value={editing.text} maxLength={400}
           onChange={(event) => setEditing({ id: fact.id, text: event.target.value })}
           onKeyDown={(event) => { if (event.key === "Enter" && editing.text.trim()) { void store().astroMemory({ type: "editFact", id: astro.id, factId: fact.id, text: editing.text }); setEditing(null); } if (event.key === "Escape") { event.stopPropagation(); setEditing(null); } }}
           onBlur={() => setEditing(null)} />

@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { IconButton } from "@/primitives/IconButton";
 import { type AstroDrawerPage, useAppStore } from "@/store/app-store";
+import { Textarea } from "@/components/arc/textarea/textarea";
 import "@/styles/astros.css";
 
 const input = (astro: Astro): AstroInput => ({ id: astro.id, name: astro.name, icon: astro.icon, style: astro.style, color: astro.color, background: astro.background, projectIds: astro.projectIds, soul: astro.soul });
@@ -201,7 +202,7 @@ function SoulPage({ astro }: { astro: Astro }) {
   const [soul, setSoul] = useState(astro.soul);
   return <div className="flex flex-col gap-2">
     <p className="ui-caption text-text-muted">{t("astros.soulHint")}</p>
-    <textarea className="automation-control ui-control astro-drawer-soul font-mono" value={soul} maxLength={16000} spellCheck={false} placeholder={t("astros.soulPlaceholder")}
+    <Textarea label={t("astros.soul")} hideLabel className="astro-drawer-soul" value={soul} maxLength={16000} spellCheck={false} placeholder={t("astros.soulPlaceholder")}
       onChange={(event) => { setSoul(event.target.value); save({ soul: event.target.value }, 600); }} />
   </div>;
 }

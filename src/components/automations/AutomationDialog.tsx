@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Automation, AutomationInput, AutomationSchedule, ApprovalMode } from "@/client/types";
+import { Checkbox } from "@/components/arc/checkbox/checkbox";
+import { DatePicker } from "@/components/arc/date-picker/date-picker";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
+import { Input } from "@/components/arc/input/input";
+import { Select } from "@/components/arc/select/select";
+import { Textarea } from "@/components/arc/textarea/textarea";
+import { TimePicker } from "@/components/arc/time-picker/time-picker";
 import { useTranslation } from "@/i18n/use-translation";
 import { INTERVALS, WEEKDAYS } from "@/lib/automations";
 import { supportsPlanning } from "@/lib/execution-options";
@@ -11,6 +17,8 @@ import { Switch } from "@/primitives/Switch";
 import { useAppStore } from "@/store/app-store";
 
 type Kind = AutomationSchedule["kind"];
+/** Radix Select reserves the empty value, so "provider default" needs its own. */
+const DEFAULT_MODEL = "__default";
 const KINDS: Kind[] = ["manual", "once", "hourly", "daily", "weekdays", "weekly", "interval"];
 
 function defaultOnce() {
@@ -96,36 +104,32 @@ export function AutomationDialog({ open, editing, onClose, onSaved, astroId = nu
     onClose();
   };
 
-  const field = "flex flex-col gap-1.5";
-  const label = "ui-caption text-text-muted";
-  const control = "automation-control ui-control";
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const onceDate = once.slice(0, 10), onceTime = once.slice(11, 16);
+  const approvalOptions = approvals.length ? approvals.map((mode) => ({ value: mode, label: t(`automations.approval.${mode}`) })) : [{ value: "ask", label: t("composer.vendorApproval") }];
   return <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onClose(); }}>
-    <DialogContent title={astro ? t(editing ? "astros.habitEdit" : "astros.habitNew", { name: astro.name }) : t(editing ? "automations.edit" : "automations.new")} description={t(astro ? "astros.habitHint" : "automations.dialogHint")} className="w-[min(640px,calc(100vw-32px))]">
-      <div className="scroll-thin flex max-h-[65vh] flex-col gap-4 overflow-y-auto pr-1">
-        <label className={field}><span className={label}>{t("automations.name")}</span><input className={control} value={name} maxLength={200} onChange={(event) => setName(event.target.value)} placeholder={t("automations.namePlaceholder")} /></label>
-        <label className={field}><span className={label}>{t("automations.prompt")}</span><textarea className={`${control} min-h-[120px] resize-y py-2`} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("automations.promptPlaceholder")} /></label>
+    <DialogContent title={astro ? t(editing ? "astros.habitEdit" : "astros.habitNew", { name: astro.name }) : t(editing ? "automations.edit" : "automations.new")} description={t(astro ? "astros.habitHint" : "automations.dialogHint")} className="automation-dialog w-[min(640px,calc(100vw-32px))]">
+      <div className="flex flex-col gap-4">
+        <Input label={t("automations.name")} value={name} maxLength={200} onChange={(event) => setName(event.target.value)} placeholder={t("automations.namePlaceholder")} />
+        <Textarea label={t("automations.prompt")} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("automations.promptPlaceholder")} rows={4} />
         <div className="grid grid-cols-2 gap-3">
-          <label className={field}><span className={label}>{t("Project")}</span><select className={control} value={projectId} onChange={(event) => setProjectId(event.target.value)}>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-          <label className={field}><span className={label}>{t("automations.workspace")}</span><select className={control} value={workspace} onChange={(event) => setWorkspace(event.target.value as "worktree" | "local")}><option value="worktree">{t("automations.workspace.worktree")}</option><option value="local">{t("automations.workspace.local")}</option></select></label>
-          <label className={field}><span className={label}>{t("Provider")}</span><select className={control} value={agent} onChange={(event) => { setAgent(event.target.value as typeof agent); setModel(null); }}>{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></label>
-          <label className={field}><span className={label}>{t("automations.model")}</span><select className={control} value={model ?? ""} onChange={(event) => setModel(event.target.value || null)}><option value="">{t("Use provider default")}</option>{models.map((item) => <option key={item.id} value={item.id}>{item.displayName}</option>)}</select></label>
+          <Select label={t("Project")} value={projectId} onValueChange={setProjectId} options={projects.map((project) => ({ value: project.id, label: project.name }))} />
+          <Select label={t("automations.workspace")} value={workspace} onValueChange={(value) => setWorkspace(value as "worktree" | "local")} options={[{ value: "worktree", label: t("automations.workspace.worktree") }, { value: "local", label: t("automations.workspace.local") }]} />
+          <Select label={t("Provider")} value={agent} onValueChange={(value) => { setAgent(value as typeof agent); setModel(null); }} options={providers.map((provider) => ({ value: provider.id, label: provider.name }))} />
+          <Select label={t("automations.model")} value={model ?? DEFAULT_MODEL} onValueChange={(value) => setModel(value === DEFAULT_MODEL ? null : value)} options={[{ value: DEFAULT_MODEL, label: t("Use provider default") }, ...models.map((item) => ({ value: item.id, label: item.displayName }))]} />
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className={field}><span className={label}>{t("automations.schedule")}</span><select className={control} value={kind} onChange={(event) => setKind(event.target.value as Kind)}>{KINDS.map((value) => <option key={value} value={value}>{t(`automations.schedule.${value}`)}</option>)}</select></label>
-          {kind === "once" ? <label className={field}><span className={label}>{t("automations.when")}</span><input type="datetime-local" className={control} value={once} onChange={(event) => setOnce(event.target.value)} /></label> : null}
-          {kind === "hourly" ? <label className={field}><span className={label}>{t("automations.minute")}</span><select className={control} value={minute} onChange={(event) => setMinute(Number(event.target.value))}>{Array.from({ length: 12 }, (_, index) => index * 5).map((value) => <option key={value} value={value}>:{String(value).padStart(2, "0")}</option>)}</select></label> : null}
-          {kind === "interval" ? <label className={field}><span className={label}>{t("automations.every")}</span><select className={control} value={interval} onChange={(event) => setIntervalMinutes(Number(event.target.value))}>{INTERVALS.map((value) => <option key={value} value={value}>{value % 60 === 0 ? t("automations.summary.everyHours", { hours: value / 60 }) : t("automations.summary.everyMinutes", { minutes: value })}</option>)}</select></label> : null}
-          {kind === "weekly" ? <label className={field}><span className={label}>{t("automations.day")}</span><select className={control} value={weekday} onChange={(event) => setWeekday(Number(event.target.value))}>{WEEKDAYS.map((key, index) => <option key={key} value={index}>{t(key)}</option>)}</select></label> : null}
-          {kind === "daily" || kind === "weekdays" || kind === "weekly" ? <label className={field}><span className={label}>{t("automations.time")}</span><input type="time" className={control} value={time} onChange={(event) => setTime(event.target.value)} /></label> : null}
+          <Select label={t("automations.schedule")} value={kind} onValueChange={(value) => setKind(value as Kind)} options={KINDS.map((value) => ({ value, label: t(`automations.schedule.${value}`) }))} />
+          {kind === "once" ? <DatePicker label={t("automations.when")} locale={settings.locale} labels={{ clear: t("date.clear"), selected: (date) => t("date.selected", { date }), empty: t("date.choose") }} minDate={new Date(new Date().setHours(0, 0, 0, 0))} value={new Date(`${onceDate}T00:00`)}
+            onChange={(date) => { if (date) setOnce(`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${onceTime}`); }} /> : null}
+          {kind === "once" ? <TimePicker label={t("automations.time")} format="24h" minuteStep={5} value={onceTime} onChange={(value) => setOnce(`${onceDate}T${value}`)} /> : null}
+          {kind === "hourly" ? <Select label={t("automations.minute")} value={String(minute)} onValueChange={(value) => setMinute(Number(value))} options={Array.from({ length: 12 }, (_, index) => index * 5).map((value) => ({ value: String(value), label: `:${pad(value)}` }))} /> : null}
+          {kind === "interval" ? <Select label={t("automations.every")} value={String(interval)} onValueChange={(value) => setIntervalMinutes(Number(value))} options={INTERVALS.map((value) => ({ value: String(value), label: value % 60 === 0 ? t("automations.summary.everyHours", { hours: value / 60 }) : t("automations.summary.everyMinutes", { minutes: value }) }))} /> : null}
+          {kind === "weekly" ? <Select label={t("automations.day")} value={String(weekday)} onValueChange={(value) => setWeekday(Number(value))} options={WEEKDAYS.map((key, index) => ({ value: String(index), label: t(key) }))} /> : null}
+          {kind === "daily" || kind === "weekdays" || kind === "weekly" ? <TimePicker label={t("automations.time")} format="24h" minuteStep={5} value={time} onChange={setTime} /> : null}
         </div>
-        <label className={field}><span className={label}>{t("automations.permission")}</span>
-          <select className={control} value={effectiveApproval} onChange={(event) => { setApproval(event.target.value as ApprovalMode); setAcknowledge(false); }}>
-            {approvals.map((mode) => <option key={mode} value={mode}>{t(`automations.approval.${mode}`)}</option>)}
-            {approvals.length === 0 ? <option value="ask">{t("composer.vendorApproval")}</option> : null}
-          </select>
-          <span className="ui-caption text-text-muted">{t(`automations.approvalHint.${full ? "full" : effectiveApproval === "auto" ? "auto" : "ask"}`)}</span>
-        </label>
-        {full ? <label className="flex items-start gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--warning)_50%,transparent)] p-3 ui-control"><input type="checkbox" checked={acknowledge} onChange={(event) => setAcknowledge(event.target.checked)} className="mt-0.5" /><span>{t("automations.fullAck")}</span></label> : null}
+        <Select label={t("automations.permission")} description={t(`automations.approvalHint.${full ? "full" : effectiveApproval === "auto" ? "auto" : "ask"}`)} value={effectiveApproval} onValueChange={(value) => { setApproval(value as ApprovalMode); setAcknowledge(false); }} options={approvalOptions} />
+        {full ? <div className="rounded-[10px] border border-[color-mix(in_srgb,var(--warning)_50%,transparent)] p-3"><Checkbox label={t("automations.fullAck")} checked={acknowledge} onCheckedChange={(value) => setAcknowledge(value === true)} /></div> : null}
         <div className="flex items-center justify-between gap-3 rounded-[10px] border border-border-subtle px-3 py-2.5">
           <div><p className="ui-control text-text-primary">{t("automations.planning")}</p><p className="ui-caption text-text-muted">{t(planningAvailable ? "automations.planningHint" : "automations.planningUnavailable")}</p></div>
           <Switch checked={planning && planningAvailable && !full} disabled={!planningAvailable || full} onChange={setPlanning} />

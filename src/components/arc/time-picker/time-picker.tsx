@@ -7,6 +7,7 @@ import { ChevronDown, Clock3 } from "@/components/icons/phosphor";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./time-picker.module.css";
+import { fitPopover } from "../lib/fit-popover";
 
 export interface TimePickerProps {
   label: string;
@@ -43,6 +44,7 @@ export function TimePicker({ label, value, defaultValue = "09:00", onChange, des
   const centerOnOpen = useRef(false);
   const [internal, setInternal] = useState(defaultValue);
   const [open, setOpen] = useState(false);
+  const [above, setAbove] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const selected = value ?? internal;
   const reduce = useReducedMotion();
@@ -50,7 +52,16 @@ export function TimePicker({ label, value, defaultValue = "09:00", onChange, des
   const [direction, setDirection] = useState(1);
   if (previous !== selected) { setPrevious(selected); setDirection(toMinutes(selected) >= toMinutes(previous) ? 1 : -1); }
   const options = Array.from({ length: Math.ceil(1440 / minuteStep) }, (_, index) => { const minutes = index * minuteStep; const hour = Math.floor(minutes / 60); const minute = minutes % 60; return `${pad(hour)}:${pad(minute)}`; });
+  // Host: a saved time off the step grid stays listed, in order, so the menu opens on it.
+  if (selected && /^\d{2}:\d{2}$/.test(selected) && !options.includes(selected)) options.splice(options.findIndex((option) => option > selected) === -1 ? options.length : options.findIndex((option) => option > selected), 0, selected);
   const display = (raw: string) => { const minutes = toMinutes(raw); const hour = Math.floor(minutes / 60); const minute = minutes % 60; return format === "24h" ? `${pad(hour)}:${pad(minute)}` : `${hour % 12 || 12}:${pad(minute)} ${hour < 12 ? "AM" : "PM"}`; };
+  // Escape closes only the open menu: catch it before a surrounding dialog or drawer's own Escape listener.
+  useEffect(() => {
+    if (!open) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); } };
+    window.addEventListener("keydown", escape, true);
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [open]);
   useEffect(() => { const close = (event: PointerEvent) => { if (!rootRef.current?.contains(event.target as Node)) setOpen(false); }; document.addEventListener("pointerdown", close); return () => document.removeEventListener("pointerdown", close); }, []);
   // Runs before paint so the menu's first frame is already centered on the selected time.
   useLayoutEffect(() => {
@@ -70,6 +81,7 @@ export function TimePicker({ label, value, defaultValue = "09:00", onChange, des
     const selectedIndex = options.indexOf(selected);
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
     centerOnOpen.current = true;
+    setAbove(fitPopover(rootRef.current?.querySelector("button") ?? null, 256, 0, 6).above);
     setOpen(true);
   };
   const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -95,10 +107,10 @@ export function TimePicker({ label, value, defaultValue = "09:00", onChange, des
         <span className={styles.valueText} aria-hidden="true"><AnimatePresence initial={false} custom={direction}><motion.span key={selected || "placeholder"} className={selected ? styles.value : styles.placeholder} custom={direction} variants={reduce ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">{selected ? display(selected) : placeholder}</motion.span></AnimatePresence></span>
         <ChevronDown className={styles.chevron} size={16} aria-hidden="true" />
       </button>
-      <AnimatePresence initial={false}>{open && <motion.div id={`${id}-listbox`} className={styles.menu} role="listbox" aria-label={`${label} options`} 
-        initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6, scale: .97 }}
+      <AnimatePresence initial={false}>{open && <motion.div id={`${id}-listbox`} className={styles.menu} data-above={above || undefined} role="listbox" aria-label={`${label} options`} 
+        initial={reduce ? { opacity: 0 } : { opacity: 0, y: above ? 6 : -6, scale: .97 }}
         animate={{ opacity: 1, y: 0, scale: 1, transition: reduce ? { duration: motionTokens.duration.instant } : { ...motionTokens.spring.snappy, opacity: { duration: motionTokens.duration.fast, ease: enter } } }}
-        exit={{ opacity: 0, ...(reduce ? {} : { y: -4, scale: .98 }), transition: { duration: 0.13, ease: standard } }}>
+        exit={{ opacity: 0, ...(reduce ? {} : { y: above ? 4 : -4, scale: .98 }), transition: { duration: 0.13, ease: standard } }}>
         {options.map((option, index) => <button ref={node => { optionRefs.current[index] = node; }} id={`${id}-option-${index}`} type="button" role="option" aria-selected={option === selected} data-active={activeIndex === index || undefined} className={styles.option} key={option} onPointerMove={() => { if (activeIndex !== index) setActiveIndex(index); }} onClick={() => choose(option)}>{display(option)}{option === selected && <span className={styles.dot} aria-hidden="true" />}</button>)}
       </motion.div>}</AnimatePresence>
     </div>

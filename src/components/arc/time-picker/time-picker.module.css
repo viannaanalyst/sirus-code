@@ -18,6 +18,8 @@
 .trigger[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 .description { font-size: var(--text-xs); }
 .menu { position: absolute; z-index: 80; top: calc(100% + 6px); right: 0; left: 0; max-height: 250px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 5px; background: var(--surface-raised); box-shadow: var(--shadow-floating); transform-origin: top center; will-change: transform, opacity; }
+/* Host: opens above when the surrounding dialog would cut it (fit-popover.ts). */
+.menu[data-above] { top: auto; bottom: calc(100% + 6px); }
 /* Arrow keys move the highlight often, so it changes almost instantly. The dot marks the chosen time, so only one row is ever highlighted. */
 .option { display: flex; width: 100%; min-height: 36px; align-items: center; justify-content: space-between; border: 0; border-radius: calc(var(--radius-control) - 6px); padding: 0 11px; background: transparent; color: var(--foreground); font: inherit; font-size: var(--text-sm); font-variant-numeric: tabular-nums; text-align: left; cursor: pointer; transition: background-color 80ms var(--ease-standard); }
 .option[data-active="true"] { background: var(--surface-muted); }

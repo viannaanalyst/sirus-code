@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { fitPopover, type PopoverFit } from "../lib/fit-popover";
 import type { ButtonHTMLAttributes, FocusEvent, KeyboardEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -23,6 +24,8 @@ export interface DatePickerProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   format?: Intl.DateTimeFormatOptions;
   /** Adds a Today button to the calendar header. */
   showToday?: boolean;
+  /** Host: localized footer copy. `selected` receives the formatted date. */
+  labels?: { clear: string; selected: (date: string) => string; empty: string };
 }
 
 const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
@@ -43,11 +46,12 @@ const statusRise: Variants = {
   exit: { opacity: 0, y: "-0.3em", filter: `blur(${blur.subtle}px)`, transition: { duration: 0.14, ease: ease.standard } },
 };
 
-export function DatePicker({ label, value, onChange, description, placeholder = "Select a date", minDate, maxDate, disabledDates, locale = "en-US", format = { month: "short", day: "numeric", year: "numeric" }, showToday, id, className, disabled, ...buttonProps }: DatePickerProps) {
+export function DatePicker({ label, value, onChange, labels, description, placeholder = "Select a date", minDate, maxDate, disabledDates, locale = "en-US", format = { month: "short", day: "numeric", year: "numeric" }, showToday, id, className, disabled, ...buttonProps }: DatePickerProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const hintId = description ? `${controlId}-description` : undefined;
   const [open, setOpen] = useState(false);
+  const [fit, setFit] = useState<PopoverFit>({ above: false, alignEnd: false });
   const [month, setMonth] = useState(monthStart(value ?? new Date()));
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -82,7 +86,7 @@ export function DatePicker({ label, value, onChange, description, placeholder = 
     setOpen(false);
   };
   /** The calendar always opens on the month of the current value, or today's month. */
-  const show = () => { window.clearTimeout(closeTimer.current); setMonth(monthStart(value ?? new Date())); setOpen(true); };
+  const show = () => { window.clearTimeout(closeTimer.current); setMonth(monthStart(value ?? new Date())); setFit(fitPopover(triggerRef.current, 380, 320)); setOpen(true); };
   /** A picked day lets the highlight glide onto it and the footer confirm it, then the calendar returns to the field. */
   const selectDate = (date: Date | undefined) => {
     onChange?.(date);
@@ -94,6 +98,13 @@ export function DatePicker({ label, value, onChange, description, placeholder = 
     if ((event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") && !open) { event.preventDefault(); show(); }
     if (event.key === "Escape") close();
   };
+  // Escape closes only the open calendar: catch it before a surrounding dialog or drawer's own Escape listener.
+  useEffect(() => {
+    if (!open) return;
+    const escape = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setOpen(false); } };
+    window.addEventListener("keydown", escape, true);
+    return () => window.removeEventListener("keydown", escape, true);
+  }, [open]);
   /** Tabbing past the popover closes it; focus moving within the field keeps it open. */
   const onBlur = (event: FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget as Node | null;
@@ -118,12 +129,12 @@ export function DatePicker({ label, value, onChange, description, placeholder = 
         <ChevronDown className={styles.chevron} size={16} strokeWidth={1.75} aria-hidden="true" />
       </button>
       <AnimatePresence>
-        {open && <motion.div ref={popoverRef} className={styles.popover} role="dialog" aria-label={`${label} calendar`} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}
-          initial={reduce ? { opacity: 0 } : { opacity: 0, y: -8, scale: .95 }}
+        {open && <motion.div ref={popoverRef} className={styles.popover} data-above={fit.above || undefined} data-align-end={fit.alignEnd || undefined} role="dialog" aria-label={`${label} calendar`} onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: fit.above ? 8 : -8, scale: .95 }}
           animate={{ opacity: 1, y: 0, scale: 1, transition: reduce ? instant : { ...spring.snappy, opacity: { duration: duration.fast, ease: ease.enter } } }}
-          exit={{ opacity: 0, ...(reduce ? {} : { y: -6, scale: .97 }), transition: { duration: 0.14, ease: ease.standard } }}>
+          exit={{ opacity: 0, ...(reduce ? {} : { y: fit.above ? 6 : -6, scale: .97 }), transition: { duration: 0.14, ease: ease.standard } }}>
           <Calendar value={value} onChange={selectDate} month={month} onMonthChange={setMonth} minDate={minDate} maxDate={maxDate} disabledDates={disabledDates} locale={locale} showToday={showToday} />
-          <div className={styles.footer}><button type="button" onClick={() => selectDate(undefined)} disabled={!value}>Clear</button><span className={styles.status}><AnimatePresence initial={false}><motion.span key={time ?? "none"} variants={reduce ? valueFade : statusRise} initial="enter" animate="center" exit="exit">{value ? `Selected ${formatter.format(value)}` : "Choose a day"}</motion.span></AnimatePresence></span></div>
+          <div className={styles.footer}><button type="button" onClick={() => selectDate(undefined)} disabled={!value}>{labels?.clear ?? "Clear"}</button><span className={styles.status}><AnimatePresence initial={false}><motion.span key={time ?? "none"} variants={reduce ? valueFade : statusRise} initial="enter" animate="center" exit="exit">{value ? (labels?.selected ?? ((date: string) => `Selected ${date}`))(formatter.format(value)) : labels?.empty ?? "Choose a day"}</motion.span></AnimatePresence></span></div>
         </motion.div>}
       </AnimatePresence>
     </div>

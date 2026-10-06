@@ -16,6 +16,8 @@ Provider model menus and Settings order numeric generations descending within ea
 
 Host-facing menus/dialogs use brief opacity/scale/4px transitions and trigger origins. Dialog supports an optional compact density for short destructive confirmations; the default layout remains unchanged. Session deletion uses the existing danger token for its filled confirmation button. Error Toasts have error semantics and stay until dismissed. File context menus copy the real path. Inline gallery menus stay within the outer Dialog's focus/pointer scope; nested Escape closes the menu first. BottomSheet uses local pointer capture rather than global pointer tracking. These interactions passed source review. Actual desktop checks also exercised nested dropdown keyboard selection, Escape ordering and focus return inside the Settings explorer; all 100 previews are render-tested rather than exhaustively gesture-tested.
 
+Forms use Arc fields instead of native controls: the automation and habit dialog uses Arc Input, Textarea, Select (the empty "provider default" model maps to a sentinel because Radix reserves the empty value), TimePicker (24 h, 5-minute steps; an off-grid saved time stays listed), DatePicker (localized footer through `labels`) and Checkbox; Astro Soul and Memory fields use the same Arc field styles. Host adaptations to the vendored pickers: Escape closes only an open time menu or calendar (a capture listener stops a surrounding dialog or drawer from closing too), and `lib/fit-popover.ts` opens them above or end-aligned when the nearest scrolling dialog would cut them.
+
 UI Arc Pro is explicitly excluded by the owner; no paid license or source was acquired. Free-source provenance does not imply rights to paid components.
 
 ## Product typography
