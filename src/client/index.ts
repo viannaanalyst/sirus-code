@@ -397,6 +397,10 @@ export class SirusClient {
     return this.transport.invoke<Session>("send_prompt", { request });
   }
 
+  astroAction<T = unknown>(action: import("./types").AstroAction) {
+    return this.transport.invoke<T>("astro_action", { action });
+  }
+
   taskAction(action: import("./types").TaskAction) {
     return this.transport.invoke<import("./types").Task[]>("task_action", { action });
   }

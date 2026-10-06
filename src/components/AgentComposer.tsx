@@ -83,6 +83,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const canType = Boolean(session || project) && !disabled;
   const modelChanging = useAppStore((state) => Boolean(session && state.modelChangesPending[session.id]));
   const agentId = session?.agent ?? settings.defaultAgent;
+  const astroName = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro)?.name ?? null : null);
   const definition = providerById(agentId);
   const approvalPolicy = definition.approvalPolicy;
   const selectedApproval = context.approvalByProvider?.[agentId];
@@ -237,7 +238,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         data-draft-owner={draftKey}
         value={value}
         disabled={!canType || pasting}
-        placeholder={t("session.prompt")}
+        placeholder={astroName ? t("astros.composer", { name: astroName }) : t("session.prompt")}
         aria-label={t("session.prompt")}
         aria-autocomplete="list"
         aria-haspopup="listbox"

@@ -7,6 +7,7 @@ mod activity;
 mod agent;
 mod agent_output;
 mod appearance;
+mod astros;
 mod attachment_platform;
 mod attachments;
 mod automations;
@@ -196,6 +197,7 @@ pub fn run() {
             local_servers::local_server_action,
             simulator::simulator_action,
             tasks::task_action,
+            astros::astro_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
             session_export::export_conversation,

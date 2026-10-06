@@ -265,6 +265,16 @@ interface AppStore {
   /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
   githubInbox: Record<string, { data: import("@/client/types").GithubInbox | null; loading: boolean; error: string | null }>;
   loadGithubInbox: (kind: import("@/client/types").GithubItemKind, state: import("@/client/types").GithubItemState) => Promise<void>;
+  /** Astros, persistent assistants on the rail (ADR-069); null until first loaded. */
+  astros: import("@/client/types").Astro[] | null;
+  loadAstros: () => Promise<void>;
+  /** The Astro dialog: `editingId` null creates one. Memory-only. */
+  astroDialog: { editingId: string | null } | null;
+  setAstroDialog: (dialog: { editingId: string | null } | null) => void;
+  saveAstro: (input: import("@/client/types").AstroInput) => Promise<import("@/client/types").Astro | null>;
+  openAstro: (id: string) => Promise<void>;
+  deleteAstro: (id: string) => Promise<void>;
+  resetAstro: (id: string) => Promise<void>;
   /** Personal tasks (ADR-052); null until first loaded. */
   tasks: import("@/client/types").Task[] | null;
   /** Closed `task_action`; failures land in `error` and resolve null. */
@@ -828,6 +838,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     void state.saveSettings(archiveSidebarSession(state.settings, sessionId));
   },
   ciAutoFix: [],
+  astros: null,
+  astroDialog: null,
   tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
@@ -984,7 +996,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const sessions = data.sessions;
       const selectedSessionId =
         settings.restorePreviousSessions && selectedProjectId
-          ? (sessions.find((session) => session.projectId === selectedProjectId && !session.sideChat && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
+          ? (sessions.find((session) => session.projectId === selectedProjectId && !session.sideChat && !session.astro && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
           : null;
       // Only the selected transcript loads before the first paint (ADR-048).
       const initialTranscript = selectedSessionId ? await client.loadTranscript(selectedSessionId).catch(() => null) : null;
@@ -1048,7 +1060,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       projects: state.projects.some((item) => item.id === project.id) ? state.projects.map((item) => item.id === project.id ? project : item) : [project, ...state.projects],
       selectedProjectId: project.id,
-      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !session.sideChat && !session.astro && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
       gitStatus: null, selectedDiff: null, diffText: null,
       gitByPath: { ...state.gitByPath, [project.path]: identity },
     }));
@@ -1058,7 +1070,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const sequence = ++projectRequestSequence;
     const project = await client.openProject(projectId);
     if (sequence !== projectRequestSequence) return;
-    const sessions = get().sessions.filter((session) => session.projectId === projectId && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id));
+    const sessions = get().sessions.filter((session) => session.projectId === projectId && !session.sideChat && !session.astro && !get().settings.archivedSessionIds.includes(session.id));
     set({
       selectedProjectId: projectId,
       selectedSessionId: sessions[0]?.id ?? null,
@@ -1105,7 +1117,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       contextTextStatus: Object.fromEntries(Object.entries(get().contextTextStatus).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       composerContexts: Object.fromEntries(Object.entries(get().composerContexts).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       selectedProjectId: nextProject,
-      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !session.sideChat && !session.astro && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
       terminalWorkspacesBySession,
       localServersBySession,
       selectedFileBySession,
@@ -1553,7 +1565,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
         const loadedTranscripts = { ...state.loadedTranscripts }; delete loadedTranscripts[sessionId];
         return { sessions, promptQueues, loadedTranscripts, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
-          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !session.sideChat && !session.astro && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
       });
@@ -1585,6 +1597,59 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) {
       set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data: current.githubInbox[key]?.data ?? null, loading: false, error: formatUnknownError(error) } } }));
     }
+  },
+
+  setAstroDialog: (astroDialog) => set({ astroDialog }),
+
+  loadAstros: async () => {
+    try { set({ astros: await client.astroAction<import("@/client/types").Astro[]>({ type: "list" }) }); }
+    catch (error) { set({ error: formatUnknownError(error) }); }
+  },
+
+  saveAstro: async (input) => {
+    try {
+      const before = new Set(get().astros?.map((astro) => astro.id) ?? []);
+      const astros = await client.astroAction<import("@/client/types").Astro[]>({ type: "save", astro: input });
+      set({ astros });
+      return astros.find((astro) => astro.id === input.id) ?? astros.find((astro) => !before.has(astro.id)) ?? null;
+    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  openAstro: async (id) => {
+    try {
+      const session = await client.astroAction<Session>({ type: "open", id });
+      set((state) => ({
+        sessions: state.sessions.some((item) => item.id === session.id) ? state.sessions : [session, ...state.sessions],
+        astros: state.astros?.map((astro) => astro.id === id ? { ...astro, sessionId: session.id } : astro) ?? state.astros,
+      }));
+      await get().selectSession(session.id);
+      void get().ensureTranscript(session.id);
+    } catch (error) { set({ error: formatUnknownError(error) }); }
+  },
+
+  deleteAstro: async (id) => {
+    const sessionId = get().astros?.find((astro) => astro.id === id)?.sessionId ?? null;
+    try {
+      const astros = await client.astroAction<import("@/client/types").Astro[]>({ type: "delete", id, confirm: true });
+      set((state) => ({
+        astros,
+        sessions: state.sessions.filter((session) => session.id !== sessionId),
+        ...(state.selectedSessionId === sessionId ? { selectedSessionId: null } : {}),
+      }));
+    } catch (error) { set({ error: formatUnknownError(error) }); }
+  },
+
+  resetAstro: async (id) => {
+    const previous = get().astros?.find((astro) => astro.id === id)?.sessionId ?? null;
+    try {
+      const session = await client.astroAction<Session>({ type: "reset", id, confirm: true });
+      set((state) => ({
+        sessions: [session, ...state.sessions.filter((item) => item.id !== previous && item.id !== session.id)],
+        astros: state.astros?.map((astro) => astro.id === id ? { ...astro, sessionId: session.id } : astro) ?? state.astros,
+      }));
+      await get().selectSession(session.id);
+      void get().ensureTranscript(session.id);
+    } catch (error) { set({ error: formatUnknownError(error) }); }
   },
 
   taskAction: async (action) => {
@@ -2437,12 +2502,12 @@ export const selectSessionsMeta = (state: AppStore): Session[] => {
 
 let listedFrom: Session[] | null = null;
 let listed: Session[] = [];
-/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049). */
+/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049) and Astro conversations on the rail (ADR-069). */
 export const selectListedSessions = (state: AppStore): Session[] => {
   const meta = selectSessionsMeta(state);
   if (meta !== listedFrom) {
     listedFrom = meta;
-    listed = meta.some((session) => session.sideChat) ? meta.filter((session) => !session.sideChat) : meta;
+    listed = meta.some((session) => session.sideChat || session.astro) ? meta.filter((session) => !session.sideChat && !session.astro) : meta;
   }
   return listed;
 };

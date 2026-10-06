@@ -148,6 +148,7 @@ pub fn fork_snapshot(
         team: None,
         team_worker: None,
         side_chat: None,
+        astro: None,
     })
 }
 
@@ -303,6 +304,7 @@ pub fn handoff_snapshot(
         team: None,
         team_worker: None,
         side_chat: None,
+        astro: None,
     })
 }
 

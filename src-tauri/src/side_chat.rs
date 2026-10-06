@@ -100,6 +100,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
         side_chat: Some(SideChatOrigin {
             parent_session_id: source.id.clone(),
         }),
+        astro: None,
     };
     let view = crate::transcript_view::session_meta(&session)?;
     data.sessions.insert(0, session);

@@ -154,6 +154,27 @@ export interface BrowserAnnotation {
   label: string;
 }
 
+/** Astros (ADR-069): persistent assistants on the rail. */
+export type AstroIconId = "orbita" | "saturno" | "lua" | "sol" | "galaxia" | "nebulosa" | "cometa" | "buraco" | "estrela" | "pulsar" | "constelacao" | "satelite" | "foguete" | "planeta" | "asteroide" | "eclipse";
+export type AstroStyle = "metal" | "pixel" | "neon";
+export type AstroBackground = "nebulosa" | "estrelas" | "aurora" | "orbitas" | "liso";
+export interface Astro {
+  id: string;
+  name: string;
+  icon: AstroIconId;
+  style: AstroStyle;
+  color: string;
+  background: AstroBackground;
+  projectIds: string[];
+  soul: string;
+  sessionId?: string | null;
+  createdAt: string;
+}
+export interface AstroInput { id: string | null; name: string; icon: AstroIconId; style: AstroStyle; color: string; background: AstroBackground; projectIds: string[]; soul: string }
+export type AstroAction =
+  | { type: "list" } | { type: "save"; astro: AstroInput } | { type: "open"; id: string }
+  | { type: "delete"; id: string; confirm: true } | { type: "reset"; id: string; confirm: true };
+
 export interface HandoffOrigin {
   from: AgentProviderId;
   brief: string;
@@ -197,6 +218,8 @@ export interface Session {
   teamWorker?: TeamWorker | null;
   /** A side chat answers about this main session and is hidden from session lists (ADR-049). */
   sideChat?: { parentSessionId: string } | null;
+  /** The Astro whose conversation this is (ADR-069); hidden from session lists. */
+  astro?: string | null;
 }
 
 export type TeamStatus = "planning" | "proposed" | "running" | "ready" | "done" | "stopped" | "failed";

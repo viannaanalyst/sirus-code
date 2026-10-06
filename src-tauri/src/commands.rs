@@ -300,6 +300,7 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
         .retain(|session| session.project_id != project_id);
     crate::automations::prune(&mut data);
     crate::tasks::prune(&mut data);
+    crate::astros::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
@@ -946,6 +947,7 @@ pub(crate) fn create_session_locked(
         team: None,
         team_worker: None,
         side_chat: None,
+        astro: None,
     };
     data.sessions.insert(0, session.clone());
     Ok(session)
@@ -1322,6 +1324,7 @@ pub(crate) fn delete_session_native(
     data.sessions
         .retain(|item| item.id != session_id && !side_chats.contains(&item.id));
     crate::tasks::prune(&mut data);
+    crate::astros::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
@@ -1441,6 +1444,13 @@ pub async fn send_prompt(
             }
             None => None,
         };
+        // An Astro's turn carries who it is, its projects and its soul (ADR-069).
+        let astro_context = snapshot.astro.as_ref().and_then(|id| {
+            data.astros
+                .iter()
+                .find(|astro| astro.id == *id)
+                .map(|astro| crate::astros::context(astro, &data.projects))
+        });
         let session = find_session_mut(&mut data, &request.session_id)?;
         if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {
             return Err(Error::agent("session already has a running agent"));
@@ -1479,6 +1489,10 @@ pub async fn send_prompt(
         let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
         let process_prompt = match &side_recap {
             Some(recap) => crate::side_chat::wrap(recap, &process_prompt),
+            None => process_prompt,
+        };
+        let process_prompt = match &astro_context {
+            Some(context) => crate::astros::wrap(context, &process_prompt),
             None => process_prompt,
         };
         let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);

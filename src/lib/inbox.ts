@@ -18,7 +18,7 @@ const recent = (list: Session[]) => list.sort((a, b) => b.lastActivityAt.localeC
  * plus PR review requests and automations that need attention.
  */
 export function inboxGroups(sessions: readonly Session[], unseen: readonly string[], archived: readonly string[], pulls: GithubInbox | null | undefined, automations: readonly Automation[] | undefined): InboxGroups {
-  const listed = sessions.filter((session) => !session.sideChat && !archived.includes(session.id));
+  const listed = sessions.filter((session) => !session.sideChat && !session.astro && !archived.includes(session.id));
   const unread = new Set(unseen);
   return {
     needsYou: recent(listed.filter((session) => session.status === "waiting")),

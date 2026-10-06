@@ -1,4 +1,5 @@
 import { formatUnknownError } from "@/lib/format-error";
+import { SidebarAstros } from "@/components/astros/SidebarAstros";
 import { ProjectGlyph, projectColor } from "@/components/ProjectGlyph";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { PopoverAnchor } from "@radix-ui/react-popover";
@@ -163,6 +164,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
             onClick={() => { cancelClose(); dispatch({ type: "select", section: "home", collapsed: false }); const store = useAppStore.getState(); store.setMainView("session"); void store.selectProject(project.id).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }}>
             {project.look?.logo || project.look?.emoji ? <ProjectGlyph project={project} size={20} /> : <span className="sidebar-rail-avatar" style={project.look?.color ? { color: projectColor(project.look) } : undefined}>{project.name.trim().charAt(0).toUpperCase() || "?"}</span>}
           </button>)}
+          <SidebarAstros onOpen={() => { cancelClose(); dispatch({ type: "dismiss" }); }} />
           <SidebarRailMore onOpen={() => { cancelClose(); dispatch({ type: "dismiss" }); }} />
           <SidebarUsageRings />
           <button type="button" className="sidebar-rail-button" data-section="settings" aria-label={t("Settings")} title={t("Settings")}

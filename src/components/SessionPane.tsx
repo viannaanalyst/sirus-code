@@ -33,6 +33,8 @@ import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
 import { HandoffMarker } from "@/components/HandoffMarker";
 import { ProviderSwitchScene } from "@/components/ProviderSwitchScene";
+import { AstroBackdrop, AstroIcon } from "@/components/astros/AstroArt";
+import { AstroHeader } from "@/components/astros/AstroHeader";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
@@ -75,6 +77,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const latestTurn = useRef<HTMLDivElement>(null);
   const scrolling = useRef<ReturnType<typeof createTranscriptScroll> | null>(null);
   const messages = useMemo(() => session?.messages.filter(message => message.role !== "system") ?? [], [session?.messages]);
+  const astro = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro) ?? null : null);
   // Replies to a standalone `/compact` read as a compaction, not as an empty answer (ADR-057).
   const compactions = useMemo(() => new Set(messages.filter((message, index) => message.role === "agent" && messages[index - 1]?.role === "user" && messages[index - 1].content.trim() === "/compact").map((message) => message.id)), [messages]);
   // Where another provider answered: compare each reply's provider with the one before
@@ -123,9 +126,11 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
 
   return (
     <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
-      {empty && !passive ? <LandingOrbits /> : null}
+      {empty && !passive && !astro ? <LandingOrbits /> : null}
+      {astro ? <AstroBackdrop background={astro.background} color={astro.color} /> : null}
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        {astro && !passive ? <AstroHeader astro={astro} /> : null}
         {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
         {!empty && !search && !passive ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
         {session?.lastError && !session.usageLimit ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
@@ -133,8 +138,13 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         {empty ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-8">
             <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
+              {astro ? <>
+                <div className="mb-4"><AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={passive ? 44 : 72} /></div>
+                <h2 className="ui-title text-text-primary">{t("astros.composer", { name: astro.name })}</h2>
+              </> : <>
               <img data-landing-glyph={passive ? undefined : ""} src="/sirus-glyph.png" alt="" draggable={false} className={cn("mb-4 w-auto opacity-95", passive ? "h-[36px]" : "h-[54px]")} />
               <h2 className="ui-title text-text-primary">{title}</h2>
+              </>}
               {!project && !passive ? <button type="button" onClick={() => void openProject()} className="mt-4 ui-body text-accent">{t("project.open")}</button> : null}
             </div>
           </div>
@@ -178,7 +188,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
           scrolling.current?.follow();
         }}>{t("session.followLatest")}</button> : null}
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
-        {empty && project && !passive && !session?.handoff?.pending ? <LandingControls /> : null}
+        {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-4">
           {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
         </div>

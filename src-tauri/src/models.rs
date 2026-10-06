@@ -316,6 +316,9 @@ pub struct Session {
     /// A side chat points back to the main session it answers about (ADR-049).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub side_chat: Option<crate::side_chat::SideChatOrigin>,
+    /// The Astro whose conversation this is (ADR-069); hidden from session lists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub astro: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1067,6 +1070,9 @@ pub struct AppData {
     /// Personal tasks, optionally handed to an agent session (ADR-052).
     #[serde(default)]
     pub tasks: Vec<crate::tasks::Task>,
+    /// Persistent assistants on the rail (ADR-069).
+    #[serde(default)]
+    pub astros: Vec<crate::astros::Astro>,
 }
 
 pub fn default_account_id() -> String {
