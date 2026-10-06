@@ -1,5 +1,5 @@
 import type { AstroBackground, AstroIconId, AstroStyle } from "@/client/types";
-import { astroSprite, SPRITE_SIZE, spritePalette } from "@/lib/astro-sprites";
+import { astroSprite, bodyTone, SPRITE_SIZE, spriteBody, spritePalette } from "@/lib/astro-sprites";
 
 /**
  * Canvas art for Astros (ADR-069): sixteen animated cosmic icons drawn by one
@@ -177,6 +177,71 @@ const DRAW: Record<AstroIconId, (c: Ctx, t: number, P: Palette) => void> = {
 
 export const ASTRO_ICONS = Object.keys(DRAW) as AstroIconId[];
 
+const BODY = "#hs";
+
+/** Stable per-icon offset so mascots side by side do not blink in unison. */
+function blinkOffset(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return hash % 4200;
+}
+
+/**
+ * A pixel mascot, finished like MonoCode's: a shallow extruded edge down-right,
+ * catch-lights on top and left edges, glossy eyes that blink, an idle bob, and
+ * a hop with the talk frame while the Astro works. Whole-pixel cells only.
+ */
+function paintMascot(c: CanvasRenderingContext2D, W: number, icon: AstroIconId, color: string, t: number, activity: AstroActivity) {
+  const cell = Math.max(2, Math.floor(W / (SPRITE_SIZE + 1)));
+  const origin = Math.floor((W - cell * SPRITE_SIZE) / 2);
+  const working = activity === "working";
+  const frame = working ? Math.floor(t / 280) % 2 : 0;
+  const lift = working ? (Math.floor(t / 280) % 2 ? Math.round(cell * 0.75) : 0) : (Math.floor(t / 1100) % 2 ? Math.max(1, Math.round(cell * 0.35)) : 0);
+  const blinking = (t + blinkOffset(icon + color)) % 4200 < 140;
+  const rows = astroSprite(icon, frame);
+  const colors = spritePalette(color), body = spriteBody(color);
+  const filled = (x: number, y: number) => (rows[y]?.[x] ?? ".") !== ".";
+  const px = (x: number) => origin + x * cell, py = (y: number) => origin + y * cell - lift;
+  const depth = Math.max(1, Math.round(cell * 0.2)), light = Math.max(1, Math.round(cell * 0.14));
+  // Extruded edge: the silhouette again, nudged down-right in shade.
+  c.fillStyle = colors.edge;
+  rows.forEach((row, y) => { for (let x = 0; x < SPRITE_SIZE; x++) if (row[x] !== ".") c.fillRect(px(x) + depth, py(y) + depth, cell, cell); });
+  rows.forEach((row, y) => {
+    for (let x = 0; x < SPRITE_SIZE; x++) {
+      const letter = row[x];
+      if (letter === ".") continue;
+      const eye = letter === "E" || letter === "V";
+      const fill = letter === "#" || (eye && blinking) ? bodyTone(body, x, y) : colors[letter];
+      c.fillStyle = fill;
+      c.fillRect(px(x), py(y), cell, cell);
+      if (BODY.includes(letter)) {
+        c.fillStyle = colors.h;
+        if (!filled(x, y - 1)) c.fillRect(px(x), py(y), cell, light);
+        if (!filled(x - 1, y)) c.fillRect(px(x), py(y), light, cell);
+      }
+      if (eye) {
+        if (blinking) {
+          c.fillStyle = colors.E;
+          c.fillRect(px(x), py(y) + Math.round(cell * 0.55), cell, Math.max(1, Math.round(cell * 0.25)));
+        } else {
+          const glint = Math.max(1, Math.round(cell * 0.3)), inset = Math.max(1, Math.round(cell * 0.15));
+          c.fillStyle = letter === "V" ? colors.E : colors.w;
+          c.fillRect(px(x) + inset, py(y) + inset, glint, glint);
+        }
+      }
+    }
+  });
+  if (activity === "needs-you" && Math.floor(t / 450) % 2 === 0) {
+    // A gold four-point star in the top-right corner, like a notification.
+    const unit = Math.max(1, Math.round(cell * 0.8)), sx = W - unit * 3, sy = 0;
+    c.fillStyle = colors.g;
+    c.fillRect(sx + unit, sy, unit, unit * 3);
+    c.fillRect(sx, sy + unit, unit * 3, unit);
+    c.fillStyle = colors.w;
+    c.fillRect(sx + unit, sy + unit, unit, unit);
+  }
+}
+
 /** What an Astro is doing: idle sprites breathe, working ones hop, waiting ones signal. */
 export type AstroActivity = "idle" | "working" | "needs-you";
 
@@ -189,32 +254,7 @@ export function paintAstroIcon(canvas: HTMLCanvasElement, icon: AstroIconId, sty
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, W, W);
   if (style === "pixel") {
-    // Whole-cell scale with a cell of headroom, so the sprite stays crisp and can hop.
-    const cell = Math.max(1, Math.floor(W / (SPRITE_SIZE + 1)));
-    const left = Math.floor((W - cell * SPRITE_SIZE) / 2), top = Math.floor((W - cell * SPRITE_SIZE) / 2);
-    const working = activity === "working";
-    const frame = Math.floor(t / (working ? 260 : 700)) % 2;
-    const hop = working && Math.floor(t / 260) % 2 ? -cell : 0;
-    const colors = spritePalette(color);
-    astroSprite(icon, frame).forEach((row, y) => {
-      for (let x = 0; x < row.length; x++) {
-        const letter = row[x];
-        if (letter === ".") continue;
-        c.fillStyle = colors[letter];
-        c.fillRect(left + x * cell, top + y * cell + hop, cell, cell);
-      }
-    });
-    if (activity === "needs-you" && Math.floor(t / 450) % 2 === 0) {
-      // A gold four-point star in the top-right corner, like a notification.
-      const sx = W - cell * 3, sy = 0;
-      c.fillStyle = colors.o;
-      c.fillRect(sx, sy, cell * 3, cell * 3);
-      c.fillStyle = colors.y;
-      c.fillRect(sx + cell, sy, cell, cell * 3);
-      c.fillRect(sx, sy + cell, cell * 3, cell);
-      c.fillStyle = colors.w;
-      c.fillRect(sx + cell, sy + cell, cell, cell);
-    }
+    paintMascot(c, W, icon, color, t, activity);
     return;
   }
   const P = palette(style, color);

@@ -4,7 +4,7 @@ import { astroActivity } from "../src/lib/astro-activity.ts";
 import { astroSprite, SPRITE_SIZE, spritePalette } from "../src/lib/astro-sprites.ts";
 import { ASTRO_ICONS } from "../src/lib/astro-art.ts";
 
-test("every Astro sprite is 12×12 in both frames, outlined, and uses palette letters", () => {
+test("every Astro mascot is 12×12 in both frames, has a face and uses palette letters", () => {
   const palette = spritePalette("#8c9bff");
   for (const icon of ASTRO_ICONS) {
     for (const frame of [0, 1]) {
@@ -14,7 +14,7 @@ test("every Astro sprite is 12×12 in both frames, outlined, and uses palette le
         assert.equal(row.length, SPRITE_SIZE, icon);
         for (const letter of row) assert.ok(letter === "." || letter in palette, `${icon}: ${letter}`);
       }
-      assert.ok(rows.join("").includes("o"), `${icon} has an outline`);
+      assert.equal([...rows.join("")].filter((letter) => letter === "E" || letter === "V").length, icon === "lua" ? 1 : 2, `${icon} has its eyes`);
     }
     assert.notDeepEqual(astroSprite(icon, 0), astroSprite(icon, 1), `${icon} animates`);
   }
