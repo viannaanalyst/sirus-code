@@ -3,7 +3,8 @@ import { AstroDialog } from "@/components/astros/AstroDialog";
 import { AstroIcon } from "@/components/astros/AstroArt";
 import { Plus } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
-import { useAppStore } from "@/store/app-store";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { astroActivity } from "@/lib/astro-activity";
 import "@/styles/astros.css";
 
 /** Astros on the rail (ADR-069): one button each, then New Astro. Owns the Astro dialog. */
@@ -13,6 +14,7 @@ export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
   const dialog = useAppStore((state) => state.astroDialog);
   const selectedSessionId = useAppStore((state) => state.selectedSessionId);
   const mainView = useAppStore((state) => state.mainView);
+  const sessions = useAppStore(selectSessionsMeta);
   useEffect(() => { if (astros === null) void useAppStore.getState().loadAstros(); }, [astros]);
   const editing = dialog?.editingId ? astros?.find((astro) => astro.id === dialog.editingId) ?? null : null;
   return <>
@@ -21,7 +23,7 @@ export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
       const current = mainView === "session" && Boolean(astro.sessionId) && astro.sessionId === selectedSessionId;
       return <button key={astro.id} type="button" className="sidebar-rail-button sidebar-rail-astro" aria-label={astro.name} title={astro.name} aria-current={current ? "page" : undefined} style={{ "--astro": astro.color } as React.CSSProperties}
         onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); void useAppStore.getState().openAstro(astro.id); }}>
-        <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={26} />
+        <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={26} activity={astroActivity(astro, sessions)} />
         {astro.unread > 0 && !current ? <span className="sidebar-rail-dot" aria-hidden="true" /> : null}
       </button>;
     })}

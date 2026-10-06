@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { AstroBackground, AstroIconId, AstroStyle } from "@/client/types";
 import { ambientActive, subscribeAmbient } from "@/lib/ambient-motion";
-import { paintAstroBackground, paintAstroIcon } from "@/lib/astro-art";
+import { paintAstroBackground, paintAstroIcon, type AstroActivity } from "@/lib/astro-art";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 
 /**
@@ -33,16 +33,16 @@ function usePainter(paint: Painter, animate: boolean) {
   }, [paint, animate]);
 }
 
-export function AstroIcon({ icon, style, color, size, className }: { icon: AstroIconId; style: AstroStyle; color: string; size: number; className?: string }) {
+export function AstroIcon({ icon, style, color, size, className, activity = "idle" }: { icon: AstroIconId; style: AstroStyle; color: string; size: number; className?: string; activity?: AstroActivity }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const reduced = useMotionPreferences();
   const paint = useRef<Painter>(() => undefined);
   useEffect(() => {
-    paint.current = (now) => { if (canvas.current) paintAstroIcon(canvas.current, icon, style, color, now); };
-  }, [icon, style, color]);
+    paint.current = (now) => { if (canvas.current) paintAstroIcon(canvas.current, icon, style, color, now, activity); };
+  }, [icon, style, color, activity]);
   const stable = useStablePainter(paint);
   usePainter(stable, !reduced);
-  useEffect(() => { stable(reduced ? STILL : performance.now()); }, [icon, style, color, reduced, stable]);
+  useEffect(() => { stable(reduced ? STILL : performance.now()); }, [icon, style, color, activity, reduced, stable]);
   const pixels = Math.round(size * Math.min(2, typeof window === "undefined" ? 1 : window.devicePixelRatio || 1));
   return <canvas ref={canvas} aria-hidden="true" width={pixels} height={pixels} className={className} style={{ width: size, height: size, display: "block" }} />;
 }

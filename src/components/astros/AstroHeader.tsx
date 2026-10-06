@@ -6,17 +6,19 @@ import { AstroPanel } from "@/components/astros/AstroPanel";
 import { useTranslation } from "@/i18n/use-translation";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { IconButton } from "@/primitives/IconButton";
-import { useAppStore } from "@/store/app-store";
+import { selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { astroActivity } from "@/lib/astro-activity";
 import "@/styles/astros.css";
 
 /** Above an Astro's conversation: who it is, its projects, and Appearance / New conversation / Delete. */
 export function AstroHeader({ astro }: { astro: Astro }) {
   const t = useTranslation();
   const projects = useAppStore((state) => state.projects);
+  const sessions = useAppStore(selectSessionsMeta);
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
   const names = astro.projectIds.map((id) => projects.find((project) => project.id === id)?.name).filter(Boolean).join(", ");
   return <div className="astro-header">
-    <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={34} />
+    <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={34} activity={astroActivity(astro, sessions)} />
     <div className="min-w-0 flex-1">
       <p className="truncate ui-section text-text-primary">{astro.name}</p>
       <p className="truncate ui-caption text-text-muted">{t("astros.subtitle", { projects: names || t("astros.noProjects") })}</p>

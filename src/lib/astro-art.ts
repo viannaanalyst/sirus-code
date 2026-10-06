@@ -1,4 +1,5 @@
 import type { AstroBackground, AstroIconId, AstroStyle } from "@/client/types";
+import { astroSprite, SPRITE_SIZE, spritePalette } from "@/lib/astro-sprites";
 
 /**
  * Canvas art for Astros (ADR-069): sixteen animated cosmic icons drawn by one
@@ -176,10 +177,11 @@ const DRAW: Record<AstroIconId, (c: Ctx, t: number, P: Palette) => void> = {
 
 export const ASTRO_ICONS = Object.keys(DRAW) as AstroIconId[];
 
-let pixelBuffer: HTMLCanvasElement | null = null;
+/** What an Astro is doing: idle sprites breathe, working ones hop, waiting ones signal. */
+export type AstroActivity = "idle" | "working" | "needs-you";
 
 /** Paints one icon into a square canvas whose bitmap is already sized. */
-export function paintAstroIcon(canvas: HTMLCanvasElement, icon: AstroIconId, style: AstroStyle, color: string, t: number) {
+export function paintAstroIcon(canvas: HTMLCanvasElement, icon: AstroIconId, style: AstroStyle, color: string, t: number, activity: AstroActivity = "idle") {
   const c = canvas.getContext("2d");
   const draw = DRAW[icon];
   if (!c || !draw) return;
@@ -187,18 +189,32 @@ export function paintAstroIcon(canvas: HTMLCanvasElement, icon: AstroIconId, sty
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, W, W);
   if (style === "pixel") {
-    pixelBuffer ??= Object.assign(document.createElement("canvas"), { width: 22, height: 22 });
-    const b = pixelBuffer.getContext("2d", { willReadFrequently: true });
-    if (!b) return;
-    b.setTransform(1, 0, 0, 1, 0, 0); b.clearRect(0, 0, 22, 22);
-    b.setTransform(22 / 64, 0, 0, 22 / 64, 0, 0);
-    draw(b, Math.floor(t / 120) * 120, palette("metal", color));
-    // Every pixel is solid or empty, like sprite art.
-    const data = b.getImageData(0, 0, 22, 22);
-    for (let i = 3; i < data.data.length; i += 4) data.data[i] = data.data[i] > 90 ? 255 : 0;
-    b.putImageData(data, 0, 0);
-    c.imageSmoothingEnabled = false;
-    c.drawImage(pixelBuffer, 0, 0, W, W);
+    // Whole-cell scale with a cell of headroom, so the sprite stays crisp and can hop.
+    const cell = Math.max(1, Math.floor(W / (SPRITE_SIZE + 1)));
+    const left = Math.floor((W - cell * SPRITE_SIZE) / 2), top = Math.floor((W - cell * SPRITE_SIZE) / 2);
+    const working = activity === "working";
+    const frame = Math.floor(t / (working ? 260 : 700)) % 2;
+    const hop = working && Math.floor(t / 260) % 2 ? -cell : 0;
+    const colors = spritePalette(color);
+    astroSprite(icon, frame).forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) {
+        const letter = row[x];
+        if (letter === ".") continue;
+        c.fillStyle = colors[letter];
+        c.fillRect(left + x * cell, top + y * cell + hop, cell, cell);
+      }
+    });
+    if (activity === "needs-you" && Math.floor(t / 450) % 2 === 0) {
+      // A gold four-point star in the top-right corner, like a notification.
+      const sx = W - cell * 3, sy = 0;
+      c.fillStyle = colors.o;
+      c.fillRect(sx, sy, cell * 3, cell * 3);
+      c.fillStyle = colors.y;
+      c.fillRect(sx + cell, sy, cell, cell * 3);
+      c.fillRect(sx, sy + cell, cell * 3, cell);
+      c.fillStyle = colors.w;
+      c.fillRect(sx + cell, sy + cell, cell, cell);
+    }
     return;
   }
   const P = palette(style, color);

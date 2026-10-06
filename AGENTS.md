@@ -44,3 +44,4 @@ cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings &
 - Notable features get a short ADR in `docs/decisions/`, and the architecture reference is updated when the map changes.
 - UI follows the tokens in `src/styles/index.css` and the motion and popup patterns described in the architecture reference; new popups animate in and out.
 - Documentation is in English; the product UI is localized (English and Portuguese).
+- Project skills live in `.sirus/skills/` (for example `pixel-art-sprites`, used for the Astro sprites in `src/lib/astro-sprites.ts`).
