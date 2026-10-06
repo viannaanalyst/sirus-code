@@ -13,8 +13,16 @@ Synara Beta shows a live, touchable iOS Simulator in its right dock, and agents 
 - The helper drives a booted simulator headless through CoreSimulator/SimulatorKit, which it `dlopen`s from the selected Xcode. It needs no Screen Recording or Accessibility permission.
 - `simulator.rs` embeds the sources and compiles them on first use with the person's own `xcrun clang`/`swiftc`, into app data keyed by Xcode build and source hash.
 - The helper speaks newline-delimited JSON-RPC on stdio: list, attach, stream, tap, swipe, key, text, button, screenshot and describe-ui.
-- It writes H.264 (Annex B) frames to a private 0600 Unix socket that `simulator.rs` listens on. Rust batches frames into `simulator-frame` events at most every 33 ms and drops queued deltas above 6 MiB until a codec config or keyframe arrives. The renderer gates frames by device and sequence, requires codec config plus a keyframe, and requests a stream restart after a late subscription, lost delta or decoder error. This bounds IPC traffic and recovers the WebCodecs decoder without waiting for the next periodic keyframe. Frames arrive only when the screen changes.
-- The helper's capture timestamp is preserved through IPC as the WebCodecs timestamp. The renderer flushes the initial keyframe so WebKit presents a still frame even when the screen is idle, then restarts the stream once because WebCodecs requires a fresh keyframe after a flush.
+- It writes H.264 (Annex B) frames to a private 0600 Unix socket that `simulator.rs` listens on. The renderer and `simulator.rs` handle the stream as described under **Video** below.
+
+**Video.** These are the measured causes of a stalled or choppy picture, and their fixes:
+
+- **Copying the framebuffer.** The simulator draws every frame into one shared IOSurface. Any read waits until that drawing ends: 20–40 ms by CPU lock, VTPixelTransfer or CoreImage alike. The helper therefore copies the surface with an asynchronous Metal blit into pooled buffers it owns (at most three copies in flight) and encodes each copy when it completes.
+- **Encoder.** The VideoToolbox session uses a bitrate scaled to the screen area (4–24 Mbps), zero frame delay and speed over quality. Before this, the pane got about 15 fps from the ~54 frames per second the simulator draws. It now gets about 44, at about 50 KB per frame instead of up to 1 MB.
+- **Settle pass.** About 60 ms after the screen stops changing, the helper encodes it once more. A change dropped while the pipeline was busy is never lost.
+- **Decoder buffering.** VideoToolbox's SPS has no VUI `bitstream_restriction`, so WebKit's WebCodecs decoder held every picture until a flush. `simulator_h264.rs` rewrites each SPS to declare `max_num_reorder_frames = 0`, which is true because the stream has no B-frames. Each frame now paints within about 10 ms of arriving.
+- **Transport.** Frames go to each mounted pane as raw bytes over its own Tauri `Channel` (an `ArrayBuffer` in the webview), with no JSON or base64. The stream runs only while a pane is subscribed (`watch` / `unwatch`, at most four subscriptions).
+- **Keyframes.** A late subscriber, a sequence gap or a decoder error asks for a keyframe (`resync`). The helper re-encodes the current screen as a keyframe (`stream.keyframe`) instead of restarting the stream. Unchanged codec parameters do not recreate the decoder.
 
 **Pane.** The dock gains a Simulator pane:
 
@@ -24,8 +32,10 @@ Synara Beta shows a live, touchable iOS Simulator in its right dock, and agents 
 
 Input:
 
-- A click becomes a tap and a drag becomes a swipe, in normalized coordinates.
-- Keys go through as HID usages or text.
+- Pointer down/move/up become live touch phases (one move per animation frame), so drags, sliders and long presses behave as on a device.
+- Coordinates come from pre-transform offsets, so they stay right in the rotated view.
+- Touches and keys go through as HID usages or text, sent in order.
+- Home is the HID Home button on every device. A synthetic edge swipe was dropped because apps took it as a scroll.
 
 **Agent tools.** The existing per-session MCP bridge (`browser_mcp.rs`) also serves `simulator_list`, `simulator_boot`, `simulator_install`, `simulator_launch`, `simulator_screenshot`, `simulator_describe_ui`, `simulator_tap`, `simulator_swipe`, `simulator_type` and `simulator_button`.
 
@@ -38,7 +48,9 @@ Input:
 
 - There is one attached device app-wide.
 - Sirus Code boots at most 3 simulators. One it booted shuts down 10 minutes after it is detached, when the person switches to another device, and on quit. Simulators the person booted are never shut down automatically.
-- After a fresh boot, attach waits briefly: `bootstatus` returns before SpringBoard accepts touches.
+- After a fresh boot, attach waits briefly: `bootstatus` returns before SpringBoard accepts touches. A device that has no framebuffer yet is retried for up to 45 s.
+- Attach, detach and stream changes run one at a time. A helper that exits is restarted, the device re-attached and the stream resumed (at most three automatic recoveries a minute). A failed helper build is remembered until restart.
+- A recording ends, unsaved, on detach, device switch and quit.
 - Every command is a fixed argv: `/usr/bin/xcrun simctl …` or the helper.
 
 ## Consequences

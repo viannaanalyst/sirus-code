@@ -28,14 +28,20 @@ function codecFor(payload: Uint8Array): string | null {
   return null;
 }
 
-function bytes(data: string) {
-  const raw = atob(data);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
-  return out;
+function sameBytes(a: Uint8Array | null, b: Uint8Array) {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+  return true;
 }
 
-/** Decodes the helper's Annex-B H.264 frames into the canvas with WebCodecs. */
+/** How long a keyframe request may stay unanswered before it is sent again. */
+const KEYFRAME_RETRY_MS = 600;
+/**
+ * Decodes the helper's Annex-B H.264 frames into the canvas with WebCodecs.
+ * Frames flow only while this hook watches the device. Rust rewrites the codec
+ * parameters to declare no frame reordering, so WebKit outputs each frame as it
+ * is decoded; the helper re-sends the screen shortly after it stops changing.
+ */
 function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, udid: string | null) {
   const [live, setLive] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
@@ -47,17 +53,19 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
       return;
     }
     let decoder: VideoDecoder | null = null;
+    let config: Uint8Array | null = null;
     let parameters: Uint8Array | null = null;
-    let drainInitialKeyframe = true;
     let disposed = false;
     let gate = createFrameGateState();
-    let lastResync = 0;
-    const resync = () => {
-      if (Date.now() - lastResync < 1000) return;
-      lastResync = Date.now();
+    // One request at a time; a keyframe (or the retry window) clears it.
+    let requestedAt = -Infinity;
+    const requestKeyframe = () => {
+      if (disposed || performance.now() - requestedAt < KEYFRAME_RETRY_MS) return;
+      requestedAt = performance.now();
       void client.simulatorAction({ type: "resync" }).catch(() => undefined);
     };
     const teardown = () => {
+      config = null;
       parameters = null;
       if (!decoder) return;
       const current = decoder;
@@ -70,7 +78,8 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
       gate = createFrameGateState();
       setLive(false);
       setVideoError(reason instanceof Error ? reason.message : "The simulator video decoder failed.");
-      resync();
+      requestedAt = -Infinity;
+      requestKeyframe();
     };
     const paint = (frame: VideoFrame) => {
       try {
@@ -86,27 +95,32 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
     setVideoError(null);
     const onFrame = (frame: SimulatorFrame) => {
       if (disposed) return;
+      const awaiting = gate.phase === "awaiting-keyframe";
       const step = stepFrameGate(gate, frame, udid);
       gate = step.state;
-      if (step.requestKeyframe) resync();
+      if (frame.keyframe) requestedAt = -Infinity;
+      if (step.requestKeyframe || (awaiting && step.action.kind === "drop" && !frame.config)) requestKeyframe();
       if (step.action.kind === "ignore" || step.action.kind === "drop") return;
-      let payload: Uint8Array;
-      try { payload = bytes(frame.data); } catch (reason) { fail(reason); return; }
+      const payload = frame.data;
       if (step.action.kind === "configure") {
+        parameters = payload;
+        // The helper repeats unchanged parameters before every keyframe; keep the decoder.
+        if (decoder && decoder.state === "configured" && sameBytes(config, payload)) return;
         const codec = codecFor(payload);
         if (!codec) { fail(new Error("The simulator stream sent invalid H.264 parameters.")); return; }
         teardown();
+        parameters = payload;
         decoder = new VideoDecoder({ output: paint, error: fail });
         try { decoder.configure({ codec, optimizeForLatency: true }); }
         catch (reason) { fail(reason); return; }
-        parameters = payload;
+        config = payload;
         return;
       }
       if (!decoder || decoder.state !== "configured") return;
       const keyframe = step.action.keyframe;
       if (!keyframe && decoder.decodeQueueSize > 8) {
         gate = { phase: "awaiting-keyframe", lastSequence: frame.sequence };
-        resync();
+        requestKeyframe();
         return;
       }
       let data = payload;
@@ -118,28 +132,19 @@ function useSimulatorVideo(canvas: React.RefObject<HTMLCanvasElement | null>, ud
       }
       try {
         decoder.decode(new EncodedVideoChunk({ type: keyframe ? "key" : "delta", timestamp: Math.round(frame.timestampMs * 1000), data }));
-        if (keyframe && drainInitialKeyframe) {
-          drainInitialKeyframe = false;
-          gate = { phase: "awaiting-keyframe", lastSequence: frame.sequence };
-          void decoder.flush().then(() => {
-            if (disposed) return;
-            // WebKit needs a flush to present an otherwise idle first frame.
-            // Flush requires a fresh keyframe afterward, so restart the stream once.
-            lastResync = 0;
-            resync();
-          }).catch(fail);
-        }
       }
       catch (reason) { fail(reason); }
     };
-    const pending = client.onSimulatorFrames((frames) => { for (const frame of frames) onFrame(frame); });
-    // The first keyframe may have gone out before this listener existed; ask for a fresh one.
-    void pending.then(() => { if (!disposed) resync(); });
+    // Subscribing starts the stream (parameters and a keyframe first) or, when it
+    // already runs for another pane, asks for a keyframe of the current screen.
+    const watching = client.watchSimulator(onFrame);
+    void watching.then(() => { if (!disposed) requestKeyframe(); })
+      .catch((reason) => { if (!disposed) setVideoError(formatUnknownError(reason)); });
     return () => {
       disposed = true;
       setLive(false);
-      void pending.then((stop) => stop());
       teardown();
+      void watching.then((stop) => stop()).catch(() => undefined);
     };
   }, [canvas, udid]);
   return { live, videoError };
@@ -188,34 +193,52 @@ export function SimulatorPane({ paneId }: { paneId: string }) {
   };
   const act = (action: Parameters<typeof client.simulatorAction>[0]) => void client.simulatorAction(action).catch(fail);
 
-  // Pointer → a tap (click) or a swipe (drag) in normalized screen coordinates, like Synara.
-  const drag = useRef<{ x: number; y: number; at: number } | null>(null);
+  // Input is sent in order: each call waits for the previous one, so a fast
+  // drag or typing burst reaches the device as it happened.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const send = (action: Parameters<typeof client.simulatorAction>[0]) => {
+    queue.current = queue.current.then(() => client.simulatorAction(action)).catch(fail);
+  };
+
+  // Pointer → live touch down/move/up in normalized screen coordinates. Offsets
+  // are measured before CSS transforms, so this also holds when rotated.
+  const touch = useRef<{ moved: { x: number; y: number } | null; frame: number } | null>(null);
   const point = (event: PointerEvent<HTMLCanvasElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
+    const target = event.currentTarget;
     const clamp = (value: number) => Math.min(1, Math.max(0, value));
-    return { x: clamp((event.clientX - rect.left) / rect.width), y: clamp((event.clientY - rect.top) / rect.height) };
+    return { x: clamp(event.nativeEvent.offsetX / Math.max(1, target.clientWidth)), y: clamp(event.nativeEvent.offsetY / Math.max(1, target.clientHeight)) };
   };
   const onPointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (!attached?.input || event.button !== 0) return;
+    if (!attached?.input || event.button !== 0 || touch.current) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.closest<HTMLElement>(".simulator-body")?.focus();
-    drag.current = { ...point(event), at: performance.now() };
+    touch.current = { moved: null, frame: 0 };
+    send({ type: "touch", phase: "down", ...point(event) });
   };
-  const onPointerMove = () => undefined;
+  const onPointerMove = (event: PointerEvent<HTMLCanvasElement>) => {
+    const current = touch.current;
+    if (!current) return;
+    current.moved = point(event);
+    // At most one move per animation frame.
+    if (current.frame) return;
+    current.frame = requestAnimationFrame(() => {
+      current.frame = 0;
+      if (touch.current !== current || !current.moved) return;
+      send({ type: "touch", phase: "move", ...current.moved });
+      current.moved = null;
+    });
+  };
   const onPointerUp = (event: PointerEvent<HTMLCanvasElement>) => {
-    const start = drag.current;
-    if (!start) return;
-    drag.current = null;
-    const end = point(event);
-    const rect = event.currentTarget.getBoundingClientRect();
-    const moved = Math.hypot((end.x - start.x) * rect.width, (end.y - start.y) * rect.height);
-    if (moved < 6) act({ type: "tap", x: start.x, y: start.y });
-    else act({ type: "swipe", startX: start.x, startY: start.y, endX: end.x, endY: end.y });
+    const current = touch.current;
+    if (!current) return;
+    touch.current = null;
+    cancelAnimationFrame(current.frame);
+    send({ type: "touch", phase: "up", ...point(event) });
   };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!attached?.input || event.metaKey || event.ctrlKey) return;
-    if (KEYS[event.key]) { event.preventDefault(); act({ type: "key", usage: KEYS[event.key] }); return; }
-    if (event.key.length === 1) { event.preventDefault(); act({ type: "text", text: event.key }); }
+    if (!attached?.input || event.metaKey || event.ctrlKey || event.nativeEvent.isComposing) return;
+    if (KEYS[event.key]) { event.preventDefault(); send({ type: "key", usage: KEYS[event.key] }); return; }
+    if (event.key.length === 1) { event.preventDefault(); send({ type: "text", text: event.key }); }
   };
 
   const label = attached?.name ?? t("simulator.choose");
@@ -243,7 +266,7 @@ export function SimulatorPane({ paneId }: { paneId: string }) {
     <div className="simulator-body" tabIndex={0} onKeyDown={onKeyDown} aria-label={t("simulator.title")}>
       <DeviceScreen kind={attached?.family === "tablet" ? "iPad" : "iPhone"} pixelWidth={attached?.pixelWidth} pixelHeight={attached?.pixelHeight} landscape={landscape} label={t}
         onPressButton={attached?.input ? (button) => act({ type: "button", name: button }) : undefined}>
-        <canvas ref={canvas} className={cn("simulator-canvas", !live && "opacity-0")} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} />
+        <canvas ref={canvas} className={cn("simulator-canvas", !live && "opacity-0")} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onLostPointerCapture={onPointerUp} />
         {message ? <p className="simulator-message ui-caption">{message}</p> : null}
       </DeviceScreen>
     </div>

@@ -54,6 +54,7 @@ mod session_export;
 mod side_chat;
 mod sidebar;
 mod simulator;
+mod simulator_h264;
 mod skills;
 mod tasks;
 mod team;

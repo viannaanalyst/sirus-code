@@ -12,6 +12,7 @@
 import CoreVideo
 import Foundation
 import IOSurface
+import Metal
 import VideoToolbox
 
 /// Wire-format constants, mirrored from `packages/contracts/src/device.ts`.
@@ -212,11 +213,15 @@ final class FrameStream {
   private let startedAt = CFAbsoluteTimeGetCurrent()
   private var sequence: UInt32 = 0
   private var lastKeyframeAt: Double = -.greatestFiniteMagnitude
-  private var encodingInFlight = false
+  private var copiesInFlight = 0
+  private var encodesInFlight = 0
+  private let copier = GPUCopier()
   private var streamGeneration: UInt64 = 0
   private var stopped = false
   private var emittedFrameCount = 0
   private var droppedBusyFrameCount = 0
+  private var keyframeRequested = false
+  private var settleItem: DispatchWorkItem?
   private let stateLock = NSLock()
 
   private(set) var pixelWidth = 0
@@ -298,7 +303,8 @@ final class FrameStream {
       if stopped { return false }
       stopped = true
       streamGeneration &+= 1
-      encodingInFlight = false
+      settleItem?.cancel()
+      settleItem = nil
       return true
     }
     guard shouldStop else { return }
@@ -331,6 +337,15 @@ final class FrameStream {
 
   var droppedSocketFrames: Int { writer.droppedFrames }
 
+  /// Re-encodes the current screen as a keyframe (with parameter sets) without
+  /// restarting the session, for a consumer that joined late or flushed its decoder.
+  func requestKeyframe() {
+    withStateLock { keyframeRequested = true }
+    if let surface = descriptor.currentFramebufferSurface() {
+      encode(surface: surface)
+    }
+  }
+
   private func startSessionOnQueue(width: Int, height: Int) throws {
     var created: VTCompressionSession?
     let status = VTCompressionSessionCreate(
@@ -361,59 +376,124 @@ final class FrameStream {
       value: keyframeIntervalSeconds as CFNumber)
     VTSessionSetProperty(
       session, key: kVTCompressionPropertyKey_ExpectedFrameRate, value: 60 as CFNumber)
+    // Unbounded quality made each frame up to ~1 MB, which held the encoder
+    // busy for ~70 ms and dropped most frames of an animation. A bitrate that
+    // scales with the screen area keeps frames small and the encoder at 60 fps.
+    let bitrate = min(max(width * height * 4, 4_000_000), 24_000_000)
+    VTSessionSetProperty(
+      session, key: kVTCompressionPropertyKey_AverageBitRate, value: bitrate as CFNumber)
+    VTSessionSetProperty(
+      session, key: kVTCompressionPropertyKey_MaxFrameDelayCount, value: 0 as CFNumber)
+    if #available(macOS 13.0, *) {
+      VTSessionSetProperty(
+        session, key: kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality,
+        value: kCFBooleanTrue)
+    }
     VTCompressionSessionPrepareToEncodeFrames(session)
 
     self.session = session
   }
 
-  /// Encodes one surface. Returns immediately when an encode is already in
-  /// flight: dropping is the correct response to a display that outruns the
-  /// encoder, since only the newest frame matters.
-  private func encode(surface: IOSurfaceRef) {
+  /// Encodes the current screen once more shortly after it stops changing. A
+  /// change dropped while the encoder was busy would otherwise never be sent,
+  /// and a decoder that holds its newest picture (WebKit) presents it once the
+  /// next, identical frame arrives, without a flush or a keyframe.
+  private func scheduleSettle() {
+    let item = DispatchWorkItem { [weak self] in
+      guard let self, let surface = self.descriptor.currentFramebufferSurface() else { return }
+      self.encode(surface: surface, settling: true)
+    }
+    let previous = withStateLock { () -> DispatchWorkItem? in
+      if stopped { return nil }
+      let previous = settleItem
+      settleItem = item
+      return previous
+    }
+    previous?.cancel()
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(
+      deadline: .now() + .milliseconds(60), execute: item)
+  }
+
+  /// Encodes one surface. The simulator draws every frame into the same
+  /// surface, and reading it waits until that drawing completes (~20-40 ms), so
+  /// frames are copied on the GPU without waiting and encoded when each copy
+  /// completes. With at most two copies and two encodes in flight, a display
+  /// that outruns the pipeline drops frames instead of queueing them; the settle
+  /// pass then sends the newest one.
+  private func encode(surface: IOSurfaceRef, settling: Bool = false) {
+    if !settling { scheduleSettle() }
     let generation = withStateLock { () -> UInt64? in
       if stopped { return nil }
-      if encodingInFlight {
+      if copiesInFlight >= 3 || encodesInFlight >= 2 {
         droppedBusyFrameCount += 1
         return nil
       }
-      encodingInFlight = true
+      copiesInFlight += 1
       return streamGeneration
     }
-    guard let generation else { return }
-
-    // The surface must be retained across the async hop: the simulator may
-    // recycle it as soon as this callback returns.
-    let retained = Unmanaged.passRetained(surface as AnyObject)
-    encodeQueue.async { [weak self] in
-      defer {
-        retained.release()
-        self?.finishEncoding(generation: generation)
+    guard let generation else {
+      // A settle pass that met a busy pipeline tries again shortly.
+      if settling { scheduleSettle() }
+      return
+    }
+    let started = copier.copy(surface) { [weak self] buffer in
+      guard let self else { return }
+      self.withStateLock { self.copiesInFlight -= 1 }
+      guard let buffer else { return }
+      self.encodeQueue.async { self.encodeOnQueue(pixelBuffer: buffer, generation: generation) }
+    }
+    if !started {
+      // No Metal: encode the shared surface directly (slower, same result).
+      withStateLock { copiesInFlight -= 1 }
+      var wrapped: Unmanaged<CVPixelBuffer>?
+      guard
+        CVPixelBufferCreateWithIOSurface(kCFAllocatorDefault, surface, nil, &wrapped)
+          == kCVReturnSuccess, let wrapped
+      else { return }
+      let buffer = wrapped.takeRetainedValue()
+      encodeQueue.async { [weak self] in
+        self?.encodeOnQueue(pixelBuffer: buffer, generation: generation)
       }
-      self?.encodeOnQueue(surface: surface, generation: generation)
     }
   }
 
-  private func encodeOnQueue(surface: IOSurfaceRef, generation: UInt64) {
-    guard accepts(generation: generation), let session, !writer.isClosed else { return }
-
-    var unmanagedBuffer: Unmanaged<CVPixelBuffer>?
-    let status = CVPixelBufferCreateWithIOSurface(
-      kCFAllocatorDefault, surface, nil, &unmanagedBuffer)
-    guard status == kCVReturnSuccess, let unmanagedBuffer else { return }
-    let pixelBuffer = unmanagedBuffer.takeRetainedValue()
-
+  private func encodeOnQueue(pixelBuffer: CVPixelBuffer, generation: UInt64) {
+    guard accepts(generation: generation), var session = self.session, !writer.isClosed else {
+      return
+    }
     let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
     let presentationTime = CMTime(seconds: elapsed, preferredTimescale: 1000)
 
+    // A swapped surface of another size (rotation, resize) needs a session of
+    // that size; the encoder would otherwise reject every frame.
+    let width = CVPixelBufferGetWidth(pixelBuffer)
+    let height = CVPixelBufferGetHeight(pixelBuffer)
+    if width != pixelWidth || height != pixelHeight {
+      VTCompressionSessionInvalidate(session)
+      self.session = nil
+      guard (try? startSessionOnQueue(width: width, height: height)) != nil,
+        let resized = self.session
+      else { return }
+      pixelWidth = width
+      pixelHeight = height
+      session = resized
+      lastKeyframeAt = -.greatestFiniteMagnitude
+    }
+
+    let requested = withStateLock { () -> Bool in
+      defer { keyframeRequested = false }
+      return keyframeRequested
+    }
     var properties: [CFString: Any]? = nil
-    if elapsed - lastKeyframeAt >= keyframeIntervalSeconds {
+    if requested || elapsed - lastKeyframeAt >= keyframeIntervalSeconds {
       // Periodic keyframes bound how long a late joiner waits for a decodable
       // picture and give the consumer a resync point after dropped frames.
       properties = [kVTEncodeFrameOptionKey_ForceKeyFrame: kCFBooleanTrue!]
       lastKeyframeAt = elapsed
     }
 
-    VTCompressionSessionEncodeFrame(
+    withStateLock { encodesInFlight += 1 }
+    let submitted = VTCompressionSessionEncodeFrame(
       session,
       imageBuffer: pixelBuffer,
       presentationTimeStamp: presentationTime,
@@ -421,10 +501,14 @@ final class FrameStream {
       frameProperties: properties as CFDictionary?,
       infoFlagsOut: nil
     ) { [weak self] encodeStatus, _, sampleBuffer in
-      guard let self, encodeStatus == noErr, let sampleBuffer,
-        self.accepts(generation: generation)
+      guard let self else { return }
+      self.withStateLock { self.encodesInFlight -= 1 }
+      guard encodeStatus == noErr, let sampleBuffer, self.accepts(generation: generation)
       else { return }
       self.emit(sampleBuffer: sampleBuffer, generation: generation)
+    }
+    if submitted != noErr {
+      withStateLock { encodesInFlight -= 1 }
     }
   }
 
@@ -533,12 +617,6 @@ final class FrameStream {
     return true
   }
 
-  private func finishEncoding(generation: UInt64) {
-    withStateLock {
-      if acceptsGenerationLocked(generation) { encodingInFlight = false }
-    }
-  }
-
   private func accepts(generation: UInt64) -> Bool {
     withStateLock { acceptsGenerationLocked(generation) }
   }
@@ -551,5 +629,63 @@ final class FrameStream {
     stateLock.lock()
     defer { stateLock.unlock() }
     return operation()
+  }
+}
+
+
+/// Copies the simulator framebuffer into buffers this process owns, on the GPU
+/// and without waiting: the completion runs once the simulator's drawing into
+/// the shared surface and the copy have finished.
+final class GPUCopier {
+  private let device = MTLCreateSystemDefaultDevice()
+  private lazy var queue = device?.makeCommandQueue()
+  private let lock = NSLock()
+  private var pool: CVPixelBufferPool?
+  private var poolSize = (width: 0, height: 0)
+
+  /// Returns false when the copy could not start (no Metal or an unexpected format).
+  func copy(_ source: IOSurfaceRef, done: @escaping (CVPixelBuffer?) -> Void) -> Bool {
+    let width = IOSurfaceGetWidth(source)
+    let height = IOSurfaceGetHeight(source)
+    guard let device, let queue, IOSurfaceGetPixelFormat(source) == kCVPixelFormatType_32BGRA,
+      let buffer = makeBuffer(width: width, height: height),
+      let target = CVPixelBufferGetIOSurface(buffer)?.takeUnretainedValue()
+    else { return false }
+    let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+      pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+    descriptor.usage = [.shaderRead]
+    guard let from = device.makeTexture(descriptor: descriptor, iosurface: source, plane: 0),
+      let to = device.makeTexture(descriptor: descriptor, iosurface: target, plane: 0),
+      let commands = queue.makeCommandBuffer(), let blit = commands.makeBlitCommandEncoder()
+    else { return false }
+    blit.copy(from: from, to: to)
+    blit.endEncoding()
+    commands.addCompletedHandler { completed in
+      done(completed.status == .completed ? buffer : nil)
+    }
+    commands.commit()
+    return true
+  }
+
+  private func makeBuffer(width: Int, height: Int) -> CVPixelBuffer? {
+    lock.lock()
+    defer { lock.unlock() }
+    if pool == nil || poolSize != (width, height) {
+      var created: CVPixelBufferPool?
+      let attributes: [CFString: Any] = [
+        kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+        kCVPixelBufferWidthKey: width,
+        kCVPixelBufferHeightKey: height,
+        kCVPixelBufferIOSurfacePropertiesKey: [:] as CFDictionary,
+        kCVPixelBufferMetalCompatibilityKey: true,
+      ]
+      CVPixelBufferPoolCreate(kCFAllocatorDefault, nil, attributes as CFDictionary, &created)
+      pool = created
+      poolSize = (width, height)
+    }
+    guard let pool else { return nil }
+    var buffer: CVPixelBuffer?
+    CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &buffer)
+    return buffer
   }
 }

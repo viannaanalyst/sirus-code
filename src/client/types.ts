@@ -848,12 +848,12 @@ export type CiFixAction = { type: "status" } | { type: "setEnabled"; sessionId: 
 
 /** iOS Simulator pane (ADR-066). */
 export interface SimulatorDevice { udid: string; name: string; runtime: string; booted: boolean; family: "phone" | "tablet" }
-export interface SimulatorAttached { udid: string; name: string; family: "phone" | "tablet"; pixelWidth: number; pixelHeight: number; input: boolean }
-export interface SimulatorFrame { udid: string; sequence: number; timestampMs: number; keyframe: boolean; config: boolean; data: string }
+export interface SimulatorAttached { udid: string; name: string; family: "phone" | "tablet"; pixelWidth: number; pixelHeight: number; pointWidth: number; pointHeight: number; input: boolean }
+export interface SimulatorFrame { udid: string; sequence: number; timestampMs: number; keyframe: boolean; config: boolean; data: Uint8Array }
 export type SimulatorAction =
   | { type: "probe" } | { type: "list" } | { type: "attach"; udid: string } | { type: "detach" }
   | { type: "tap"; x: number; y: number } | { type: "touch"; phase: "down" | "move" | "up"; x: number; y: number }
   | { type: "swipe"; startX: number; startY: number; endX: number; endY: number }
   | { type: "key"; usage: number; phase?: "down" | "up" } | { type: "text"; text: string }
   | { type: "button"; name: "home" | "lock" | "volume-up" | "volume-down" }
-  | { type: "screenshot" } | { type: "resync" } | { type: "record"; start: boolean } | { type: "shutdown"; udid: string; confirm: true };
+  | { type: "screenshot" } | { type: "resync" } | { type: "unwatch"; id: number } | { type: "record"; start: boolean } | { type: "shutdown"; udid: string; confirm: true };

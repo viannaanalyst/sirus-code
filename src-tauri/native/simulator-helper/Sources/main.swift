@@ -328,6 +328,12 @@ final class HelperSession {
     return stats
   }
 
+  func streamKeyframe() -> [String: Any] {
+    guard let stream else { return ["running": false] }
+    stream.requestKeyframe()
+    return ["running": true]
+  }
+
   func streamStats() -> [String: Any] {
     guard let stream else { return ["running": false] }
     return [
@@ -396,6 +402,9 @@ func handle(method: String, params: Params, session: HelperSession) throws -> An
 
   case "stream.stop":
     return session.stopStream()
+
+  case "stream.keyframe":
+    return session.streamKeyframe()
 
   case "stream.stats":
     return session.streamStats()

@@ -1,4 +1,5 @@
 import { LocalTransport } from "./local-transport";
+import { parseSimulatorFrame } from "./simulator-frame";
 import type { Transport } from "./transport";
 import type {
   AgentEvent,
@@ -579,9 +580,18 @@ export class SirusClient {
     return this.transport.invoke<T>("simulator_action", { action });
   }
 
-  /** Frames arrive in small batches (at most ~30 events per second). */
-  onSimulatorFrames(handler: (frames: import("./types").SimulatorFrame[]) => void) {
-    return this.transport.listen<{ frames: import("./types").SimulatorFrame[] }>("simulator-frame", (event) => handler(event.frames ?? []));
+  /**
+   * Subscribes to the attached simulator's frames; the stream runs while a pane
+   * watches. Each message is the helper's binary envelope, unchanged.
+   */
+  async watchSimulator(handler: (frame: import("./types").SimulatorFrame) => void): Promise<() => void> {
+    if (!this.transport.channel) throw new Error("This transport cannot stream simulator frames.");
+    const channel = await this.transport.channel<ArrayBuffer>((buffer) => {
+      const frame = parseSimulatorFrame(buffer);
+      if (frame) handler(frame);
+    });
+    const { id } = await this.transport.invoke<{ id: number }>("simulator_action", { action: { type: "watch", channel } });
+    return () => { void this.transport.invoke("simulator_action", { action: { type: "unwatch", id } }).catch(() => undefined); };
   }
 
   onSimulatorState(handler: (state: { attached: import("./types").SimulatorAttached | null }) => void) {

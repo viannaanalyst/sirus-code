@@ -11,6 +11,10 @@
 //!
 //! Lifecycle and safety:
 //! - one app-wide attached device; the renderer and agent tools share it;
+//! - frames are encoded only while a pane watches; a late or flushed decoder
+//!   asks for a keyframe of the current screen instead of restarting the stream;
+//! - attach, detach and stream changes run one at a time; a helper that exits
+//!   is restarted and re-attached on the next use;
 //! - devices Sirus Code booted are capped at 3 and shut down 10 minutes after
 //!   detach, on switching away and on quit; devices the person booted are never
 //!   shut down automatically;
@@ -24,9 +28,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tauri::ipc::{Channel, InvokeResponseBody, JavaScriptChannelId};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::oneshot;
@@ -40,12 +44,14 @@ const BOOT_SETTLE: Duration = Duration::from_secs(8);
 const IDLE_SHUTDOWN: Duration = Duration::from_secs(10 * 60);
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_FRAME: usize = 16 * 1024 * 1024;
-/// Renderer frame batches: at most one event per interval (~30 per second).
-const FRAME_BATCH: Duration = Duration::from_millis(33);
-/// Encoded bytes a batch may hold before deltas are dropped until a keyframe.
-const MAX_BATCH_BYTES: usize = 6 * 1024 * 1024;
+/// Panes that may receive frames at once; the oldest is dropped beyond this
+/// (a reloaded webview never unsubscribes its previous channel).
+const MAX_SUBSCRIBERS: usize = 4;
 const MAX_TEXT: usize = 2_000;
-pub const FRAME_EVENT: &str = "simulator-frame";
+/// Longest helper reply line (a full-resolution iPad screenshot in base64 fits).
+const MAX_REPLY_LINE: usize = 48 * 1024 * 1024;
+/// How long a stream start keeps retrying while a fresh boot has no framebuffer yet.
+const DISPLAY_WAIT: Duration = Duration::from_secs(45);
 pub const STATE_EVENT: &str = "simulator-state";
 
 /// Embedded helper sources, written next to the build output before compiling.
@@ -113,6 +119,7 @@ struct Helper {
     pending: Pending,
     next: AtomicU64,
     dead: Arc<AtomicBool>,
+    stderr: Arc<parking_lot::Mutex<String>>,
     _child: tokio::process::Child,
 }
 
@@ -124,6 +131,9 @@ pub struct Attached {
     pub family: String,
     pub pixel_width: u32,
     pub pixel_height: u32,
+    /// Screen size in points; accessibility frames use these units.
+    pub point_width: f64,
+    pub point_height: f64,
     pub input: bool,
 }
 
@@ -142,6 +152,19 @@ struct Sim {
     recording: tokio::sync::Mutex<Option<Recording>>,
     stream: parking_lot::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
     generation: AtomicU64,
+    /// Serializes attach, detach and stream start/stop.
+    ops: tokio::sync::Mutex<()>,
+    /// Mounted panes' frame channels; the stream runs only while one exists.
+    subscribers: parking_lot::Mutex<Vec<(u64, Channel<InvokeResponseBody>)>>,
+    next_subscriber: AtomicU64,
+    streaming: AtomicBool,
+    /// Latest idle-shutdown timer per device; an older timer does nothing.
+    idle_token: AtomicU64,
+    idle_timers: parking_lot::Mutex<HashMap<String, u64>>,
+    /// A failed helper build for this Xcode/source, so later calls fail fast.
+    build_error: parking_lot::Mutex<Option<String>>,
+    /// Automatic recoveries of the helper or stream in the last minute.
+    recoveries: parking_lot::Mutex<Vec<std::time::Instant>>,
 }
 
 static SIM: OnceLock<Arc<Sim>> = OnceLock::new();
@@ -157,6 +180,14 @@ pub fn init(app: AppHandle, app_dir: &Path) {
         recording: tokio::sync::Mutex::new(None),
         stream: parking_lot::Mutex::new(None),
         generation: AtomicU64::new(0),
+        ops: tokio::sync::Mutex::new(()),
+        subscribers: parking_lot::Mutex::new(Vec::new()),
+        next_subscriber: AtomicU64::new(1),
+        streaming: AtomicBool::new(false),
+        idle_token: AtomicU64::new(0),
+        idle_timers: parking_lot::Mutex::new(HashMap::new()),
+        build_error: parking_lot::Mutex::new(None),
+        recoveries: parking_lot::Mutex::new(Vec::new()),
     }));
 }
 
@@ -239,6 +270,20 @@ fn source_hash() -> String {
 
 /// Builds the helper with the person's Xcode, once per Xcode build and source version.
 async fn build(sim: &Sim) -> Result<PathBuf> {
+    if let Some(message) = sim.build_error.lock().clone() {
+        return Err(Error::new("simulator", message));
+    }
+    let result = build_once(sim).await;
+    // A compiler failure repeats until Xcode changes; remember it for this run.
+    if let Err(Error::App { message, .. }) = &result {
+        if message.starts_with("Building the simulator helper failed") {
+            *sim.build_error.lock() = Some(message.clone());
+        }
+    }
+    result
+}
+
+async fn build_once(sim: &Sim) -> Result<PathBuf> {
     let version = tokio::process::Command::new("/usr/bin/xcodebuild")
         .arg("-version")
         .output()
@@ -326,6 +371,7 @@ async fn build(sim: &Sim) -> Result<PathBuf> {
         "ImageIO",
         "IOSurface",
         "VideoToolbox",
+        "Metal",
     ] {
         args.push("-framework".into());
         args.push(framework.into());
@@ -353,19 +399,22 @@ async fn build(sim: &Sim) -> Result<PathBuf> {
     Ok(binary)
 }
 
-async fn ensure_helper(sim: &Sim) -> Result<()> {
+/// Starts the helper when none is running. Returns true when it was (re)started,
+/// so the caller can re-attach a device the previous helper had.
+async fn ensure_helper(sim: &Sim) -> Result<bool> {
     let mut guard = sim.helper.lock().await;
     if guard
         .as_ref()
         .is_some_and(|helper| !helper.dead.load(Ordering::Acquire))
     {
-        return Ok(());
+        return Ok(false);
     }
+    let restarted = guard.is_some();
     let binary = build(sim).await?;
     let mut child = tokio::process::Command::new(&binary)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()
         .map_err(|error| {
@@ -382,16 +431,59 @@ async fn ensure_helper(sim: &Sim) -> Result<()> {
         .stdout
         .take()
         .ok_or_else(|| Error::new("simulator", "helper stdout"))?;
+    // The last lines the helper wrote to stderr explain a crash or failed call.
+    let stderr_tail: Arc<parking_lot::Mutex<String>> = Default::default();
+    if let Some(stderr) = child.stderr.take() {
+        let tail = stderr_tail.clone();
+        tauri::async_runtime::spawn(async move {
+            let mut lines = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let mut tail = tail.lock();
+                tail.push_str(line.chars().take(400).collect::<String>().as_str());
+                tail.push('\n');
+                if tail.len() > 2048 {
+                    let cut = tail.len() - 2048;
+                    let cut = (cut..tail.len())
+                        .find(|index| tail.is_char_boundary(*index))
+                        .unwrap_or(0);
+                    tail.drain(..cut);
+                }
+            }
+        });
+    }
     let pending: Pending = Default::default();
     let dead = Arc::new(AtomicBool::new(false));
-    let (reader_pending, reader_dead) = (pending.clone(), dead.clone());
+    let (reader_pending, reader_dead, reader_tail) =
+        (pending.clone(), dead.clone(), stderr_tail.clone());
     tauri::async_runtime::spawn(async move {
-        let mut lines = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if line.len() > 8 * 1024 * 1024 {
+        let mut reader = BufReader::new(stdout);
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            match (&mut reader)
+                .take(MAX_REPLY_LINE as u64 + 1)
+                .read_until(b'\n', &mut line)
+                .await
+            {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {}
+            }
+            if line.last() != Some(&b'\n') {
+                if line.len() <= MAX_REPLY_LINE {
+                    break; // End of output without a final newline.
+                }
+                // Longer than any reply: discard the rest of the line, fail its call.
+                if !skip_line(&mut reader).await {
+                    break;
+                }
+                if let Some(id) = oversized_id(&line) {
+                    if let Some(sender) = reader_pending.lock().remove(&id) {
+                        let _ = sender.send(Err("the simulator reply was too large".into()));
+                    }
+                }
                 continue;
             }
-            let Ok(message) = serde_json::from_str::<Value>(&line) else {
+            let Ok(message) = serde_json::from_slice::<Value>(&line) else {
                 continue;
             };
             let Some(id) = message.get("id").and_then(Value::as_u64) else {
@@ -412,8 +504,17 @@ async fn ensure_helper(sim: &Sim) -> Result<()> {
             }
         }
         reader_dead.store(true, Ordering::Release);
+        let reason = helper_stopped(&reader_tail.lock());
         for (_, sender) in reader_pending.lock().drain() {
-            let _ = sender.send(Err("the simulator helper stopped".into()));
+            let _ = sender.send(Err(reason.clone()));
+        }
+        // A device stays attached across a helper crash: bring it back.
+        if let Some(sim) = SIM.get().cloned() {
+            if sim.attached.lock().is_some() && allow_recovery(&sim) {
+                tauri::async_runtime::spawn(async move {
+                    let _ = recover(sim).await;
+                });
+            }
         }
     });
     *guard = Some(Helper {
@@ -421,14 +522,109 @@ async fn ensure_helper(sim: &Sim) -> Result<()> {
         pending,
         next: AtomicU64::new(1),
         dead,
+        stderr: stderr_tail,
         _child: child,
     });
-    Ok(())
+    Ok(restarted)
+}
+
+/// Consumes input up to and including the next newline without buffering it.
+async fn skip_line<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> bool {
+    loop {
+        let Ok(buffer) = reader.fill_buf().await else {
+            return false;
+        };
+        if buffer.is_empty() {
+            return false;
+        }
+        match buffer.iter().position(|byte| *byte == b'\n') {
+            Some(index) => {
+                reader.consume(index + 1);
+                return true;
+            }
+            None => {
+                let length = buffer.len();
+                reader.consume(length);
+            }
+        }
+    }
+}
+
+fn helper_stopped(tail: &str) -> String {
+    let last = tail.lines().rev().find(|line| !line.trim().is_empty());
+    match last {
+        Some(line) => format!("The simulator helper stopped: {}", line.trim()),
+        None => "The simulator helper stopped.".into(),
+    }
+}
+
+/// The JSON-RPC id at the start of an oversized reply line, if present.
+fn oversized_id(line: &[u8]) -> Option<u64> {
+    let head = String::from_utf8_lossy(&line[..line.len().min(256)]);
+    let start = head.find("\"id\":")? + 5;
+    let digits: String = head[start..]
+        .trim_start()
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
+    digits.parse().ok()
+}
+
+/// At most three automatic recoveries a minute, so a helper that keeps
+/// crashing surfaces its error instead of looping.
+fn allow_recovery(sim: &Sim) -> bool {
+    let now = std::time::Instant::now();
+    let mut recent = sim.recoveries.lock();
+    recent.retain(|at| now.duration_since(*at) < Duration::from_secs(60));
+    if recent.len() >= 3 {
+        return false;
+    }
+    recent.push(now);
+    true
+}
+
+/// Re-attaches the current device to a fresh helper and restarts the stream if a pane watches.
+/// Boxed because it is spawned from `ensure_helper`, which it calls again.
+fn recover(
+    sim: Arc<Sim>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> {
+    Box::pin(async move {
+        let _ops = sim.ops.lock().await;
+        let Some(udid) = sim.attached.lock().as_ref().map(|item| item.udid.clone()) else {
+            return Ok(());
+        };
+        discard_stream(&sim);
+        call(
+            &sim,
+            "attach",
+            json!({ "udid": udid }),
+            Duration::from_secs(60),
+        )
+        .await?;
+        reconcile_locked(&sim).await
+    })
 }
 
 async fn call(sim: &Sim, method: &str, params: Value, timeout: Duration) -> Result<Value> {
-    ensure_helper(sim).await?;
-    let receiver = {
+    if ensure_helper(sim).await? && !matches!(method, "attach" | "list" | "ping") {
+        // A new helper knows no device yet; re-attach the one the pane shows.
+        // Its stream is restarted by `recover`, spawned when the old one exited.
+        let udid = sim.attached.lock().as_ref().map(|item| item.udid.clone());
+        if let Some(udid) = udid {
+            send(
+                sim,
+                "attach",
+                json!({ "udid": udid }),
+                Duration::from_secs(60),
+            )
+            .await?;
+        }
+    }
+    send(sim, method, params, timeout).await
+}
+
+async fn send(sim: &Sim, method: &str, params: Value, timeout: Duration) -> Result<Value> {
+    let (receiver, pending, id, tail) = {
         let mut guard = sim.helper.lock().await;
         let helper = guard
             .as_mut()
@@ -441,17 +637,26 @@ async fn call(sim: &Sim, method: &str, params: Value, timeout: Duration) -> Resu
         )
         .map_err(|error| Error::new("simulator", error.to_string()))?;
         line.push(b'\n');
-        helper.stdin.write_all(&line).await?;
-        helper.stdin.flush().await?;
-        receiver
+        if helper.stdin.write_all(&line).await.is_err() || helper.stdin.flush().await.is_err() {
+            helper.pending.lock().remove(&id);
+            return Err(Error::new(
+                "simulator",
+                helper_stopped(&helper.stderr.lock()),
+            ));
+        }
+        (receiver, helper.pending.clone(), id, helper.stderr.clone())
     };
     match tokio::time::timeout(timeout, receiver).await {
         Ok(Ok(Ok(value))) => Ok(value),
         Ok(Ok(Err(message))) => Err(Error::new("simulator", message)),
-        _ => Err(Error::new(
-            "simulator",
-            format!("The simulator did not answer '{method}'."),
-        )),
+        Ok(Err(_)) => Err(Error::new("simulator", helper_stopped(&tail.lock()))),
+        Err(_) => {
+            pending.lock().remove(&id);
+            Err(Error::new(
+                "simulator",
+                format!("The simulator did not answer '{method}'."),
+            ))
+        }
     }
 }
 
@@ -539,20 +744,38 @@ async fn boot(sim: &Sim, udid: &str) -> Result<()> {
     if device.booted {
         return Ok(());
     }
-    if sim.booted.lock().len() >= MAX_BOOTED {
-        return Err(Error::new(
-            "limit",
-            "Sirus Code already started 3 simulators. Shut one down first.",
-        ));
+    {
+        // Devices shut down outside the app no longer count toward the cap, and
+        // the slot is taken before the slow boot so two boots cannot both pass.
+        let mut booted = sim.booted.lock();
+        booted.retain(|id| list.iter().any(|item| &item.udid == id && item.booted));
+        if booted.len() >= MAX_BOOTED {
+            return Err(Error::new(
+                "limit",
+                "Sirus Code already started 3 simulators. Shut one down first.",
+            ));
+        }
+        booted.insert(udid.to_string());
     }
-    let output = run(&["simctl", "boot", udid], Duration::from_secs(120)).await?;
-    if !output.status.success() && !stderr_of(&output).contains("Booted") {
-        return Err(Error::new(
-            "simulator",
-            format!("The simulator did not boot: {}", stderr_of(&output)),
-        ));
+    let started = match run(&["simctl", "boot", udid], Duration::from_secs(120)).await {
+        Ok(output) => {
+            let error = stderr_of(&output);
+            // "current state: Booted/Booting": someone else started it already.
+            if output.status.success() || error.contains("Booted") || error.contains("Booting") {
+                Ok(())
+            } else {
+                Err(Error::new(
+                    "simulator",
+                    format!("The simulator did not boot: {error}"),
+                ))
+            }
+        }
+        Err(error) => Err(error),
+    };
+    if let Err(error) = started {
+        sim.booted.lock().remove(udid);
+        return Err(error);
     }
-    sim.booted.lock().insert(udid.to_string());
     let _ = run(&["simctl", "bootstatus", udid], Duration::from_secs(180)).await;
     // `bootstatus` returns before SpringBoard accepts touches; a HID client
     // created earlier silently drops input, so give the home screen a moment.
@@ -560,14 +783,22 @@ async fn boot(sim: &Sim, udid: &str) -> Result<()> {
     Ok(())
 }
 
-async fn stop_stream(sim: &Sim) {
+/// Forgets the current stream locally (frames of older generations are ignored).
+fn discard_stream(sim: &Sim) {
+    sim.generation.fetch_add(1, Ordering::AcqRel);
     if let Some(task) = sim.stream.lock().take() {
         task.abort();
     }
+    sim.streaming.store(false, Ordering::Release);
+}
+
+async fn stop_stream(sim: &Sim) {
+    discard_stream(sim);
     let _ = call(sim, "stream.stop", json!({}), CALL_TIMEOUT).await;
 }
 
-/// Listens on the private frame socket and forwards each envelope to the renderer.
+/// Listens on the private frame socket and forwards each envelope, unchanged,
+/// as raw bytes to every subscribed pane (an `ArrayBuffer` in the webview).
 fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> {
     let _ = std::fs::remove_file(&socket);
     let listener = tokio::net::UnixListener::bind(&socket)?;
@@ -577,105 +808,68 @@ fn start_frames(sim: &Arc<Sim>, socket: PathBuf, generation: u64) -> Result<()> 
         let _ = std::fs::set_permissions(&socket, std::fs::Permissions::from_mode(0o600));
     }
     let owner = sim.clone();
-    // Frames are read as fast as the helper writes them but reach the renderer in
-    // batches, at most one event per FRAME_BATCH, so a busy screen cannot flood
-    // the webview's IPC queue. If a batch grows past MAX_BATCH_BYTES the deltas
-    // are dropped until the next keyframe, which redraws the whole screen.
-    let pending: Arc<parking_lot::Mutex<(Vec<Value>, usize, bool)>> = Default::default();
-    let reader_pending = pending.clone();
-    let reader_owner = owner.clone();
-    let done = Arc::new(AtomicBool::new(false));
-    let reader_done = done.clone();
-    let reader = tauri::async_runtime::spawn(async move {
-        let Ok((mut stream, _)) = listener.accept().await else {
-            return;
-        };
-        let mut length = [0u8; 4];
-        while stream.read_exact(&mut length).await.is_ok() {
-            let size = u32::from_le_bytes(length) as usize;
-            if !(17..=MAX_FRAME).contains(&size) {
-                break;
-            }
-            let mut envelope = vec![0u8; size];
-            if stream.read_exact(&mut envelope).await.is_err() {
-                break;
-            }
-            if reader_owner.generation.load(Ordering::Acquire) != generation {
-                break;
-            }
-            if u16::from_le_bytes([envelope[0], envelope[1]]) != 0x5346 {
-                continue;
-            }
-            let flags = envelope[3];
-            let (keyframe, config) = (flags & 1 != 0, flags & 2 != 0);
-            let sequence = u32::from_le_bytes([envelope[4], envelope[5], envelope[6], envelope[7]]);
-            let timestamp_ms = f64::from_bits(u64::from_le_bytes([
-                envelope[8],
-                envelope[9],
-                envelope[10],
-                envelope[11],
-                envelope[12],
-                envelope[13],
-                envelope[14],
-                envelope[15],
-            ]));
-            let id_length = envelope[16] as usize;
-            let Some(payload) = envelope.get(17 + id_length..) else {
-                continue;
-            };
-            let udid = String::from_utf8_lossy(&envelope[17..17 + id_length]).to_string();
-            let mut slot = reader_pending.lock();
-            let (frames, bytes, waiting_key) = &mut *slot;
-            if config || keyframe {
-                *waiting_key = false;
-            } else if *waiting_key {
-                continue;
-            }
-            if !config && !keyframe && *bytes + payload.len() > MAX_BATCH_BYTES {
-                // The renderer is behind: drop deltas until a keyframe resets the picture.
-                *waiting_key = true;
-                continue;
-            }
-            *bytes += payload.len();
-            frames.push(json!({
-                "udid": udid,
-                "sequence": sequence,
-                "timestampMs": timestamp_ms,
-                "keyframe": keyframe,
-                "config": config,
-                "data": base64::engine::general_purpose::STANDARD.encode(payload),
-            }));
-        }
-        reader_done.store(true, Ordering::Release);
-    });
     let task = tauri::async_runtime::spawn(async move {
-        let mut tick = tokio::time::interval(FRAME_BATCH);
-        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        loop {
-            tick.tick().await;
-            if owner.generation.load(Ordering::Acquire) != generation
-                || done.load(Ordering::Acquire)
-            {
-                break;
-            }
-            let frames = {
-                let mut slot = pending.lock();
-                slot.1 = 0;
-                std::mem::take(&mut slot.0)
-            };
-            if !frames.is_empty() {
-                let _ = owner.app.emit(FRAME_EVENT, json!({ "frames": frames }));
+        if let Ok((mut stream, _)) = listener.accept().await {
+            let mut length = [0u8; 4];
+            while stream.read_exact(&mut length).await.is_ok() {
+                let size = u32::from_le_bytes(length) as usize;
+                if !(17..=MAX_FRAME).contains(&size) {
+                    break;
+                }
+                let mut envelope = vec![0u8; size];
+                if stream.read_exact(&mut envelope).await.is_err() {
+                    break;
+                }
+                if owner.generation.load(Ordering::Acquire) != generation {
+                    return;
+                }
+                if u16::from_le_bytes([envelope[0], envelope[1]]) != 0x5346
+                    || 17 + envelope[16] as usize > envelope.len()
+                {
+                    continue;
+                }
+                if envelope[3] & 2 != 0 {
+                    // Codec parameters: declare no frame reordering so the webview's
+                    // decoder shows each frame at once (see `simulator_h264`).
+                    let header = 17 + envelope[16] as usize;
+                    if let Some(parameters) =
+                        crate::simulator_h264::low_latency_parameters(&envelope[header..])
+                    {
+                        envelope.truncate(header);
+                        envelope.extend_from_slice(&parameters);
+                    }
+                }
+                let channels: Vec<_> = owner
+                    .subscribers
+                    .lock()
+                    .iter()
+                    .map(|(_, channel)| channel.clone())
+                    .collect();
+                for channel in channels {
+                    let _ = channel.send(InvokeResponseBody::Raw(envelope.clone()));
+                }
             }
         }
-        reader.abort();
+        // The frame socket closed while this stream was current: restart it from
+        // another task, since discarding the stream aborts this one.
+        if owner.generation.load(Ordering::Acquire) == generation && allow_recovery(&owner) {
+            tauri::async_runtime::spawn(async move {
+                let _ops = owner.ops.lock().await;
+                if owner.generation.load(Ordering::Acquire) == generation {
+                    discard_stream(&owner);
+                    let _ = call(&owner, "stream.stop", json!({}), CALL_TIMEOUT).await;
+                    let _ = reconcile_locked(&owner).await;
+                }
+            });
+        }
     });
     *sim.stream.lock() = Some(task);
     Ok(())
 }
 
 /// Opens a fresh frame socket and starts the helper stream (codec parameters and a keyframe first).
+/// A device that just booted may have no framebuffer yet; retry for a while.
 async fn start_stream(sim: &Arc<Sim>) -> Result<Value> {
-    let generation = sim.generation.fetch_add(1, Ordering::AcqRel) + 1;
     std::fs::create_dir_all(&sim.dir)?;
     #[cfg(unix)]
     {
@@ -683,34 +877,66 @@ async fn start_stream(sim: &Arc<Sim>) -> Result<Value> {
         let _ = std::fs::set_permissions(&sim.dir, std::fs::Permissions::from_mode(0o700));
     }
     let socket = sim.dir.join("frames.sock");
-    start_frames(sim, socket.clone(), generation)?;
-    call(
-        sim,
-        "stream.start",
-        json!({ "socketPath": socket.to_string_lossy(), "keyframeIntervalSeconds": 2.0 }),
-        CALL_TIMEOUT,
-    )
-    .await
+    let deadline = std::time::Instant::now() + DISPLAY_WAIT;
+    loop {
+        let generation = sim.generation.fetch_add(1, Ordering::AcqRel) + 1;
+        start_frames(sim, socket.clone(), generation)?;
+        let started = call(
+            sim,
+            "stream.start",
+            json!({ "socketPath": socket.to_string_lossy(), "keyframeIntervalSeconds": 2.0 }),
+            CALL_TIMEOUT,
+        )
+        .await;
+        match started {
+            Ok(value) => {
+                sim.streaming.store(true, Ordering::Release);
+                return Ok(value);
+            }
+            Err(error) => {
+                discard_stream(sim);
+                let message = error.to_string();
+                if message.contains("already running") {
+                    let _ = call(sim, "stream.stop", json!({}), CALL_TIMEOUT).await;
+                } else if !message.contains("framebuffer") {
+                    return Err(error);
+                }
+                if std::time::Instant::now() >= deadline {
+                    return Err(error);
+                }
+                tokio::time::sleep(Duration::from_millis(750)).await;
+            }
+        }
+    }
 }
 
-/// A renderer that subscribed late asks for a fresh keyframe by restarting the stream.
-async fn restart_stream(sim: &Arc<Sim>) -> Result<()> {
-    sim.generation.fetch_add(1, Ordering::AcqRel);
-    stop_stream(sim).await;
-    start_stream(sim).await.map(|_| ())
+/// Runs the stream exactly while a device is attached and a pane watches it.
+async fn reconcile_locked(sim: &Arc<Sim>) -> Result<()> {
+    let wanted = sim.attached.lock().is_some() && !sim.subscribers.lock().is_empty();
+    let running = sim.streaming.load(Ordering::Acquire);
+    if wanted && !running {
+        start_stream(sim).await?;
+    } else if !wanted && running {
+        stop_stream(sim).await;
+    }
+    Ok(())
+}
+
+async fn reconcile(sim: &Arc<Sim>) -> Result<()> {
+    let _ops = sim.ops.lock().await;
+    reconcile_locked(sim).await
 }
 
 async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
     if !valid_udid(udid) {
         return Err(Error::new("invalid", "Invalid simulator."));
     }
-    let previous = sim.attached.lock().as_ref().map(|item| item.udid.clone());
-    if previous.as_deref() == Some(udid) {
-        if let Some(current) = sim.attached.lock().clone() {
-            return Ok(current);
-        }
+    let _ops = sim.ops.lock().await;
+    let current = sim.attached.lock().clone();
+    if let Some(current) = current.filter(|item| item.udid == udid) {
+        return Ok(current);
     }
-    detach(sim).await;
+    let previous = detach_locked(sim).await;
     boot(sim, udid).await?;
     // Switching away shuts down the device Sirus Code booted for the previous one.
     if let Some(previous) = previous.filter(|previous| previous != udid) {
@@ -723,9 +949,22 @@ async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
         Duration::from_secs(60),
     )
     .await?;
-    let started = start_stream(sim).await?;
     let list = devices(sim).await.unwrap_or_default();
     let device = list.iter().find(|device| device.udid == udid);
+    let size = |key: &str, fallback: u64| {
+        geometry
+            .get(key)
+            .and_then(Value::as_u64)
+            .unwrap_or(fallback)
+            .min(16_384) as u32
+    };
+    let points = |key: &str, fallback: f64| {
+        geometry
+            .get(key)
+            .and_then(Value::as_f64)
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .unwrap_or(fallback)
+    };
     let attached = Attached {
         udid: udid.to_string(),
         name: device
@@ -734,47 +973,82 @@ async fn attach(sim: &Arc<Sim>, udid: &str) -> Result<Attached> {
         family: device
             .map(|device| device.family.clone())
             .unwrap_or_else(|| "phone".into()),
-        pixel_width: started
-            .get("pixelWidth")
-            .and_then(Value::as_u64)
-            .unwrap_or(1206) as u32,
-        pixel_height: started
-            .get("pixelHeight")
-            .and_then(Value::as_u64)
-            .unwrap_or(2622) as u32,
+        pixel_width: size("pixelWidth", 1206),
+        pixel_height: size("pixelHeight", 2622),
+        point_width: points("pointWidth", 402.0),
+        point_height: points("pointHeight", 874.0),
         input: geometry
             .get("capabilities")
             .and_then(|caps| caps.get("input"))
-            .map(|input| input.as_bool().unwrap_or(true))
-            .unwrap_or(true),
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     };
     *sim.attached.lock() = Some(attached.clone());
     emit_state(sim);
+    reconcile_locked(sim).await?;
     Ok(attached)
 }
 
 async fn detach(sim: &Arc<Sim>) {
+    let _ops = sim.ops.lock().await;
+    detach_locked(sim).await;
+}
+
+/// Stops the stream and any recording, and schedules the idle shutdown of a
+/// device Sirus Code booted. Returns the device that was attached.
+async fn detach_locked(sim: &Arc<Sim>) -> Option<String> {
     let previous = sim.attached.lock().take();
-    sim.generation.fetch_add(1, Ordering::AcqRel);
-    stop_stream(sim).await;
-    if let Some(previous) = previous {
-        emit_state(sim);
-        // A device Sirus Code booted shuts down after a while unless it is attached again.
-        if sim.booted.lock().contains(&previous.udid) {
-            let owner = sim.clone();
-            tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(IDLE_SHUTDOWN).await;
-                let again = owner
-                    .attached
-                    .lock()
-                    .as_ref()
-                    .is_some_and(|item| item.udid == previous.udid);
-                if !again {
-                    shutdown_owned(&owner, &previous.udid).await;
-                }
-            });
-        }
+    if sim.streaming.load(Ordering::Acquire) || sim.stream.lock().is_some() {
+        stop_stream(sim).await;
+    } else {
+        discard_stream(sim);
     }
+    discard_recording(sim).await;
+    let previous = previous?;
+    emit_state(sim);
+    // A device Sirus Code booted shuts down after a while unless it is attached
+    // again; a later detach of the same device replaces this timer.
+    if sim.booted.lock().contains(&previous.udid) {
+        let token = sim.idle_token.fetch_add(1, Ordering::AcqRel) + 1;
+        sim.idle_timers.lock().insert(previous.udid.clone(), token);
+        let owner = sim.clone();
+        let udid = previous.udid.clone();
+        tauri::async_runtime::spawn(async move {
+            tokio::time::sleep(IDLE_SHUTDOWN).await;
+            if owner.idle_timers.lock().get(&udid) != Some(&token) {
+                return;
+            }
+            let _ops = owner.ops.lock().await;
+            let again = owner
+                .attached
+                .lock()
+                .as_ref()
+                .is_some_and(|item| item.udid == udid);
+            if !again {
+                owner.idle_timers.lock().remove(&udid);
+                shutdown_owned(&owner, &udid).await;
+            }
+        });
+    }
+    Some(previous.udid)
+}
+
+/// Ends a running recording without saving it (detach, switch, quit).
+async fn discard_recording(sim: &Sim) {
+    let Some(mut current) = sim.recording.lock().await.take() else {
+        return;
+    };
+    #[cfg(unix)]
+    if let Some(pid) = current.child.id() {
+        unsafe { libc::kill(pid as i32, libc::SIGINT) };
+    }
+    if tokio::time::timeout(Duration::from_secs(5), current.child.wait())
+        .await
+        .is_err()
+    {
+        let _ = current.child.kill().await;
+    }
+    let _ = std::fs::remove_file(&current.file);
 }
 
 async fn shutdown_owned(sim: &Sim, udid: &str) {
@@ -788,6 +1062,16 @@ pub fn shutdown_all() {
     let Some(sim) = SIM.get().cloned() else {
         return;
     };
+    if let Ok(mut recording) = sim.recording.try_lock() {
+        if let Some(mut current) = recording.take() {
+            #[cfg(unix)]
+            if let Some(pid) = current.child.id() {
+                unsafe { libc::kill(pid as i32, libc::SIGINT) };
+            }
+            let _ = current.child.start_kill();
+            let _ = std::fs::remove_file(&current.file);
+        }
+    }
     let owned: Vec<String> = sim.booted.lock().drain().collect();
     for udid in owned {
         let _ = std::process::Command::new(XCRUN)
@@ -798,6 +1082,11 @@ pub fn shutdown_all() {
     }
 }
 
+/// The helper types about one character every 30 ms.
+fn text_timeout(text: &str) -> Duration {
+    CALL_TIMEOUT + Duration::from_millis(40 * text.chars().count() as u64)
+}
+
 fn attached_udid(sim: &Sim) -> Result<String> {
     sim.attached
         .lock()
@@ -806,24 +1095,10 @@ fn attached_udid(sim: &Sim) -> Result<String> {
         .ok_or_else(|| Error::new("not_attached", "Choose a simulator first."))
 }
 
-/// Devices drawn with a physical Home button; every other iPhone/iPad goes home
-/// by swiping up from the bottom edge, which the HID Home usage does not do.
-fn has_home_button(name: &str) -> bool {
-    name.contains("iPhone SE") || name.contains("iPhone 8") || name.contains("(9th generation)")
-}
-
 async fn press_button(sim: &Sim, name: &str) -> Result<Value> {
-    let device = sim.attached.lock().as_ref().map(|item| item.name.clone());
-    match device {
-        Some(device) if name == "home" && !has_home_button(&device) => call(
-            sim,
-            "swipe",
-            json!({ "startX": 0.5, "startY": 0.995, "endX": 0.5, "endY": 0.6, "durationMs": 120 }),
-            CALL_TIMEOUT,
-        )
-        .await,
-        _ => call(sim, "button", json!({ "name": name }), CALL_TIMEOUT).await,
-    }
+    // The HID Home usage goes home on Face ID devices too; a synthetic edge
+    // swipe was unreliable (apps take it as a scroll).
+    call(sim, "button", json!({ "name": name }), CALL_TIMEOUT).await
 }
 
 async fn save_dialog(app: &AppHandle, name: &str, extension: &str) -> Option<PathBuf> {
@@ -839,7 +1114,7 @@ async fn save_dialog(app: &AppHandle, name: &str, extension: &str) -> Option<Pat
     rx.await.ok().flatten()
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(
     tag = "type",
     rename_all = "camelCase",
@@ -878,8 +1153,17 @@ pub enum Action {
         name: String,
     },
     Screenshot {},
-    /// Restarts the stream so the renderer gets codec parameters and a keyframe.
+    /// Asks for codec parameters and a keyframe of the current screen.
     Resync {},
+    /// A mounted pane subscribes its frame channel; returns the subscription id.
+    Watch {
+        channel: JavaScriptChannelId,
+    },
+    /// Ends a subscription from `Watch`.
+    Unwatch {
+        id: u64,
+    },
+
     Record {
         start: bool,
     },
@@ -890,7 +1174,11 @@ pub enum Action {
 }
 
 #[tauri::command]
-pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
+pub async fn simulator_action(
+    app: AppHandle,
+    webview: tauri::Webview,
+    action: Action,
+) -> Result<Value> {
     let _ = &app;
     let sim = sim()?;
     match action {
@@ -931,7 +1219,8 @@ pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
             if text.chars().count() > MAX_TEXT {
                 return Err(Error::new("invalid", "Text is too long."));
             }
-            call(&sim, "text", json!({ "text": text }), CALL_TIMEOUT).await
+            let timeout = text_timeout(&text);
+            call(&sim, "text", json!({ "text": text }), timeout).await
         }
         Action::Button { name } => {
             if !matches!(name.as_str(), "home" | "lock" | "side" | "siri" | "volume-up" | "volume-down") {
@@ -941,8 +1230,35 @@ pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
         }
         Action::Resync {} => {
             attached_udid(&sim)?;
-            restart_stream(&sim).await?;
+            let running = sim.streaming.load(Ordering::Acquire)
+                && call(&sim, "stream.keyframe", json!({}), CALL_TIMEOUT)
+                    .await?
+                    .get("running")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+            if !running {
+                // The helper lost the stream (restart): start a new one.
+                let _ops = sim.ops.lock().await;
+                discard_stream(&sim);
+                reconcile_locked(&sim).await?;
+            }
             Ok(json!({ "resynced": true }))
+        }
+        Action::Watch { channel } => {
+            let id = sim.next_subscriber.fetch_add(1, Ordering::Relaxed);
+            {
+                let mut subscribers = sim.subscribers.lock();
+                subscribers.push((id, channel.channel_on(webview)));
+                let excess = subscribers.len().saturating_sub(MAX_SUBSCRIBERS);
+                subscribers.drain(..excess);
+            }
+            reconcile(&sim).await?;
+            Ok(json!({ "id": id }))
+        }
+        Action::Unwatch { id } => {
+            sim.subscribers.lock().retain(|(item, _)| *item != id);
+            reconcile(&sim).await?;
+            Ok(json!({ "unwatched": true }))
         }
         Action::Screenshot {} => {
             attached_udid(&sim)?;
@@ -1001,10 +1317,12 @@ pub async fn simulator_action(app: AppHandle, action: Action) -> Result<Value> {
             if !confirm || !valid_udid(&udid) {
                 return Err(Error::new("invalid", "Shutting down a simulator needs confirmation."));
             }
+            let _ops = sim.ops.lock().await;
             if sim.attached.lock().as_ref().is_some_and(|item| item.udid == udid) {
-                detach(&sim).await;
+                detach_locked(&sim).await;
             }
             sim.booted.lock().remove(&udid);
+            sim.idle_timers.lock().remove(&udid);
             let output = run(&["simctl", "shutdown", &udid], Duration::from_secs(60)).await?;
             if !output.status.success() && !stderr_of(&output).contains("Shutdown") {
                 return Err(Error::new("simulator", stderr_of(&output)));
@@ -1024,8 +1342,8 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "simulator_install", "description": "Install a built .app bundle (path inside this session's workspace) on the attached simulator.", "inputSchema": { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] } }),
         json!({ "name": "simulator_launch", "description": "Launch an installed app by bundle identifier on the attached simulator.", "inputSchema": { "type": "object", "properties": { "bundleId": { "type": "string" } }, "required": ["bundleId"] } }),
         json!({ "name": "simulator_screenshot", "description": "PNG screenshot of the attached simulator screen.", "inputSchema": { "type": "object", "properties": {} } }),
-        json!({ "name": "simulator_describe_ui", "description": "Accessibility tree of the frontmost app (roles, labels, frames in points).", "inputSchema": { "type": "object", "properties": {} } }),
-        json!({ "name": "simulator_tap", "description": "Tap at normalized screen coordinates (0..1).", "inputSchema": point }),
+        json!({ "name": "simulator_describe_ui", "description": "Accessibility tree of the frontmost app (roles, labels, frames in points). Divide a point by the attached device's pointWidth/pointHeight (simulator_list) to get the 0..1 coordinates simulator_tap takes.", "inputSchema": { "type": "object", "properties": {} } }),
+        json!({ "name": "simulator_tap", "description": "Tap at normalized screen coordinates (0..1 of the screen width and height, not points).", "inputSchema": point }),
         json!({ "name": "simulator_swipe", "description": "Swipe between normalized points.", "inputSchema": { "type": "object", "properties": { "startX": { "type": "number" }, "startY": { "type": "number" }, "endX": { "type": "number" }, "endY": { "type": "number" } }, "required": ["startX", "startY", "endX", "endY"] } }),
         json!({ "name": "simulator_type", "description": "Type printable ASCII text into the focused field.", "inputSchema": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] } }),
         json!({ "name": "simulator_button", "description": "Press a hardware button: home, lock, volume-up, volume-down.", "inputSchema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] } }),
@@ -1128,7 +1446,8 @@ pub async fn execute(
             "simulator_type" => {
                 attached_udid(&sim)?;
                 let value = text("text", MAX_TEXT).unwrap_or_default();
-                call(&sim, "text", json!({ "text": value }), CALL_TIMEOUT).await
+                let timeout = text_timeout(&value);
+                call(&sim, "text", json!({ "text": value }), timeout).await
             }
             "simulator_button" => {
                 attached_udid(&sim)?;
@@ -1151,10 +1470,6 @@ mod tests {
 
     #[test]
     fn udids_coordinates_and_runtimes_are_strict() {
-        assert!(has_home_button("iPhone SE (3rd generation)"));
-        assert!(has_home_button("iPad (9th generation)"));
-        assert!(!has_home_button("iPhone 17 Pro"));
-        assert!(!has_home_button("iPad Pro 13-inch (M5)"));
         assert!(valid_udid("7997560A-87D6-47E3-A221-5078A0D241DF"));
         assert!(!valid_udid("7997560A-87D6-47E3-A221-5078A0D241D"));
         assert!(!valid_udid("../../etc/passwd-0000-0000-000000000000"));
@@ -1174,5 +1489,30 @@ mod tests {
         assert!(SWIFT_ORDER
             .iter()
             .all(|name| SOURCES.iter().any(|(source, _)| source == name)));
+    }
+
+    #[test]
+    fn helper_replies_and_errors_are_bounded() {
+        assert_eq!(
+            oversized_id(br#"{"jsonrpc":"2.0","id": 42,"result":{"#),
+            Some(42)
+        );
+        assert_eq!(oversized_id(b"no id here"), None);
+        assert_eq!(
+            helper_stopped("first\nlast line\n\n"),
+            "The simulator helper stopped: last line"
+        );
+        assert_eq!(helper_stopped(""), "The simulator helper stopped.");
+        assert!(text_timeout(&"a".repeat(MAX_TEXT)) > Duration::from_secs(90));
+    }
+
+    #[tokio::test]
+    async fn skipping_an_oversized_line_keeps_the_next_reply() {
+        let input: &[u8] = b"xxxxxxxx\n{\"id\":1}\n";
+        let mut reader = BufReader::with_capacity(4, input);
+        assert!(skip_line(&mut reader).await);
+        let mut rest = String::new();
+        reader.read_line(&mut rest).await.unwrap();
+        assert_eq!(rest, "{\"id\":1}\n");
     }
 }
