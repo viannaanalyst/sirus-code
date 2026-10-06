@@ -163,7 +163,12 @@ export default function App() {
       { id: "open-browser", combo: "Meta+alt+b", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().openDockPane("browser") },
       { id: "toggle-environment", combo: "Meta+alt+e", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().toggleEnvironment() },
       { id: "toggle-side-chat", combo: "Meta+alt+s", when: () => workspaceShortcutsAvailable(useAppStore.getState()), run: () => useAppStore.getState().toggleSideChat() },
-      ...(["find-in-conversation", "search-conversations"] as const).map(id => ({ id, combo: id === "find-in-conversation" ? "Meta+f" : "Meta+shift+f", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session"; }, run: () => useAppStore.getState().openTranscriptSearch(id === "find-in-conversation" ? "session" : "all") })),
+      ...(["find-in-conversation", "search-conversations"] as const).map(id => ({ id, combo: id === "find-in-conversation" ? "Meta+f" : "Meta+shift+f", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session"; }, run: () => {
+        // Pressing the shortcut again closes the open search of that scope.
+        const store = useAppStore.getState(), scope = id === "find-in-conversation" ? "session" : "all";
+        if (store.transcriptSearch?.scope === scope) store.closeTranscriptSearch();
+        else store.openTranscriptSearch(scope);
+      } })),
       { id: "stop-agent", combo: "Meta+.", run: () => void stopAgent() },
       { id: "toggle-sidebar", combo: "Meta+b", run: () => toggleSidebar() },
       { id: "open-project", combo: "Meta+o", run: () => void addProjectFromPicker() },

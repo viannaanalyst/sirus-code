@@ -1,7 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { PopoverAnchor } from "@radix-ui/react-popover";
 import { Check, Clock3, Ellipsis, GitPullRequest, GripVertical, Inbox, ListTodo, SlidersHorizontal } from "@/components/icons/phosphor";
-import { DraftIcon } from "@/components/icons/DraftIcon";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
@@ -20,7 +19,6 @@ export function RailGlyph({ id, active = false, size = 20 }: { id: RailItem; act
     case "tasks": return <ListTodo size={size} fill={fill} />;
     case "pulls": return <GitPullRequest size={size} fill={fill} />;
     case "automations": return <Clock3 size={size} fill={fill} />;
-    case "drafts": return <DraftIcon size={size} />;
   }
 }
 

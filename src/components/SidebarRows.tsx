@@ -4,7 +4,6 @@ import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Archive, ArchiveRestore, CircleCheck, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Undo2, Zap } from "@/components/icons/phosphor";
 import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { DraftIcon } from "@/components/icons/DraftIcon";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
@@ -81,20 +80,18 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
 /** `showProject` and `unseen` serve the cross-project Activity view. */
 export function SidebarSessionRow({ session, project, active, archived = false, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; archived?: boolean; showProject?: boolean; unseen?: boolean }) {
   const t = useTranslation();
-  const hasDraft = useAppStore((state) => Boolean(state.composerDrafts[`session:${session.id}`]?.trim()));
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
   const togglePin = () => { const state = useAppStore.getState(); void state.saveSettings({ ...state.settings, pinnedSessionIds: toggleSidebarId(state.settings.pinnedSessionIds, session.id) }); };
   const toggleArchive = () => { const state = useAppStore.getState(); if (archived) void state.saveSettings(archiveSidebarSession(state.settings, session.id)); else state.requestArchive(session.id); };
   return <SidebarHoverCard label={session.title} content={<SessionHoverContent session={session} project={project} />}>
     <SessionActions session={session}><div className={cn("sidebar-session-row", active && "sidebar-session-selected")}>
-      <button type="button" className="sidebar-session-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${t(`status.${session.status}`)}${hasDraft ? ` · ${t("Unsent draft")}` : ""}`} onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
+      <button type="button" className="sidebar-session-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${t(`status.${session.status}`)}`} onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
         <span className={cn("sidebar-session-brand", session.handoff && "sidebar-session-handoff")}>{session.handoff && <span className="sidebar-handoff-source"><ProviderIcon id={session.handoff.from} size={8} /></span>}<ModelIcon modelId={session.model ?? ""} provider={session.agent} size={12} /></span>
         <span className="sidebar-row-title">{session.title}</span>
         {temporary && <span className="sidebar-session-temporary" role="img" aria-label={t("temporary.badge")} title={t("temporary.badge")}><MessageCircle size={11} /></span>}
         {showProject && project && <span className="sidebar-session-project ui-caption">{project.name}</span>}
         {unseen && !active && <span className="sidebar-session-unseen" role="img" aria-label={t("activity.unread")} />}
-        {hasDraft && <span className="sidebar-session-draft" role="img" aria-label={t("Unsent draft")} title={t("Unsent draft")}><DraftIcon size={12} /></span>}
         {["starting", "running", "waiting", "failed"].includes(session.status) && <span className="sidebar-session-meta"><StatusIndicator status={session.status} /></span>}
       </button>
       <span className="sidebar-hover-actions sidebar-session-actions">{!archived && <RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={togglePin}>{pinned ? <PinOff /> : <Pin />}</RowAction>}<RowAction label={t(archived ? "Restore session" : "Archive session")} onClick={toggleArchive}>{archived ? <ArchiveRestore /> : <Archive />}</RowAction></span>
@@ -126,7 +123,6 @@ function SessionHoverContent({ session, project }: { session: Session; project?:
  */
 export function SidebarActivityRow({ session, project, active, done, unseen = false }: { session: Session; project?: Project; active: boolean; done: boolean; unseen?: boolean }) {
   const t = useTranslation();
-  const hasDraft = useAppStore((state) => Boolean(state.composerDrafts[`session:${session.id}`]?.trim()));
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
   const save = (update: (settings: AppSettings) => AppSettings) => { const state = useAppStore.getState(); void state.saveSettings(update(state.settings)); };
@@ -137,13 +133,12 @@ export function SidebarActivityRow({ session, project, active, done, unseen = fa
   const live = ["starting", "running", "waiting", "failed"].includes(session.status);
   return <SidebarHoverCard label={session.title} content={<SessionHoverContent session={session} project={project} />}>
     <SessionActions session={session}><div className={cn("sidebar-session-row sidebar-activity-row", active && "sidebar-session-selected", done && "sidebar-activity-done")}>
-      <button type="button" className="sidebar-activity-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${project?.name ?? ""} · ${t(`status.${session.status}`)}${hasDraft ? ` · ${t("Unsent draft")}` : ""}`}
+      <button type="button" className="sidebar-activity-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${project?.name ?? ""} · ${t(`status.${session.status}`)}`}
         onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
         <span className="sidebar-activity-line">
           <span className={cn("sidebar-session-brand", session.handoff && "sidebar-session-handoff")}>{session.handoff && <span className="sidebar-handoff-source"><ProviderIcon id={session.handoff.from} size={8} /></span>}<ModelIcon modelId={session.model ?? ""} provider={session.agent} size={12} /></span>
           <span className="sidebar-row-title">{session.title}</span>
           {temporary && <span className="sidebar-session-temporary" role="img" aria-label={t("temporary.badge")} title={t("temporary.badge")}><MessageCircle size={11} /></span>}
-          {hasDraft && <span className="sidebar-session-draft" role="img" aria-label={t("Unsent draft")} title={t("Unsent draft")}><DraftIcon size={12} /></span>}
         </span>
         <span className="sidebar-activity-meta ui-caption">
           <span className="sidebar-activity-project">{project ? <ProjectGlyph project={project} size={13} /> : <FolderGlyph aria-hidden="true" size={13} />}<span className="truncate">{project?.name ?? ""}</span>{session.worktree.isolated ? <GitCompareArrows aria-hidden="true" size={12} /> : null}</span>

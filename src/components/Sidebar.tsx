@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { PopoverAnchor } from "@radix-ui/react-popover";
 import { NotebookText, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
 import { SidebarActivityView } from "@/components/SidebarActivityView";
-import { DraftIcon } from "@/components/icons/DraftIcon";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
 import { SidebarHoverTrack } from "@/components/SidebarHoverTrack";
 import { SidebarProjects } from "@/components/SidebarProjects";
@@ -24,7 +23,6 @@ import { playSidebarCascade, type SidebarMotion } from "@/lib/sidebar-motion";
 import { useGlidingHover } from "@/lib/use-gliding-hover";
 import { useAppStore, selectListedSessions } from "@/store/app-store";
 import "@/styles/sidebar.css";
-import { useDraftOwners } from "@/lib/use-draft-owners";
 
 const sections = [
   { id: "home", label: "Home" },
@@ -41,8 +39,6 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   const toggleSidebar = useAppStore(state => state.toggleSidebar);
   const projects = useAppStore(state => state.projects);
   const [panel, dispatch] = useReducer(sidebarPanelReducer, initialSidebarPanel);
-  // The rail's feather filters Home to conversations with unsent drafts.
-  const [draftsOnly, setDraftsOnly] = useState(false);
   const rail = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
@@ -119,7 +115,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
       <h1 className="ui-brand truncate min-w-0 flex-1">{t(sections.find(item => item.id === section)!.label)}</h1>
       {floating && <IconButton label={t("Pin sidebar")} tooltip={false} onClick={pin} className="sidebar-header-action"><PanelLeft size={13} /></IconButton>}
     </div>}
-    {section === "home" || section === "archived" ? <SidebarActivity key={section} archived={section === "archived"} floating={floating} onPin={pin} draftsOnly={draftsOnly} /> : <div className="scroll-thin sidebar-section-body"><p className="ui-caption text-text-muted">{t("Projects")}</p>{projects.map(project => <button key={project.id} className="sidebar-menu-row sidebar-panel-link" onClick={() => { void useAppStore.getState().selectProject(project.id).then(() => useAppStore.getState().setMainView("kanban")).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }}><SidebarNavigationIcon section="kanban"/><span>{project.name}</span></button>)}<button className="sidebar-menu-row sidebar-panel-link" onClick={() => useAppStore.getState().setMainView("kanban")}><SidebarNavigationIcon section="kanban"/><span>{t("Kanban")}</span></button></div>}
+    {section === "home" || section === "archived" ? <SidebarActivity key={section} archived={section === "archived"} floating={floating} onPin={pin} /> : <div className="scroll-thin sidebar-section-body"><p className="ui-caption text-text-muted">{t("Projects")}</p>{projects.map(project => <button key={project.id} className="sidebar-menu-row sidebar-panel-link" onClick={() => { void useAppStore.getState().selectProject(project.id).then(() => useAppStore.getState().setMainView("kanban")).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }}><SidebarNavigationIcon section="kanban"/><span>{project.name}</span></button>)}<button className="sidebar-menu-row sidebar-panel-link" onClick={() => useAppStore.getState().setMainView("kanban")}><SidebarNavigationIcon section="kanban"/><span>{t("Kanban")}</span></button></div>}
   </SidebarHoverCards></SidebarPanelHoldContext>;
 
   return <aside className="sidebar-material sidebar-shell" aria-label={t("Sidebar")}>
@@ -145,12 +141,6 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
                 }}
                 onKeyDown={event => { if (event.key === "ArrowRight" && collapsed) { event.preventDefault(); peek(id, event.currentTarget); requestAnimationFrame(() => content.current?.querySelector<HTMLButtonElement>("button")?.focus()); } if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}><RailGlyph id={id} active={section === id && !onPage} /></button>;
             }
-            if (id === "drafts") return <button key={id} type="button" className="sidebar-rail-button sidebar-rail-drafts" data-section="drafts" aria-pressed={draftsOnly}
-              aria-label={t(draftsOnly ? "Show all conversations" : "Show only conversations with drafts")} title={t(draftsOnly ? "Show all conversations" : "Show only conversations with drafts")}
-              onPointerEnter={() => dismiss()} onFocus={() => dismiss()}
-              onClick={event => { const next = !draftsOnly; setDraftsOnly(next); if (next && !held.current.size) { trigger.current = event.currentTarget; dispatch({ type: "select", section: "home", collapsed }); } }}>
-              <DraftIcon size={20} />
-            </button>;
             return <button key={id} type="button" className="sidebar-rail-button" data-section={id} aria-label={t(RAIL_LABELS[id])} title={t(RAIL_LABELS[id])} aria-current={mainView === id ? "page" : undefined}
               onPointerEnter={() => dismiss()} onFocus={() => dismiss()}
               onClick={() => { cancelClose(); dispatch({ type: "dismiss" }); useAppStore.getState().setMainView(id); }}>
@@ -184,18 +174,17 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   </aside>;
 }
 
-function SidebarActivity({ archived, floating, onPin, draftsOnly }: { archived: boolean; floating: boolean; onPin: () => void; draftsOnly: boolean }) {
+function SidebarActivity({ archived, floating, onPin }: { archived: boolean; floating: boolean; onPin: () => void }) {
   const t = useTranslation();
   const shortcut = useShortcut("new-session");
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
-  const drafts = useDraftOwners();
   const settings = useAppStore(state => state.settings);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const mainView = useAppStore(state => state.mainView);
   const activityView = settings.sidebarActivityView;
   const unread = useAppStore(state => state.unseenSessionIds.some(id => id !== state.selectedSessionId));
-  const groups = useMemo(() => sidebarActivityFeed(projects, sessions, settings, drafts, { archived, draftsOnly: !archived && draftsOnly }), [projects, sessions, settings, drafts, archived, draftsOnly]);
+  const groups = useMemo(() => sidebarActivityFeed(projects, sessions, settings, { archived }), [projects, sessions, settings, archived]);
   const total = groups.reduce((sum, group) => sum + group.sessions.length, 0);
   return <>
     <div className="sidebar-panel-header">
@@ -207,7 +196,7 @@ function SidebarActivity({ archived, floating, onPin, draftsOnly }: { archived: 
     </div>
     <SidebarHoverTrack className="flex min-h-0 flex-1 flex-col">
     {!archived && <button data-new-session type="button" className="sidebar-menu-row sidebar-new-thread" onClick={() => useAppStore.getState().requestNewSession()}><SquarePen size={14} /><span>{t("New thread")}</span><kbd>{shortcut}</kbd></button>}
-    {!archived ? (activityView ? <SidebarActivityView floating={floating} draftsOnly={draftsOnly} /> : <SidebarProjects floating={floating} draftsOnly={draftsOnly} />) : <div className="scroll-thin sidebar-activity-list">{groups.map(group => group.sessions.length > 0 && <section key={group.label} aria-label={t(group.label)}><p className="sidebar-section-label ui-caption">{t(group.label)}</p>{group.sessions.map(session => <SidebarSessionRow key={session.id} session={session} project={projects.find(project => project.id === session.projectId)} active={mainView === "session" && selectedSessionId === session.id} archived={archived} />)}</section>)}{total === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(archived ? "No archived sessions" : "No sessions in this view")}</p>}</div>}
+    {!archived ? (activityView ? <SidebarActivityView floating={floating} /> : <SidebarProjects floating={floating} />) : <div className="scroll-thin sidebar-activity-list">{groups.map(group => group.sessions.length > 0 && <section key={group.label} aria-label={t(group.label)}><p className="sidebar-section-label ui-caption">{t(group.label)}</p>{group.sessions.map(session => <SidebarSessionRow key={session.id} session={session} project={projects.find(project => project.id === session.projectId)} active={mainView === "session" && selectedSessionId === session.id} archived={archived} />)}</section>)}{total === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(archived ? "No archived sessions" : "No sessions in this view")}</p>}</div>}
     </SidebarHoverTrack>
 
   </>;

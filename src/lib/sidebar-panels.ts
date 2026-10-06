@@ -27,21 +27,17 @@ export function sidebarPanelReducer(state: SidebarPanelState, event: SidebarPane
   }
 }
 
-export interface SidebarFeedSection { label: "Pinned" | "Drafts" | "Recent" | "Archived sessions"; sessions: Session[]; }
-export function sidebarActivityFeed(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, drafts: Readonly<Record<string, string>>, options: { projectId?: string | null; query?: string; draftsOnly?: boolean; archived?: boolean } = {}): SidebarFeedSection[] {
+export interface SidebarFeedSection { label: "Pinned" | "Recent" | "Archived sessions"; sessions: Session[]; }
+export function sidebarActivityFeed(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, options: { projectId?: string | null; query?: string; archived?: boolean } = {}): SidebarFeedSection[] {
   const inventory = sidebarGroups(projects, sessions, settings);
   const projectNames = new Map(projects.map(project => [project.id, project.name]));
   const needle = (options.query ?? "").trim().toLocaleLowerCase();
-  const draft = (session: Session) => Boolean(drafts[`session:${session.id}`]?.trim());
   const visible = (session: Session) => (!options.projectId || session.projectId === options.projectId)
-    && (!options.draftsOnly || draft(session))
     && (!needle || `${session.title} ${projectNames.get(session.projectId) ?? ""} ${session.worktree.branch}`.toLocaleLowerCase().includes(needle));
   if (options.archived) return [{ label: "Archived sessions", sessions: inventory.archived.filter(visible) }];
-  const recent = inventory.nested.filter(visible);
   return [
     { label: "Pinned", sessions: inventory.pinned.filter(visible) },
-    { label: "Drafts", sessions: recent.filter(draft) },
-    { label: "Recent", sessions: recent.filter(session => !draft(session)) },
+    { label: "Recent", sessions: inventory.nested.filter(visible) },
   ];
 }
 
@@ -67,13 +63,12 @@ export function isSessionDone(session: Session, done: AppSettings["doneSessions"
 
 /**
  * The sidebar Activity view: pinned first, then sessions that need the person,
- * running ones, drafts, the rest by day, and finally the ones marked Done.
+ * running ones, the rest by day, and finally the ones marked Done.
  * Each session appears once, in the first section that matches. Labels are i18n keys.
  */
-export function sidebarTimeline(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, drafts: Readonly<Record<string, string>>, now: Date, options: { scope?: string | null; draftsOnly?: boolean } = {}): ActivitySection[] {
+export function sidebarTimeline(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, now: Date, options: { scope?: string | null } = {}): ActivitySection[] {
   const inventory = sidebarGroups(projects, sessions, settings);
-  const draft = (session: Session) => Boolean(drafts[`session:${session.id}`]?.trim());
-  const inScope = (session: Session) => (!options.scope || session.projectId === options.scope) && (!options.draftsOnly || draft(session));
+  const inScope = (session: Session) => !options.scope || session.projectId === options.scope;
   const recent = (list: Session[]) => [...list].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
   const sections: ActivitySection[] = [{ key: "pinned", label: "Pinned", sessions: inventory.pinned.filter(inScope) }];
   let rest = recent(inventory.nested.filter(inScope));
@@ -83,7 +78,6 @@ export function sidebarTimeline(projects: readonly Project[], sessions: readonly
   };
   take("waiting", "activity.needsYou", (session) => session.status === "waiting");
   take("running", "activity.working", (session) => session.status === "running" || session.status === "starting");
-  take("drafts", "Drafts", draft);
   const done = rest.filter((session) => isSessionDone(session, settings.doneSessions));
   rest = rest.filter((session) => !done.includes(session));
   const day = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();

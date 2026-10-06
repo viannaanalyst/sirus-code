@@ -9,19 +9,17 @@ import { sidebarTimeline } from "@/lib/sidebar-panels";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { Tooltip } from "@/primitives/Tooltip";
 import { selectListedSessions, useAppStore } from "@/store/app-store";
-import { useDraftOwners } from "@/lib/use-draft-owners";
 
 /**
  * The sidebar's Activity view: every listed session across projects, grouped by
  * what needs attention, then by day, then Done. Scope and open sections are view
  * state; the view itself is the persisted `sidebarActivityView` setting.
  */
-export function SidebarActivityView({ floating, draftsOnly }: { floating: boolean; draftsOnly: boolean }) {
+export function SidebarActivityView({ floating }: { floating: boolean }) {
   const t = useTranslation();
   const projects = useAppStore((state) => state.projects);
   const sessions = useAppStore(selectListedSessions);
   const settings = useAppStore((state) => state.settings);
-  const drafts = useDraftOwners();
   const unseen = useAppStore((state) => state.unseenSessionIds);
   const splitDragging = useAppStore((state) => state.splitDrag !== null);
   useSidebarPanelHold(splitDragging);
@@ -32,7 +30,7 @@ export function SidebarActivityView({ floating, draftsOnly }: { floating: boolea
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ done: true });
   const liveScope = scope && projects.some((project) => project.id === scope) ? scope : null;
   // Day boundaries move at most once per render; no timer is needed for a list.
-  const sections = useMemo(() => sidebarTimeline(projects, sessions, settings, drafts, new Date(), { scope: liveScope, draftsOnly }), [projects, sessions, settings, drafts, liveScope, draftsOnly]);
+  const sections = useMemo(() => sidebarTimeline(projects, sessions, settings, new Date(), { scope: liveScope }), [projects, sessions, settings, liveScope]);
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const session of sessions) if (!settings.archivedSessionIds.includes(session.id)) map.set(session.projectId, (map.get(session.projectId) ?? 0) + 1);
@@ -81,7 +79,7 @@ export function SidebarActivityView({ floating, draftsOnly }: { floating: boolea
           <SidebarWindowedRows items={rows} rowKey={(session) => session.id} renderRow={(session) => <SidebarActivityRow session={session} project={projects.find((project) => project.id === session.projectId)} active={active(session.id)} done={section.key === "done"} unseen={unseen.includes(session.id)} />} />
         </section>;
       })}
-      {sections.length === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(draftsOnly ? "No conversations with unsent drafts" : "No sessions in this view")}</p>}
+      {sections.length === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t("No sessions in this view")}</p>}
     </div></SidebarHoverCards>
   </>;
 }

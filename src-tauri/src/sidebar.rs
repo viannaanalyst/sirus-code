@@ -53,6 +53,10 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
         .done_sessions
         .retain(|row| session_ids.contains(row.id.as_str()) && seen.insert(row.id.clone()));
     settings.done_sessions.truncate(4096);
+    // Rail items removed from the closed set (the old drafts filter) drop out of saved settings.
+    let rail: HashSet<&str> = crate::models::RAIL_ITEMS.into_iter().collect();
+    retain_unique(&mut settings.rail_item_order, &rail);
+    retain_unique(&mut settings.hidden_rail_items, &rail);
 }
 
 fn retain_unique(ids: &mut Vec<String>, owned: &HashSet<&str>) {
@@ -118,6 +122,17 @@ mod tests {
         assert!(validate(&data.settings).is_err());
         data.settings.pinned_project_ids = vec!["x".repeat(65)];
         assert!(validate(&data.settings).is_err());
+    }
+
+    #[test]
+    fn removed_rail_items_drop_out_of_saved_settings() {
+        let mut data = fixture();
+        data.settings.rail_item_order = vec!["drafts".into(), "inbox".into(), "inbox".into()];
+        data.settings.hidden_rail_items = vec!["drafts".into(), "pulls".into()];
+        prune(&mut data);
+        assert_eq!(data.settings.rail_item_order, ["inbox"]);
+        assert_eq!(data.settings.hidden_rail_items, ["pulls"]);
+        assert!(data.settings.validate_controls().is_ok());
     }
 
     #[test]

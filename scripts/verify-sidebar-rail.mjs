@@ -17,9 +17,9 @@ try {
     for (const collapsed of [false, true]) {
       snapshot.sidebarCollapsed = collapsed;
       const html = renderToString(createElement(TooltipProvider, null, createElement(Sidebar)));
-      // Eight customizable rail items (ADR-052), the "more" menu and Settings.
-      assert.equal((html.match(/data-section=/g) ?? []).length, 10);
-      assert.ok(html.includes('data-section="drafts"') && html.includes('data-section="more"'));
+      // Seven customizable rail items (ADR-052), the "more" menu and Settings.
+      assert.equal((html.match(/data-section=/g) ?? []).length, 9);
+      assert.ok(!html.includes('data-section="drafts"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");
       assert.ok(html.includes('aria-expanded="false"') && !html.includes('data-section="projects"'));
@@ -29,7 +29,6 @@ try {
         assert.ok(html.includes('id="sidebar-docked"') && html.includes("Session draft") && html.includes("Session recent"));
         assert.ok(!html.includes("sidebar-activity-second") && !html.includes("branch/draft"));
         assert.ok(!html.includes("sidebar-scope") && !html.includes("sidebar-section-heading") && !html.includes("data-open-project"));
-        assert.ok(/data-section="drafts" aria-pressed="false"/.test(html), "the drafts feather is a rail filter toggle");
         assert.ok(html.includes("sidebar-project-group") && html.includes("sidebar-folder-glyph"));
         assert.ok(!html.includes(locale === "pt-BR" ? "Ordenar sessões" : "Sort sessions"));
         assert.ok(!html.includes("sidebar-panel-footer"));

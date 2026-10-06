@@ -45,7 +45,7 @@ One closed command is added, `pull_request_action`:
 
 This ADR amends ADR-031's "no GitHub mutations": the inbox may change GitHub only through the four confirmed actions above.
 
-The same change adds the sidebar **Activity view**, a notebook toggle beside search persisted as `sidebarActivityView`. It groups listed sessions as Pinned, Needs you, Working, Drafts, then Today, Yesterday and Earlier, with a scope menu and "Mark all as read".
+The same change adds the sidebar **Activity view**, a notebook toggle beside search persisted as `sidebarActivityView`. It groups listed sessions as Pinned, Needs you, Working, then Today, Yesterday and Earlier, with a scope menu and "Mark all as read".
 
 *Amended:* the project grouping was removed at the owner's request, and rows now follow Synara: title, then project folder and branch, with hover Pin, Archive and Done.
 

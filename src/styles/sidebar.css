@@ -77,8 +77,6 @@
   .sidebar-session-handoff > span:last-child { position: relative; border-radius: 50%; background: var(--background-1); }
   .sidebar-session-meta { display: inline-flex; align-items: center; justify-content: center; width: 16px; flex-shrink: 0; }
   .sidebar-session-temporary { display: inline-flex; align-items: center; flex-shrink: 0; color: var(--text-muted); }
-  .sidebar-session-draft { display: inline-flex; align-items: center; flex-shrink: 0; color: var(--draft); }
-  .sidebar-session-draft > svg { width: 12px; height: 12px; }
   .sidebar-session-meta > svg { width: 14px; height: 14px; }
   .sidebar-session-row:is(:hover,:focus-within) .sidebar-session-meta { display: none; }
   /* House popover motion: grows from 96% beside its row, leaves quickly (Radix waits for the exit keyframes). */
@@ -139,8 +137,6 @@
   .sidebar-usage-mark { width: 15px; height: 15px; object-fit: contain; }
   .sidebar-usage-ring[data-unavailable] .sidebar-usage-mark { opacity: .55; }
   .sidebar-rail-button:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
-  .sidebar-rail-drafts, .sidebar-rail-drafts:hover, .sidebar-rail-drafts[aria-pressed="true"] { color: var(--draft); }
-  .sidebar-rail-drafts[aria-pressed="true"] { background: var(--navigation-selected); }
   .sidebar-docked-panel { min-width: 0; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px 8px 0; }
   /* Settings menu: the selection is one highlight that glides between items. */
   .settings-nav > :not(.settings-nav-indicator, .glide-hover-pill) { position: relative; z-index: 1; }

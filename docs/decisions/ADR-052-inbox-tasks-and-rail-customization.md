@@ -19,7 +19,7 @@ The owner asked for all three.
 **Rail customization.**
 
 - **Settings:** `AppSettings.railItemOrder`, `hiddenRailItems` and `railProjectShortcuts`.
-- **Items:** a closed set: home, inbox, kanban, tasks, archived, pulls, automations, drafts.
+- **Items:** a closed set: home, inbox, kanban, tasks, archived, pulls, automations. The drafts feather filter was removed later (2026-10-06): saved settings drop the `drafts` ID on load, and the sidebar no longer marks or groups sessions by unsent draft. Composer drafts still persist.
 - **Native validation:**
   - order and hidden lists may hold only known IDs, without duplicates;
   - Home cannot be hidden;

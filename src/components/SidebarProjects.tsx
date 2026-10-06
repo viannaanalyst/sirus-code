@@ -12,24 +12,21 @@ import { formatUnknownError } from "@/lib/format-error";
 import { usePointerReorder, type DropEdge } from "@/lib/use-pointer-reorder";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore, selectListedSessions } from "@/store/app-store";
-import { useDraftOwners } from "@/lib/use-draft-owners";
 
-export function SidebarProjects({ floating = false, query = "", draftsOnly = false }: { floating?: boolean; query?: string; draftsOnly?: boolean }) {
+export function SidebarProjects({ floating = false, query = "" }: { floating?: boolean; query?: string }) {
   const t = useTranslation();
   const projects = useAppStore(state => state.projects);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const sessions = useAppStore(selectListedSessions);
   const settings = useAppStore(state => state.settings);
-  const drafts = useDraftOwners();
   const groups = useMemo(() => {
     const catalog = sidebarGroups(projects, sessions, settings);
     const search = query.trim().toLocaleLowerCase();
-    const visible = (session: (typeof sessions)[number]) => (!draftsOnly || !!drafts[`session:${session.id}`]?.trim())
-      && (!search || `${session.title} ${projects.find(project => project.id === session.projectId)?.name ?? ""} ${session.worktree.branch}`.toLocaleLowerCase().includes(search));
+    const visible = (session: (typeof sessions)[number]) => !search || `${session.title} ${projects.find(project => project.id === session.projectId)?.name ?? ""} ${session.worktree.branch}`.toLocaleLowerCase().includes(search);
     const pinned = catalog.pinned.filter(visible), nested = catalog.nested.filter(visible);
-    return { ...catalog, pinned, nested, projects: catalog.projects.filter(project => ((!search && !draftsOnly) || [...pinned, ...nested].some(session => session.projectId === project.id))) };
-  }, [projects, sessions, settings, drafts, query, draftsOnly]);
+    return { ...catalog, pinned, nested, projects: catalog.projects.filter(project => (!search || [...pinned, ...nested].some(session => session.projectId === project.id))) };
+  }, [projects, sessions, settings, query]);
   const selectProject = useAppStore(state => state.selectProject);
   const requestNewSession = useAppStore(state => state.requestNewSession);
   const mainView = useAppStore(state => state.mainView);
@@ -50,7 +47,7 @@ export function SidebarProjects({ floating = false, query = "", draftsOnly = fal
   const splitDragging = useAppStore((state) => state.splitDrag !== null);
   useSidebarPanelHold(dragging !== null || splitDragging);
 
-  const isExpanded = (id: string) => expanded[id] ?? (id === selectedProjectId || !!query.trim() || draftsOnly);
+  const isExpanded = (id: string) => expanded[id] ?? (id === selectedProjectId || !!query.trim());
 
   return <SidebarHoverCards disabled={floating || dragging !== null || splitDragging}><div className="scroll-thin sidebar-project-list min-h-0 flex-1 overflow-y-auto" data-reorder-scope="">
             {groups.pinned.length > 0 && <section aria-label={t("Pinned")} className="sidebar-pinned-section">
@@ -91,6 +88,6 @@ export function SidebarProjects({ floating = false, query = "", draftsOnly = fal
               </section>;
             })}
 
-    {groups.projects.length === 0 && groups.pinned.length === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(draftsOnly && !query.trim() ? "No conversations with unsent drafts" : "No sessions in this view")}</p>}
+    {groups.projects.length === 0 && groups.pinned.length === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t("No sessions in this view")}</p>}
   </div></SidebarHoverCards>;
 }

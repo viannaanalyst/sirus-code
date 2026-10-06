@@ -682,7 +682,7 @@ impl Default for AppSettings {
 }
 
 /// Customizable rail items (Settings is fixed at the bottom).
-pub const RAIL_ITEMS: [&str; 8] = [
+pub const RAIL_ITEMS: [&str; 7] = [
     "home",
     "inbox",
     "kanban",
@@ -690,7 +690,6 @@ pub const RAIL_ITEMS: [&str; 8] = [
     "archived",
     "pulls",
     "automations",
-    "drafts",
 ];
 
 /// `owner/repo#number`, with the same repository charset as GitHub web URLs.

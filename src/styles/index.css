@@ -56,7 +56,6 @@
   --danger: #e5484d;
   --success: #3dd68c;
   --warning: #f5a524;
-  --draft: #3b82f6;
   --info: #3b82f6;
   --merged: #a371f7;
   --glass: #141414;
@@ -335,7 +334,6 @@ html[data-theme="light"] {
   --navigation-selected: color-mix(in srgb, var(--text-primary) 7%, transparent);
   --chat-bubble: color-mix(in srgb, var(--text-primary) 7%, transparent);
   --accent: #18181b;
-  --draft: #1f5fd1;
   --info: #1f5fd1;
   --merged: #8250df;
   /* Status colours dark enough to read on light surfaces (the dark palette's are too pale here). */

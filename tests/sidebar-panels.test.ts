@@ -27,16 +27,14 @@ test("hover previews are temporary while a click selects the section, collapsed 
 
 const projects: Project[] = ["a", "b"].map(id => ({ id, name: `Project ${id}`, path: `/fixture/${id}`, addedAt: "time", lastOpenedAt: "time" }));
 const session = (id: string, projectId = "a"): Session => ({ id, projectId, title: id, agent: "codex", status: "running", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: `branch/${id}`, isolated: true }, messages: [], lastError: null });
-test("activity feed owns every row once, preserves pin order and excludes archived/foreign drafts", () => {
+test("activity feed owns every row once, preserves pin order and excludes archived/foreign sessions", () => {
   const sessions = [session("pin", "b"), session("draft"), session("recent"), session("archived"), session("foreign", "missing"), session("blank")];
   const settings = mergeSettings({ pinnedSessionIds: ["pin"], archivedSessionIds: ["archived"] });
-  const drafts = { "session:pin": "pinned draft", "session:draft": "draft", "session:archived": "archived", "session:foreign": "foreign", "session:blank": " \n ", "project:a": "project" };
-  const sections = sidebarActivityFeed(projects, sessions, settings, drafts);
-  assert.deepEqual(sections.map(group => group.sessions.map(row => row.id)), [["pin"], ["draft"], ["recent", "blank"]]);
+  const sections = sidebarActivityFeed(projects, sessions, settings);
+  assert.deepEqual(sections.map(group => group.sessions.map(row => row.id)), [["pin"], ["draft", "recent", "blank"]]);
   assert.equal(new Set(sections.flatMap(group => group.sessions.map(row => row.id))).size, 4);
-  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, drafts, { draftsOnly: true }).flatMap(group => group.sessions.map(row => row.id)), ["pin", "draft"]);
-  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, drafts, { query: "branch/draft", projectId: "a" }).flatMap(group => group.sessions.map(row => row.id)), ["draft"]);
-  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, drafts, { archived: true }).flatMap(group => group.sessions.map(row => row.id)), ["archived"]);
+  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, { query: "branch/draft", projectId: "a" }).flatMap(group => group.sessions.map(row => row.id)), ["draft"]);
+  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, { archived: true }).flatMap(group => group.sessions.map(row => row.id)), ["archived"]);
 });
 
 test("sidebar PR chips only use an owned cached snapshot matching actual workspace and branch", async () => {
@@ -52,22 +50,22 @@ test("sidebar PR chips only use an owned cached snapshot matching actual workspa
   assert.equal(sidebarPullRequest(owner, { ...cache, loading: true }), null);
 });
 
-test("the Activity view puts each session once: pinned, needs you, working, drafts, then by day, then Done", async () => {
+test("the Activity view puts each session once: pinned, needs you, working, then by day, then Done", async () => {
   const { sidebarTimeline } = await import("../src/lib/sidebar-panels.ts");
   const now = new Date(2026, 9, 4, 15, 0);
   const at = (days: number) => new Date(2026, 9, 4 - days, 10, 0).toISOString();
   const row = (id: string, projectId: string, status: Session["status"], days: number): Session => ({ id, projectId, title: id, agent: "codex", status, createdAt: at(days), lastActivityAt: at(days), worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null });
   const rows = [row("pin", "a", "completed", 3), row("wait", "a", "waiting", 5), row("run", "b", "running", 0), row("draft", "b", "completed", 9), row("today", "a", "completed", 0), row("yesterday", "b", "completed", 1), row("old", "a", "completed", 8)];
   const settings = { ...mergeSettings({}), pinnedSessionIds: ["pin"] };
-  const sections = sidebarTimeline(projects, rows, settings, { "session:draft": "x", "session:run": "y" }, now);
+  const sections = sidebarTimeline(projects, rows, settings, now);
   assert.deepEqual(sections.map(section => [section.key, section.sessions.map(item => item.id)]), [
-    ["pinned", ["pin"]], ["waiting", ["wait"]], ["running", ["run"]], ["drafts", ["draft"]], ["today", ["today"]], ["yesterday", ["yesterday"]], ["earlier", ["old"]],
+    ["pinned", ["pin"]], ["waiting", ["wait"]], ["running", ["run"]], ["today", ["today"]], ["yesterday", ["yesterday"]], ["earlier", ["old", "draft"]],
   ]);
-  const scoped = sidebarTimeline(projects, rows, settings, {}, now, { scope: "a" });
+  const scoped = sidebarTimeline(projects, rows, settings, now, { scope: "a" });
   assert.deepEqual(scoped.map(section => section.key), ["pinned", "waiting", "today", "earlier"]);
   // Done moves a session to the end until it has newer activity than the mark.
   const marked = { ...settings, doneSessions: [{ id: "today", at: new Date(2026, 9, 4, 12, 0).toISOString() }, { id: "yesterday", at: new Date(2026, 9, 1).toISOString() }] };
-  const withDone = sidebarTimeline(projects, rows, marked, {}, now);
+  const withDone = sidebarTimeline(projects, rows, marked, now);
   assert.deepEqual(withDone.at(-1)!.key, "done");
   assert.deepEqual(withDone.at(-1)!.sessions.map(item => item.id), ["today"]);
   assert.ok(withDone.find(section => section.key === "yesterday")!.sessions.some(item => item.id === "yesterday"), "activity after the mark reopens it");

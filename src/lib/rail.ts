@@ -1,11 +1,11 @@
 /** Customizable rail items (ADR-052). Settings stays fixed at the bottom. */
-export const RAIL_ITEMS = ["home", "inbox", "kanban", "tasks", "archived", "pulls", "automations", "drafts"] as const;
+export const RAIL_ITEMS = ["home", "inbox", "kanban", "tasks", "archived", "pulls", "automations"] as const;
 export type RailItem = (typeof RAIL_ITEMS)[number];
 /** Main views that are pages of their own (the rail highlights only that item). */
 export const PAGE_ITEMS = ["inbox", "tasks", "pulls", "automations"] as const;
 export const RAIL_LABELS: Record<RailItem, string> = {
   home: "Home", inbox: "inbox.title", kanban: "Kanban", tasks: "tasks.title", archived: "Archived sessions",
-  pulls: "pulls.title", automations: "automations.title", drafts: "Drafts",
+  pulls: "pulls.title", automations: "automations.title",
 };
 
 /** Saved order first (unknown IDs dropped), then any item the saved order lacks, in default order. */
