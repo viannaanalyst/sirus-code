@@ -10,7 +10,7 @@ export function StatusIndicator({ status }: { status: SessionStatus | "installed
         : status === "completed" || status === "installed"
           ? "bg-success"
           : status === "waiting"
-            ? "status-waiting"
+            ? "bg-warning"
             : "bg-text-muted/50";
   const pulse = status === "running" || status === "starting";
   return (

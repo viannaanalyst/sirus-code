@@ -92,14 +92,10 @@
   --switch-thumb-off: var(--text-muted);
   --switch-border: rgb(255 255 255 / 0.12);
   --switch-disabled: rgb(255 255 255 / 0.06);
-  /* Brand violet (the Sirus mark): switches on, and the few places that mark the agent's orbit. */
+  /* Brand violet (the Sirus mark): switches on. */
   --brand-violet: #9a8cff;
   --brand-violet-deep: #6b5bd6;
   --brand-violet-soft: color-mix(in srgb, var(--brand-violet) 14%, transparent);
-  /* An agent waiting on you (approval or question), and the selected session/tab outline. */
-  --waiting: var(--brand-violet);
-  --waiting-glow: color-mix(in srgb, var(--waiting) 60%, transparent);
-  --selected-outline: color-mix(in srgb, var(--brand-violet) 45%, transparent);
   /* Selected Orbit switch material; a finite state transition, no ambient loop. */
   --orbit-switch-track: color-mix(in srgb, var(--text-primary) 8%, transparent);
   --orbit-switch-border: #ffffff1a;
@@ -346,9 +342,6 @@ html[data-theme="light"] {
   --success: #1a7f37;
   --danger: #cf222e;
   --warning: #9a6700;
-  --waiting: var(--brand-violet-deep);
-  --waiting-glow: color-mix(in srgb, var(--waiting) 40%, transparent);
-  --selected-outline: color-mix(in srgb, var(--brand-violet-deep) 45%, transparent);
   --switch-track-off: rgb(0 0 0 / 0.12);
   --switch-track-on: rgb(24 24 27 / 0.55);
   --switch-thumb-on: var(--background-0);
@@ -407,11 +400,6 @@ html[data-density="comfortable"] {
 
 /* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */
 html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
-/* Waiting on you: brand violet with a slow glow beat; reduced motion keeps the still glow. */
-.status-waiting { background: var(--waiting); box-shadow: 0 0 0 2px color-mix(in srgb, var(--waiting) 14%, transparent), 0 0 8px var(--waiting-glow); }
-@media (prefers-reduced-motion: no-preference) { .status-waiting { animation: waiting-beat calc(var(--motion-slow) * 6) ease-in-out infinite; } }
-html[data-ambient="off"] .status-waiting { animation-play-state: paused; }
-@keyframes waiting-beat { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--waiting) 6%, transparent), 0 0 12px var(--waiting-glow); } }
 
 /* xterm paints its viewport #000 by default; the terminal container already carries the
    window material (opaque, or glass in translucent mode), so the viewport stays clear. */

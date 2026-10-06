@@ -15,7 +15,7 @@
   .tasks-priority-high { background: var(--warning); }
   .tasks-priority-medium { background: var(--info); }
   .tasks-status { flex-shrink: 0; padding: 1px 8px; border-radius: 999px; background: var(--background-3); color: var(--text-secondary); }
-  .tasks-status-needs { color: var(--waiting); }
+  .tasks-status-needs { color: var(--warning); }
   .tasks-status-running { color: var(--info); }
   .tasks-status-review { color: var(--success); }
   .tasks-status-stopped { color: var(--danger); }

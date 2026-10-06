@@ -7,7 +7,7 @@ button.activity-line { cursor: pointer; }
 .activity-orbit-ring { fill: none; stroke: currentColor; stroke-width: 1.5; opacity: .9; }
 .activity-orbit-core, .activity-orbit-satellite { fill: currentColor; }
 .activity-orbit-core { transform-box: fill-box; transform-origin: center; }
-.agent-activity[data-status="waiting"] .activity-orbit { color: var(--waiting); filter: drop-shadow(0 0 3px var(--waiting-glow)); }
+.agent-activity[data-status="waiting"] .activity-orbit { color: var(--warning); }
 .agent-activity[data-status="completed"] .activity-orbit { color: var(--success); }
 .agent-activity[data-status="failed"] .activity-orbit { color: var(--danger); }
 .agent-activity:is([data-status="completed"], [data-status="failed"], [data-status="stopped"]) .activity-orbit-satellite { opacity: 0; }
@@ -60,7 +60,7 @@ button.activity-line { cursor: pointer; }
 .activity-line:focus-visible, .activity-trail-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .shortcut-tooltip { display: flex; align-items: center; gap: 8px; }
 .shortcut-tooltip kbd { min-width: 17px; padding: 0 3px; line-height: 17px; border-radius: 3px; background: var(--navigation-hover); color: var(--text-secondary); border-color: var(--border-default); }
-.agent-request { background: linear-gradient(180deg, color-mix(in srgb, var(--waiting) 7%, transparent), transparent 70%), var(--background-1); border-color: color-mix(in srgb, var(--waiting) 45%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--waiting) 12%, transparent), 0 0 22px color-mix(in srgb, var(--waiting) 14%, transparent); }
+.agent-request { background: var(--background-1); }
 .agent-request-eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--text-muted); }
 .agent-question-choices { display: flex; flex-direction: column; gap: 6px; margin-block: 12px; }
 .agent-question-choice { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); cursor: pointer; }
@@ -70,7 +70,7 @@ button.activity-line { cursor: pointer; }
 .agent-question-progress { display: flex; gap: 3px; margin-left: auto; }
 .agent-question-progress span { width: 12px; height: 3px; border-radius: 3px; background: var(--border-default); }
 .agent-question-progress [data-current="true"] { background: var(--text-primary); }
-html[data-window-glass="on"] .agent-request { background: linear-gradient(180deg, color-mix(in srgb, var(--waiting) 7%, transparent), transparent 70%), var(--background-2); }
+html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 @media (prefers-reduced-motion: no-preference) {
   .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
   .agent-activity[data-status="waiting"] .activity-orbit-core { animation: activity-orbit-beat calc(var(--motion-slow) * 4.4) ease-in-out infinite; }

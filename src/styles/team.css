@@ -36,7 +36,7 @@
   .team-mark { display: inline-grid; place-items: center; width: 16px; flex-shrink: 0; }
   .team-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--text-muted); }
   .team-dot[data-view="running"] { background: var(--brand-openai); }
-  .team-dot[data-view="needs"] { background: var(--waiting); }
+  .team-dot[data-view="needs"] { background: var(--warning); }
   .team-dot[data-view="done"] { background: var(--success); }
   .team-dot[data-view="failed"] { background: var(--danger); }
   .team-dot[data-view="pending"], .team-dot[data-view="queued"] { border: 1.5px solid var(--text-muted); background: transparent; }

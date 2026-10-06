@@ -137,7 +137,7 @@ function ProgressCard({ session }: { session: Session }) {
       const view = taskView(task, worker);
       const live = [...(worker?.messages ?? [])].reverse().find(message => message.role === "agent")?.activity?.items.filter(item => item.state === "running").at(-1);
       const status = view === "running" ? <span className="team-live">{t(live ? `team.live.${live.kind}` : "team.live.working")}</span>
-        : view === "needs" ? <span className="text-[var(--waiting)]">{t("team.state.needs")}</span>
+        : view === "needs" ? <span className="text-warning">{t("team.state.needs")}</span>
         : view === "pending" ? t("team.state.pending", { number: team.tasks.findIndex(row => row.id === task.after) + 1 })
         : view === "done" ? <span className="text-success">{t("team.state.done")}</span>
         : t(`team.state.${view}`);
