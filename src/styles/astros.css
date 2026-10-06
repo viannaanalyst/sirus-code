@@ -36,5 +36,11 @@
   .astro-run-failed, .astro-run-stopped { background: var(--danger); }
   .astro-run-running, .astro-run-waiting { background: var(--astro); }
   .astro-run-skipped, .astro-run-missing { opacity: .35; }
+  .astro-card { display: flex; align-items: center; gap: 10px; max-width: 520px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--border-default); background: var(--surface); }
+  .astro-card.flex-col { gap: 8px; }
+  .astro-card-link { text-align: left; transition: background var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+  .astro-card-link:hover { background: var(--surface-muted); border-color: var(--text-muted); }
+  button.astro-run { cursor: pointer; }
+  button.astro-run:hover { opacity: 1; transform: scaleY(1.15); }
   @media (max-width: 760px) { .astro-dialog { grid-template-columns: 1fr; } .astro-dialog-preview { min-height: 160px; } .astro-icon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 }

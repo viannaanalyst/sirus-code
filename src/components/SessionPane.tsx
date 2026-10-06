@@ -35,6 +35,7 @@ import { HandoffMarker } from "@/components/HandoffMarker";
 import { ProviderSwitchScene } from "@/components/ProviderSwitchScene";
 import { AstroBackdrop, AstroIcon } from "@/components/astros/AstroArt";
 import { AstroHeader } from "@/components/astros/AstroHeader";
+import { AstroCards } from "@/components/astros/AstroCard";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
@@ -262,6 +263,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.blocks.map((block, index) => {
               const start = offset;
               offset += block.content.length + 1;
+              if (block.kind === "code" && block.language.toLowerCase() === "sirus-card" && session.astro && !message.streaming && !searchQuery.trim()) return <AstroCards key={index} source={block.content} session={session} settled={!message.streaming} />;
               if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
               if (block.kind === "code") return <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div>;
               // Search highlights need the raw text offsets, so a search shows the reply unformatted.

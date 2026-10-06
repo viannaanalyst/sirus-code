@@ -21,10 +21,12 @@ The first stage brings identity and a persistent conversation:
 
 **Delegation.** An Astro can drive sessions in its own projects through `astro_sessions_list`, `astro_session_start` (a new, normal and visible session, in an isolated worktree by default), `astro_session_read` and `astro_session_send`. Delegated sessions inherit the permission mode of the Astro's conversation, so with Ask they wait for the user in their own tabs. A session started or messaged with `notify` carries `Session.delegation` (Astro, batch, settled). The batch is the Astro turn that started it, so the sessions launched together report together. When every session of a batch has settled and the conversation is idle, `astros::settled` sends one short visible message ("🛰 N sessions finished") to the conversation; the results ride in that turn's context (`Astro.pending_report`), and the Astro writes a single consolidated report. A failed delivery returns the batch to the queue for the next settlement.
 
+**Cards.** An Astro's replies can carry fenced `sirus-card` JSON blocks, rendered by `AstroCards` in its conversation only: a live session (status, opens it), a pull request (opens it on the Pull requests page), reply choices (one click sends the option) and a habit suggestion (created only when the user clicks Create habit; schedules are normalized to the closed kinds). In the habits panel, each run marker opens that run's session.
+
 ## Consequences
 
 - **Positive:** a persistent assistant with a recognisable identity, built from existing sessions, providers and approvals.
-- **Negative:** habit runs are hidden sessions, so their tool activity is not browsable yet. The conversation runs in one project's folder; work in other assigned projects relies on the provider reaching their paths, which some sandboxes restrict.
+- **Negative:** habit runs are hidden from session lists and reached through their run markers. The conversation runs in one project's folder; work in other assigned projects relies on the provider reaching their paths, which some sandboxes restrict.
 
 ## Alternatives considered
 

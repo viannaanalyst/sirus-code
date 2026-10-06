@@ -86,7 +86,10 @@ function HabitsTab({ astro }: { astro: Astro }) {
           </div>
           <p className="ui-caption text-text-muted">{scheduleLabel(habit.schedule, t, locale)}{habit.lastError ? ` · ${habit.lastError}` : ""}</p>
           {runs.length ? <div className="flex items-center gap-[3px]" aria-label={t("astros.lastRuns")}>
-            {runs.map((run) => { const state = runState(run, sessions); return <i key={run.id} title={`${new Date(run.startedAt).toLocaleString()} · ${state}`} className={cn("astro-run", `astro-run-${state}`)} />; })}
+            {runs.map((run) => { const state = runState(run, sessions); const label = `${new Date(run.startedAt).toLocaleString()} · ${state}`;
+              return run.sessionId && state !== "missing" ? <button key={run.id} type="button" title={`${label} — ${t("astros.openRun")}`} aria-label={`${t("astros.openRun")}: ${label}`} className={cn("astro-run", `astro-run-${state}`)}
+                onClick={() => { const sessionId = run.sessionId!; useAppStore.getState().setAstroPanel(null); void useAppStore.getState().selectSession(sessionId); }} />
+                : <i key={run.id} title={label} className={cn("astro-run", `astro-run-${state}`)} />; })}
           </div> : null}
           <div className="flex gap-1.5">
             <InteractiveButton variant="toolbar" onClick={() => void action({ type: "runNow", id: habit.id })}><Play size={12} />{t("astros.runNow")}</InteractiveButton>
