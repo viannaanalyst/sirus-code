@@ -11,7 +11,7 @@
   .header-tabs-context { height: 100%; min-width: 0; flex: 1 1 0%; overflow: hidden; }
   .header-tabs-context > div { width: 100%; height: 100%; min-width: 0; }
   .header-tabs-list { position: relative; isolation: isolate; display: flex; width: 100%; min-width: 0; align-items: center; gap: 2px; height: 100%; overflow: hidden; }
-  .header-tabs-glider { position: absolute; z-index: 0; top: 50%; left: 0; height: 24px; margin-top: -12px; border-radius: 7px; background: var(--navigation-selected); box-shadow: inset 0 0 0 1px var(--border-subtle); opacity: 0; pointer-events: none; transition: transform var(--motion-slow) var(--ease-out), width var(--motion-slow) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  .header-tabs-glider { position: absolute; z-index: 0; top: 50%; left: 0; height: 24px; margin-top: -12px; border-radius: 7px; background: var(--navigation-selected); box-shadow: inset 0 0 0 1px var(--selected-outline); opacity: 0; pointer-events: none; transition: transform var(--motion-slow) var(--ease-out), width var(--motion-slow) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
   .header-tabs-glider[data-visible] { opacity: 1; }
   .header-tabs-glider[data-instant] { transition: opacity var(--motion-fast) var(--ease-out); }
   .header-tab { position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; flex-shrink: 1; min-width: 60px; max-width: 168px; height: 24px; padding: 0 4px 0 8px; border-radius: 7px; color: var(--text-muted); font-size: var(--text-ui-12); white-space: nowrap; cursor: default; animation: header-tab-in var(--motion-slow) var(--ease-out) both; animation-delay: calc(var(--tab-index, 0) * var(--motion-stagger)); transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), max-width var(--motion-normal) var(--ease-out), min-width var(--motion-normal) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
@@ -40,7 +40,8 @@
   .header-tab-status { position: relative; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; }
   .header-tab-status[data-status="running"] { background: #6ea8fe; animation: header-status-pulse 1.6s ease-out infinite; }
   html[data-ambient="off"] .header-tab-status { animation-play-state: paused; }
-  .header-tab-status[data-status="waiting"] { background: var(--warning); }
+  .header-tab-status[data-status="waiting"] { background: var(--waiting); box-shadow: 0 0 0 2px color-mix(in srgb, var(--waiting) 14%, transparent), 0 0 8px var(--waiting-glow); animation: waiting-beat calc(var(--motion-slow) * 6) ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .header-tab-status[data-status="waiting"] { animation: none; } }
   .header-tab-status[data-status="done"] { background: var(--success); }
   @keyframes header-status-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, #6ea8fe 55%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
 

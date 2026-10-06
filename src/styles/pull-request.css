@@ -12,7 +12,7 @@
   /* CI auto-fix status under the PR row (ADR-064). */
   .environment-ci-fix { margin: 2px 4px 2px; padding: 5px 8px; border-radius: 8px; background: var(--surface); color: var(--text-secondary); }
   .environment-ci-fix-line { display: flex; align-items: center; gap: 6px; }
-  .environment-ci-fix[data-tone="fixing"] { background: color-mix(in srgb, var(--orbit-switch-on-end) 14%, transparent); color: var(--text-primary); }
+  .environment-ci-fix[data-tone="fixing"] { background: var(--brand-violet-soft); color: var(--text-primary); }
   .environment-ci-fix[data-tone="green"] { color: var(--success); }
   .environment-ci-fix[data-tone="paused"] { color: var(--warning); }
   .environment-ci-fix-action { flex: none; border: 0; background: none; padding: 0; color: var(--text-muted); cursor: pointer; }

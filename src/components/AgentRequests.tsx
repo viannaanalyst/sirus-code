@@ -33,7 +33,7 @@ function RequestCard({ sessionId, provider, request }: { sessionId: string; prov
     void send({ type: "userInput", answers: Object.fromEntries(questions.map((question) => [question.id, [answers[question.id]]])) });
   };
   const errorId = `request-error-${request.requestId}`;
-  return <section aria-label={`${provider}: ${t("Your response is needed")}`} aria-busy={busy} className="agent-request mx-auto w-full max-w-[var(--chat-column-width)] rounded-[10px] border border-border-default p-4 ui-control text-text-primary">
+  return <section aria-label={`${provider}: ${t("Your response is needed")}`} aria-busy={busy} className="agent-request mx-auto w-full max-w-[var(--chat-column-width)] rounded-[10px] border p-4 ui-control text-text-primary">
     <div className="agent-request-eyebrow ui-caption">{request.kind.type === "userInput" ? <MessageCircle size={13} aria-hidden="true" /> : <ShieldCheck size={13} aria-hidden="true" />}<span>{provider} · {t(request.kind.type === "userInput" ? "Your response is needed" : "Approval requested")}</span>{questions.length ? <><span className="agent-question-progress" aria-hidden="true">{questions.map((question, index) => <span key={question.id} data-current={index === step} />)}</span><span className="tabular-nums">{step + 1}/{questions.length}</span></> : null}</div>
     {request.kind.type === "userInput" ? <form onSubmit={submit} className="flex flex-col gap-3">
       {currentQuestion ? <fieldset key={currentQuestion.id} disabled={busy}>
