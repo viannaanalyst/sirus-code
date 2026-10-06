@@ -156,7 +156,7 @@ export interface BrowserAnnotation {
 
 /** Astros (ADR-069): persistent assistants on the rail. */
 export type AstroIconId = "orbita" | "saturno" | "lua" | "sol" | "galaxia" | "nebulosa" | "cometa" | "buraco" | "estrela" | "pulsar" | "constelacao" | "satelite" | "foguete" | "planeta" | "asteroide" | "eclipse";
-export type AstroStyle = "metal" | "pixel" | "neon";
+export type AstroStyle = "metal" | "neon";
 export type AstroBackground = "nebulosa" | "estrelas" | "aurora" | "orbitas" | "liso";
 export interface Astro {
   id: string;

@@ -68,6 +68,7 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
     seed_written(path, on_disk);
     crate::sidebar::prune(&mut data);
     crate::context_text::prune(&mut data);
+    crate::astros::retire_styles(&mut data);
     crate::appearance::normalize(&mut data.settings);
     // Closed enum migration (legacy System → Dark), defaults and numeric bounds
     // are checkpointed once so retained preferences already use the new schema.

@@ -42,7 +42,7 @@ pub const ICONS: &[&str] = &[
     "asteroide",
     "eclipse",
 ];
-pub const STYLES: &[&str] = &["metal", "pixel", "neon"];
+pub const STYLES: &[&str] = &["metal", "neon"];
 pub const BACKGROUNDS: &[&str] = &["nebulosa", "estrelas", "aurora", "orbitas", "liso"];
 const MAX_ASTROS: usize = 12;
 const NAME_LIMIT: usize = 40;
@@ -442,6 +442,15 @@ fn open(state: &AppState, id: &str) -> Result<Value> {
     drop(data);
     state.persist()?;
     Ok(view)
+}
+
+/// Astros saved with a retired style (the Pixel style, removed 2026-10-06) load as Metal.
+pub fn retire_styles(data: &mut AppData) {
+    for astro in &mut data.astros {
+        if !STYLES.contains(&astro.style.as_str()) {
+            astro.style = "metal".into();
+        }
+    }
 }
 
 /// Drops removed projects and conversations.
@@ -1113,6 +1122,18 @@ mod tests {
             save(&mut data, input(&format!("A{index}"))).unwrap();
         }
         assert!(save(&mut data, input("Extra")).is_err());
+    }
+
+    #[test]
+    fn retired_pixel_style_loads_as_metal_and_is_refused() {
+        let mut data = AppData::default();
+        save(&mut data, input("Órion")).unwrap();
+        data.astros[0].style = "pixel".into();
+        retire_styles(&mut data);
+        assert_eq!(data.astros[0].style, "metal");
+        let mut pixel = input("Vega");
+        pixel.style = "pixel".into();
+        assert!(save(&mut data, pixel).is_err());
     }
 
     #[test]

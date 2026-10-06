@@ -1,5 +1,4 @@
 import type { AstroBackground, AstroIconId, AstroStyle } from "@/client/types";
-import { astroSprite, bodyTone, SPRITE_SIZE, spriteBody, spritePalette } from "@/lib/astro-sprites";
 
 /**
  * Canvas art for Astros (ADR-069): sixteen animated cosmic icons drawn by one
@@ -18,7 +17,7 @@ const mix = (a: string, b: string, k: number) => { const A = hexRgb(a), B = hexR
 
 export const ASTRO_COLORS = ["#8c9bff", "#d97757", "#74aa9c", "#f2a541", "#e86ba8", "#5fb3f9", "#c9a2ff", "#e6e6ea"] as const;
 export const ASTRO_BACKGROUNDS: AstroBackground[] = ["nebulosa", "estrelas", "aurora", "orbitas", "liso"];
-export const ASTRO_STYLES: AstroStyle[] = ["metal", "pixel", "neon"];
+export const ASTRO_STYLES: AstroStyle[] = ["metal", "neon"];
 
 function palette(style: AstroStyle, color: string): Palette {
   if (style === "neon") return { body: mix(color, "#000000", .55), light: mix(color, "#ffffff", .55), dark: "#06060a", line: color, accent: color, neon: true };
@@ -177,72 +176,7 @@ const DRAW: Record<AstroIconId, (c: Ctx, t: number, P: Palette) => void> = {
 
 export const ASTRO_ICONS = Object.keys(DRAW) as AstroIconId[];
 
-const BODY = "#hs";
-
-/** Stable per-icon offset so mascots side by side do not blink in unison. */
-function blinkOffset(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  return hash % 4200;
-}
-
-/**
- * A pixel mascot, finished like MonoCode's: a shallow extruded edge down-right,
- * catch-lights on top and left edges, glossy eyes that blink, an idle bob, and
- * a hop with the talk frame while the Astro works. Whole-pixel cells only.
- */
-function paintMascot(c: CanvasRenderingContext2D, W: number, icon: AstroIconId, color: string, t: number, activity: AstroActivity) {
-  const cell = Math.max(2, Math.floor(W / (SPRITE_SIZE + 1)));
-  const origin = Math.floor((W - cell * SPRITE_SIZE) / 2);
-  const working = activity === "working";
-  const frame = working ? Math.floor(t / 280) % 2 : 0;
-  const lift = working ? (Math.floor(t / 280) % 2 ? Math.round(cell * 0.75) : 0) : (Math.floor(t / 1100) % 2 ? Math.max(1, Math.round(cell * 0.35)) : 0);
-  const blinking = (t + blinkOffset(icon + color)) % 4200 < 140;
-  const rows = astroSprite(icon, frame);
-  const colors = spritePalette(color), body = spriteBody(color);
-  const filled = (x: number, y: number) => (rows[y]?.[x] ?? ".") !== ".";
-  const px = (x: number) => origin + x * cell, py = (y: number) => origin + y * cell - lift;
-  const depth = Math.max(1, Math.round(cell * 0.2)), light = Math.max(1, Math.round(cell * 0.14));
-  // Extruded edge: the silhouette again, nudged down-right in shade.
-  c.fillStyle = colors.edge;
-  rows.forEach((row, y) => { for (let x = 0; x < SPRITE_SIZE; x++) if (row[x] !== ".") c.fillRect(px(x) + depth, py(y) + depth, cell, cell); });
-  rows.forEach((row, y) => {
-    for (let x = 0; x < SPRITE_SIZE; x++) {
-      const letter = row[x];
-      if (letter === ".") continue;
-      const eye = letter === "E" || letter === "V";
-      const fill = letter === "#" || (eye && blinking) ? bodyTone(body, x, y) : colors[letter];
-      c.fillStyle = fill;
-      c.fillRect(px(x), py(y), cell, cell);
-      if (BODY.includes(letter)) {
-        c.fillStyle = colors.h;
-        if (!filled(x, y - 1)) c.fillRect(px(x), py(y), cell, light);
-        if (!filled(x - 1, y)) c.fillRect(px(x), py(y), light, cell);
-      }
-      if (eye) {
-        if (blinking) {
-          c.fillStyle = colors.E;
-          c.fillRect(px(x), py(y) + Math.round(cell * 0.55), cell, Math.max(1, Math.round(cell * 0.25)));
-        } else {
-          const glint = Math.max(1, Math.round(cell * 0.3)), inset = Math.max(1, Math.round(cell * 0.15));
-          c.fillStyle = letter === "V" ? colors.E : colors.w;
-          c.fillRect(px(x) + inset, py(y) + inset, glint, glint);
-        }
-      }
-    }
-  });
-  if (activity === "needs-you" && Math.floor(t / 450) % 2 === 0) {
-    // A gold four-point star in the top-right corner, like a notification.
-    const unit = Math.max(1, Math.round(cell * 0.8)), sx = W - unit * 3, sy = 0;
-    c.fillStyle = colors.g;
-    c.fillRect(sx + unit, sy, unit, unit * 3);
-    c.fillRect(sx, sy + unit, unit * 3, unit);
-    c.fillStyle = colors.w;
-    c.fillRect(sx + unit, sy + unit, unit, unit);
-  }
-}
-
-/** What an Astro is doing: idle sprites breathe, working ones hop, waiting ones signal. */
+/** What an Astro is doing; one waiting for the person shows a blinking star. */
 export type AstroActivity = "idle" | "working" | "needs-you";
 
 /** Paints one icon into a square canvas whose bitmap is already sized. */
@@ -253,15 +187,19 @@ export function paintAstroIcon(canvas: HTMLCanvasElement, icon: AstroIconId, sty
   const W = canvas.width;
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, W, W);
-  if (style === "pixel") {
-    paintMascot(c, W, icon, color, t, activity);
-    return;
-  }
   const P = palette(style, color);
   c.setTransform(W / 64, 0, 0, W / 64, 0, 0);
   if (P.neon) { c.shadowColor = color; c.shadowBlur = 14; }
   draw(c, t, P);
   c.shadowBlur = 0;
+  if (activity === "needs-you" && Math.floor(t / 450) % 2 === 0) {
+    // A gold four-point star in the top-right corner, like a notification.
+    c.fillStyle = "#ffd36b";
+    c.beginPath();
+    c.moveTo(56, 0); c.lineTo(58.5, 5.5); c.lineTo(64, 8); c.lineTo(58.5, 10.5); c.lineTo(56, 16); c.lineTo(53.5, 10.5); c.lineTo(48, 8); c.lineTo(53.5, 5.5);
+    c.closePath();
+    c.fill();
+  }
 }
 
 const starfields = new WeakMap<HTMLCanvasElement, { x: number; y: number; r: number; p: number }[]>();

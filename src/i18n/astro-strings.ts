@@ -8,7 +8,6 @@ const strings: Record<string, [string, string]> = {
   "astros.namePlaceholder": ["e.g. Orion", "ex.: Órion"],
   "astros.style": ["Icon style", "Estilo do ícone"],
   "astros.style.metal": ["Metal", "Metal"],
-  "astros.style.pixel": ["Pixel", "Pixel"],
   "astros.style.neon": ["Neon", "Neon"],
   "astros.icon": ["Icon", "Ícone"],
   "astros.color": ["Colour", "Cor"],

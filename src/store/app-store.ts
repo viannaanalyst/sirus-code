@@ -1612,7 +1612,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const icons = ["planeta", "saturno", "lua", "sol", "estrela", "foguete", "cometa", "galaxia"] as const;
     const colors = ["#8c9bff", "#d97757", "#74aa9c", "#f2a541", "#e86ba8", "#5fb3f9", "#c9a2ff"];
     const used = state.astros?.length ?? 0;
-    const created = await get().saveAstro({ id: null, name, icon: icons[used % icons.length], style: "pixel", color: colors[used % colors.length], background: "liso", projectIds: [projectId], soul: "" });
+    const created = await get().saveAstro({ id: null, name, icon: icons[used % icons.length], style: "metal", color: colors[used % colors.length], background: "liso", projectIds: [projectId], soul: "" });
     if (!created) return;
     await get().openAstro(created.id);
     set({ astroDrawer: { astroId: created.id, page: "main" } });
