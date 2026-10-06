@@ -109,7 +109,7 @@ function modelLine(row: ModelRow): { key: string; version: number[] } | null {
 }
 
 /**
- * Pickers offer only the newest generation of each model line. Older ones stay listed when favorited,
+ * Pickers offer only the newest generation of each model line, without a CLI's own "Default" entry. Older ones stay listed when favorited,
  * currently selected or matched by a search, so nothing becomes unreachable.
  */
 export function latestModelChoices<T extends ModelChoice>(choices: readonly T[], currentModel: string | null, query: string): T[] {
@@ -118,6 +118,9 @@ export function latestModelChoices<T extends ModelChoice>(choices: readonly T[],
   const newer = (a: number[], b: number[]) => { for (let index = 0; index < Math.max(a.length, b.length); index++) { const difference = (a[index] ?? 0) - (b[index] ?? 0); if (difference) return difference > 0; } return false; };
   for (const row of choices) { const line = modelLine(row); if (line && (!newest.has(line.key) || newer(line.version, newest.get(line.key)!))) newest.set(line.key, line.version); }
   return choices.filter((row) => {
+    const current = currentModel !== null && row.variantIds.includes(currentModel);
+    // A CLI's own "Default (recommended)" entry repeats the picker's provider default.
+    if (!current && !row.favorite && (/^default$/i.test(row.model.id) || /^default\b/i.test(row.displayName))) return false;
     const line = modelLine(row);
     return !line || row.favorite || (currentModel !== null && row.variantIds.includes(currentModel)) || !newer(newest.get(line.key)!, line.version);
   });

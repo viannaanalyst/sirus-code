@@ -189,6 +189,7 @@ test("pickers offer the newest generation of each model line; favorites, the cur
     { id: "claude-sonnet-5-5", displayName: "Sonnet 5.5", availability: "available" },
     { id: "claude-sonnet-4-6", displayName: "Sonnet 4.6", availability: "available" },
     { id: "claude-haiku-4-5", displayName: "Haiku 4.5", availability: "available" },
+    { id: "default", displayName: "Default (recommended)", availability: "available" },
   ] };
   const codex: ProviderModelList = { provider: "codex", source: "cli", note: "", models: [
     { id: "gpt-5.5", displayName: "GPT-5.5", availability: "available" },
@@ -201,5 +202,6 @@ test("pickers offer the newest generation of each model line; favorites, the cur
   assert.ok(ids("claude", "claude-opus-4-6").includes("claude-opus-4-6"), "the selected model stays reachable");
   assert.ok(ids("claude", null, "4.6").includes("claude-sonnet-4-6"), "searching reaches older generations");
   assert.ok(ids("claude", null, "", { ...defaultSettings, favoriteModels: ["claude::claude-sonnet-4-6"] }).includes("claude-sonnet-4-6"), "favorites stay listed");
+  assert.ok(ids("claude", "default").includes("default"), "a selected CLI default stays visible");
   assert.equal(latestModelChoices([], null, "").length, 0);
 });
