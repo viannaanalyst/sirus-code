@@ -21,9 +21,12 @@ function defaultOnce() {
 }
 
 /** Create or edit one automation. Nothing runs until it is saved enabled. */
-export function AutomationDialog({ open, editing, onClose, onSaved }: { open: boolean; editing: Automation | null; onClose: () => void; onSaved: (id: string | null) => void }) {
+export function AutomationDialog({ open, editing, onClose, onSaved, astroId = null }: { open: boolean; editing: Automation | null; onClose: () => void; onSaved: (id: string | null) => void; astroId?: string | null }) {
   const t = useTranslation();
-  const projects = useAppStore((state) => state.projects);
+  const allProjects = useAppStore((state) => state.projects);
+  const astro = useAppStore((state) => astroId ? state.astros?.find((item) => item.id === astroId) ?? null : null);
+  // A habit (ADR-069) runs in one of its Astro's projects.
+  const projects = useMemo(() => astro ? allProjects.filter((project) => astro.projectIds.includes(project.id)) : allProjects, [astro, allProjects]);
   const settings = useAppStore((state) => state.settings);
   const installs = useAppStore((state) => state.agents);
   const catalogs = useAppStore((state) => state.modelsByProvider);
@@ -52,12 +55,13 @@ export function AutomationDialog({ open, editing, onClose, onSaved }: { open: bo
     const source = editing;
     setName(source?.name ?? "");
     setPrompt(source?.prompt ?? "");
-    setProjectId(source?.projectId ?? selectedProjectId ?? projects[0]?.id ?? "");
+    setProjectId(source?.projectId ?? (projects.some((project) => project.id === selectedProjectId) ? selectedProjectId : null) ?? projects[0]?.id ?? "");
     setAgent(source?.agent ?? settings.defaultAgent);
     setModel(source?.model ?? null);
     setApproval(source?.approval ?? "ask");
     setPlanning(source?.planning ?? false);
-    setWorkspace(source?.workspace ?? "worktree");
+    // Habit runs are hidden sessions; a new worktree per run would pile up unseen.
+    setWorkspace(source?.workspace ?? (astroId ? "local" : "worktree"));
     const schedule = source?.schedule;
     setKind(schedule?.kind ?? "daily");
     setTime(schedule && "time" in schedule ? schedule.time : "09:00");
@@ -67,7 +71,7 @@ export function AutomationDialog({ open, editing, onClose, onSaved }: { open: bo
     setOnce(schedule?.kind === "once" ? (() => { const at = new Date(schedule.at); const pad = (v: number) => String(v).padStart(2, "0"); return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`; })() : defaultOnce());
     setEnabled(source?.enabled ?? true);
     setAcknowledge(false);
-  }, [open, editing, selectedProjectId, projects, settings.defaultAgent]);
+  }, [open, editing, selectedProjectId, projects, settings.defaultAgent, astroId]);
 
   useEffect(() => { if (open) void useAppStore.getState().loadProviderModels(agent); }, [open, agent]);
 
@@ -83,7 +87,7 @@ export function AutomationDialog({ open, editing, onClose, onSaved }: { open: bo
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
-    const input: AutomationInput = { id: editing?.id ?? null, name, prompt, projectId, agent, model, approval: effectiveApproval, planning: planning && planningAvailable, workspace, schedule, enabled, acknowledgeFullAccess: full && acknowledge };
+    const input: AutomationInput = { id: editing?.id ?? null, name, prompt, projectId, agent, model, approval: effectiveApproval, planning: planning && planningAvailable, workspace, schedule, enabled, acknowledgeFullAccess: full && acknowledge, astroId: astroId ?? editing?.astroId ?? null };
     const before = new Set(useAppStore.getState().automations?.automations.map((item) => item.id) ?? []);
     const snapshot = await useAppStore.getState().automationAction({ type: "upsert", automation: input });
     setBusy(false);
@@ -96,7 +100,7 @@ export function AutomationDialog({ open, editing, onClose, onSaved }: { open: bo
   const label = "ui-caption text-text-muted";
   const control = "automation-control ui-control";
   return <Dialog open={open} onOpenChange={(next) => { if (!next && !busy) onClose(); }}>
-    <DialogContent title={t(editing ? "automations.edit" : "automations.new")} description={t("automations.dialogHint")} className="w-[min(640px,calc(100vw-32px))]">
+    <DialogContent title={astro ? t(editing ? "astros.habitEdit" : "astros.habitNew", { name: astro.name }) : t(editing ? "automations.edit" : "automations.new")} description={t(astro ? "astros.habitHint" : "automations.dialogHint")} className="w-[min(640px,calc(100vw-32px))]">
       <div className="scroll-thin flex max-h-[65vh] flex-col gap-4 overflow-y-auto pr-1">
         <label className={field}><span className={label}>{t("automations.name")}</span><input className={control} value={name} maxLength={200} onChange={(event) => setName(event.target.value)} placeholder={t("automations.namePlaceholder")} /></label>
         <label className={field}><span className={label}>{t("automations.prompt")}</span><textarea className={`${control} min-h-[120px] resize-y py-2`} value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={t("automations.promptPlaceholder")} /></label>

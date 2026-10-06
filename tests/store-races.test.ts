@@ -29,6 +29,7 @@ test("pin acknowledgments serialize without replacing newer output and old snaps
   await useAppStore.getState().setMessagePinned(fixture.id, "answer", true);
   let snapshot!: (session: import("../src/client/types.ts").Session) => void;
   context.mock.method(client, "onSessionUpdated", async (handler: typeof snapshot) => { snapshot = handler; return () => {}; });
+  context.mock.method(client, "onAstrosChanged", async () => () => {});
   context.mock.method(client, "onAutomationsChanged", async () => () => {});
   context.mock.method(client, "onCiAutofixChanged", async () => () => {});
   context.mock.method(client, "onSimulatorOpen", async () => () => {});

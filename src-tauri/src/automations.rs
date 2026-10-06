@@ -97,6 +97,9 @@ pub struct Automation {
     pub last_run_at: Option<String>,
     #[serde(default)]
     pub last_error: Option<String>,
+    /// A habit of this Astro (ADR-069): runs carry its context and report to its conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub astro_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -120,6 +123,9 @@ pub struct Run {
     pub status: RunStatus,
     #[serde(default)]
     pub note: Option<String>,
+    /// A habit run's answer was handled (posted or quiet).
+    #[serde(default)]
+    pub reported: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -139,6 +145,9 @@ pub struct AutomationInput {
     /// Full access needs this explicit acknowledgment on every save.
     #[serde(default)]
     pub acknowledge_full_access: bool,
+    /// Makes this automation a habit of that Astro.
+    #[serde(default)]
+    pub astro_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -320,6 +329,19 @@ fn upsert(data: &mut AppData, input: AutomationInput, now: DateTime<Local>) -> R
         ));
     }
     validate_schedule(&input.schedule, now)?;
+    if let Some(astro_id) = &input.astro_id {
+        let astro = data
+            .astros
+            .iter()
+            .find(|astro| astro.id == *astro_id)
+            .ok_or_else(|| Error::not_found("Astro not found"))?;
+        if !astro.project_ids.contains(&input.project_id) {
+            return Err(Error::new(
+                "invalid",
+                "A habit runs in one of its Astro's projects.",
+            ));
+        }
+    }
     let stamp = now.to_rfc3339();
     let next = if input.enabled {
         next_run(&input.schedule, now).map(|at| at.to_rfc3339())
@@ -346,6 +368,7 @@ fn upsert(data: &mut AppData, input: AutomationInput, now: DateTime<Local>) -> R
             existing.updated_at = stamp;
             existing.next_run_at = next;
             existing.last_error = None;
+            existing.astro_id = input.astro_id;
         }
         None => {
             if data.automations.len() >= MAX_AUTOMATIONS {
@@ -368,6 +391,7 @@ fn upsert(data: &mut AppData, input: AutomationInput, now: DateTime<Local>) -> R
                 next_run_at: next,
                 last_run_at: None,
                 last_error: None,
+                astro_id: input.astro_id,
             });
         }
     }
@@ -544,6 +568,7 @@ pub async fn start_run(
                     manual,
                     status: RunStatus::Skipped,
                     note: Some("The previous run is still working.".into()),
+                    reported: false,
                 },
             );
             Plan::Skip
@@ -568,7 +593,11 @@ pub async fn start_run(
             agent: automation.agent.clone(),
             model: automation.model.clone(),
             isolated_worktree: automation.workspace == Workspace::Worktree,
-            prompt: automation.prompt.clone(),
+            prompt: match &automation.astro_id {
+                Some(_) => crate::astros::habit_prompt(&automation.name, &automation.prompt),
+                None => automation.prompt.clone(),
+            },
+            astro: automation.astro_id.clone(),
             approval: automation.approval,
             planning: automation.planning,
         },
@@ -598,6 +627,7 @@ pub async fn start_run(
                     RunStatus::Started
                 },
                 note: error,
+                reported: false,
             },
         );
     }
@@ -616,6 +646,8 @@ pub struct Launch {
     pub prompt: String,
     pub approval: ApprovalMode,
     pub planning: bool,
+    /// Marks the session as this Astro's (a habit run).
+    pub astro: Option<String>,
 }
 
 /// Creates the session (announced to the renderer) and admits its first turn.
@@ -627,6 +659,7 @@ pub async fn launch(
 ) -> (Option<String>, Option<String>) {
     let created = {
         let state = state.clone();
+        let astro = request.astro.clone();
         let session_request = CreateSessionRequest {
             project_id: request.project_id.clone(),
             title: Some(request.title.chars().take(200).collect()),
@@ -636,8 +669,14 @@ pub async fn launch(
         };
         native_task(move || {
             let mut data = state.data.lock();
-            let session =
+            let mut session =
                 crate::commands::create_session_locked(&state, &mut data, session_request, "HEAD")?;
+            if let Some(astro) = astro {
+                session.astro = Some(astro.clone());
+                if let Some(stored) = data.sessions.iter_mut().find(|item| item.id == session.id) {
+                    stored.astro = Some(astro);
+                }
+            }
             drop(data);
             state.persist()?;
             Ok(session)
@@ -922,6 +961,7 @@ mod tests {
             },
             enabled: true,
             acknowledge_full_access: acknowledge,
+            astro_id: None,
         }
     }
 
@@ -960,6 +1000,7 @@ mod tests {
                     manual: false,
                     status: RunStatus::Failed,
                     note: None,
+                    reported: false,
                 },
             );
         }

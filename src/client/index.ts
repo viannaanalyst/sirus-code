@@ -397,6 +397,11 @@ export class SirusClient {
     return this.transport.invoke<Session>("send_prompt", { request });
   }
 
+  /** Astro memory or habit reports changed natively (tools, habit runs). */
+  onAstrosChanged(handler: () => void) {
+    return this.transport.listen<unknown>("astros-changed", () => handler());
+  }
+
   astroAction<T = unknown>(action: import("./types").AstroAction) {
     return this.transport.invoke<T>("astro_action", { action });
   }

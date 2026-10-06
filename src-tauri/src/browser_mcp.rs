@@ -266,6 +266,10 @@ fn execute(
     if !session_owned(app, session_id) {
         return Err("this session no longer exists".into());
     }
+    if tool.starts_with("astro_") {
+        // Astro memory and soul tools (ADR-069), allowed only in an Astro's sessions.
+        return crate::astros::execute(app, session_id, tool, &args);
+    }
     if tool.starts_with("simulator_") {
         // The same per-session bridge serves the iOS Simulator tools (ADR-066).
         return tauri::async_runtime::block_on(crate::simulator::execute(
@@ -403,6 +407,7 @@ fn tool_definitions() -> Vec<Value> {
     ]
     .into_iter()
     .chain(crate::simulator::tool_definitions())
+    .chain(crate::astros::tool_definitions())
     .collect()
 }
 
@@ -426,11 +431,11 @@ mod tests {
         let tools = tool_definitions();
         assert!(tools.len() >= 14);
         for tool in &tools {
-            assert!(
-                tool["name"].as_str().is_some_and(
-                    |name| name.starts_with("browser_") || name.starts_with("simulator_")
-                )
-            );
+            assert!(tool["name"]
+                .as_str()
+                .is_some_and(|name| name.starts_with("browser_")
+                    || name.starts_with("simulator_")
+                    || name.starts_with("astro_")));
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));

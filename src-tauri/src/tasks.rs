@@ -159,6 +159,7 @@ pub async fn task_action(
                 prompt,
                 approval,
                 planning,
+                astro: None,
             }
         };
         let (session_id, error) = launch(&app, &state, request).await;

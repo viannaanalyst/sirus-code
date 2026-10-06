@@ -268,6 +268,10 @@ interface AppStore {
   /** Astros, persistent assistants on the rail (ADR-069); null until first loaded. */
   astros: import("@/client/types").Astro[] | null;
   loadAstros: () => Promise<void>;
+  /** The Astro memory and habits panel. Memory-only. */
+  astroPanel: { astroId: string; tab: "memory" | "habits" } | null;
+  setAstroPanel: (panel: { astroId: string; tab: "memory" | "habits" } | null) => void;
+  astroMemory: (action: Extract<import("@/client/types").AstroAction, { type: "remember" | "editFact" | "forget" }>) => Promise<void>;
   /** The Astro dialog: `editingId` null creates one. Memory-only. */
   astroDialog: { editingId: string | null } | null;
   setAstroDialog: (dialog: { editingId: string | null } | null) => void;
@@ -840,6 +844,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   ciAutoFix: [],
   astros: null,
   astroDialog: null,
+  astroPanel: null,
   tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
@@ -1600,6 +1605,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setAstroDialog: (astroDialog) => set({ astroDialog }),
+  setAstroPanel: (astroPanel) => set({ astroPanel }),
+  astroMemory: async (action) => {
+    try { set({ astros: await client.astroAction<import("@/client/types").Astro[]>(action) }); }
+    catch (error) { set({ error: formatUnknownError(error) }); }
+  },
 
   loadAstros: async () => {
     try { set({ astros: await client.astroAction<import("@/client/types").Astro[]>({ type: "list" }) }); }
@@ -2395,6 +2405,7 @@ export async function bindRealtime() {
     }));
     unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
     void useAppStore.getState().ciAutofixAction({ type: "status" });
+    unlisteners.push(await client.onAstrosChanged(() => { if (useAppStore.getState().astros) void useAppStore.getState().loadAstros(); }));
     unlisteners.push(await client.onAutomationsChanged(() => {
       if (useAppStore.getState().automations) void useAppStore.getState().automationAction({ type: "list" });
     }));

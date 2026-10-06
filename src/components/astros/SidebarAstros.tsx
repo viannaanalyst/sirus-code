@@ -22,6 +22,7 @@ export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
       return <button key={astro.id} type="button" className="sidebar-rail-button sidebar-rail-astro" aria-label={astro.name} title={astro.name} aria-current={current ? "page" : undefined} style={{ "--astro": astro.color } as React.CSSProperties}
         onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); void useAppStore.getState().openAstro(astro.id); }}>
         <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={26} />
+        {astro.unread > 0 && !current ? <span className="sidebar-rail-dot" aria-hidden="true" /> : null}
       </button>;
     })}
     <button type="button" className="sidebar-rail-button sidebar-rail-astro-add" aria-label={t("astros.new")} title={t("astros.new")}

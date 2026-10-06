@@ -26,5 +26,15 @@
   .astro-background-cell[aria-checked="true"] { border-color: var(--astro); box-shadow: 0 0 0 2px color-mix(in srgb, var(--astro) 30%, transparent); }
   .astro-chip { padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-default); color: var(--text-secondary); }
   .astro-chip-on { border-color: color-mix(in srgb, var(--astro) 60%, transparent); background: color-mix(in srgb, var(--astro) 14%, transparent); color: var(--text-primary); }
+  .astro-panel-tabs { display: flex; align-items: center; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); }
+  .astro-panel-tab { padding: 6px 10px 8px; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .astro-panel-tab[aria-selected="true"] { color: var(--text-primary); border-color: var(--astro); }
+  .astro-fact { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; border-radius: 10px; border: 1px solid var(--border-subtle); }
+  .astro-habit { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-subtle); }
+  .astro-run { display: block; width: 6px; height: 14px; border-radius: 2px; background: var(--text-muted); opacity: .8; }
+  .astro-run-completed { background: var(--success); }
+  .astro-run-failed, .astro-run-stopped { background: var(--danger); }
+  .astro-run-running, .astro-run-waiting { background: var(--astro); }
+  .astro-run-skipped, .astro-run-missing { opacity: .35; }
   @media (max-width: 760px) { .astro-dialog { grid-template-columns: 1fr; } .astro-dialog-preview { min-height: 160px; } .astro-icon-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 }

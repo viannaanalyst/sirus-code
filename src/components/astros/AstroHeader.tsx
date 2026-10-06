@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { Astro } from "@/client/types";
 import { AstroIcon } from "@/components/astros/AstroArt";
-import { Pencil, RotateCcw, Trash2 } from "@/components/icons/phosphor";
+import { Clock3, NotebookText, Pencil, RotateCcw, Trash2 } from "@/components/icons/phosphor";
+import { AstroPanel } from "@/components/astros/AstroPanel";
 import { useTranslation } from "@/i18n/use-translation";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { IconButton } from "@/primitives/IconButton";
@@ -20,6 +21,8 @@ export function AstroHeader({ astro }: { astro: Astro }) {
       <p className="truncate ui-section text-text-primary">{astro.name}</p>
       <p className="truncate ui-caption text-text-muted">{t("astros.subtitle", { projects: names || t("astros.noProjects") })}</p>
     </div>
+    <IconButton label={t("astros.memory")} onClick={() => useAppStore.getState().setAstroPanel({ astroId: astro.id, tab: "memory" })}><NotebookText size={14} /></IconButton>
+    <IconButton label={t("astros.habits")} onClick={() => useAppStore.getState().setAstroPanel({ astroId: astro.id, tab: "habits" })}><Clock3 size={14} /></IconButton>
     <IconButton label={t("astros.appearance")} onClick={() => useAppStore.getState().setAstroDialog({ editingId: astro.id })}><Pencil size={14} /></IconButton>
     <IconButton label={t("astros.reset")} onClick={() => setConfirm("reset")}><RotateCcw size={14} /></IconButton>
     <IconButton label={t("astros.delete")} onClick={() => setConfirm("delete")}><Trash2 size={14} /></IconButton>
@@ -28,5 +31,6 @@ export function AstroHeader({ astro }: { astro: Astro }) {
       description={t(confirm === "delete" ? "astros.deleteBody" : "astros.resetBody")}
       confirmLabel={t(confirm === "delete" ? "astros.delete" : "astros.reset")} cancelLabel={t("common.cancel")}
       onConfirm={async () => { const store = useAppStore.getState(); if (confirm === "delete") await store.deleteAstro(astro.id); else await store.resetAstro(astro.id); setConfirm(null); }} />
+    <AstroPanel />
   </div>;
 }

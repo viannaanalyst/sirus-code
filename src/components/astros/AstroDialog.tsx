@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Astro, AstroBackground, AstroIconId, AstroInput, AstroStyle } from "@/client/types";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { AstroBackdrop, AstroIcon } from "@/components/astros/AstroArt";
@@ -17,10 +17,13 @@ export function AstroDialog({ open, editing, onClose }: { open: boolean; editing
   const selectedProjectId = useAppStore((state) => state.selectedProjectId);
   const [draft, setDraft] = useState<AstroInput>(() => blank(selectedProjectId));
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    setDraft(editing ? { id: editing.id, name: editing.name, icon: editing.icon, style: editing.style, color: editing.color, background: editing.background, projectIds: editing.projectIds, soul: editing.soul } : blank(selectedProjectId ?? projects[0]?.id ?? null));
-  }, [open, editing, selectedProjectId, projects]);
+  // The draft resets only when the dialog opens or switches Astro, never when the list reloads.
+  const editingId = editing?.id ?? null;
+  const [opened, setOpened] = useState<{ open: boolean; id: string | null }>({ open: false, id: null });
+  if (opened.open !== open || opened.id !== editingId) {
+    setOpened({ open, id: editingId });
+    if (open) setDraft(editing ? { id: editing.id, name: editing.name, icon: editing.icon, style: editing.style, color: editing.color, background: editing.background, projectIds: editing.projectIds, soul: editing.soul } : blank(selectedProjectId ?? projects[0]?.id ?? null));
+  }
   const patch = (next: Partial<AstroInput>) => setDraft((current) => ({ ...current, ...next }));
   const valid = draft.name.trim().length > 0 && draft.projectIds.length > 0;
   const save = async () => {

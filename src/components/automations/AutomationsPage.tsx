@@ -23,7 +23,8 @@ export function AutomationsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ editing: Automation | null } | null>(null);
   useEffect(() => { void useAppStore.getState().automationAction({ type: "list" }); }, []);
-  const list = snapshot?.automations ?? [];
+  // Habits belong to their Astro (ADR-069) and are managed in its panel.
+  const list = (snapshot?.automations ?? []).filter((automation) => !automation.astroId);
   const { active, paused } = sortedAutomations(list);
   const current = list.find((item) => item.id === selected) ?? null;
 

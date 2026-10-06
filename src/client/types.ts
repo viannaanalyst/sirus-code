@@ -169,11 +169,16 @@ export interface Astro {
   soul: string;
   sessionId?: string | null;
   createdAt: string;
+  memory: AstroFact[];
+  /** Habit reports posted since its conversation was last opened. */
+  unread: number;
 }
+export interface AstroFact { id: string; text: string; createdAt: string }
 export interface AstroInput { id: string | null; name: string; icon: AstroIconId; style: AstroStyle; color: string; background: AstroBackground; projectIds: string[]; soul: string }
 export type AstroAction =
   | { type: "list" } | { type: "save"; astro: AstroInput } | { type: "open"; id: string }
-  | { type: "delete"; id: string; confirm: true } | { type: "reset"; id: string; confirm: true };
+  | { type: "delete"; id: string; confirm: true } | { type: "reset"; id: string; confirm: true }
+  | { type: "remember"; id: string; text: string } | { type: "editFact"; id: string; factId: string; text: string } | { type: "forget"; id: string; factId: string };
 
 export interface HandoffOrigin {
   from: AgentProviderId;
@@ -798,6 +803,8 @@ export interface Automation {
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastError: string | null;
+  /** A habit of this Astro (ADR-069). */
+  astroId?: string | null;
 }
 export interface AutomationRun {
   id: string;
@@ -807,6 +814,7 @@ export interface AutomationRun {
   manual: boolean;
   status: "started" | "skipped" | "failed";
   note: string | null;
+  reported?: boolean;
 }
 export interface AutomationSnapshot { automations: Automation[]; runs: AutomationRun[] }
 export interface AutomationInput {
@@ -822,6 +830,7 @@ export interface AutomationInput {
   schedule: AutomationSchedule;
   enabled: boolean;
   acknowledgeFullAccess: boolean;
+  astroId?: string | null;
 }
 export type AutomationAction =
   | { type: "list" }
