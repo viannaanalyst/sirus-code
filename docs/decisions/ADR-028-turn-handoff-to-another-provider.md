@@ -47,6 +47,11 @@ the workspace, without cloning the raw transcript.
     replay bounded history and get no recap.
   - Forks get no recap either, because they already rebuild their history.
   - A second switch before sending keeps the original source provider.
+  - A model change within the same provider is not a handoff (2026-10-06): the
+    native thread stays and its identity takes the new model, because Claude
+    (`--model` with `--resume`), Codex (`thread/resume` with `model`) and
+    OpenCode (`session/set_config_option`) continue a thread on another model.
+    Without a native thread yet, the recap is still armed.
 
 ## Consequences
 

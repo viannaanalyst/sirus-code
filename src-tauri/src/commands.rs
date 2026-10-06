@@ -2119,11 +2119,20 @@ fn apply_session_selection(session: &mut Session, agent: AgentProviderId, model:
     session.model = model;
     // Another model has another window; the next turn reports it again.
     session.context_usage = None;
-    session.native_thread = None;
-    // The new provider/model continues this same conversation, not a blank one.
-    crate::transcript::arm_in_session_handoff(session, previous);
-    if let Some(origin) = &mut session.fork_origin {
-        origin.seeded_native_thread_id = None;
+    let same_provider = previous == session.agent;
+    match &mut session.native_thread {
+        // Claude (--model with --resume), Codex (thread/resume with a model) and OpenCode
+        // (session/set_config_option) continue their own thread on another model, so a model
+        // change within one provider keeps the thread and needs no handoff recap.
+        Some(identity) if same_provider => identity.model = session.model.clone(),
+        _ => {
+            session.native_thread = None;
+            // The new provider continues this same conversation, not a blank one.
+            crate::transcript::arm_in_session_handoff(session, previous);
+            if let Some(origin) = &mut session.fork_origin {
+                origin.seeded_native_thread_id = None;
+            }
+        }
     }
     session.last_activity_at = now_rfc3339();
 }
@@ -2470,7 +2479,7 @@ mod tests {
     }
 
     #[test]
-    fn selecting_same_identity_preserves_completed_native_thread() {
+    fn selecting_within_a_provider_preserves_the_native_thread() {
         let mut session: Session = serde_json::from_value(serde_json::json!({
             "id":"s", "projectId":"p", "title":"Task", "agent":"codex", "model":"model",
             "status":"completed", "createdAt":"time", "lastActivityAt":"time",
@@ -2486,7 +2495,11 @@ mod tests {
             AgentProviderId::Codex,
             Some("different".into()),
         );
-        assert!(session.native_thread.is_none());
+        // Same provider, another model: the native thread continues on it, without a handoff.
+        let thread = session.native_thread.as_ref().unwrap();
+        assert_eq!(thread.thread_id, "exact");
+        assert_eq!(thread.model.as_deref(), Some("different"));
+        assert!(session.handoff.is_none());
         let mut session = bound;
         apply_session_selection(&mut session, AgentProviderId::Claude, None);
         assert!(session.native_thread.is_none());
