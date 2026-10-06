@@ -20,7 +20,8 @@ export function SidebarAstros({ onOpen }: { onOpen: () => void }) {
     {astros?.map((astro) => {
       const current = mainView === "session" && Boolean(astro.sessionId) && astro.sessionId === selectedSessionId;
       return <button key={astro.id} type="button" className="sidebar-rail-button sidebar-rail-astro" aria-label={astro.name} title={astro.name} aria-current={current ? "page" : undefined} style={{ "--astro": astro.color } as React.CSSProperties}
-        onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); void useAppStore.getState().openAstro(astro.id); }}>
+        onPointerEnter={onOpen} onFocus={onOpen} onClick={() => { onOpen(); void useAppStore.getState().openAstro(astro.id); }}
+        onContextMenu={(event) => { event.preventDefault(); const store = useAppStore.getState(); void store.openAstro(astro.id).then(() => store.setAstroDrawer({ astroId: astro.id, page: "main" })); }}>
         <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={26} activity={astroActivity(astro, sessions)} />
         {astro.unread > 0 && !current ? <span className="sidebar-rail-dot" aria-hidden="true" /> : null}
       </button>;

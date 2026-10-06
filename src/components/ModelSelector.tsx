@@ -161,34 +161,34 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
           <ChevronDown size={12} aria-hidden="true" className="shrink-0 text-text-muted" />
         </button>
       </PopoverTrigger>
-      <PopoverContent side="top" sideOffset={6} align={executionControls ? "center" : "start"} aria-label={t("models.models")} style={{ width: executionControls && page === "effort" ? 280 : 360, maxWidth: "calc(100vw - 20px)" }} className="max-h-[var(--radix-popover-content-available-height)] max-w-[calc(100vw-20px)] overflow-auto p-0" onKeyDown={navigate}
+      <PopoverContent side="top" sideOffset={6} align={executionControls ? "center" : "start"} aria-label={t("models.models")} style={{ width: executionControls && page === "effort" ? 280 : 288, maxWidth: "calc(100vw - 20px)" }} className="max-h-[var(--radix-popover-content-available-height)] max-w-[calc(100vw-20px)] overflow-auto p-0" onKeyDown={navigate}
         onOpenAutoFocus={(event) => { event.preventDefault(); if (executionControls && currentModel) browseButton.current?.focus(); else search.current?.focus(); }}>
         {executionControls && page === "effort" ? <ModelEffortPanel provider={currentProvider} model={currentModel} label={currentLabel} disabled={disabled} onSelect={onSelect} onBrowse={() => setPage("catalog")} /> : <>
         {executionControls && currentModel ? <button ref={browseButton} type="button" onClick={() => setPage("effort")} className="flex w-full items-center gap-1 border-b border-border-subtle px-3 py-2 text-text-secondary hover:bg-background-3"><ChevronLeft size={14} />{t("composer.backEffort")}</button> : null}
-        <div className="flex h-[400px] max-h-[var(--radix-popover-content-available-height,400px)] flex-col">
+        <div className="flex h-[320px] max-h-[var(--radix-popover-content-available-height,320px)] flex-col">
           <div ref={rail} role="group" aria-label={t("providers.title")} className="model-tabs">
             <span ref={glide} className="model-tabs-glide" aria-hidden="true" />
             <button type="button" data-provider-option="favorites" disabled={disabled} aria-label={t("models.favorites")} aria-pressed={scope === "favorites"} aria-controls={panelId}
               className="model-tab" onPointerEnter={() => browse("favorites")} onFocus={() => browse("favorites")} onClick={() => browse("favorites")}>
-              <Star size={17} aria-hidden="true" fill={scope === "favorites" ? "currentColor" : "none"} className="model-tab-star" />
+              <Star size={14} aria-hidden="true" fill={scope === "favorites" ? "currentColor" : "none"} className="model-tab-star" />
             </button>
             {enabledProviders.map((provider) => (
               <button key={provider} type="button" data-provider-option={provider} disabled={disabled}
                 aria-label={providerById(provider).name} aria-pressed={scope === provider} aria-controls={panelId}
                 className="model-tab" onPointerEnter={() => browse(provider)} onFocus={() => browse(provider)} onClick={() => browse(provider)}>
-                <ProviderIcon id={provider} size={18} className="bg-transparent" />
+                <ProviderIcon id={provider} size={15} className="bg-transparent" />
               </button>
             ))}
           </div>
-          <p className="px-4 pb-0.5 ui-caption text-text-muted">{scope === "favorites" ? t("models.favorites") : providerById(scope).name}</p>
+          <p className="px-3 ui-caption text-text-muted">{scope === "favorites" ? t("models.favorites") : providerById(scope).name}</p>
           <div id={panelId} className="flex min-h-0 min-w-0 flex-1 flex-col" role="group" aria-label={scope === "favorites" ? t("models.favorites") : providerById(scope).name}>
-            <div className="mx-2 mb-1 mt-2 flex h-8 shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-background-1 px-2 text-text-muted transition-colors duration-[var(--motion-fast)] focus-within:border-text-muted focus-within:ring-2 focus-within:ring-[var(--accent-muted)]">
-              <Search size={14} aria-hidden="true" className="shrink-0" />
+            <div className="mx-1.5 mb-0.5 mt-1.5 flex h-7 shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-border-default bg-background-1 px-2 text-text-muted transition-colors duration-[var(--motion-fast)] focus-within:border-text-muted focus-within:ring-2 focus-within:ring-[var(--accent-muted)]">
+              <Search size={13} aria-hidden="true" className="shrink-0" />
               <input ref={search} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t("models.search")} aria-label={t("models.search")}
                 className="h-full min-w-0 flex-1 border-0 bg-transparent ui-control text-text-primary outline-none placeholder:text-text-muted focus-visible:outline-none" />
               {query ? <button type="button" aria-label={t("Clear search")} onClick={() => { setQuery(""); search.current?.focus(); }} className="flex size-5 shrink-0 items-center justify-center rounded text-text-muted hover:text-text-primary"><X size={12} aria-hidden="true" /></button> : null}
             </div>
-            <motion.div ref={panel} key={scope} className="scroll-thin min-h-0 flex-1 overflow-y-auto p-1.5" aria-busy={loading}
+            <motion.div ref={panel} key={scope} className="scroll-thin min-h-0 flex-1 overflow-y-auto p-1" aria-busy={loading}
               initial={reducedMotion ? false : { opacity: 0, x: 4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: reducedMotion ? 0 : motionTokens.fast, ease: motionTokens.ease }}>
               {rows.length ? rows.map((row) => (
                 <ModelOption key={modelKey(row.provider, row.model.id)} row={row} locale={settings.locale} disabled={disabled}
@@ -220,9 +220,9 @@ function ModelOption({ row, locale, selected, disabled, showProvider, onSelect, 
 }) {
   const t = (key: string) => translate(locale, key);
   return (
-    <div className={cn("group flex items-center gap-1 rounded-[8px] hover:bg-background-3 focus-within:bg-background-3", selected && "bg-background-3")}>
+    <div className={cn("group flex items-center gap-1 rounded-[7px] hover:bg-background-3 focus-within:bg-background-3", selected && "bg-background-3")}>
       <button type="button" disabled={disabled} data-model-option aria-pressed={selected}
-        onClick={onSelect} className="flex min-h-9 min-w-0 flex-1 items-center gap-2 px-2 py-2 text-left disabled:opacity-40">
+        onClick={onSelect} className="flex min-h-7 min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left disabled:opacity-40">
         {showProvider ? <ProviderIcon id={row.provider} size={18} /> : null}
         <span className="min-w-0"><span className="block truncate ui-control text-text-primary">{row.displayName.replace(/^Claude\s+/i, "")}</span>
           {showProvider ? <span className="block truncate ui-description text-text-muted">{providerById(row.provider).name}</span> : null}

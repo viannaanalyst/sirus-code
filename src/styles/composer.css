@@ -64,15 +64,15 @@
   @keyframes dictation-wave { 0%,100% { transform:scaleY(.28); opacity:.6; } 35% { transform:scaleY(1); opacity:1; } 70% { transform:scaleY(.55); opacity:.8; } }
   @media (prefers-reduced-motion:reduce) { .dictation-orbit-dot,.dictation-wave b { animation:none!important; } }
   /* Model picker provider tabs: icons on top with a gliding highlight. */
-  .model-tabs { position: relative; display: flex; gap: 4px; margin: 10px 12px 6px; padding: 4px; border: 1px solid var(--border-subtle); border-radius: 12px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
-  .model-tab { position: relative; z-index: 1; display: flex; flex: 1; align-items: center; justify-content: center; height: 32px; border-radius: 9px; color: var(--text-muted); }
+  .model-tabs { position: relative; display: flex; gap: 2px; margin: 6px 6px 4px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); }
+  .model-tab { position: relative; z-index: 1; display: flex; flex: 1; align-items: center; justify-content: center; height: 24px; border-radius: 7px; color: var(--text-muted); }
   .model-tab > * { filter: grayscale(1); opacity: 0.6; transition: filter var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out), transform var(--motion-normal) var(--ease-spring); }
   .model-tab:hover > * { opacity: 0.9; }
   .model-tab[aria-pressed="true"] > * { filter: none; opacity: 1; transform: scale(1.08); }
   .model-tab-star { color: var(--warning); }
   .model-tab:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
   .model-tab:disabled { opacity: 0.4; }
-  .model-tabs-glide { position: absolute; top: 4px; bottom: 4px; left: 0; border-radius: 9px; background: color-mix(in srgb, var(--text-primary) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent); transition: transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring); }
+  .model-tabs-glide { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 7px; background: color-mix(in srgb, var(--text-primary) 9%, transparent); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent); transition: transform var(--motion-slow) var(--ease-spring), width var(--motion-slow) var(--ease-spring); }
   @media (prefers-reduced-motion: reduce) { .model-tabs-glide, .model-tab > * { transition: none; } }
   /* The brand colour heats toward red as effort rises (--effort-heat-mix is set from the level). */
   .model-effort-panel { --model-base: var(--brand-openai); --model-tone: color-mix(in oklch, var(--model-base), #ff4d3d var(--effort-heat-mix, 0%)); --energy-cool: color-mix(in srgb,var(--model-tone) 28%,var(--brand-gemini)); --energy-soft: color-mix(in srgb,var(--model-tone) 45%,var(--brand-nebula)); }
