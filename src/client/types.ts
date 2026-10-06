@@ -225,6 +225,8 @@ export interface Session {
   sideChat?: { parentSessionId: string } | null;
   /** The Astro whose conversation this is (ADR-069); hidden from session lists. */
   astro?: string | null;
+  /** An Astro started or messaged this session and wants its result back (ADR-069). */
+  delegation?: { astroId: string; batch: string; settled: boolean } | null;
 }
 
 export type TeamStatus = "planning" | "proposed" | "running" | "ready" | "done" | "stopped" | "failed";

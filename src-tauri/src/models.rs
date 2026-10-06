@@ -319,6 +319,9 @@ pub struct Session {
     /// The Astro whose conversation this is (ADR-069); hidden from session lists.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub astro: Option<String>,
+    /// An Astro started or messaged this session and wants its result back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delegation: Option<crate::astros::Delegation>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

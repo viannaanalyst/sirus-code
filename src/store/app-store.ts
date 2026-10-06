@@ -2145,7 +2145,8 @@ useAppStore.subscribe((state, previous) => {
   previousSessionIds = new Set(state.sessions.map(session => session.id));
   const projectId = state.selectedProjectId;
   const known = !!projectId && state.projects.some(project => project.id === projectId);
-  const selected = state.mainView === "session" ? state.sessions.find(session => session.id === state.selectedSessionId && session.projectId === projectId) : undefined;
+  // Astro conversations live on the rail, not in the project's header tabs (ADR-069).
+  const selected = state.mainView === "session" ? state.sessions.find(session => session.id === state.selectedSessionId && session.projectId === projectId && !session.astro) : undefined;
   let tabs = state.openTabsByProject, drafts = state.draftTabByProject, active = state.lastActiveTabByProject;
   if (known && !tabs[projectId!]) {
     const groups = sidebarGroups(state.projects, state.sessions, state.settings);

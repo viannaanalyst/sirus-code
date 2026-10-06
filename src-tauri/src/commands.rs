@@ -948,6 +948,7 @@ pub(crate) fn create_session_locked(
         team_worker: None,
         side_chat: None,
         astro: None,
+        delegation: None,
     };
     data.sessions.insert(0, session.clone());
     Ok(session)
@@ -1445,11 +1446,13 @@ pub async fn send_prompt(
             None => None,
         };
         // An Astro's turn carries who it is, its projects and its soul (ADR-069).
-        let astro_context = snapshot.astro.as_ref().and_then(|id| {
+        let astro_id = snapshot.astro.clone();
+        let astro_context = astro_id.as_ref().and_then(|id| {
+            let projects = data.projects.clone();
             data.astros
-                .iter()
+                .iter_mut()
                 .find(|astro| astro.id == *id)
-                .map(|astro| crate::astros::context(astro, &data.projects))
+                .map(|astro| crate::astros::take_context(astro, &projects))
         });
         let session = find_session_mut(&mut data, &request.session_id)?;
         if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {

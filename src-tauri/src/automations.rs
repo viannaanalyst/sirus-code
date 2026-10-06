@@ -598,6 +598,7 @@ pub async fn start_run(
                 None => automation.prompt.clone(),
             },
             astro: automation.astro_id.clone(),
+            delegation: None,
             approval: automation.approval,
             planning: automation.planning,
         },
@@ -648,6 +649,8 @@ pub struct Launch {
     pub planning: bool,
     /// Marks the session as this Astro's (a habit run).
     pub astro: Option<String>,
+    /// The Astro that started it and wants its result (ADR-069).
+    pub delegation: Option<crate::astros::Delegation>,
 }
 
 /// Creates the session (announced to the renderer) and admits its first turn.
@@ -660,6 +663,7 @@ pub async fn launch(
     let created = {
         let state = state.clone();
         let astro = request.astro.clone();
+        let delegation = request.delegation.clone();
         let session_request = CreateSessionRequest {
             project_id: request.project_id.clone(),
             title: Some(request.title.chars().take(200).collect()),
@@ -671,11 +675,11 @@ pub async fn launch(
             let mut data = state.data.lock();
             let mut session =
                 crate::commands::create_session_locked(&state, &mut data, session_request, "HEAD")?;
-            if let Some(astro) = astro {
-                session.astro = Some(astro.clone());
-                if let Some(stored) = data.sessions.iter_mut().find(|item| item.id == session.id) {
-                    stored.astro = Some(astro);
-                }
+            session.astro = astro;
+            session.delegation = delegation;
+            if let Some(stored) = data.sessions.iter_mut().find(|item| item.id == session.id) {
+                stored.astro = session.astro.clone();
+                stored.delegation = session.delegation.clone();
             }
             drop(data);
             state.persist()?;

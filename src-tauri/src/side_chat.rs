@@ -101,6 +101,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
             parent_session_id: source.id.clone(),
         }),
         astro: None,
+        delegation: None,
     };
     let view = crate::transcript_view::session_meta(&session)?;
     data.sessions.insert(0, session);

@@ -89,6 +89,23 @@ pub struct Astro {
     /// Habit reports posted since the conversation was last opened.
     #[serde(default)]
     pub unread: u32,
+    /// Delegation batches whose sessions all finished and await reporting.
+    #[serde(default)]
+    pub ready_batches: Vec<String>,
+    /// Finished sessions' results for the next turn's context; the visible message stays short.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pending_report: Option<String>,
+}
+
+/// A session an Astro started or messaged and wants to hear back from.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Delegation {
+    pub astro_id: String,
+    /// Sessions launched during the same Astro turn report together.
+    pub batch: String,
+    #[serde(default)]
+    pub settled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -356,6 +373,8 @@ fn save(data: &mut AppData, input: AstroInput) -> Result<()> {
                 created_at: now_rfc3339(),
                 memory: vec![],
                 unread: 0,
+                ready_batches: vec![],
+                pending_report: None,
             });
         }
     }
@@ -458,6 +477,15 @@ pub fn prune(data: &mut AppData) {
 }
 
 /// What a turn of an Astro's conversation carries ahead of the user's message.
+/// The context for a turn, consuming any finished-sessions report waiting for it.
+pub fn take_context(astro: &mut Astro, projects: &[Project]) -> String {
+    let context = context(astro, projects);
+    match astro.pending_report.take() {
+        Some(report) => format!("{context}\n\n{report}"),
+        None => context,
+    }
+}
+
 pub fn context(astro: &Astro, projects: &[Project]) -> String {
     let owned: Vec<&Project> = astro
         .project_ids
@@ -493,7 +521,7 @@ pub fn context(astro: &Astro, projects: &[Project]) -> String {
         facts.push_str(&line);
     }
     let memory = format!(
-        "\n\n<memory>\n{}</memory>\n\n<memory_rules>\nYou have a memory that carries across conversations and provider changes. Keep it to facts that stay useful later: decisions, the user's preferences, how their projects work, where things live. Save them as you learn them, without waiting to be asked, with the astro_memory_add tool; replace an outdated fact with astro_memory_replace and drop a wrong one with astro_memory_forget. Never save secrets, tokens or credentials. Only when the user asks you to change your standing instructions, read them with astro_soul_read and save the complete updated text with astro_soul_update.\n</memory_rules>",
+        "\n\n<memory>\n{}</memory>\n\n<memory_rules>\nYou have a memory that carries across conversations and provider changes. Keep it to facts that stay useful later: decisions, the user's preferences, how their projects work, where things live. Save them as you learn them, without waiting to be asked, with the astro_memory_add tool; replace an outdated fact with astro_memory_replace and drop a wrong one with astro_memory_forget. Never save secrets, tokens or credentials. Only when the user asks you to change your standing instructions, read them with astro_soul_read and save the complete updated text with astro_soul_update.\n</memory_rules>\n\n<delegation_rules>\nFor substantial work that is long, needs focus, or splits into independent parts, start sessions in your projects with astro_session_start on your own, and briefly tell the user what you started and why. Handle simple questions and small changes directly. Check astro_sessions_list for related work first and use only as many sessions as the task needs. Give each one a clear objective, context, constraints, what it may change and the checks you expect. Start independent parts in the same turn so their results arrive together; parallel editing sessions need separate worktrees. Sessions use the same permission mode as this conversation, so they may wait for the user's approval in their own tabs. Sessions return at once: tell the user you will report back, do not poll or wait. When their results arrive, review them together, resolve conflicts and give one consolidated report.\n</delegation_rules>",
         if facts.is_empty() { "(Nothing remembered yet.)\n".to_string() } else { facts }
     );
     format!(
@@ -525,7 +553,171 @@ pub fn settled(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
             crate::transcript_view::emit_from(&app, &conversation, from);
             let _ = app.emit(CHANGED, ());
         }
+        let delivery = {
+            let mut data = state.data.lock();
+            let astro_id = settle_delegation(&mut data, &session_id);
+            let busy = |id: &str| state.agents.lock().contains_key(id);
+            astro_id.and_then(|astro_id| take_ready(&mut data, &astro_id, &busy))
+        };
+        let _ = state.persist();
+        if let Some(delivery) = delivery {
+            deliver(&app, &state, delivery).await;
+        }
     });
+}
+
+/// Marks a finished delegated session; returns the Astro to check for ready reports.
+fn settle_delegation(data: &mut AppData, session_id: &str) -> Option<String> {
+    let session = data
+        .sessions
+        .iter_mut()
+        .find(|item| item.id == session_id)?;
+    if let Some(astro) = &session.astro {
+        // The Astro's own conversation settling may unblock waiting reports.
+        return Some(astro.clone());
+    }
+    if session.status.is_active() {
+        return None;
+    }
+    let delegation = session.delegation.as_mut()?;
+    if delegation.settled {
+        return Some(delegation.astro_id.clone());
+    }
+    delegation.settled = true;
+    let (astro_id, batch) = (delegation.astro_id.clone(), delegation.batch.clone());
+    let complete = data.sessions.iter().all(|item| {
+        item.delegation
+            .as_ref()
+            .is_none_or(|other| other.batch != batch || other.settled)
+    });
+    if complete {
+        if let Some(astro) = data.astros.iter_mut().find(|astro| astro.id == astro_id) {
+            if !astro.ready_batches.contains(&batch) {
+                astro.ready_batches.push(batch);
+            }
+        }
+    }
+    Some(astro_id)
+}
+
+struct Delivery {
+    astro_id: String,
+    conversation: String,
+    batches: Vec<String>,
+    prompt: String,
+}
+
+/// Ready batches for an idle Astro conversation, as one report turn.
+fn take_ready(data: &mut AppData, astro_id: &str, busy: &dyn Fn(&str) -> bool) -> Option<Delivery> {
+    let astro = data.astros.iter().find(|astro| astro.id == astro_id)?;
+    if astro.ready_batches.is_empty() {
+        return None;
+    }
+    let conversation_id = astro.session_id.clone()?;
+    let conversation = data
+        .sessions
+        .iter()
+        .find(|item| item.id == conversation_id)?;
+    if conversation.status.is_active() || busy(&conversation_id) {
+        return None;
+    }
+    let batches = astro.ready_batches.clone();
+    let portuguese = data.settings.locale == "pt-BR";
+    let mut prompt = String::from(
+        "<finished_sessions>\nThe sessions you started have finished. Review the results together, resolve any conflicts and give the user one consolidated report.\n",
+    );
+    let mut count = 0;
+    for session in data.sessions.iter().filter(|item| {
+        item.delegation
+            .as_ref()
+            .is_some_and(|delegation| batches.contains(&delegation.batch))
+    }) {
+        let project = data
+            .projects
+            .iter()
+            .find(|project| project.id == session.project_id)
+            .map(|project| project.name.as_str())
+            .unwrap_or("?");
+        let answer = session
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == MessageRole::Agent)
+            .map(|message| bounded(message.content.trim(), 2500))
+            .unwrap_or_default();
+        let error = session
+            .last_error
+            .as_deref()
+            .map(|error| format!("\nError: {}", bounded(error, 300)))
+            .unwrap_or_default();
+        count += 1;
+        prompt.push_str(&format!(
+            "\n### {} — {project}, {} ({:?}, id {}){error}\n{answer}\n",
+            session.title,
+            session.agent.key(),
+            session.status,
+            session.id
+        ));
+    }
+    prompt.push_str("</finished_sessions>");
+    if let Some(astro) = data.astros.iter_mut().find(|astro| astro.id == astro_id) {
+        astro.ready_batches.clear();
+        astro.pending_report = Some(prompt);
+    }
+    let visible = match (portuguese, count) {
+        (true, 1) => "🛰 1 sessão terminou — me dê o relatório.".to_string(),
+        (true, count) => format!("🛰 {count} sessões terminaram — me dê o relatório consolidado."),
+        (false, 1) => "🛰 1 session finished — give me the report.".to_string(),
+        (false, count) => format!("🛰 {count} sessions finished — give me the consolidated report."),
+    };
+    Some(Delivery {
+        astro_id: astro_id.to_owned(),
+        conversation: conversation_id,
+        batches,
+        prompt: visible,
+    })
+}
+
+fn bounded(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_owned();
+    }
+    let kept: String = text.chars().take(limit).collect();
+    format!("{kept}…")
+}
+
+/// Sends the report turn; a failed send puts the batches back for the next settlement.
+async fn deliver(app: &AppHandle, state: &Arc<AppState>, delivery: Delivery) {
+    let request = crate::models::SendPromptRequest {
+        queued_after: None,
+        debugging: false,
+        goal: None,
+        session_id: delivery.conversation.clone(),
+        attachment_ids: vec![],
+        attachment_owner: String::new(),
+        prompt: delivery.prompt,
+        execution: Default::default(),
+        team: false,
+    };
+    let sent =
+        crate::commands::send_prompt(app.clone(), app.state::<Arc<AppState>>(), request).await;
+    if sent.is_err() {
+        let mut data = state.data.lock();
+        if let Some(astro) = data
+            .astros
+            .iter_mut()
+            .find(|astro| astro.id == delivery.astro_id)
+        {
+            astro.pending_report = None;
+            for batch in delivery.batches {
+                if !astro.ready_batches.contains(&batch) {
+                    astro.ready_batches.push(batch);
+                }
+            }
+        }
+        drop(data);
+        let _ = state.persist();
+    }
 }
 
 fn post_report(data: &mut AppData, session_id: &str) -> Option<crate::models::Session> {
@@ -614,7 +806,214 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "astro_memory_forget", "description": "Astro conversations only: forget a fact that was wrong. `find` is its id or text.", "inputSchema": { "type": "object", "properties": { "find": { "type": "string" } }, "required": ["find"] } }),
         json!({ "name": "astro_soul_read", "description": "Astro conversations only: read your standing instructions (soul).", "inputSchema": { "type": "object", "properties": {} } }),
         json!({ "name": "astro_soul_update", "description": "Astro conversations only, and only when the user asks: save your complete updated standing instructions.", "inputSchema": text("The complete updated Markdown.") }),
+        json!({ "name": "astro_sessions_list", "description": "Astro conversations only: recent sessions in your projects (id, title, project, provider, status). Check before starting related work.", "inputSchema": { "type": "object", "properties": { "project": { "type": "string", "description": "Optional project name or id." } } } }),
+        json!({ "name": "astro_session_start", "description": "Astro conversations only: start a background session in one of your projects with a clear objective. It runs on its own; when every session you start in this turn finishes, their results come back to you together. Returns at once.", "inputSchema": { "type": "object", "properties": { "project": { "type": "string", "description": "Project name or id." }, "title": { "type": "string" }, "prompt": { "type": "string", "description": "The task: objective, context, constraints, what it may change, the checks and result you expect." }, "newWorktree": { "type": "boolean", "description": "Default true: an isolated worktree, so parallel sessions never mix files." }, "provider": { "type": "string", "description": "Optional provider id (claude, codex, opencode, …); defaults to yours." }, "model": { "type": "string" }, "notify": { "type": "boolean", "description": "Default true: report back when it finishes." } }, "required": ["project", "title", "prompt"] } }),
+        json!({ "name": "astro_session_read", "description": "Astro conversations only: a session's status and latest answer.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" } }, "required": ["sessionId"] } }),
+        json!({ "name": "astro_session_send", "description": "Astro conversations only: send a follow-up message to an idle session in your projects; with notify (default true) its result comes back to you.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "prompt": { "type": "string" }, "notify": { "type": "boolean" } }, "required": ["sessionId", "prompt"] } }),
     ]
+}
+
+fn session_row(data: &AppData, session: &crate::models::Session) -> Value {
+    json!({
+        "id": session.id,
+        "title": session.title,
+        "project": data.projects.iter().find(|project| project.id == session.project_id).map(|project| project.name.clone()),
+        "provider": session.agent.key(),
+        "model": session.model,
+        "status": session.status,
+        "branch": session.worktree.branch,
+        "lastActivityAt": session.last_activity_at,
+    })
+}
+
+/// Session tools: list, start, read and message sessions in the caller Astro's projects.
+fn session_tool(
+    app: &AppHandle,
+    session_id: &str,
+    tool: &str,
+    args: &Value,
+) -> std::result::Result<Value, String> {
+    let state = app.state::<Arc<AppState>>().inner().clone();
+    let arg = |key: &str| {
+        args.get(key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let flag = |key: &str| args.get(key).and_then(Value::as_bool).unwrap_or(true);
+    let (astro, caller) = {
+        let mut data = state.data.lock();
+        let astro = astro_of(&mut data, session_id)?.clone();
+        let caller = data
+            .sessions
+            .iter()
+            .find(|item| item.id == session_id)
+            .cloned()
+            .ok_or("session not found")?;
+        (astro, caller)
+    };
+    let owned =
+        |data: &AppData, target: &str| -> std::result::Result<crate::models::Session, String> {
+            data.sessions
+                .iter()
+                .find(|item| item.id == target && item.astro.is_none() && item.side_chat.is_none())
+                .filter(|item| astro.project_ids.contains(&item.project_id))
+                .cloned()
+                .ok_or_else(|| "no session with that id in your projects".to_string())
+        };
+    // Sessions started during the same turn of the caller report together.
+    let batch = caller
+        .messages
+        .iter()
+        .rev()
+        .find(|message| message.role == MessageRole::User)
+        .map(|message| message.id.clone())
+        .unwrap_or_else(|| caller.id.clone());
+    let delegation = |notify: bool| {
+        notify.then(|| Delegation {
+            astro_id: astro.id.clone(),
+            batch: batch.clone(),
+            settled: false,
+        })
+    };
+    match tool {
+        "astro_sessions_list" => {
+            let data = state.data.lock();
+            let filter = arg("project");
+            let rows: Vec<Value> = data
+                .sessions
+                .iter()
+                .filter(|item| {
+                    item.astro.is_none()
+                        && item.side_chat.is_none()
+                        && astro.project_ids.contains(&item.project_id)
+                })
+                .filter(|item| {
+                    filter.is_empty()
+                        || item.project_id == filter
+                        || data.projects.iter().any(|project| {
+                            project.id == item.project_id
+                                && project.name.eq_ignore_ascii_case(&filter)
+                        })
+                })
+                .take(30)
+                .map(|item| session_row(&data, item))
+                .collect();
+            Ok(json!({ "sessions": rows }))
+        }
+        "astro_session_read" => {
+            let data = state.data.lock();
+            let session = owned(&data, &arg("sessionId"))?;
+            let answer = session
+                .messages
+                .iter()
+                .rev()
+                .find(|message| message.role == MessageRole::Agent)
+                .map(|message| bounded(&message.content, 4000));
+            let mut row = session_row(&data, &session);
+            row["lastAnswer"] = json!(answer);
+            row["lastError"] = json!(session.last_error);
+            Ok(row)
+        }
+        "astro_session_start" => {
+            let (prompt, title) = (arg("prompt"), arg("title"));
+            if prompt.is_empty() || title.is_empty() {
+                return Err("title and prompt are required".into());
+            }
+            let launch = {
+                let data = state.data.lock();
+                let wanted = arg("project");
+                let project = data
+                    .projects
+                    .iter()
+                    .filter(|project| astro.project_ids.contains(&project.id))
+                    .find(|project| {
+                        project.id == wanted || project.name.eq_ignore_ascii_case(&wanted)
+                    })
+                    .ok_or("that project is not one of yours")?;
+                let provider = arg("provider");
+                let agent = if provider.is_empty() {
+                    caller.agent.clone()
+                } else {
+                    serde_json::from_value::<crate::models::AgentProviderId>(json!(provider))
+                        .map_err(|_| "unknown provider")?
+                };
+                let model = match arg("model") {
+                    model if !model.is_empty() => Some(model),
+                    _ if agent == caller.agent => caller.model.clone(),
+                    _ => None,
+                };
+                crate::automations::Launch {
+                    project_id: project.id.clone(),
+                    title,
+                    agent,
+                    model,
+                    isolated_worktree: args
+                        .get("newWorktree")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(true),
+                    prompt,
+                    // The Astro's own permission choice carries over to the work it delegates.
+                    approval: caller
+                        .execution
+                        .approval
+                        .unwrap_or(crate::models::ApprovalMode::Ask),
+                    planning: false,
+                    astro: None,
+                    delegation: delegation(flag("notify")),
+                }
+            };
+            let (session, error) =
+                tauri::async_runtime::block_on(crate::automations::launch(app, &state, launch));
+            match (session, error) {
+                (Some(id), None) => Ok(json!({ "started": true, "sessionId": id })),
+                (_, Some(error)) => Err(error),
+                _ => Err("the session did not start".into()),
+            }
+        }
+        "astro_session_send" => {
+            let prompt = arg("prompt");
+            let target = {
+                let mut data = state.data.lock();
+                let session = owned(&data, &arg("sessionId"))?;
+                if session.status.is_active() {
+                    return Err("that session is still working".into());
+                }
+                if let Some(stored) = data.sessions.iter_mut().find(|item| item.id == session.id) {
+                    stored.delegation = delegation(flag("notify"));
+                }
+                session.id
+            };
+            let request = crate::models::SendPromptRequest {
+                queued_after: None,
+                debugging: false,
+                goal: None,
+                session_id: target.clone(),
+                attachment_ids: vec![],
+                attachment_owner: String::new(),
+                prompt,
+                execution: crate::models::ExecutionOptions {
+                    approval: Some(
+                        caller
+                            .execution
+                            .approval
+                            .unwrap_or(crate::models::ApprovalMode::Ask),
+                    ),
+                    ..Default::default()
+                },
+                team: false,
+            };
+            tauri::async_runtime::block_on(crate::commands::send_prompt(
+                app.clone(),
+                app.state::<Arc<AppState>>(),
+                request,
+            ))
+            .map(|_| json!({ "sent": true, "sessionId": target }))
+            .map_err(|error| error.to_string())
+        }
+        _ => Err("unknown Astro tool".into()),
+    }
 }
 
 /// One tool call from the per-session MCP bridge.
@@ -624,6 +1023,9 @@ pub fn execute(
     tool: &str,
     args: &Value,
 ) -> std::result::Result<Value, String> {
+    if tool.starts_with("astro_session") {
+        return session_tool(app, session_id, tool, args);
+    }
     let state = app.state::<Arc<AppState>>();
     let arg = |key: &str| {
         args.get(key)
@@ -725,6 +1127,38 @@ mod tests {
         assert!(remember(astro, &"x".repeat(FACT_LIMIT + 1)).is_err());
         assert!(context(astro, &[]).contains("- usa Supabase ("));
         assert!(habit_prompt("CI", "olhe o CI").contains(QUIET));
+    }
+
+    #[test]
+    fn a_batch_is_ready_only_when_all_its_sessions_settle() {
+        let mut data = AppData::default();
+        save(&mut data, input("Órion")).unwrap();
+        let astro_id = data.astros[0].id.clone();
+        for (id, status) in [
+            ("a", SessionStatus::Completed),
+            ("b", SessionStatus::Running),
+        ] {
+            let mut session: crate::models::Session = serde_json::from_value(json!({
+                "id": id, "title": id, "projectId": "p", "agent": "claude", "status": "completed",
+                "createdAt": "t", "lastActivityAt": "t", "worktree": { "path": "/tmp", "branch": "main", "isolated": false },
+                "messages": []
+            })).unwrap();
+            session.status = status;
+            session.delegation = Some(Delegation {
+                astro_id: astro_id.clone(),
+                batch: "turn".into(),
+                settled: false,
+            });
+            data.sessions.push(session);
+        }
+        assert_eq!(settle_delegation(&mut data, "a"), Some(astro_id.clone()));
+        assert!(data.astros[0].ready_batches.is_empty());
+        assert_eq!(settle_delegation(&mut data, "b"), None);
+        data.sessions[1].status = SessionStatus::Failed;
+        settle_delegation(&mut data, "b");
+        assert_eq!(data.astros[0].ready_batches, vec!["turn".to_string()]);
+        // No conversation yet: nothing is delivered and the batch waits.
+        assert!(take_ready(&mut data, &astro_id, &|_| false).is_none());
     }
 
     #[test]

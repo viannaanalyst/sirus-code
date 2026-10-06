@@ -160,6 +160,7 @@ pub async fn task_action(
                 approval,
                 planning,
                 astro: None,
+                delegation: None,
             }
         };
         let (session_id, error) = launch(&app, &state, request).await;
