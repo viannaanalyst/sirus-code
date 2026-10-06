@@ -67,7 +67,7 @@
 .close { display: grid; flex: 0 0 auto; width: var(--space-8); height: var(--space-8); place-items: center; border: 1px solid var(--border); border-radius: var(--radius-control); background: color-mix(in oklch, var(--surface-muted) 65%, transparent); color: var(--text-secondary); cursor: pointer; transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform var(--duration-spring) var(--ease-spring); }
 @media (hover: hover) and (pointer: fine) { .close:hover { background: var(--surface-muted); color: var(--foreground); } }
 .close:active { transform: scale(.96); transition: background-color var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard), transform 100ms var(--ease-standard); }
-.body { min-height: 0; overflow: auto; padding: var(--space-6); font-size: var(--text-sm); line-height: var(--leading-body); overscroll-behavior: contain; scrollbar-width: thin; }
+.body { min-height: 0; overflow: auto; padding: var(--space-6); font-size: var(--text-sm); line-height: var(--leading-body); overscroll-behavior: contain; }
 
 @media (max-width: 40rem) {
   .content { --drawer-size: calc(100vw - var(--space-3)); }

@@ -4,7 +4,7 @@
 /* Inserting at the top pushes the rows down instead of the browser holding the scroll position still. */
 .scroller { min-width: 0; overflow-anchor: none; }
 @property --timeline-feather { syntax: "<length>"; inherits: false; initial-value: 0px; }
-.scroller[data-scrolls] { max-height: var(--timeline-height); overflow-y: auto; overscroll-behavior: contain; scrollbar-color: var(--border-strong) transparent; scrollbar-width: thin; mask-image: linear-gradient(to bottom, #000 calc(100% - var(--timeline-feather)), transparent); transition: --timeline-feather var(--duration-standard) var(--ease-standard); }
+.scroller[data-scrolls] { max-height: var(--timeline-height); overflow-y: auto; overscroll-behavior: contain; mask-image: linear-gradient(to bottom, #000 calc(100% - var(--timeline-feather)), transparent); transition: --timeline-feather var(--duration-standard) var(--ease-standard); }
 /* While more updates wait below, the last visible row fades into the edge instead of being cut. */
 .scroller[data-more] { --timeline-feather: 36px; }
 .group { position: relative; }

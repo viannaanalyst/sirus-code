@@ -19,7 +19,7 @@
 .search .tool:active:not(:disabled) { background: var(--surface); }
 
 /* Tree. Rows are one fixed height, so scrolling can aim at where a row will settle. */
-.tree { position: relative; max-height: var(--json-max-height, 420px); padding: 6px; overflow: auto; overscroll-behavior: contain; font-family: var(--mono); font-size: 13px; font-variant-ligatures: none; letter-spacing: 0; scrollbar-width: thin; }
+.tree { position: relative; max-height: var(--json-max-height, 420px); padding: 6px; overflow: auto; overscroll-behavior: contain; font-family: var(--mono); font-size: 13px; font-variant-ligatures: none; letter-spacing: 0; }
 .row { position: relative; border-radius: 10px; cursor: default; outline: none; -webkit-tap-highlight-color: transparent; }
 .highlight { position: absolute; inset: 1px 0; border-radius: 9px; background: var(--surface-muted); }
 .line { position: relative; display: flex; height: 30px; min-width: 0; align-items: center; gap: 6px; padding-right: 6px; padding-left: calc(4px + var(--level, 0) * var(--indent)); white-space: nowrap; }

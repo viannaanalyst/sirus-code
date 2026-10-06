@@ -7,8 +7,11 @@ import { Input } from "@/components/arc/input/input";
 import { Select } from "@/components/arc/select/select";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { TimePicker } from "@/components/arc/time-picker/time-picker";
+import { ModelIcon } from "@/components/ModelIcon";
+import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { INTERVALS, WEEKDAYS } from "@/lib/automations";
+import { latestModelChoices, providerModelChoices } from "@/lib/model-registry";
 import { supportsPlanning } from "@/lib/execution-options";
 import { PROVIDERS, providerById } from "@/lib/provider-registry";
 import { isProviderEnabled } from "@/lib/settings";
@@ -84,7 +87,8 @@ export function AutomationDialog({ open, editing, onClose, onSaved, astroId = nu
   useEffect(() => { if (open) void useAppStore.getState().loadProviderModels(agent); }, [open, agent]);
 
   const definition = providerById(agent);
-  const models = catalogs[agent]?.models ?? [];
+  // The newest generation of each model line, plus the saved one (same rule as the model picker).
+  const models = useMemo(() => latestModelChoices(providerModelChoices(catalogs, settings, agent, model, ""), model, ""), [catalogs, settings, agent, model]);
   const planningAvailable = supportsPlanning(agent, model);
   const approvals = (["ask", "auto", "full"] as const).filter((mode) => definition.approvalModes.includes(mode));
   const effectiveApproval = approvals.includes(approval as never) ? approval : approvals[0] ?? "ask";
@@ -115,8 +119,8 @@ export function AutomationDialog({ open, editing, onClose, onSaved, astroId = nu
         <div className="grid grid-cols-2 gap-3">
           <Select label={t("Project")} value={projectId} onValueChange={setProjectId} options={projects.map((project) => ({ value: project.id, label: project.name }))} />
           <Select label={t("automations.workspace")} value={workspace} onValueChange={(value) => setWorkspace(value as "worktree" | "local")} options={[{ value: "worktree", label: t("automations.workspace.worktree") }, { value: "local", label: t("automations.workspace.local") }]} />
-          <Select label={t("Provider")} value={agent} onValueChange={(value) => { setAgent(value as typeof agent); setModel(null); }} options={providers.map((provider) => ({ value: provider.id, label: provider.name }))} />
-          <Select label={t("automations.model")} value={model ?? DEFAULT_MODEL} onValueChange={(value) => setModel(value === DEFAULT_MODEL ? null : value)} options={[{ value: DEFAULT_MODEL, label: t("Use provider default") }, ...models.map((item) => ({ value: item.id, label: item.displayName }))]} />
+          <Select label={t("Provider")} value={agent} onValueChange={(value) => { setAgent(value as typeof agent); setModel(null); }} options={providers.map((provider) => ({ value: provider.id, label: provider.name, icon: <ProviderIcon id={provider.id} size={15} className="bg-transparent" /> }))} />
+          <Select label={t("automations.model")} value={model ?? DEFAULT_MODEL} onValueChange={(value) => setModel(value === DEFAULT_MODEL ? null : value)} options={[{ value: DEFAULT_MODEL, label: t("Use provider default"), icon: <ProviderIcon id={agent} size={15} className="bg-transparent" /> }, ...models.map((item) => ({ value: item.model.id, label: item.displayName.replace(/^Claude\s+/i, ""), icon: <ModelIcon modelId={item.model.id} provider={agent} size={15} /> }))]} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <Select label={t("automations.schedule")} value={kind} onValueChange={(value) => setKind(value as Kind)} options={KINDS.map((value) => ({ value, label: t(`automations.schedule.${value}`) }))} />

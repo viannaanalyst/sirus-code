@@ -95,8 +95,32 @@ export function pickerModelChoices(
   query: string,
 ): ModelChoice[] {
   const providers = scope === "favorites" ? installedProviders : installedProviders.filter((id) => id === scope);
-  const rows = providers.flatMap((id) => providerModelChoices(catalogs, settings, id, id === currentProvider ? currentModel : null, query));
+  const rows = providers.flatMap((id) => latestModelChoices(providerModelChoices(catalogs, settings, id, id === currentProvider ? currentModel : null, query), id === currentProvider ? currentModel : null, query));
   return scope === "favorites" ? rows.filter((row) => row.favorite) : rows;
+}
+
+/** A model line: the display name with its version replaced, so "Opus 4.6" and "Opus 5.5" share one and "GPT-5.4-mini" stays apart from "GPT-5.5". */
+function modelLine(row: ModelRow): { key: string; version: number[] } | null {
+  const { name, version } = modelGeneration(row);
+  if (!version.length) return null;
+  const label = version.join(".");
+  const at = name.indexOf(label) >= 0 ? name.indexOf(label) : name.search(/\d/);
+  return { key: `${row.provider}:${name.slice(0, at)}#${name.slice(at).replace(/^[\d.-]+/, "")}`.toLowerCase(), version };
+}
+
+/**
+ * Pickers offer only the newest generation of each model line. Older ones stay listed when favorited,
+ * currently selected or matched by a search, so nothing becomes unreachable.
+ */
+export function latestModelChoices<T extends ModelChoice>(choices: readonly T[], currentModel: string | null, query: string): T[] {
+  if (query.trim()) return [...choices];
+  const newest = new Map<string, number[]>();
+  const newer = (a: number[], b: number[]) => { for (let index = 0; index < Math.max(a.length, b.length); index++) { const difference = (a[index] ?? 0) - (b[index] ?? 0); if (difference) return difference > 0; } return false; };
+  for (const row of choices) { const line = modelLine(row); if (line && (!newest.has(line.key) || newer(line.version, newest.get(line.key)!))) newest.set(line.key, line.version); }
+  return choices.filter((row) => {
+    const line = modelLine(row);
+    return !line || row.favorite || (currentModel !== null && row.variantIds.includes(currentModel)) || !newer(newest.get(line.key)!, line.version);
+  });
 }
 
 /** Cursor exposes effort/context presets as separate catalog entries. Settings keeps them intact. */

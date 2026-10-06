@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { catalogModels, modelDisplayName, pickerModelChoices, providerModelChoices, visibleModels } from "../src/lib/model-registry.ts";
+import { catalogModels, latestModelChoices, modelDisplayName, pickerModelChoices, providerModelChoices, visibleModels } from "../src/lib/model-registry.ts";
 import { defaultSettings } from "../src/lib/settings.ts";
 import type { ProviderModelList } from "../src/client/types.ts";
 import { AGENT_PROVIDER_IDS } from "../src/client/types.ts";
@@ -180,4 +180,26 @@ test("browsing another provider does not use its equal model ID as a selected Cu
   const selected = pickerModelChoices({ cursor: cursorCatalog }, settings, ["cursor"], "favorites", "cursor", "claude-sonnet-5-thinking-xhigh", "sonnet 5");
   assert.equal(selected[0].model.id, "claude-sonnet-5-thinking-xhigh");
   assert.equal(pickerModelChoices({}, settings, ["cursor"], "cursor", "cursor", null, "").length, 0);
+});
+
+test("pickers offer the newest generation of each model line; favorites, the current model and searches keep older ones", () => {
+  const claude: ProviderModelList = { provider: "claude", source: "cli", note: "", models: [
+    { id: "claude-opus-5-5", displayName: "Opus 5.5", availability: "available" },
+    { id: "claude-opus-4-6", displayName: "Opus 4.6", availability: "available" },
+    { id: "claude-sonnet-5-5", displayName: "Sonnet 5.5", availability: "available" },
+    { id: "claude-sonnet-4-6", displayName: "Sonnet 4.6", availability: "available" },
+    { id: "claude-haiku-4-5", displayName: "Haiku 4.5", availability: "available" },
+  ] };
+  const codex: ProviderModelList = { provider: "codex", source: "cli", note: "", models: [
+    { id: "gpt-5.5", displayName: "GPT-5.5", availability: "available" },
+    { id: "gpt-5.4", displayName: "GPT-5.4", availability: "available" },
+    { id: "gpt-5.4-mini", displayName: "GPT-5.4-mini", availability: "available" },
+  ] };
+  const ids = (provider: "claude" | "codex", current: string | null, query = "", settings = defaultSettings) => pickerModelChoices({ claude, codex }, settings, ["claude", "codex"], provider, provider, current, query).map((row) => row.model.id);
+  assert.deepEqual(ids("claude", null), ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"]);
+  assert.deepEqual(ids("codex", null), ["gpt-5.5", "gpt-5.4-mini"]);
+  assert.ok(ids("claude", "claude-opus-4-6").includes("claude-opus-4-6"), "the selected model stays reachable");
+  assert.ok(ids("claude", null, "4.6").includes("claude-sonnet-4-6"), "searching reaches older generations");
+  assert.ok(ids("claude", null, "", { ...defaultSettings, favoriteModels: ["claude::claude-sonnet-4-6"] }).includes("claude-sonnet-4-6"), "favorites stay listed");
+  assert.equal(latestModelChoices([], null, "").length, 0);
 });

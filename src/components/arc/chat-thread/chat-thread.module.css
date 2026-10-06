@@ -12,7 +12,7 @@
 }
 
 .viewport { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
-.scroller { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.scroller { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 /* The content springs up from where it was when the thread grows; the clip keeps that travel out of the scroll range. */
 .track { overflow: clip; }
 .content { padding: 12px 16px 14px; will-change: transform; }
