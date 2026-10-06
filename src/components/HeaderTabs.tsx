@@ -12,8 +12,6 @@ import { selectCurrentProject, useAppStore, selectListedSessions } from "@/store
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import "@/styles/header-tabs.css";
 
-/** Project switcher, separator, "+N" and New tab around the list (px). */
-const TAB_CHROME = 230;
 /** Narrowest tab that still shows a readable title (px). */
 const TAB_MIN_READABLE = 128;
 
@@ -111,21 +109,26 @@ export function HeaderTabs() {
   const tabIds = useAppStore(state => (project ? state.openTabsByProject[project.id] : undefined));
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const mainView = useAppStore(state => state.mainView);
+  const draft = useAppStore(state => (project ? !!state.draftTabByProject[project.id] : false));
   const { unseen, computer } = useWaitingSets();
   const tabs = useMemo(() => (project ? visibleTabSessions(tabIds ?? [], sessions, project.id, archived) : []), [project, tabIds, sessions, archived]);
   // Only the tabs that fit stay inline (the dock or a narrow window shrinks the
   // header); the active one always stays visible and the rest go to "+N".
-  const root = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   const [capacity, setCapacity] = useState(VISIBLE_TABS);
   useLayoutEffect(() => {
-    const node = root.current;
+    const node = list.current;
     if (!node) return;
-    const measure = () => setCapacity(Math.max(1, Math.min(VISIBLE_TABS, Math.floor((node.clientWidth - TAB_CHROME) / TAB_MIN_READABLE))));
+    const measure = () => {
+      const gap = Number.parseFloat(getComputedStyle(node).columnGap) || 0;
+      const slots = Math.floor((node.clientWidth + gap) / (TAB_MIN_READABLE + gap));
+      setCapacity(Math.max(1, Math.min(VISIBLE_TABS, slots - Number(draft))));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [draft]);
   const activeId = mainView === "session" ? selectedSessionId : null;
   const shown = useMemo(() => {
     const first = tabs.slice(0, capacity);
@@ -133,12 +136,10 @@ export function HeaderTabs() {
     return current && !first.includes(current) ? [...first.slice(0, Math.max(0, capacity - 1)), current] : first;
   }, [tabs, capacity, activeId]);
   const overflow = tabs.filter(tab => !shown.includes(tab));
-  const draft = useAppStore(state => (project ? !!state.draftTabByProject[project.id] : false));
   const defaultAgent = useAppStore(state => state.settings.defaultAgent);
   const onDraft = mainView === "session" && !selectedSessionId;
   const active = mainView === "session" ? selectedSessionId : null;
   const shownKey = `${shown.map(tab => tab.id).join()}|${draft}|${onDraft}`;
-  const list = useRef<HTMLDivElement>(null);
   const glider = useRef<HTMLSpanElement>(null);
   const placed = useRef(false);
   const reorder = usePointerReorder({ axis: "x", onDrop: (source, target, edge) => { if (project) useAppStore.getState().moveHeaderTab(project.id, source, target, edge); } });
@@ -186,15 +187,16 @@ export function HeaderTabs() {
   const toastTitle = toast ? sessions.find(session => session.id === toast)?.title ?? "" : "";
   const label = (session: Session) => t(`tabs.status.${tabStatus(session, unseen, computer)}`);
 
-  return <div ref={root} className="header-tabs titlebar-no-drag">
+  return <div className="header-tabs titlebar-no-drag">
     <ProjectSwitcher />
     <span className="header-tabs-separator" aria-hidden="true">/</span>
-    <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [
-      { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },
-      { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
-      { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
-      { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
-    ] : []}>
+    <div className="header-tabs-context">
+      <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [
+        { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },
+        { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
+        { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
+        { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
+      ] : []}>
       <div ref={list} className="header-tabs-list" data-reorder-scope="" role="tablist" aria-label={t("tabs.label")}
         onContextMenuCapture={event => setMenuTab((event.target as HTMLElement).closest<HTMLElement>("[data-tab]")?.dataset.tab ?? null)}>
         <span ref={glider} className="header-tabs-glider" aria-hidden="true" />
@@ -231,12 +233,13 @@ export function HeaderTabs() {
         </div>}
       </div>
     </ContextMenu>
-    {overflow.length > 0 && <Dropdown>
-      <DropdownTrigger asChild><button type="button" className="header-tabs-more" aria-label={t("tabs.more", { count: overflow.length })}>+{overflow.length}</button></DropdownTrigger>
+    </div>
+    <Dropdown>
+      <DropdownTrigger asChild><button type="button" className="header-tabs-more" data-empty={!overflow.length || undefined} aria-hidden={!overflow.length || undefined} tabIndex={overflow.length ? undefined : -1} disabled={!overflow.length} aria-label={t("tabs.more", { count: overflow.length })}>+{overflow.length}</button></DropdownTrigger>
       <DropdownContent align="end">
         {overflow.map(session => <DropdownItem key={session.id} onSelect={() => void store().selectSession(session.id)}>{session.title}</DropdownItem>)}
       </DropdownContent>
-    </Dropdown>}
+    </Dropdown>
     <button type="button" className="header-tabs-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => store().requestNewSession()}><Plus size={14} aria-hidden="true" /></button>
     <AnimatePresence>{toast && <motion.div key="closed-tab" className="header-tabs-toast" role="status" exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }}>
       <span>{t("tabs.closedToast", { title: toastTitle })}</span>
