@@ -7,6 +7,8 @@ import { ModelIcon } from "@/components/ModelIcon";
 import { modelExecutionControls } from "@/lib/execution-options";
 import { FavoriteStar } from "@/components/FavoriteStar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
+import { ProviderOrbitSwap } from "@/components/ProviderOrbitSwap";
+import { announceProviderSwitch } from "@/lib/provider-switch";
 import { translate, type Locale } from "@/i18n";
 import { cn } from "@/lib/cn";
 import { modelDisplayName, pickerModelChoices, type ModelChoice, type ModelPickerScope } from "@/lib/model-registry";
@@ -17,8 +19,10 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 
-export function ModelSelector({ currentProvider, currentModel, onSelect, disabled = false, executionControls = false }: {
+export function ModelSelector({ currentProvider, currentModel, onSelect, disabled = false, executionControls = false, switchOwner }: {
   executionControls?: boolean;
+  /** Announces a provider switch for this pane's scene (`ProviderSwitchScene`). */
+  switchOwner?: string;
   disabled?: boolean;
   currentProvider: AgentProviderId;
   currentModel: string | null;
@@ -32,6 +36,7 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
   const t = (key: string) => translate(settings.locale, key);
   const reducedMotion = useMotionPreferences();
   const [open, setOpen] = useState(false);
+  const [orbit, setOrbit] = useState<{ from: AgentProviderId; to: AgentProviderId; key: number } | null>(null);
   const [page, setPage] = useState<"effort" | "catalog">("catalog");
   const browseButton = useRef<HTMLButtonElement>(null);
   const [scope, setScope] = useState<ModelPickerScope>(currentProvider);
@@ -81,6 +86,10 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
     if (executionControls) setPage("effort"); else setOpen(false);
     setQuery("");
     ++requestSequence.current;
+    if (row.provider !== currentProvider) {
+      if (!reducedMotion) setOrbit({ from: currentProvider, to: row.provider, key: performance.now() });
+      if (switchOwner) announceProviderSwitch(switchOwner, row.provider);
+    }
     onSelect(row.provider, row.model.id);
   };
   const manageProviders = () => {
@@ -143,7 +152,10 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} aria-label={`${t("models.models")} · ${currentLabel} · ${providerById(currentProvider).name}`}
           className={cn("titlebar-no-drag inline-flex max-w-[260px] min-w-0 items-center gap-2 rounded-full bg-transparent px-2 ui-control text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-[var(--accent-muted)] hover:text-text-primary disabled:opacity-40", executionControls ? "composer-control" : "h-8")}>
-          {currentModel ? <ModelIcon modelId={currentModel} provider={currentProvider} size={executionControls ? 16 : 20} /> : <ProviderIcon id={currentProvider} size={executionControls ? 16 : 20} />}
+          <span className="relative inline-flex shrink-0">
+            <span className={cn("inline-flex", orbit && "opacity-0")}>{currentModel ? <ModelIcon modelId={currentModel} provider={currentProvider} size={executionControls ? 16 : 20} /> : <ProviderIcon id={currentProvider} size={executionControls ? 16 : 20} />}</span>
+            {orbit ? <ProviderOrbitSwap key={orbit.key} from={orbit.from} to={orbit.to} size={executionControls ? 16 : 20} onDone={() => setOrbit(null)} /> : null}
+          </span>
           <span className="truncate">{currentLabel}</span>
           {executionControls && execution.fast ? <Zap size={12} fill="currentColor" aria-label={t("composer.fast")} /> : null}
           <ChevronDown size={12} aria-hidden="true" className="shrink-0 text-text-muted" />

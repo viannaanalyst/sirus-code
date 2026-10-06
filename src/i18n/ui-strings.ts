@@ -755,6 +755,7 @@ export const messages: Record<string, [string, string]> = {
   "Planning mode is not supported by this adapter.": ["Planning mode is not supported by this adapter.", "Este adapter ainda não oferece modo planejamento."],
   "composer.effortFixedFast": ["This offered Fast preset fixes the effort. Disable the lightning button to choose other levels.", "Este preset Fast mantém o esforço fixo. Desative o raio para escolher outros níveis."],
   "Handoff": ["Handoff", "Handoff"],
+  "handoff.tookOver": ["{provider} took over", "{provider} assumiu"],
   "Install another provider to hand off": ["Install another provider to hand off", "Instale outro provedor para fazer o handoff"],
   "Remove handoff": ["Remove handoff", "Remover handoff"],
   "Use provider default": ["Use provider default", "Usar o padrão do provedor"],

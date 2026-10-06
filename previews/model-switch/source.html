@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Previews de animação para trocar de IA no composer e para o handoff na mesma conversa do Sirus Code.">
+<title>Sirus Code — Animações de troca de IA</title>
+<style>
+:root { color-scheme:dark; --background-0:#0c0c0c; --background-1:#111111; --background-2:#191919; --background-3:#242424; --border-subtle:rgb(255 255 255 / .06); --border-default:rgb(255 255 255 / .10); --text-primary:#ececec; --text-secondary:#b4b4b4; --text-muted:#7d7d7d; --ease-out:cubic-bezier(.16,1,.3,1); --ease-spring:cubic-bezier(.34,1.56,.64,1); --radius-md:8px; --radius-lg:12px; --tint:#D97757; }
+* { box-sizing:border-box; margin:0; }
+body { background:var(--background-0); color:var(--text-primary); font:13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; padding:28px 32px 60px; }
+h1 { font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.lead { color:var(--text-muted); margin-top:4px; max-width:760px; }
+.tabs { display:inline-flex; gap:2px; margin:20px 0 18px; padding:3px; border-radius:10px; background:var(--background-2); border:1px solid var(--border-subtle); }
+.tabs button { all:unset; cursor:pointer; padding:6px 12px; border-radius:7px; color:var(--text-secondary); font-weight:500; }
+.tabs button[aria-selected="true"] { background:var(--background-3); color:var(--text-primary); }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:16px; }
+.card { background:var(--background-1); border:1px solid var(--border-subtle); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+.card header { display:flex; align-items:baseline; gap:8px; }
+.card .num { color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.card h2 { font-size:14px; font-weight:600; }
+.card p { color:var(--text-muted); font-size:12px; }
+.controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.controls .label { color:var(--text-muted); font-size:11px; margin-right:2px; }
+.chip { all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:4px 9px 4px 6px; border-radius:999px; border:1px solid var(--border-default); color:var(--text-secondary); font-size:12px; transition:background .14s var(--ease-out), border-color .14s; }
+.chip:hover { background:var(--background-3); }
+.chip[aria-pressed="true"] { border-color:rgb(255 255 255 / .28); color:var(--text-primary); background:var(--background-3); }
+.chip:focus-visible, .tabs button:focus-visible, .replay:focus-visible { outline:2px solid rgb(255 255 255 / .5); outline-offset:2px; }
+.replay { all:unset; cursor:pointer; margin-left:auto; font-size:12px; color:var(--text-muted); padding:4px 8px; border-radius:6px; }
+.replay:hover { color:var(--text-primary); background:var(--background-3); }
+.logo { width:16px; height:16px; border-radius:4px; flex:none; display:block; object-fit:contain; }
+.logo.lg { width:20px; height:20px; border-radius:5px; }
+.stage { position:relative; height:190px; border-radius:12px; background:radial-gradient(120% 90% at 50% 0%, #161616, #0d0d0d); border:1px solid var(--border-subtle); overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; padding:16px; }
+.stage.tall { height:380px; justify-content:flex-start; }
+
+/* ---------- Composer ---------- */
+.composer { position:relative; border-radius:16px; background:#1a1a1a; border:1px solid var(--border-default); padding:12px 12px 10px; isolation:isolate; }
+.composer .ph { color:var(--text-muted); font-size:13px; height:34px; }
+.composer .row { display:flex; align-items:center; gap:8px; }
+.composer .plus { width:26px; height:26px; border-radius:999px; border:1px solid var(--border-default); display:grid; place-items:center; color:var(--text-secondary); }
+.composer .approval { color:var(--text-muted); font-size:12px; }
+.composer .spacer { flex:1; }
+.trigger { position:relative; display:inline-flex; align-items:center; gap:7px; height:28px; padding:0 10px 0 7px; border-radius:8px; color:var(--text-secondary); font-size:12.5px; overflow:visible; }
+.trigger .icon-slot { position:relative; width:16px; height:16px; perspective:240px; }
+.trigger .icon-slot img { position:absolute; inset:0; }
+.trigger .name-slot { position:relative; height:18px; overflow:hidden; min-width:92px; }
+.trigger .name-slot span { position:absolute; left:0; top:0; white-space:nowrap; line-height:18px; }
+.send { width:28px; height:28px; border-radius:999px; background:#ececec; display:grid; place-items:center; color:#111; }
+.rim { position:absolute; inset:-1px; border-radius:16px; pointer-events:none; opacity:0; z-index:2; }
+.ripple { position:absolute; width:20px; height:20px; border-radius:50%; pointer-events:none; opacity:0; z-index:-1; }
+.orbit-ring { position:absolute; width:46px; height:46px; left:-15px; top:-15px; border-radius:50%; border:1px solid rgb(255 255 255 / .0); pointer-events:none; }
+.halo { position:absolute; inset:-6px; border-radius:50%; pointer-events:none; opacity:0; }
+
+/* ---------- Transcript ---------- */
+.transcript { display:flex; flex-direction:column; gap:10px; flex:1; overflow:hidden; padding-left:22px; position:relative; }
+.transcript .slot { display:flex; flex-direction:column; gap:10px; }
+.msg-user { align-self:flex-end; max-width:78%; background:#262626; border-radius:14px; padding:7px 11px; color:var(--text-primary); font-size:12.5px; }
+.msg-agent { max-width:92%; color:var(--text-secondary); font-size:12.5px; position:relative; }
+.msg-agent .who { display:flex; align-items:center; gap:6px; color:var(--text-muted); font-size:11px; margin-bottom:3px; }
+.msg-agent .who img { width:13px; height:13px; border-radius:3px; }
+.msg-agent .body { min-height:18px; }
+.caret { display:inline-block; width:6px; height:12px; background:var(--text-muted); vertical-align:-1px; margin-left:1px; animation:blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.mini-composer { margin-top:10px; border-radius:12px; background:#1a1a1a; border:1px solid var(--border-default); padding:7px 8px 7px 12px; display:flex; align-items:center; gap:8px; color:var(--text-muted); font-size:12px; position:relative; }
+.mini-composer .grow { flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.mini-composer .trigger { height:24px; font-size:12px; }
+.handoff-card { display:flex; align-items:center; gap:6px; border-radius:8px; border:1px solid var(--border-subtle); background:rgb(36 36 36 / .6); padding:5px 9px; font-size:11.5px; color:var(--text-secondary); margin-top:8px; }
+.handoff-card .muted { color:var(--text-muted); }
+.divider { display:flex; align-items:center; gap:10px; color:var(--text-muted); font-size:11px; margin:2px 0; }
+.divider .line { flex:1; height:1px; background:linear-gradient(90deg, transparent, rgb(255 255 255 / .16)); transform-origin:right; }
+.divider .line.r { background:linear-gradient(90deg, rgb(255 255 255 / .16), transparent); transform-origin:left; }
+.divider .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; border:1px solid var(--border-default); background:#161616; white-space:nowrap; }
+.divider .baton { position:relative; width:16px; height:16px; }
+.divider .baton img { position:absolute; inset:0; }
+.trail { position:absolute; left:6px; top:0; bottom:0; width:2px; border-radius:2px; background:rgb(255 255 255 / .08); overflow:hidden; }
+.trail .fill-old, .trail .fill-new { position:absolute; left:0; right:0; }
+.node { position:absolute; left:-2px; width:18px; height:18px; border-radius:50%; background:#141414; border:1px solid var(--border-default); display:grid; place-items:center; transform:translateY(-50%); }
+.node img { position:absolute; width:11px; height:11px; border-radius:3px; }
+.now-chip { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--text-secondary); padding:2px 8px 2px 4px; border-radius:999px; background:rgb(255 255 255 / .05); border:1px solid var(--border-subtle); }
+.sweep { position:absolute; inset:-4px -8px; border-radius:10px; pointer-events:none; opacity:0; }
+.ghost { position:absolute; z-index:5; pointer-events:none; }
+.hidden { display:none !important; }
+.foot { margin-top:26px; color:var(--text-muted); font-size:11.5px; max-width:760px; }
+@media (prefers-reduced-motion: reduce) { .caret { animation:none; } }
+</style></head>
+<body>
+<h1>Animações de troca de IA</h1>
+<p class="lead">Escolha a IA de destino nos chips de cada card para ver a animação; “Repetir” toca de novo. Na aba <b>Handoff na conversa</b>, a troca acontece ao enviar uma mensagem para outra IA na mesma sessão.</p>
+<div class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="picker">Troca no seletor</button>
+  <button role="tab" aria-selected="false" data-tab="handoff">Handoff na conversa</button>
+</div>
+<section data-panel="picker"><div class="grid" id="picker-grid"></div></section>
+<section data-panel="handoff" class="hidden"><div class="grid" id="handoff-grid"></div></section>
+<p class="foot">Tudo roda no próprio arquivo, sem rede nem IPC. Nomes de modelo são exemplos visuais. Com “Reduzir movimento” ligado no macOS, as animações viram trocas suaves de opacidade.</p>
+
+<script>
+const LOGOS = { claude: "{{claude}}", codex: "{{codex}}", opencode: "{{opencode}}", grok: "{{grok}}", cursor: "{{cursor}}" };
+const PROVIDERS = {
+  claude:   { name: "Claude Code", model: "Opus 5.5",      tint: "#D97757" },
+  codex:    { name: "Codex",       model: "GPT-5.5",       tint: "#74AA9C" },
+  opencode: { name: "OpenCode",    model: "Big Pickle",    tint: "#C8C8D0" },
+  grok:     { name: "Grok",        model: "Grok 5",        tint: "#8C9BFF" },
+  cursor:   { name: "Cursor",      model: "Composer 2",    tint: "#9AA0A6" },
+};
+const ORDER = ["claude", "codex", "opencode", "grok", "cursor"];
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const D = (ms) => reduced ? Math.min(ms, 120) : ms;
+const wait = (ms) => new Promise((r) => setTimeout(r, reduced ? Math.min(ms, 80) : ms));
+const img = (id, cls = "logo") => `<img class="${cls}" src="${LOGOS[id]}" alt="">`;
+const anim = (el, frames, opts) => el.animate(frames, { fill: "forwards", easing: "cubic-bezier(.16,1,.3,1)", ...opts, duration: D(opts.duration ?? 300) });
+const tintA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgb(${n >> 16} ${(n >> 8) & 255} ${n & 255} / ${a})`; };
+
+document.querySelectorAll(".tabs button").forEach((tab) => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b === tab)));
+  document.querySelectorAll("section[data-panel]").forEach((s) => s.classList.toggle("hidden", s.dataset.panel !== tab.dataset.tab));
+}));
+
+function card(grid, n, title, text, stageHtml, tall) {
+  const el = document.createElement("article");
+  el.className = "card";
+  el.innerHTML = `<header><span class="num">0${n}</span><h2>${title}</h2></header><p>${text}</p>
+    <div class="stage${tall ? " tall" : ""}">${stageHtml}</div>
+    <div class="controls"><span class="label">Trocar para</span>${ORDER.slice(0, 4).map((id) => `<button class="chip" data-to="${id}" aria-pressed="false">${img(id)}${PROVIDERS[id].name}</button>`).join("")}<button class="replay">↻ Repetir</button></div>`;
+  grid.append(el);
+  return el;
+}
+
+function wire(el, initial, run) {
+  let current = initial, last = initial === "claude" ? "codex" : "claude", busy = false;
+  const chips = [...el.querySelectorAll(".chip")];
+  const mark = () => chips.forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.to === current)));
+  mark();
+  const go = async (to, from) => {
+    if (busy) return;
+    busy = true;
+    try { await run(from, to); } finally { busy = false; }
+  };
+  chips.forEach((c) => c.addEventListener("click", () => {
+    const to = c.dataset.to;
+    if (to === current) return;
+    const from = current; last = from; current = to; mark();
+    go(to, from);
+  }));
+  el.querySelector(".replay").addEventListener("click", () => go(current, last));
+}
+
+/* =================== A. Picker =================== */
+const composerHtml = (id, extra = "") => `
+  <div class="composer">${extra}
+    <div class="ph">Descreva o que deseja criar ou alterar…</div>
+    <div class="row">
+      <span class="plus">+</span><span class="approval">✋ Solicitar aprovação</span><span class="spacer"></span>
+      <span class="trigger"><span class="icon-slot">${img(id)}</span><span class="name-slot"><span>${PROVIDERS[id].model}</span></span><span style="color:var(--text-muted)">⌄</span></span>
+      <span class="send">↑</span>
+    </div>
+  </div>`;
+
+function swapName(slot, text, dir = 1, dur = 340) {
+  const old = slot.querySelector("span");
+  const next = document.createElement("span");
+  next.textContent = text;
+  slot.append(next);
+  anim(old, [{ transform: "translateY(0)", opacity: 1, filter: "blur(0)" }, { transform: `translateY(${-12 * dir}px)`, opacity: 0, filter: "blur(3px)" }], { duration: dur * 0.7 }).finished.then(() => old.remove());
+  return anim(next, [{ transform: `translateY(${12 * dir}px)`, opacity: 0, filter: "blur(3px)" }, { transform: "translateY(0)", opacity: 1, filter: "blur(0)" }], { duration: dur, delay: D(dur * 0.25) }).finished;
+}
+function setIcon(slot, id) { slot.innerHTML = img(id); return slot.firstElementChild; }
+
+// A1 — Flip metálico
+{
+  const el = card(document.getElementById("picker-grid"), 1, "Flip metálico", "O ícone gira como uma moeda e vira o da nova IA; o nome do modelo sobe com desfoque e a borda do composer acende na cor do provider.", composerHtml("claude", `<div class="rim"></div>`));
+  const slot = el.querySelector(".icon-slot"), name = el.querySelector(".name-slot"), rim = el.querySelector(".rim");
+  wire(el, "claude", async (from, to) => {
+    setIcon(slot, from);
+    rim.style.boxShadow = `0 0 0 1px ${tintA(PROVIDERS[to].tint, .9)}, 0 0 22px ${tintA(PROVIDERS[to].tint, .35)}`;
+    anim(rim, [{ opacity: 0 }, { opacity: 1, offset: .35 }, { opacity: 0 }], { duration: 1100, easing: "ease-out" });
+    await anim(slot.firstElementChild, [{ transform: "rotateY(0deg)" }, { transform: "rotateY(90deg)" }], { duration: 170, easing: "ease-in" }).finished;
+    const icon = setIcon(slot, to);
+    swapName(name, PROVIDERS[to].model);
+    await anim(icon, [{ transform: "rotateY(-90deg)" }, { transform: "rotateY(12deg)", offset: .7 }, { transform: "rotateY(0deg)" }], { duration: 380 }).finished;
+  });
+}
+
+// A2 — Órbita
+{
+  const el = card(document.getElementById("picker-grid"), 2, "Órbita", "Fiel à marca do Sirus: o ícone antigo sai por uma órbita e o novo entra pelo lado oposto, com um anel que pisca em volta.", composerHtml("claude"));
+  const slot = el.querySelector(".icon-slot"), name = el.querySelector(".name-slot");
+  const ring = document.createElement("span"); ring.className = "orbit-ring"; slot.append(ring);
+  wire(el, "claude", async (from, to) => {
+    slot.querySelectorAll("img").forEach((i) => i.remove());
+    const out = document.createElement("img"); out.className = "logo"; out.src = LOGOS[from];
+    const inn = document.createElement("img"); inn.className = "logo"; inn.src = LOGOS[to];
+    slot.prepend(out, inn);
+    ring.style.borderColor = tintA(PROVIDERS[to].tint, .7);
+    anim(ring, [{ transform: "scale(.4) rotate(0deg)", opacity: 0 }, { transform: "scale(1) rotate(120deg)", opacity: 1, offset: .5 }, { transform: "scale(1.25) rotate(220deg)", opacity: 0 }], { duration: 700, easing: "ease-out" });
+    const path = (a, s, o) => ({ transform: `rotate(${a}deg) translateX(15px) rotate(${-a}deg) scale(${s})`, opacity: o });
+    anim(out, [{ transform: "rotate(0deg) translateX(0) scale(1)", opacity: 1 }, path(-70, .7, .6), path(-160, .4, 0)], { duration: 460, easing: "cubic-bezier(.5,0,.75,0)" }).finished.then(() => out.remove());
+    swapName(name, PROVIDERS[to].model, 1, 380);
+    await anim(inn, [path(20, .4, 0), path(110, .75, .7), { transform: "rotate(180deg) translateX(0) rotate(-180deg) scale(1)", opacity: 1 }], { duration: 560, delay: D(120), easing: "cubic-bezier(.25,1,.5,1)" }).finished;
+  });
+}
+
+// A3 — Onda de cor
+{
+  const el = card(document.getElementById("picker-grid"), 3, "Onda de cor", "Uma onda na cor da nova IA sai do seletor e atravessa o composer; o nome é trocado por baixo da onda.", composerHtml("claude", `<div class="ripple"></div><div class="rim"></div>`));
+  const slot = el.querySelector(".icon-slot"), name = el.querySelector(".name-slot"), ripple = el.querySelector(".ripple"), rim = el.querySelector(".rim"), comp = el.querySelector(".composer"), trig = el.querySelector(".trigger");
+  comp.style.overflow = "hidden";
+  wire(el, "claude", async (from, to) => {
+    const c = comp.getBoundingClientRect(), t = trig.getBoundingClientRect();
+    ripple.style.left = `${t.left - c.left + 8 - 10}px`; ripple.style.top = `${t.top - c.top + 14 - 10}px`;
+    ripple.style.background = `radial-gradient(circle, ${tintA(PROVIDERS[to].tint, .32)} 0%, ${tintA(PROVIDERS[to].tint, .12)} 45%, transparent 70%)`;
+    rim.style.boxShadow = `inset 0 0 0 1px ${tintA(PROVIDERS[to].tint, .55)}`;
+    anim(ripple, [{ transform: "scale(0)", opacity: 1 }, { transform: "scale(70)", opacity: 0 }], { duration: 900, easing: "cubic-bezier(.2,.7,.3,1)" });
+    anim(rim, [{ opacity: 0 }, { opacity: 1, offset: .3 }, { opacity: 0 }], { duration: 900 });
+    const icon = slot.querySelector("img");
+    await anim(icon, [{ opacity: 1, transform: "scale(1)" }, { opacity: 0, transform: "scale(.6)" }], { duration: 140 }).finished;
+    const next = setIcon(slot, to);
+    swapName(name, PROVIDERS[to].model, 1, 300);
+    await anim(next, [{ opacity: 0, transform: "scale(1.5)" }, { opacity: 1, transform: "scale(1)" }], { duration: 320 }).finished;
+  });
+}
+
+// A4 — Rolagem com brilho
+{
+  const el = card(document.getElementById("picker-grid"), 4, "Rolagem com brilho", "O nome rola como um contador e assenta com mola; o ícone dá um pulo e solta um halo na cor do provider.", composerHtml("claude"));
+  const slot = el.querySelector(".icon-slot"), name = el.querySelector(".name-slot");
+  const halo = document.createElement("span"); halo.className = "halo"; slot.append(halo);
+  wire(el, "claude", async (from, to) => {
+    const strip = document.createElement("span");
+    strip.style.cssText = "position:absolute;left:0;top:0;display:flex;flex-direction:column;";
+    const words = [PROVIDERS[from].model, PROVIDERS[ORDER[(ORDER.indexOf(from) + 2) % ORDER.length]].model, PROVIDERS[ORDER[(ORDER.indexOf(to) + 3) % ORDER.length]].model, PROVIDERS[to].model];
+    strip.innerHTML = words.map((w) => `<span style="position:static;height:18px;line-height:18px;white-space:nowrap">${w}</span>`).join("");
+    name.innerHTML = ""; name.append(strip);
+    halo.style.boxShadow = `0 0 0 2px ${tintA(PROVIDERS[to].tint, .6)}, 0 0 14px ${tintA(PROVIDERS[to].tint, .5)}`;
+    anim(strip, [{ transform: "translateY(0)", filter: "blur(0)" }, { transform: "translateY(-30px)", filter: "blur(1.5px)", offset: .4 }, { transform: "translateY(-58px)", filter: "blur(0)", offset: .8 }, { transform: "translateY(-54px)" }], { duration: 620, easing: "cubic-bezier(.3,0,.2,1)" });
+    const icon = slot.querySelector("img");
+    await anim(icon, [{ transform: "scale(1)" }, { transform: "scale(.55)", opacity: .3 }], { duration: 160, easing: "ease-in" }).finished;
+    const next = setIcon(slot, to); slot.append(halo);
+    anim(halo, [{ transform: "scale(.6)", opacity: 1 }, { transform: "scale(1.6)", opacity: 0 }], { duration: 600, easing: "ease-out" });
+    await anim(next, [{ transform: "scale(.55) translateY(3px)" }, { transform: "scale(1.18) translateY(-2px)", offset: .55 }, { transform: "scale(1) translateY(0)" }], { duration: 460, easing: "cubic-bezier(.34,1.56,.64,1)" }).finished;
+    name.innerHTML = `<span>${PROVIDERS[to].model}</span>`;
+  });
+}
+
+/* =================== B. Handoff =================== */
+const REPLIES = {
+  claude: "Revisei de novo: o token expira antes do refresh porque o relógio do servidor está 40 s adiantado. Sugiro tolerância de 60 s no exp.",
+  codex: "Outra leitura: o refresh roda em paralelo em duas abas e a segunda invalida o primeiro token. Um lock por sessão resolve.",
+  opencode: "Confirmei no código: o interceptor tenta o refresh sem esperar a promessa pendente. Vou propor uma fila única de refresh.",
+  grok: "Ponto extra: o cookie de refresh não tem SameSite=Lax, então o Safari descarta no redirect do login.",
+  cursor: "Revisão rápida: além do refresh, faltam testes para a expiração. Posso escrever dois casos.",
+};
+const transcriptHtml = (id, extra = "") => `
+  <div class="transcript">${extra}
+    <div class="msg-user">Por que o login cai depois de 10 minutos?</div>
+    <div class="msg-agent"><div class="who">${img(id)}<span>${PROVIDERS[id].name} · ${PROVIDERS[id].model}</span></div><div class="body">O access token vence em 10 min e o refresh falha em silêncio no interceptor.</div></div>
+    <div class="slot"></div>
+  </div>
+  <div class="handoff-holder"></div>
+  <div class="mini-composer"><span class="grow">Peça para outra IA revisar…</span><span class="trigger"><span class="icon-slot">${img(id)}</span><span class="name-slot" style="min-width:70px"><span>${PROVIDERS[id].model}</span></span></span><span class="send" style="width:24px;height:24px">↑</span></div>`;
+
+function resetTranscript(el, from) {
+  const t = el.querySelector(".transcript");
+  t.querySelector(".msg-agent .who").innerHTML = `${img(from)}<span>${PROVIDERS[from].name} · ${PROVIDERS[from].model}</span>`;
+  t.querySelector(".slot").innerHTML = "";
+  el.querySelector(".handoff-holder").innerHTML = "";
+  setIcon(el.querySelector(".mini-composer .icon-slot"), from);
+  el.querySelector(".mini-composer .name-slot").innerHTML = `<span>${PROVIDERS[from].model}</span>`;
+  el.querySelector(".mini-composer .grow").textContent = "Peça para outra IA revisar…";
+  t.querySelectorAll(".msg-user,.msg-agent").forEach((m) => { m.getAnimations().forEach((a) => a.cancel()); });
+}
+async function pickInComposer(el, to) {
+  const slot = el.querySelector(".mini-composer .icon-slot");
+  await anim(slot.firstElementChild, [{ opacity: 1 }, { opacity: 0 }], { duration: 120 }).finished;
+  anim(setIcon(slot, to), [{ opacity: 0, transform: "scale(.6)" }, { opacity: 1, transform: "scale(1)" }], { duration: 220 });
+  await swapName(el.querySelector(".mini-composer .name-slot"), PROVIDERS[to].model, 1, 240);
+}
+async function typeInto(el, text) {
+  const grow = el.querySelector(".mini-composer .grow");
+  grow.textContent = "";
+  for (const ch of text) { grow.textContent += ch; await wait(14); }
+  await wait(160);
+}
+async function sendUser(el, text) {
+  el.querySelector(".mini-composer .grow").textContent = "";
+  const bubble = document.createElement("div");
+  bubble.className = "msg-user"; bubble.textContent = text;
+  el.querySelector(".slot").append(bubble);
+  await anim(bubble, [{ opacity: 0, transform: "translateY(10px) scale(.98)" }, { opacity: 1, transform: "none" }], { duration: 260 }).finished;
+}
+function agentBubble(to, extraWho = "") {
+  const m = document.createElement("div");
+  m.className = "msg-agent";
+  m.innerHTML = `<div class="who">${img(to)}<span>${PROVIDERS[to].name} · ${PROVIDERS[to].model}</span>${extraWho}</div><div class="body"><span class="caret"></span></div>`;
+  return m;
+}
+async function stream(m, text) {
+  const body = m.querySelector(".body");
+  const caret = body.querySelector(".caret");
+  let out = "";
+  for (const word of text.split(" ")) { out += (out ? " " : "") + word; body.firstChild?.nodeType === 3 ? body.firstChild.textContent = out : body.prepend(document.createTextNode(out)); await wait(34); }
+  caret.remove();
+}
+const ASK = "Revise isso com outro olhar.";
+
+// B1 — Bastão
+{
+  const el = card(document.getElementById("handoff-grid"), 1, "Bastão", "Ao enviar, uma divisória desenha dos dois lados e, no centro, o logo antigo passa o bastão para o novo. A resposta da nova IA chega logo abaixo.", transcriptHtml("claude"), true);
+  wire(el, "claude", async (from, to) => {
+    resetTranscript(el, from);
+    await pickInComposer(el, to); await typeInto(el, ASK); await sendUser(el, ASK);
+    const div = document.createElement("div");
+    div.className = "divider";
+    div.innerHTML = `<span class="line"></span><span class="pill"><span class="baton">${img(from)}${img(to)}</span>Handoff para ${PROVIDERS[to].name} · resumo enviado</span><span class="line r"></span>`;
+    el.querySelector(".slot").append(div);
+    const [l, r] = div.querySelectorAll(".line"), pill = div.querySelector(".pill");
+    const [a, b] = div.querySelectorAll(".baton img");
+    pill.style.borderColor = tintA(PROVIDERS[to].tint, .45);
+    anim(l, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 520 });
+    anim(r, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 520 });
+    anim(pill, [{ opacity: 0, transform: "scale(.9)" }, { opacity: 1, transform: "scale(1)" }], { duration: 320, delay: D(180) });
+    anim(a, [{ transform: "translateX(-14px)", opacity: 1 }, { transform: "translateX(0)", opacity: 1, offset: .45 }, { transform: "translateX(6px) scale(.6)", opacity: 0 }], { duration: 720, delay: D(260) });
+    await anim(b, [{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(.4)", opacity: 0, offset: .45 }, { transform: "scale(1.15)", opacity: 1, offset: .75 }, { transform: "scale(1)", opacity: 1 }], { duration: 720, delay: D(260) }).finished;
+    const m = agentBubble(to); el.querySelector(".slot").append(m);
+    anim(m, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 260 });
+    await stream(m, REPLIES[to]);
+  });
+}
+
+// B2 — Trilha que muda de cor
+{
+  const el = card(document.getElementById("handoff-grid"), 2, "Trilha que muda de cor", "A trilha à esquerda do transcript continua na cor da nova IA; no ponto da troca, um nó transforma um logo no outro.", transcriptHtml("claude", `<div class="trail"><div class="fill-old"></div><div class="fill-new"></div></div>`), true);
+  const trail = el.querySelector(".trail"), fo = trail.querySelector(".fill-old"), fn = trail.querySelector(".fill-new");
+  const paintOld = (id) => { fo.style.cssText = `top:0;height:100%;background:linear-gradient(${tintA(PROVIDERS[id].tint, .1)}, ${tintA(PROVIDERS[id].tint, .55)})`; fn.style.cssText = "top:100%;height:0"; };
+  paintOld("claude");
+  wire(el, "claude", async (from, to) => {
+    resetTranscript(el, from); paintOld(from);
+    el.querySelectorAll(".node").forEach((n) => n.remove());
+    await pickInComposer(el, to); await typeInto(el, ASK); await sendUser(el, ASK);
+    const t = el.querySelector(".transcript"), user = el.querySelector(".slot .msg-user");
+    const y = user.offsetTop + user.offsetHeight + 10;
+    fo.style.height = `${y}px`;
+    fn.style.cssText = `top:${y}px;height:0;background:linear-gradient(${tintA(PROVIDERS[to].tint, .7)}, ${tintA(PROVIDERS[to].tint, .08)})`;
+    const node = document.createElement("div"); node.className = "node"; node.style.top = `${y}px`;
+    node.innerHTML = img(from) + img(to); t.append(node);
+    const [a, b] = node.querySelectorAll("img");
+    node.style.borderColor = tintA(PROVIDERS[to].tint, .6);
+    await anim(node, [{ transform: "translateY(-50%) scale(0)" }, { transform: "translateY(-50%) scale(1)" }], { duration: 320, easing: "cubic-bezier(.34,1.56,.64,1)" }).finished;
+    anim(a, [{ transform: "rotate(0) scale(1)", opacity: 1 }, { transform: "rotate(-120deg) scale(0)", opacity: 0 }], { duration: 360 });
+    await anim(b, [{ transform: "rotate(120deg) scale(0)", opacity: 0 }, { transform: "rotate(0) scale(1)", opacity: 1 }], { duration: 420, delay: D(140) }).finished;
+    anim(node, [{ boxShadow: `0 0 0 0 ${tintA(PROVIDERS[to].tint, .6)}` }, { boxShadow: `0 0 0 8px ${tintA(PROVIDERS[to].tint, 0)}` }], { duration: 600, easing: "ease-out" });
+    anim(fn, [{ height: "0px" }, { height: `${t.clientHeight - y}px` }], { duration: 900, easing: "ease-in-out" });
+    const m = agentBubble(to); m.style.marginTop = "8px"; el.querySelector(".slot").append(m);
+    anim(m, [{ opacity: 0, transform: "translateX(-6px)" }, { opacity: 1, transform: "none" }], { duration: 300 });
+    await stream(m, REPLIES[to]);
+  });
+}
+
+// B3 — Holofote
+{
+  const el = card(document.getElementById("handoff-grid"), 3, "Holofote", "As mensagens anteriores escurecem por um instante, um chip “Agora com…” surge e uma faixa de luz na cor da nova IA varre a resposta enquanto ela começa.", transcriptHtml("claude"), true);
+  wire(el, "claude", async (from, to) => {
+    resetTranscript(el, from);
+    await pickInComposer(el, to); await typeInto(el, ASK); await sendUser(el, ASK);
+    const earlier = [...el.querySelectorAll(".transcript > .msg-user, .transcript > .msg-agent")];
+    earlier.forEach((m) => anim(m, [{ opacity: 1 }, { opacity: .45, offset: .3 }, { opacity: .45, offset: .7 }, { opacity: 1 }], { duration: 1500, easing: "ease-in-out" }));
+    const chip = document.createElement("div");
+    chip.className = "now-chip"; chip.style.alignSelf = "flex-start";
+    chip.innerHTML = `${img(to)}<span>Agora com <b style="color:var(--text-primary);font-weight:600">${PROVIDERS[to].name}</b> · leu o resumo da conversa</span>`;
+    el.querySelector(".slot").append(chip);
+    chip.style.borderColor = tintA(PROVIDERS[to].tint, .4);
+    await anim(chip, [{ opacity: 0, transform: "translateY(6px) scale(.96)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }], { duration: 380 }).finished;
+    const m = agentBubble(to); m.style.marginTop = "6px";
+    const sweep = document.createElement("div"); sweep.className = "sweep";
+    sweep.style.background = `linear-gradient(100deg, transparent 20%, ${tintA(PROVIDERS[to].tint, .22)} 50%, transparent 80%)`;
+    sweep.style.backgroundSize = "250% 100%";
+    m.append(sweep); el.querySelector(".slot").append(m);
+    anim(m, [{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
+    anim(sweep, [{ opacity: 1, backgroundPosition: "120% 0" }, { opacity: 1, backgroundPosition: "-20% 0", offset: .85 }, { opacity: 0, backgroundPosition: "-20% 0" }], { duration: 1200, easing: "ease-in-out" });
+    await stream(m, REPLIES[to]);
+  });
+}
+
+// B4 — Cartão que vira marcador
+{
+  const el = card(document.getElementById("handoff-grid"), 4, "Cartão que vira marcador", "Escolher outra IA mostra o cartão de handoff acima do composer (como hoje). Ao enviar, ele voa para o transcript e encolhe até virar um marcador fino.", transcriptHtml("claude"), true);
+  wire(el, "claude", async (from, to) => {
+    resetTranscript(el, from);
+    await pickInComposer(el, to);
+    const holder = el.querySelector(".handoff-holder");
+    holder.innerHTML = `<div class="handoff-card"><span class="muted">⇄ Handoff</span>${img(from)}<span>${PROVIDERS[from].name}</span><span class="muted">›</span>${img(to)}<span>${PROVIDERS[to].name}</span><span class="muted" style="margin-left:auto">resumo pronto</span></div>`;
+    const cardEl = holder.firstElementChild;
+    await anim(cardEl, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 260 }).finished;
+    await typeInto(el, ASK);
+    const stage = el.querySelector(".stage"), sr = stage.getBoundingClientRect(), cr = cardEl.getBoundingClientRect();
+    await sendUser(el, ASK);
+    const marker = document.createElement("div");
+    marker.className = "divider";
+    marker.innerHTML = `<span class="line"></span><span class="pill" style="padding:2px 8px">${img(from)}<span>›</span>${img(to)}<span>${PROVIDERS[to].name} assumiu</span></span><span class="line r"></span>`;
+    el.querySelector(".slot").append(marker);
+    const mr = marker.querySelector(".pill").getBoundingClientRect();
+    const ghost = cardEl.cloneNode(true); ghost.classList.add("ghost");
+    ghost.style.left = `${cr.left - sr.left}px`; ghost.style.top = `${cr.top - sr.top}px`; ghost.style.width = `${cr.width}px`; ghost.style.margin = "0";
+    stage.append(ghost); holder.innerHTML = "";
+    marker.style.opacity = "0";
+    const dx = mr.left + mr.width / 2 - (cr.left + cr.width / 2), dy = mr.top + mr.height / 2 - (cr.top + cr.height / 2);
+    await anim(ghost, [{ transform: "translate(0,0) scale(1)", opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(${mr.width / cr.width}, ${mr.height / cr.height})`, opacity: .2 }], { duration: 520, easing: "cubic-bezier(.65,0,.35,1)" }).finished;
+    ghost.remove(); marker.style.opacity = "1";
+    const [l, r] = marker.querySelectorAll(".line");
+    anim(l, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 380 });
+    anim(r, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 380 });
+    const m = agentBubble(to); el.querySelector(".slot").append(m);
+    anim(m, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 260 });
+    await stream(m, REPLIES[to]);
+  });
+}
+</script>
+</body></html>

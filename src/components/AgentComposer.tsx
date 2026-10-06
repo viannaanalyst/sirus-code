@@ -317,7 +317,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         <div className="composer-footer-actions flex items-center gap-2">
           <div className="composer-idle-control composer-model-controls items-center gap-2">
           <ContextMeter session={session} />
-          <ModelSelector executionControls disabled={running || sending || queueSending} currentProvider={agentId} currentModel={modelId} onSelect={(provider, model) => onModelChange?.(provider, model)} />
+          <ModelSelector executionControls switchOwner={session?.id ?? "landing"} disabled={running || sending || queueSending} currentProvider={agentId} currentModel={modelId} onSelect={(provider, model) => onModelChange?.(provider, model)} />
           </div>
           <ComposerDictationButton key={draftKey} onText={appendDictation} onActiveChange={setDictating} disabled={!canType || submitting || pasting} />
           <div className="composer-idle-control flex items-center gap-2">

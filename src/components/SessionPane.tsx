@@ -31,6 +31,8 @@ import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
 import { LandingOrbits } from "@/components/LandingOrbits";
+import { HandoffMarker } from "@/components/HandoffMarker";
+import { ProviderSwitchScene } from "@/components/ProviderSwitchScene";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
@@ -75,6 +77,20 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const messages = useMemo(() => session?.messages.filter(message => message.role !== "system") ?? [], [session?.messages]);
   // Replies to a standalone `/compact` read as a compaction, not as an empty answer (ADR-057).
   const compactions = useMemo(() => new Set(messages.filter((message, index) => message.role === "agent" && messages[index - 1]?.role === "user" && messages[index - 1].content.trim() === "/compact").map((message) => message.id)), [messages]);
+  // Where another provider answered: compare each reply's provider with the one before
+  // (or, for a handoff session, the provider it was handed off from).
+  const providerChanges = useMemo(() => {
+    const changes = new Map<string, { from: AgentProviderId; to: AgentProviderId }>();
+    let previous: AgentProviderId | null = session?.handoff?.from ?? null;
+    messages.forEach((message, index) => {
+      if (message.role !== "agent") return;
+      const provider = message.activity?.provider ?? (message.streaming && index === messages.length - 1 ? session?.agent ?? null : null);
+      if (!provider) return;
+      if (previous && previous !== provider) changes.set(message.id, { from: previous, to: provider });
+      previous = provider;
+    });
+    return changes;
+  }, [messages, session?.handoff?.from, session?.agent]);
   const latestUserIndex = messages.reduce((last, message, index) => message.role === "user" ? index : last, -1);
   const latestUserId = messages[latestUserIndex]?.id;
   const [following, setFollowing] = useState(true);
@@ -108,6 +124,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   return (
     <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
       {empty && !passive ? <LandingOrbits /> : null}
+      {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
         {!empty && !search && !passive ? <div className="flex shrink-0 justify-end px-3"><IconButton label={t("search.current")} onClick={() => useAppStore.getState().openTranscriptSearch()}><Search size={14} /></IconButton></div> : null}
@@ -142,9 +159,13 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
               >
                 <div ref={transcriptContent} className="mx-auto flex w-full shrink-0 max-w-[var(--chat-column-width)] flex-col gap-[var(--chat-message-gap)]">
                   {[messages.slice(0, Math.max(0, latestUserIndex)), messages.slice(Math.max(0, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
-                  {group.map((message) => (
-                    <TranscriptMessage key={message.id} message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
-                  ))}
+                  {group.map((message) => {
+                    const change = providerChanges.get(message.id);
+                    return <Fragment key={message.id}>
+                      {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
+                      <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
+                    </Fragment>;
+                  })}
                   </div>)}
                 </div>
               </motion.div>
