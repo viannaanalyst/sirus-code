@@ -73,6 +73,7 @@ export const defaultSettings: AppSettings = {
   terminalScrollback: 2000,
   developerLogs: false,
   computerUseEnabled: false,
+  agentsManageSessions: false,
   experimental: false,
   disabledModels: [],
   disabledSkills: [],
@@ -128,6 +129,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     modelExecution: value?.modelExecution ?? {},
     disabledModels: value?.disabledModels ?? [],
     computerUseEnabled: value?.computerUseEnabled === true,
+    agentsManageSessions: value?.agentsManageSessions === true,
     disabledSkills: [...new Set((value?.disabledSkills ?? []).filter(name => typeof name === "string" && /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(name)))].slice(0, 512),
     favoriteModels: value?.favoriteModels ?? [],
     sidebarProjectOrder: sidebarIds(value?.sidebarProjectOrder),
@@ -264,6 +266,7 @@ export type SettingsSectionId =
   | "providers"
   | "skills"
   | "computer"
+  | "mcp"
   | "appearance"
   | "git"
   | "worktrees"

@@ -88,6 +88,9 @@ pub fn claude_mcp_config(session_id: &str) -> Option<PathBuf> {
             }
         }
     });
+    if let Some((key, value)) = crate::sirus_tools::child_env() {
+        config["mcpServers"][MCP_SERVER_NAME]["env"][key] = json!(value);
+    }
     if let Some(computer) = crate::computer_mcp::claude_server(session_id) {
         config["mcpServers"][crate::computer_mcp::SERVER_NAME] = computer;
     }
@@ -270,6 +273,10 @@ fn execute(
         // Astro memory and soul tools (ADR-069), allowed only in an Astro's sessions.
         return crate::astros::execute(app, session_id, tool, &args);
     }
+    if tool.starts_with("sirus_") {
+        // Session tools for every session, behind the Settings switch (ADR-076).
+        return crate::sirus_tools::execute(app, session_id, tool, &args);
+    }
     if tool.starts_with("simulator_") {
         // The same per-session bridge serves the iOS Simulator tools (ADR-066).
         return tauri::async_runtime::block_on(crate::simulator::execute(
@@ -408,6 +415,7 @@ fn tool_definitions() -> Vec<Value> {
     .into_iter()
     .chain(crate::simulator::tool_definitions())
     .chain(crate::astros::tool_definitions())
+    .chain(crate::sirus_tools::tool_definitions())
     .collect()
 }
 
@@ -435,7 +443,8 @@ mod tests {
                 .as_str()
                 .is_some_and(|name| name.starts_with("browser_")
                     || name.starts_with("simulator_")
-                    || name.starts_with("astro_")));
+                    || name.starts_with("astro_")
+                    || name.starts_with("sirus_")));
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));

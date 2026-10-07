@@ -74,6 +74,11 @@ export class SirusClient {
     return result.document;
   }
 
+  /** MCP manager (ADR-075): list, add or remove servers in the provider CLIs' own config files. */
+  mcpAction(action: import("./types").McpAction) {
+    return this.transport.invoke<import("./types").McpActionResponse>("mcp_action", { action });
+  }
+
   providerUsage(provider: AgentProviderId, refresh = false, accountId?: string) {
     return this.transport.invoke<import("./types").ProviderUsage>("provider_usage", { provider, refresh, accountId });
   }

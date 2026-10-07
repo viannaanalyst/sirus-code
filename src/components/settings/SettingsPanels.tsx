@@ -12,6 +12,7 @@ import { ChatBehaviorSettings } from "@/components/settings/ChatBehaviorSettings
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SkillsSettings } from "./SkillsSettings";
+import { McpSettings } from "./McpSettings";
 import { PROVIDERS } from "@/lib/providers";
 import { defaultSettings, isProviderEnabled, type SettingsSectionId } from "@/lib/settings";
 import { translate } from "@/i18n";
@@ -52,6 +53,7 @@ export function SettingsPanels({
   if (section === "notifications") return <NotificationSettings settings={settings} onSave={onSave} />;
   if (section === "skills") return <SkillsSettings settings={settings} />;
   if (section === "computer") return <ComputerSettings settings={settings} onSave={onSave} />;
+  if (section === "mcp") return <McpSettings settings={settings} agents={agents} onSave={onSave} />;
 
   if (section === "providers") {
     return (

@@ -175,6 +175,7 @@ fn save_settings_native(state: &AppState, mut settings: AppSettings) -> Result<A
         return Err(error);
     }
     crate::computer_mcp::set_enabled(settings.computer_use_enabled);
+    crate::sirus_tools::set_enabled(settings.agents_manage_sessions);
     Ok(settings)
 }
 

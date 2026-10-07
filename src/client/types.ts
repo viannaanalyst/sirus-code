@@ -278,6 +278,20 @@ export interface AgentSkill { name: string; description: string; sources: SkillS
 export interface SkillsCatalog { portableDir: string; skills: AgentSkill[]; truncated: boolean }
 export type SkillActionResponse = { type: "catalog"; catalog: SkillsCatalog } | { type: "preview"; document: string };
 
+/** MCP manager (ADR-075): providers whose config files Sirus Code reads and edits. */
+export type McpProvider = "claude" | "codex" | "opencode" | "cursor";
+export type McpScope = "user" | "project" | "local";
+/** One configured server; environment and header values never leave the native side. */
+export interface McpServer { name: string; provider: McpProvider; scope: McpScope; path: string; transport: "stdio" | "http" | "sse"; command: string | null; args: string[]; url: string | null; envKeys: string[]; headerKeys: string[]; enabled: boolean }
+export interface McpProblem { provider: string; path: string; message: string }
+export interface McpCatalog { servers: McpServer[]; problems: McpProblem[]; projectPath: string | null }
+export interface McpServerInput { name: string; command?: string; args?: string[]; env?: Record<string, string>; url?: string; headers?: Record<string, string>; transport?: "stdio" | "http" | "sse" }
+export type McpAction =
+  | { type: "list"; projectId: string | null }
+  | { type: "add"; projectId: string | null; providers: McpProvider[]; scope: "user" | "project"; server: McpServerInput }
+  | { type: "remove"; projectId: string | null; provider: McpProvider; scope: McpScope; name: string };
+export interface McpActionResponse { catalog: McpCatalog; failures: McpProblem[] }
+
 export type WindowSnapShortcut = "controlOptionCommandS" | "optionShiftS" | "controlShiftS";
 /** `window-snap` event after the global shortcut (ADR-054). */
 export type WindowSnapEvent = { status: "ready"; nonce: string; app: string } | { status: "needsPermission" } | { status: "ownWindow" } | { status: "failed" };
@@ -361,6 +375,8 @@ export interface AppSettings {
   developerLogs: boolean;
   /** Offers the app-owned computer-use tools to Codex/Claude/OpenCode turns (ADR-038). */
   computerUseEnabled: boolean;
+  /** Lists the `sirus_*` session tools on every session's MCP bridge (ADR-076). */
+  agentsManageSessions: boolean;
   experimental: boolean;
   disabledModels: string[];
   disabledSkills: string[];

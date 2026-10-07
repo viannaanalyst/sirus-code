@@ -38,6 +38,7 @@ mod github_inbox;
 mod goals;
 mod html_preview;
 mod local_servers;
+mod mcp_config;
 mod mcp_stdio;
 mod models;
 mod notifications;
@@ -57,6 +58,7 @@ mod side_chat;
 mod sidebar;
 mod simulator;
 mod simulator_h264;
+mod sirus_tools;
 mod skills;
 mod tasks;
 mod team;
@@ -156,6 +158,7 @@ pub fn run() {
             let worktree_root = app_dir.join("worktrees");
             std::fs::create_dir_all(&worktree_root)?;
             let data = persist::load_or_create(&data_path)?;
+            sirus_tools::set_enabled(data.settings.agents_manage_sessions);
             computer_mcp::init(
                 app.handle().clone(),
                 app_dir.clone(),
@@ -216,6 +219,7 @@ pub fn run() {
             turn_undo::undo_turn_changes,
             commands::trash_workspace_entry,
             skills::skill_action,
+            mcp_config::mcp_action,
             notifications::notification_action,
             computer_mcp::computer_action,
             commands::load_state,

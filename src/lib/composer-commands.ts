@@ -1,7 +1,7 @@
 import type { AgentProviderId, Message, Session } from "@/client/types";
 
 /** App commands offered at a leading `/` (they act on the app and are never sent as text). */
-export type ComposerCommandId = "review" | "compact" | "status" | "fast" | "rename" | "fork" | "export" | "side" | "new";
+export type ComposerCommandId = "review" | "compact" | "status" | "mcp" | "fast" | "rename" | "fork" | "export" | "side" | "new";
 
 export interface ComposerCommand { id: ComposerCommandId; description: string }
 
@@ -9,6 +9,7 @@ const COMMANDS: ComposerCommand[] = [
   { id: "review", description: "commands.review" },
   { id: "compact", description: "commands.compact" },
   { id: "status", description: "commands.status" },
+  { id: "mcp", description: "commands.mcp" },
   { id: "fast", description: "commands.fast" },
   { id: "rename", description: "commands.rename" },
   { id: "fork", description: "commands.fork" },
@@ -33,7 +34,7 @@ export function availableCommands(context: CommandContext): ComposerCommand[] {
       case "review": return true;
       case "fast": return context.fastAvailable;
       case "compact": return Boolean(session) && (context.agent === "codex" || context.agent === "claude");
-      case "status": case "rename": case "export": return Boolean(session);
+      case "status": case "mcp": case "rename": case "export": return Boolean(session);
       case "fork": return Boolean(session && !session.sideChat && idle && settledReply);
       case "side": return Boolean(session && !session.sideChat);
       case "new": return Boolean(session && !session.sideChat);
