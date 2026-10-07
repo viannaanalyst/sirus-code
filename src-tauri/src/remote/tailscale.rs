@@ -39,6 +39,9 @@ async fn run_until(
 ) -> Option<(bool, String)> {
     let mut child = tokio::process::Command::new(cli()?)
         .args(args)
+        // Started from an app (no terminal environment), Tailscale's macOS binary tries to
+        // open its GUI and fails ("CLIError error 3"); this makes it act as the CLI.
+        .env("TAILSCALE_BE_CLI", "1")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

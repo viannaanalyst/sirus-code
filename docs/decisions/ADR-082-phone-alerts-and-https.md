@@ -11,6 +11,7 @@ Stage 4 of the mobile plan: the phone should tell the person when an agent needs
 **HTTPS through the person's Tailscale.** Settings → Connections gains a "Secure address (HTTPS)" row. `remote_action { enableHttps }` runs `tailscale serve --bg --https=443 http://127.0.0.1:<port>`:
 
 - It uses a fixed argv and the Tailscale app's own binary first. `/usr/local/bin/tailscale` is a shell wrapper, and stopping it would leave a waiting `serve` behind.
+- It sets `TAILSCALE_BE_CLI=1`. Started from an app, without a terminal's environment, the macOS binary otherwise tries to open its GUI and fails with `CLIError error 3`.
 - When the tailnet has not allowed HTTPS yet, the CLI prints a `login.tailscale.com` link and waits. The app stops it as soon as the link appears and offers "Open Tailscale" (`openHttpsSetup`). It opens only links of that exact form.
 - The status reads the MagicDNS name and whether `serve` proxies the port. `disableHttps` turns `serve` off.
 - When HTTPS is on, it comes first in the address list and the QR code. Requests from `serve` arrive from loopback with the `https://<mac>.ts.net` origin, which the guard now accepts.
