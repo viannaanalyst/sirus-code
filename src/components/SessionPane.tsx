@@ -23,6 +23,7 @@ import { TurnChangeSummary } from "@/components/TurnChangeSummary";
 import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
+import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
@@ -38,6 +39,8 @@ import { AstroCards } from "@/components/astros/AstroCard";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
+
+const noSteers: { offset: number; text: string }[] = [];
 
 interface Props {
   agents: AgentInstall[];
@@ -242,33 +245,43 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     parts.push({ start, blocks: start < content.length ? parseTranscript(content.slice(start)) : [] });
     return parts;
   }, [message.role, message.content, message.id, message.steers, session.team?.messageId]);
+  const team = session.team?.messageId === message.id;
+  const replyContent = message.role === "agent" ? (team ? stripTeamPlan(message.content) : message.content) : "";
+  const replySteers = team ? noSteers : message.steers ?? noSteers;
+  /** Reply blocks from `base` in the reply, so search highlights keep their offsets. */
+  const renderBlocks = (blocks: ReturnType<typeof parseTranscript>, base: number) => {
+    let offset = base;
+    return blocks.map((block, index) => {
+      const start = offset;
+      offset += block.content.length + 1;
+      if (block.kind === "code" && block.language.toLowerCase() === "sirus-card" && session.astro && !message.streaming && !searchQuery.trim()) return <AstroCards key={index} source={block.content} session={session} settled={!message.streaming} />;
+      if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
+      if (block.kind === "code") return <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div>;
+      // Search highlights need the raw text offsets, so a search shows the reply unformatted.
+      return searchQuery.trim() ? <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p> : <ChatMarkdown key={index} text={block.content} sessionId={session.id} cwd={session.worktree.path} />;
+    });
+  };
   return (
     <article data-message-id={message.id} ref={register} tabIndex={-1} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
-      {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} /> : null}
       <div
         data-transcript-text
         className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
           message.role === "user" ? "rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary" : "text-text-secondary"
         }`}
       >
-        {message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
-          let offset = segment.start;
+        {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
+          renderText={(start, end) => renderBlocks(parseTranscript(replyContent.slice(start, end)), start)}
+          renderSteer={(text) => <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
+        : message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
+          const offset = segment.start;
           return <Fragment key={part}>
-            {segment.blocks.map((block, index) => {
-              const start = offset;
-              offset += block.content.length + 1;
-              if (block.kind === "code" && block.language.toLowerCase() === "sirus-card" && session.astro && !message.streaming && !searchQuery.trim()) return <AstroCards key={index} source={block.content} session={session} settled={!message.streaming} />;
-              if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
-              if (block.kind === "code") return <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div>;
-              // Search highlights need the raw text offsets, so a search shows the reply unformatted.
-              return searchQuery.trim() ? <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p> : <ChatMarkdown key={index} text={block.content} sessionId={session.id} cwd={session.worktree.path} />;
-            })}
+            {renderBlocks(segment.blocks, offset)}
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
-        }) : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+        }) : !searchQuery.trim() && hasComposerTokens(message.content) ? composerSegments(message.content).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />

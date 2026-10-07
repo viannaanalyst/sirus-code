@@ -89,3 +89,33 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 @keyframes activity-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .activity-chevron { transition: none; } }
 }
+
+/* T3-style turn timeline: reply text and work in order, compact muted rows, no dots or lines. */
+.tl-turn { margin-bottom: 0; }
+.tl-header { margin-bottom: 6px; }
+.tl-turn:not([data-active]) .tl-header { padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent); }
+.tl-fold-open { transform: rotate(90deg); }
+.tl-body { white-space: normal; }
+.tl-group { display: flex; flex-direction: column; margin: 2px 0 10px; }
+.tl-line { display: flex; align-items: center; gap: 6px; min-height: 24px; width: 100%; padding: 0 2px; border-radius: 6px; text-align: left; color: var(--text-muted); font-size: var(--text-ui-13, 13px); line-height: 1.5; user-select: none; }
+.tl-toggle { cursor: pointer; }
+.tl-toggle:hover .tl-label { color: var(--text-secondary); }
+.tl-toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.tl-icon { display: inline-grid; place-items: center; width: 24px; height: 24px; flex-shrink: 0; color: var(--text-muted); }
+.tl-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-skill { color: #e8b955; font-weight: 500; }
+.tl-rows { display: flex; flex-direction: column; padding-left: 10px; }
+.tl-line[data-state="failed"], .tl-line[data-state="failed"] .tl-icon { color: var(--danger); }
+.tl-failed { flex-shrink: 0; color: var(--danger); }
+.tl-stopped { flex-shrink: 0; color: var(--text-muted); }
+.tl-children { padding-left: 30px; }
+.tl-children .activity-step::before, .tl-children.activity-steps::before { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .tl-rows { animation: tl-open var(--motion-fast) var(--ease-out) both; }
+  /* The step running now: a highlight sweeps across its words. */
+  .tl-shine { color: transparent; background-clip: text; -webkit-background-clip: text;
+    background-image: linear-gradient(to right, transparent, var(--text-primary), transparent), linear-gradient(var(--text-muted), var(--text-muted));
+    background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; }
+}
+@keyframes tl-open { from { opacity: 0; transform: translateY(-2px); } }
+@keyframes tl-shine { from { background-position: -4.5rem 0, 0 0; } to { background-position: calc(100% + 4.5rem) 0, 0 0; } }

@@ -1,4 +1,7 @@
-//! Read-only turn presentation. Never grants authority or retains raw tool arguments/reasoning.
+//! Read-only turn presentation. Never grants authority. Each row keeps a short, bounded
+//! `detail` (file path, command line, search query, skill name) and the reply length when it
+//! started, so the transcript can place it between the text it interleaves with. Tool output
+//! and reasoning are never retained.
 use crate::models::{AgentProviderId, MessageRole, Session, SessionStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -18,6 +21,7 @@ pub enum ItemKind {
     Command,
     Tool,
     Agent,
+    Skill,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +40,12 @@ pub struct ActivityItem {
     pub label: String,
     pub state: ItemState,
     pub model: Option<String>,
+    /// What the step touched: a path, the first command line, a query or a skill name (bounded).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+    /// Reply length (UTF-16 units) when the step first appeared, so the transcript interleaves it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u32>,
     /// Child rows only: native observation window, never inferred from the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at: Option<i64>,
@@ -153,6 +163,7 @@ impl TurnActivity {
             return false;
         }
         item.label = short(&item.label, 100);
+        item.detail = detail(&item.detail);
         item.model = item
             .model
             .as_deref()
@@ -193,6 +204,11 @@ impl TurnActivity {
             if item.model.is_none() {
                 item.model.clone_from(&old.model);
             }
+            if item.detail.is_empty() {
+                item.detail.clone_from(&old.detail);
+            }
+            // A row keeps the place it first appeared in the reply.
+            item.offset = old.offset.or(item.offset);
             if item.source.is_none() {
                 item.source.clone_from(&old.source);
             }
@@ -301,6 +317,29 @@ impl TurnActivity {
 fn now() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
+/// First line of a native detail, without control characters, at most 160 characters.
+fn detail(v: &str) -> String {
+    short(
+        v.lines()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("")
+            .trim(),
+        160,
+    )
+}
+/// A skill the prompt invoked: a settled row at the start of the turn.
+pub fn skill(name: &str) -> ActivityItem {
+    let mut row = item(
+        format!("skill:{}", short(name, 64)),
+        ItemKind::Skill,
+        "Skill",
+        ItemState::Completed,
+        None,
+    );
+    row.detail = short(name, 64);
+    row.offset = Some(0);
+    row
+}
 fn short(v: &str, n: usize) -> String {
     v.chars().filter(|c| !c.is_control()).take(n).collect()
 }
@@ -322,6 +361,8 @@ fn item(
         label: short(label, 100),
         state,
         model: model.map(|v| short(v, 100)),
+        detail: String::new(),
+        offset: None,
         started_at: None,
         ended_at: None,
         steps: vec![],
@@ -374,6 +415,15 @@ pub fn observe(session: &mut Session, observation: ActivityItem) -> bool {
     {
         return false;
     }
+    let mut observation = observation;
+    // The reply so far, in the UTF-16 units the transcript slices by.
+    let reply = session
+        .messages
+        .iter()
+        .rev()
+        .find(|m| m.role == MessageRole::Agent)
+        .map(|m| m.content.encode_utf16().count() as u32);
+    observation.offset = observation.offset.or(reply);
     current(session).is_some_and(|activity| activity.observe(observation))
 }
 pub fn model(session: &mut Session, model: &str) {
@@ -401,7 +451,7 @@ pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
                         matches!(x["type"].as_str(), Some("read" | "listFiles" | "search"))
                     })
             });
-            vec![item(
+            let mut row = item(
                 id,
                 if read {
                     ItemKind::Read
@@ -415,19 +465,38 @@ pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
                     state
                 },
                 None,
-            )]
+            );
+            // A read names its file or query; a command keeps its own first line.
+            row.detail = v["commandActions"][0]["path"]
+                .as_str()
+                .or_else(|| v["commandActions"][0]["query"].as_str())
+                .filter(|_| read)
+                .or_else(|| v["command"].as_str())
+                .unwrap_or("")
+                .to_owned();
+            vec![row]
         }
-        Some("fileChange") => vec![item(id, ItemKind::Edit, "File changes", state, None)],
+        Some("fileChange") => {
+            let mut row = item(id, ItemKind::Edit, "File changes", state, None);
+            row.detail = v["changes"][0]["path"].as_str().unwrap_or("").to_owned();
+            vec![row]
+        }
         Some("mcpToolCall" | "dynamicToolCall") => {
-            vec![item(id, ItemKind::Tool, "Tool call", state, None)]
+            let mut row = item(id, ItemKind::Tool, "Tool call", state, None);
+            row.detail = v["tool"].as_str().unwrap_or("").to_owned();
+            vec![row]
         }
-        Some("webSearch") => vec![item(
-            id,
-            ItemKind::Read,
-            "Web search",
-            if started { state } else { ItemState::Completed },
-            None,
-        )],
+        Some("webSearch") => {
+            let mut row = item(
+                id,
+                ItemKind::Read,
+                "Web search",
+                if started { state } else { ItemState::Completed },
+                None,
+            );
+            row.detail = v["query"].as_str().unwrap_or("").to_owned();
+            vec![row]
+        }
         Some("subAgentActivity") => {
             let Some(child) = identifier(&v["agentThreadId"]) else {
                 return vec![];
@@ -494,6 +563,8 @@ fn tool_kind(name: &str) -> (ItemKind, &'static str) {
         "Read" | "Glob" | "Grep" => (ItemKind::Read, "Read / search"),
         "Write" | "Edit" | "MultiEdit" => (ItemKind::Edit, "File changes"),
         "Bash" => (ItemKind::Command, "Command"),
+        "WebFetch" | "WebSearch" => (ItemKind::Read, "Web search"),
+        "Skill" => (ItemKind::Skill, "Skill"),
         "Agent" | "Task" => (ItemKind::Tool, "Delegate task"),
         _ => (ItemKind::Tool, "Tool call"),
     }
@@ -562,13 +633,29 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
                 let model = matches!(name, "Agent" | "Task")
                     .then(|| block["input"]["model"].as_str())
                     .flatten();
-                item(
+                let mut row = item(
                     identifier(&block["id"])?,
                     kind,
                     label,
                     ItemState::Running,
                     model,
-                )
+                );
+                let input = &block["input"];
+                row.detail = [
+                    "file_path",
+                    "notebook_path",
+                    "command",
+                    "pattern",
+                    "url",
+                    "query",
+                    "skill",
+                    "path",
+                ]
+                .iter()
+                .find_map(|key| input[*key].as_str())
+                .unwrap_or("")
+                .to_owned();
+                row
             } else if block["type"] == "tool_result" {
                 item(
                     identifier(&block["tool_use_id"])?,
@@ -628,7 +715,7 @@ pub fn opencode(v: &Value) -> Vec<ActivityItem> {
         ),
         _ => (ItemKind::Tool, "Tool call"),
     };
-    vec![item(
+    let mut row = item(
         id,
         kind,
         if v["sessionUpdate"] == "tool_call_update" && v["kind"].is_null() {
@@ -638,7 +725,14 @@ pub fn opencode(v: &Value) -> Vec<ActivityItem> {
         },
         native_state(&v["status"]),
         None,
-    )]
+    );
+    // ACP titles name the target ("Read src/app.ts"); the first location is the file itself.
+    row.detail = v["locations"][0]["path"]
+        .as_str()
+        .or_else(|| v["title"].as_str())
+        .unwrap_or("")
+        .to_owned();
+    vec![row]
 }
 
 #[cfg(test)]
@@ -728,6 +822,41 @@ mod tests {
             &json!({"type":"system","subtype":"task_started","task_id":"a","task_type":"shell"})
         )
         .is_empty());
+    }
+
+    #[test]
+    fn rows_keep_a_bounded_detail_their_reply_offset_and_skills() {
+        let read = json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"t","name":"Read","input":{"file_path":"src/app.ts"}}]}});
+        assert_eq!(claude(&read)[0].detail, "src/app.ts");
+        let bash = json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"b","name":"Bash","input":{"command":"npm test\nrm -rf x"}}]}});
+        assert_eq!(detail(&claude(&bash)[0].detail), "npm test");
+        let skill_call = json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"s","name":"Skill","input":{"skill":"graphify"}}]}});
+        assert_eq!(claude(&skill_call)[0].kind, ItemKind::Skill);
+        let command = codex(
+            &json!({"id":"c","type":"commandExecution","command":"cargo test","status":"completed","exitCode":1}),
+            false,
+        );
+        assert_eq!(
+            (command[0].detail.as_str(), &command[0].state),
+            ("cargo test", &ItemState::Failed)
+        );
+        // The first observation fixes the row's place in the reply; later updates keep it.
+        let mut a = TurnActivity::new(AgentProviderId::Claude, None);
+        let mut first = claude(&read).remove(0);
+        first.offset = Some(12);
+        a.observe(first);
+        let mut done = item("t".into(), ItemKind::Tool, "", ItemState::Completed, None);
+        done.offset = Some(90);
+        a.observe(done);
+        assert_eq!(
+            (a.items[0].offset, a.items[0].detail.as_str()),
+            (Some(12), "src/app.ts")
+        );
+        let row = skill("graphify");
+        assert_eq!(
+            (row.kind, row.detail.as_str(), row.offset),
+            (ItemKind::Skill, "graphify", Some(0))
+        );
     }
 
     #[test]

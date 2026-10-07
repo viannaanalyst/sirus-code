@@ -529,11 +529,26 @@ fn instructions(
     }
     Ok(out)
 }
-pub(crate) fn prepare(state: &AppState, owner: &Owner, prompt: &str) -> Result<(Context, String)> {
+/// The admitted instructions plus the invoked skill names in prompt order (shown in the turn's activity).
+pub(crate) fn prepare(
+    state: &AppState,
+    owner: &Owner,
+    prompt: &str,
+) -> Result<(Context, String, Vec<String>)> {
     let context = context(state, owner)?;
     let (catalog, allowed) = discover(state, &context)?;
     let text = instructions(&catalog, &allowed, &context, prompt)?;
-    Ok((context, text))
+    let mut names: Vec<String> = Vec::new();
+    for token in prompt.split_whitespace() {
+        let Some(name) = token.strip_prefix('/').map(str::to_lowercase) else {
+            continue;
+        };
+        if !names.contains(&name) && catalog.skills.iter().any(|skill| skill.name == name) {
+            names.push(name);
+        }
+    }
+    names.truncate(4);
+    Ok((context, text, names))
 }
 
 #[cfg(test)]

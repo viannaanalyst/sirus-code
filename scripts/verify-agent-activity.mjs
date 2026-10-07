@@ -12,12 +12,26 @@ try {
   const snapshot = useAppStore.getInitialState();
   const activity = { provider: "opencode", model: "<native-model>", startedAt: 1000, endedAt: 69000, waitingSince: null, pausedMs: 0, status: "completed", truncated: false, items: [{ id: "read", kind: "read", label: "Read / search", state: "completed", model: null }, { id: "child", kind: "agent", label: "Review <child>", state: "unknown", model: "child-model" }] };
   for (const locale of ["pt-BR", "en"]) for (const theme of ["dark", "light", "translucent"]) {
-    const settings = mergeSettings({ locale, appearanceMode: theme });
+    const settings = mergeSettings({ locale, appearanceMode: theme, foldFinishedTurns: false });
     Object.assign(snapshot, { settings }); useAppStore.setState({ settings });
     const html = renderToString(createElement(AgentActivity, { activity }));
     assert.ok(html.includes("1m 8s")); assert.ok(html.includes("&lt;native-model&gt;"));
     assert.ok(html.includes(translate(locale, "Not reported"))); assert.ok(html.includes('aria-expanded="true"'));
     assert.ok(!html.includes("Stop agent"), "child rows never acquire control authority");
+    assert.ok(html.includes(translate(locale, "timeline.workedFor", { duration: "1m 8s" })), "a finished turn reads Worked for …");
+    // A folded turn hides its work behind the header; the T3 timeline interleaves text and work in order.
+    // Server rendering reads the initial store snapshot.
+    Object.assign(snapshot, { settings: { ...settings, foldFinishedTurns: true } });
+    const folded = renderToString(createElement(AgentActivity, { activity }));
+    assert.ok(folded.includes('aria-expanded="false"') && !folded.includes("Review &lt;child&gt;"));
+    const turn = { ...activity, items: [{ id: "skill:graphify", kind: "skill", label: "Skill", state: "completed", model: null, detail: "graphify", offset: 0 }, { id: "r", kind: "read", label: "Read / search", state: "completed", model: null, detail: "/fixture/src/app.ts", offset: 6 }] };
+    const interleaved = renderToString(createElement(AgentActivity, { activity: turn, content: "Antes\nDepois", cwd: "/fixture", renderText: (start, end) => createElement("p", null, `[${"Antes\nDepois".slice(start, end).trim()}]`) }));
+    assert.ok(interleaved.includes("[Depois]") && !interleaved.includes("[Antes]"), "folded: only the final answer shows");
+    Object.assign(snapshot, { settings });
+    const open = renderToString(createElement(AgentActivity, { activity: turn, content: "Antes\nDepois", cwd: "/fixture", renderText: (start, end) => createElement("p", null, `[${"Antes\nDepois".slice(start, end).trim()}]`) })).replaceAll(/<!--.*?-->/g, "");
+    const order = ["/graphify", "[Antes]", "src/app.ts", "[Depois]"].map((needle) => open.indexOf(needle));
+    assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1])), `skill, text, read and final text in order: ${order}`);
+    assert.ok(!open.includes("/fixture/src"), "workspace paths show relative");
     const empty = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [] } }));
     assert.ok(!empty.includes("<button"), "no disclosure when no details are offered");
     const request = { requestId: "r", generation: "g", turnId: "t", itemId: "i", kind: { type: "userInput", questions: [{ id: "q1", header: "Scope", question: "First question?", isOther: true, isSecret: false, options: [{ label: "Choice", description: "Description" }] }, { id: "q2", header: "Style", question: "Second question?", isOther: true, isSecret: false, options: null }] } };
@@ -31,5 +45,5 @@ try {
     for (const key of ["Allow once", "Decline", "Cancel turn"]) assert.ok(permission.includes(translate(locale, key)));
     assert.ok(permission.includes("npm test"));
   }
-  console.log("Activity SSR: both locales and three themes, native labels/status, escaped metadata, question progress and explicit approval actions passed");
+  console.log("Activity SSR: both locales and three themes, T3 timeline order/fold, relative paths, native labels/status, escaped metadata, question progress and explicit approval actions passed");
 } finally { await server.close(); }

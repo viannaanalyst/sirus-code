@@ -1371,7 +1371,11 @@ pub async fn send_prompt(
     }
 
     // Skill discovery/file reads run on workers before any turn mutation.
-    let skill_input = if prompt.starts_with('/') {
+    // A skill token may stand anywhere in the prompt (ADR-037), so any slash word triggers discovery.
+    let skill_input = if prompt
+        .split_whitespace()
+        .any(|token| token.len() > 1 && token.starts_with('/'))
+    {
         let state = state.inner().clone();
         let owner = crate::skills::Owner {
             project_id: None,
@@ -1393,7 +1397,7 @@ pub async fn send_prompt(
             .ok_or_else(|| Error::not_found("session not found"))?;
         crate::execution::validate_queued_context(snapshot, request.queued_after.as_ref())?;
         let cwd = session_cwd(&data, snapshot)?;
-        if let Some((context, _)) = &skill_input {
+        if let Some((context, _, _)) = &skill_input {
             if context.cwd.as_ref() != Some(&cwd)
                 || context.provider.as_ref() != Some(&snapshot.agent)
                 || context.account_id.as_ref() != Some(&snapshot.provider_account_id)
@@ -1500,7 +1504,7 @@ pub async fn send_prompt(
         };
         let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);
         let process_prompt = match &skill_input {
-            Some((_, instructions)) if !instructions.is_empty() => {
+            Some((_, instructions, _)) if !instructions.is_empty() => {
                 format!("{instructions}\n\nUser request:\n{process_prompt}")
             }
             _ => process_prompt,
@@ -1545,10 +1549,13 @@ pub async fn send_prompt(
             steers: Vec::new(),
         });
         if let Some(message) = session.messages.last_mut() {
-            message.activity = Some(crate::activity::TurnActivity::new(
-                session.agent.clone(),
-                session.model.clone(),
-            ));
+            let mut activity =
+                crate::activity::TurnActivity::new(session.agent.clone(), session.model.clone());
+            // Invoked skills open the turn's timeline, ahead of any tool work.
+            for name in skill_input.iter().flat_map(|(_, _, names)| names) {
+                activity.observe(crate::activity::skill(name));
+            }
+            message.activity = Some(activity);
             if request.team {
                 session.team = Some(crate::team::Team::planning(message.id.clone()));
             }

@@ -1246,9 +1246,8 @@ else:
                         activity.items[0].state,
                         crate::activity::ItemState::Completed
                     );
-                    assert!(!serde_json::to_string(&activity.items)
-                        .unwrap()
-                        .contains("private"));
+                    // The command's first line is the row's detail (ADR-070); output never is.
+                    assert_eq!(activity.items[0].detail, "private argument");
                 } else {
                     assert!(result.is_err());
                 }

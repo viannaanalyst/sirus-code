@@ -40,11 +40,12 @@ export interface Worktree {
   isolated: boolean;
 }
 
-export type ActivityKind = "read" | "edit" | "command" | "tool" | "agent";
+export type ActivityKind = "read" | "edit" | "command" | "tool" | "agent" | "skill";
 export type ActivityState = "running" | "completed" | "failed" | "stopped" | "unknown";
 export interface ActivityStep { id: string; kind: ActivityKind; label: string; state: ActivityState; }
 /** Child rows (`kind: "agent"`) may carry their native observation window and their own generic steps. */
-export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number; }
+/** `detail` names what the step touched (path, command line, query, skill); `offset` is the reply length when it began (UTF-16), placing it in the text. */
+export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; detail?: string; offset?: number; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number; }
 export interface TurnReview {
   files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null })[];
   partial: boolean;

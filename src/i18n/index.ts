@@ -6,6 +6,7 @@ import { keybindingEnglish, keybindingPortuguese } from "./keybinding-strings";
 import { computerEnglish, computerPortuguese } from "./computer-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
 import { astroEnglish, astroPortuguese } from "./astro-strings";
+import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
 import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
 import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
@@ -32,6 +33,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...computerPortuguese,
     ...tabsPortuguese,
     ...astroPortuguese,
+    ...timelinePortuguese,
     ...teamPortuguese,
     ...sidebarUsagePortuguese,
     ...sideChatPortuguese,
@@ -93,6 +95,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...computerEnglish,
     ...tabsEnglish,
     ...astroEnglish,
+    ...timelineEnglish,
     ...teamEnglish,
     ...sidebarUsageEnglish,
     ...sideChatEnglish,
