@@ -5,6 +5,8 @@
   .inbox-section { display: flex; flex-direction: column; gap: 2px; }
   .inbox-section-label { display: flex; align-items: center; gap: 8px; padding: 0 10px 4px; color: var(--text-muted); }
   .inbox-row { display: flex; width: 100%; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 9px; }
+  .archived-row { padding: 0 6px 0 0; }
+  .archived-row-open { display: flex; min-width: 0; flex: 1; align-items: center; gap: 12px; padding: 8px 10px; text-align: left; }
   .inbox-row:hover { background: var(--navigation-hover); }
   .inbox-row:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   .inbox-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 96px 16px; text-align: center; }

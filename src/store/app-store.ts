@@ -99,7 +99,7 @@ function withWorkspace(
 }
 /** Main column: conversation, Kanban board or the review inbox (ADR-050). */
 export type AstroDrawerPage = "main" | "soul" | "habits" | "memory";
-export type MainView = "session" | "kanban" | "pulls" | "inbox" | "tasks";
+export type MainView = "session" | "kanban" | "pulls" | "inbox" | "tasks" | "archived";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
   mainView: MainView;

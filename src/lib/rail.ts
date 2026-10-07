@@ -2,7 +2,7 @@
 export const RAIL_ITEMS = ["home", "inbox", "kanban", "tasks", "archived", "pulls"] as const;
 export type RailItem = (typeof RAIL_ITEMS)[number];
 /** Main views that are pages of their own (the rail highlights only that item). */
-export const PAGE_ITEMS = ["inbox", "tasks", "pulls"] as const;
+export const PAGE_ITEMS = ["inbox", "kanban", "tasks", "archived", "pulls"] as const;
 export const RAIL_LABELS: Record<RailItem, string> = {
   home: "Home", inbox: "inbox.title", kanban: "Kanban", tasks: "tasks.title", archived: "Archived sessions",
   pulls: "pulls.title",

@@ -131,17 +131,17 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
         <div ref={rail} className="sidebar-rail glide-hover-host" data-page={onPage || undefined} aria-label={t("Navigation")} {...railGlide.handlers} onPointerEnter={enter} onPointerLeave={leave} onPointerMove={() => { keyboard.current = false; }} onKeyDownCapture={() => { keyboard.current = true; }} onBlur={leave}>
           {railGlide.pill}
           {railItems.map((id) => {
-            if (id === "home" || id === "kanban" || id === "archived") {
+            // Home opens the sessions panel; Kanban and Archived are pages, like Tasks.
+            if (id === "home") {
               const label = sections.find((item) => item.id === id)!.label;
               return <button key={id} type="button" className="sidebar-rail-button" data-section={id} aria-label={t(label)} title={collapsed ? undefined : t(label)} aria-expanded={collapsed ? panel.peek === id : panel.section === id} aria-controls={collapsed ? (panel.peek === id ? "sidebar-peek" : undefined) : "sidebar-docked"} aria-current={section === id && !onPage ? "page" : undefined}
                 onPointerEnter={event => peek(id, event.currentTarget)} onFocus={event => { if (!suppressFocus.current) { keyboard.current = event.currentTarget.matches(":focus-visible"); peek(id, event.currentTarget); } }}
                 onClick={event => {
                   if (held.current.size) return;
                   trigger.current = event.currentTarget; dispatch({ type: "select", section: id, collapsed });
-                  // The Kanban icon opens the board itself; Home returns to the conversation.
+                  // Home returns to the conversation.
                   const store = useAppStore.getState();
-                  if (id === "kanban") store.setMainView("kanban");
-                  else if (id === "home" && store.mainView !== "session") store.setMainView("session");
+                  if (store.mainView !== "session") store.setMainView("session");
                 }}
                 onKeyDown={event => { if (event.key === "ArrowRight" && collapsed) { event.preventDefault(); peek(id, event.currentTarget); requestAnimationFrame(() => content.current?.querySelector<HTMLButtonElement>("button")?.focus()); } if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}><RailGlyph id={id} active={section === id && !onPage} /></button>;
             }
