@@ -41,7 +41,7 @@ cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings &
 - The owner often works in the repo at the same time: format only the files you touched.
 - Ask before destructive Git operations (force-push, `reset --hard`, deleting branches or worktrees).
 - Notable features get a short ADR in `docs/decisions/`, and the architecture reference is updated when the map changes.
-- UI follows the tokens in `src/styles/index.css` and the motion and popup patterns described in the architecture reference; new popups animate in and out.
+- UI follows the tokens in `src/styles/index.css` and the motion and popup patterns described in the architecture reference; new popups animate in and out. Labels are never forced into capital letters (no `uppercase`).
 - Documentation is in English; the product UI is localized (English and Portuguese).
 - Project skills live in `.sirus/skills/`.
 - Design previews (HTML mockups to choose a direction) are temporary: build them outside the repo (for example under `/tmp`), never commit them, and delete them once the owner has chosen. `previews/` is ignored.

@@ -43,7 +43,9 @@ function WorkspaceChanges({ sessionId, api = client }: Props) {
   const titleId = useId();
   const [older, setOlder] = useState<{ head: string; entries: import("@/client/types").GitHistoryEntry[]; truncated: boolean } | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const published = useRef("");
   const publish = useCallback((value: GitWorkspaceSnapshot) => {
+    published.current = JSON.stringify(value);
     currentIndex.current = value.indexToken; setAttribution(null); setOlder(null);
     setSnapshot(value); setSelection(null); setDiff(null); setDiffError(null); diffs.current++;
   }, []);
@@ -53,14 +55,36 @@ function WorkspaceChanges({ sessionId, api = client }: Props) {
     gate.current = true; setBusy(true); setError(null);
     try {
       const value = await api.gitWorkspace({ type: "snapshot", sessionId });
-      if (alive.current && reads.current === revision) publish(value);
-    } catch (reason) { if (alive.current && reads.current === revision) { setError(formatUnknownError(reason)); setSnapshot(null); } }
+      // An unchanged workspace keeps the open diff and selection.
+      if (alive.current && reads.current === revision && JSON.stringify(value) !== published.current) publish(value);
+    } catch (reason) { if (alive.current && reads.current === revision) { setError(formatUnknownError(reason)); setSnapshot(null); published.current = ""; } }
     finally { if (alive.current && reads.current === revision) { gate.current = false; setBusy(false); } }
   }, [api, sessionId, publish]);
   useEffect(() => {
     alive.current = true; gate.current = false; diffs.current++;
     void refresh();
     return () => { alive.current = false; void request.current?.cancel().catch(() => {}); };
+  }, [refresh]);
+  // The agent can edit, commit or push on its own: re-read when a turn settles or one of its
+  // edits/commands finishes, and when the window comes back, so the tree never goes stale.
+  const workKey = useAppStore((state) => {
+    const session = state.sessions.find((row) => row.id === sessionId);
+    if (!session) return "";
+    const reply = [...session.messages].reverse().find((message) => message.role === "agent");
+    const settled = reply?.activity?.items.filter((item) => (item.kind === "edit" || item.kind === "command") && item.state !== "running").length ?? 0;
+    return `${session.status}:${reply?.id ?? ""}:${settled}`;
+  });
+  const lastWorkKey = useRef(workKey);
+  useEffect(() => {
+    if (workKey === lastWorkKey.current) return;
+    lastWorkKey.current = workKey;
+    const timer = setTimeout(() => void refresh(), 400);
+    return () => clearTimeout(timer);
+  }, [workKey, refresh]);
+  useEffect(() => {
+    const onFocus = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
 
   const run = async (operation: "stage" | "unstage" | "commit" | "push", paths: string[] = []): Promise<boolean> => {
@@ -93,7 +117,7 @@ function WorkspaceChanges({ sessionId, api = client }: Props) {
         if (alive.current) publish(next);
       }
       return true;
-    } catch (reason) { if (alive.current) { setError(formatUnknownError(reason)); setSnapshot(null); } return false; }
+    } catch (reason) { if (alive.current) { setError(formatUnknownError(reason)); setSnapshot(null); published.current = ""; } return false; }
     finally { if (alive.current) { gate.current = false; setBusy(false); } }
   };
   const generateTitle = async () => {

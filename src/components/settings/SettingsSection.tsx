@@ -53,7 +53,7 @@ export function SettingsRow({
         <div className="flex flex-wrap items-baseline gap-2">
           <p id={labelId} className="ui-control font-medium text-text-primary">{title}</p>
           {comingSoon ? (
-            <span className="ui-micro font-medium uppercase tracking-[0.08em] text-text-muted/55">{t("Coming soon")}</span>
+            <span className="ui-micro font-medium text-text-muted/55">{t("Coming soon")}</span>
           ) : null}
         </div>
         {description ? <p className="mt-0.5 ui-description text-text-muted">{description}</p> : null}
