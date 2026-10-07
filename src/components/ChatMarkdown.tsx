@@ -1,10 +1,10 @@
-import { FolderOpen, FileText, AppWindow, Copy, FolderSearch } from "@/components/icons/phosphor";
+import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons/phosphor";
 import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { client } from "@/client";
 import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
-import { fileReference, parseChatInline, parseChatMarkdown, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
+import { fileReference, isLocalImageLink, parseChatInline, parseChatMarkdown, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
 import { fileIconFor, folderIconFor } from "@/lib/file-icons";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
@@ -124,6 +124,24 @@ function openGallery(button: HTMLElement, url: string) {
   window.dispatchEvent(new CustomEvent(GALLERY_EVENT, { detail: { images, index: Math.max(0, images.findIndex((image) => image.src === url || image.src === new URL(url, location.href).href)) } }));
 }
 
+/**
+ * Images a reply links to on the Mac (ADR-085): the native side reads them, and every
+ * image link of the message opens together in the gallery, starting at the one tapped.
+ */
+async function openReplyImages(anchor: HTMLElement, owner: Owner, url: string) {
+  const scope = anchor.closest("[data-message-id]") ?? anchor.parentElement ?? document.body;
+  const links = [...new Set([...scope.querySelectorAll<HTMLElement>("[data-reply-image]")].map((node) => node.dataset.replyImage ?? "").filter(Boolean))];
+  if (!links.includes(url)) links.push(url);
+  const loaded = await Promise.all(links.map((link) => client.replyImage(owner.sessionId, link).then(
+    (src) => ({ link, src, name: link.split("/").pop() ?? link }),
+    (error: unknown) => ({ link, error }),
+  )));
+  const images = loaded.flatMap((item) => "src" in item ? [{ src: item.src, name: item.name, link: item.link }] : []);
+  const tapped = loaded.find((item) => item.link === url);
+  if (tapped && "error" in tapped) { useAppStore.setState({ error: formatUnknownError(tapped.error) }); return; }
+  window.dispatchEvent(new CustomEvent(GALLERY_EVENT, { detail: { images: images.map(({ src, name }) => ({ src, name })), index: Math.max(0, images.findIndex((image) => image.link === url)) } }));
+}
+
 function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }): ReactNode {
   return nodes.map((node, index) => {
     switch (node.kind) {
@@ -144,6 +162,11 @@ function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }):
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {
           return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}><Inline nodes={node.children} owner={owner} /></a>;
+        }
+        if (owner && isLocalImageLink(node.url)) {
+          return <a key={index} href="#" title={node.url} data-reply-image={node.url} className="chat-link chat-image-link" onClick={(event) => { event.preventDefault(); void openReplyImages(event.currentTarget, owner, node.url); }}>
+            <ImagePlus size={13} aria-hidden="true" className="chat-file-ref-icon" /><Inline nodes={node.children} owner={owner} />
+          </a>;
         }
         const reference = owner ? fileReference(node.url, owner.cwd) : null;
         const label = <span className="underline underline-offset-2"><Inline nodes={node.children} owner={owner} /></span>;

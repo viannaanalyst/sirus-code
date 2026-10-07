@@ -58,6 +58,7 @@ mod pty_term;
 mod pull_requests;
 mod redact;
 mod remote;
+mod reply_image;
 mod secrets;
 mod session_export;
 mod side_chat;
@@ -238,6 +239,7 @@ pub fn run() {
             secrets::secret_action,
             remote::remote_action,
             remote::remote_pair,
+            reply_image::reply_image,
             commands::load_state,
             provider_accounts::create_provider_account,
             provider_accounts::select_provider_account,

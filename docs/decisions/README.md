@@ -101,6 +101,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-082: Phone alerts and HTTPS](ADR-082-phone-alerts-and-https.md) — `tailscale serve` gives remote access a real HTTPS name; the Mac sends approvals, questions and finished tasks as encrypted web push straight to the phone's push service; tapping opens the conversation. Also the phone's Astros tab.
 - [ADR-083: Keep the Mac awake for paired devices](ADR-083-keep-the-mac-awake.md) — an opt-in switch in Connections runs `caffeinate -s -w <pid>` while remote access is on: no system sleep on power, display still sleeps and locks, released when Sirus quits.
 - [ADR-084: Phone app on the device](ADR-084-phone-app-polish.md) — iOS 26 full height with `100lvh`, keyboard-aware viewport and no focus zoom, browser dictation on the phone, glass dropdowns (provider then model), New Astro sheet, gliding tab pill and an offline app shell.
+- [ADR-085: Image links in replies](ADR-085-reply-image-links.md) — links to PNG/JPEG/GIF/WebP files on the Mac open in the image gallery through `reply_image` (byte-checked, 25 MiB cap, read-only).
 
 ## Template
 

@@ -91,6 +91,13 @@ export function parseChatMarkdown(source: string): ChatBlock[] {
 }
 
 /** Inline spans; code is taken literally, emphasis nests (`**bold `code`**`). */
+/** A link to an image file on the Mac (not the web): it opens in the gallery (ADR-085). */
+export function isLocalImageLink(url: string): boolean {
+  const value = url.trim();
+  if (/^(?:[a-z][a-z0-9+.-]*:)(?!\/\/\/)/i.test(value) && !/^file:\/\/\//i.test(value)) return false;
+  return /\.(?:png|jpe?g|gif|webp)$/i.test(value.replace(/[?#].*$/, ""));
+}
+
 export function parseChatInline(text: string): ChatInline[] {
   const out: ChatInline[] = [];
   let plain = "";

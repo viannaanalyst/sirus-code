@@ -94,7 +94,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
           </SettingsRow> : null}
         {enabled && https?.available ? <SettingsRow title={t("connections.https")} description={t(https.url ? "connections.httpsOn" : "connections.httpsHelp")}>
           {https.url
-            ? <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void act({ type: "disableHttps" })}>{t("connections.httpsOff")}</InteractiveButton>
+            ? <InteractiveButton variant="danger" glow={false} disabled={busy} onClick={() => void act({ type: "disableHttps" })}>{t("connections.httpsOff")}</InteractiveButton>
             : <InteractiveButton variant="secondary" glow={false} disabled={busy} onClick={() => void act({ type: "enableHttps" })}>{busy ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <ShieldCheck size={14} aria-hidden="true" />}{t("connections.httpsEnable")}</InteractiveButton>}
         </SettingsRow> : null}
         {enabled && https?.setupUrl && !https.url ? <SettingsRow title={t("connections.httpsSetup")} description={t("connections.httpsSetupHelp")}>
@@ -132,7 +132,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
             ? t("connections.deviceSeen", { date: dates.format(new Date(device.createdAt)), seen: times.format(new Date(device.lastSeen)) })
             : t("connections.deviceAdded", { date: dates.format(new Date(device.createdAt)) })) + (device.push ? ` · ${t("connections.alertsOn")}` : "")}>
             {device.push ? <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void act({ type: "testPush", deviceId: device.id })}>{t("connections.testAlert")}</InteractiveButton> : null}
-            <InteractiveButton variant="toolbar" disabled={busy} aria-label={t("connections.removeLabel", { name: device.name })} onClick={() => void act({ type: "revoke", deviceId: device.id })}>{t("connections.remove")}</InteractiveButton>
+            <InteractiveButton variant="danger" glow={false} disabled={busy} aria-label={t("connections.removeLabel", { name: device.name })} onClick={() => void act({ type: "revoke", deviceId: device.id })}>{t("connections.remove")}</InteractiveButton>
           </SettingsRow>
         )) : <p className="connections-empty ui-description"><Smartphone size={15} aria-hidden="true" />{t("connections.noDevices")}</p>}
       </SettingsGroup>

@@ -689,6 +689,11 @@ export class SirusClient {
     return this.transport.listen<unknown>("remote-changed", () => handler());
   }
 
+  /** An image a reply links to on the Mac, as a data URL (ADR-085). */
+  replyImage(sessionId: string, path: string) {
+    return this.transport.invoke<string>("reply_image", { sessionId, path });
+  }
+
   remotePair() {
     return this.transport.invoke<import("./types").RemotePairing>("remote_pair");
   }
