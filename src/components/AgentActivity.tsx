@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Eye, FilePenLine, Globe, Hammer, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, TurnActivity } from "@/client/types";
-import { modelDisplayName } from "@/lib/model-registry";
+import { modelDisplayName, readableModelId } from "@/lib/model-registry";
 import { useAppStore } from "@/store/app-store";
 import { providerById } from "@/lib/providers";
 import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib/agent-activity";
@@ -104,16 +104,27 @@ const categoryIcons: Record<StepCategory, typeof Search> = { skill: Box, edit: F
 
 function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: string; live?: boolean }) {
   const t = useTranslation();
+  const outputId = useId();
   const category = stepCategory(item);
   const Icon = categoryIcons[category];
   const sentence = stepSentence(item, t, cwd);
-  return <div className="tl-line" data-state={item.state} data-category={category}>
+  const output = item.output?.trim() ? item.output : "";
+  // A failed command opens on its output; others open on click, like T3.
+  const [open, setOpen] = useState<boolean | null>(null);
+  const expanded = Boolean(output) && (open ?? item.state === "failed");
+  const body = <>
     <span className="tl-icon"><Icon size={15} aria-hidden="true" /></span>
     <span className={`tl-label${live ? " tl-shine" : ""}`}>
       {sentence}{category === "skill" && item.detail ? <> <span className="tl-skill">/{item.detail}</span></> : null}
     </span>
     {item.state === "failed" ? <X size={12} className="tl-failed" aria-label={t("timeline.failed")} /> : item.state === "stopped" ? <Square size={10} className="tl-stopped" aria-label={t("timeline.stopped")} /> : null}
-  </div>;
+    {output ? <ChevronRight size={12} className={expanded ? "tl-detail-chevron tl-fold-open" : "tl-detail-chevron"} aria-hidden="true" /> : null}
+  </>;
+  if (!output) return <div className="tl-line" data-state={item.state} data-category={category}>{body}</div>;
+  return <>
+    <button type="button" className="tl-line tl-toggle" data-state={item.state} data-category={category} aria-expanded={expanded} aria-controls={outputId} onClick={() => setOpen(!expanded)}>{body}</button>
+    {expanded ? <pre id={outputId} className="tl-output">{output}</pre> : null}
+  </>;
 }
 
 /** Back-to-back steps: one sentence that opens into its rows; the step still running stays on its own live row. */
@@ -160,7 +171,8 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   const reduced = useArcReducedMotion();
   const ambient = useAmbientActive();
   const catalog = useAppStore(state => state.modelsByProvider[activity.provider]);
-  const modelLabel = (id: string) => modelDisplayName(activity.provider, catalog?.models.find(model => model.id === id)?.displayName ?? id, catalog?.models.map(model => model.displayName));
+  // A native id the catalog does not list (a dated snapshot) still reads like the picker: "Haiku 4.5".
+  const modelLabel = (id: string) => { const known = catalog?.models.find(model => model.id === id)?.displayName; return known ? modelDisplayName(activity.provider, known, catalog?.models.map(model => model.displayName)).replace(/^Claude\s+/i, "") : readableModelId(id); };
   const modelName = activity.model ? modelLabel(activity.model) : providerById(activity.provider).name;
   const active = isActivityActive(activity.status) && activity.endedAt === null;
   // Chat behavior can keep finished turns open instead of folding them.

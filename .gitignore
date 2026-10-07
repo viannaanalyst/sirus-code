@@ -34,3 +34,6 @@ graphify-out/*
 # Local agent/tool working state
 .superpowers/
 src-tauri/graphify-out/
+
+# Design previews are temporary: built outside the repo and deleted after the choice.
+previews/

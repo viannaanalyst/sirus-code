@@ -1,6 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "compilerOptions": { "composite": false },
-  "include": ["*.tsx", "fixtures.ts", "../../src/vite-env.d.ts"],
-  "references": []
-}

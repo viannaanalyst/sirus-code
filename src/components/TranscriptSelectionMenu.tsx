@@ -99,7 +99,7 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
 
   return <Popover open={selection !== null} onOpenChange={open => { if (!open) dismiss(); }}>
     <PopoverAnchor virtualRef={anchor} />
-    <PopoverContent ref={popup} role="toolbar" aria-label={t("Selected text actions")} side="top" align="start" className="min-w-0"
+    <PopoverContent ref={popup} role="toolbar" aria-label={t("Selected text actions")} side="top" align="start" className="flex w-max min-w-0 flex-col p-1"
       onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()}
       onKeyDown={event => {
         if (event.key !== "Tab" || event.nativeEvent.isComposing) return;

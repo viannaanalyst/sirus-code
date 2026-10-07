@@ -22,7 +22,6 @@ npm run build:desktop   # local macOS debug app bundle
 - `src/lib/` — pure helpers and shared logic, with tests in `tests/`.
 - `src/styles/` — design tokens (`index.css`) and per-surface styles.
 - `src-tauri/src/` — the Rust side: one module per area (`commands.rs` for IPC, `agent.rs` / `codex.rs` / `claude.rs` / `opencode.rs` for providers, `git*.rs`, `worktree.rs`, `persist.rs`, `simulator.rs`, `astros.rs`, …).
-- `previews/` — self-contained HTML design previews used to choose a direction before building it.
 
 For the full map — every module, the domain model, IPC commands and events, provider argv, Git and security choices, design system and performance notes — see [`docs/development/architecture.md`](docs/development/architecture.md). Decisions and their reasons are in [`docs/decisions/`](docs/decisions/README.md).
 
@@ -45,3 +44,4 @@ cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings &
 - UI follows the tokens in `src/styles/index.css` and the motion and popup patterns described in the architecture reference; new popups animate in and out.
 - Documentation is in English; the product UI is localized (English and Portuguese).
 - Project skills live in `.sirus/skills/`.
+- Design previews (HTML mockups to choose a direction) are temporary: build them outside the repo (for example under `/tmp`), never commit them, and delete them once the owner has chosen. `previews/` is ignored.

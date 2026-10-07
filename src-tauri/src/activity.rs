@@ -46,6 +46,9 @@ pub struct ActivityItem {
     /// Reply length (UTF-16 units) when the step first appeared, so the transcript interleaves it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub offset: Option<u32>,
+    /// Commands only: the end of their output (bounded, ANSI stripped), shown when the row opens.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub output: String,
     /// Child rows only: native observation window, never inferred from the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at: Option<i64>,
@@ -164,6 +167,7 @@ impl TurnActivity {
         }
         item.label = short(&item.label, 100);
         item.detail = detail(&item.detail);
+        item.output = output(&item.output);
         item.model = item
             .model
             .as_deref()
@@ -207,6 +211,13 @@ impl TurnActivity {
             if item.detail.is_empty() {
                 item.detail.clone_from(&old.detail);
             }
+            if item.output.is_empty() {
+                item.output.clone_from(&old.output);
+            }
+            // Only command rows keep output; a result frame learns its kind from the row it updates.
+            if item.kind != ItemKind::Command {
+                item.output.clear();
+            }
             // A row keeps the place it first appeared in the reply.
             item.offset = old.offset.or(item.offset);
             if item.source.is_none() {
@@ -245,6 +256,9 @@ impl TurnActivity {
                     self.observe(early);
                 }
             } else {
+                if item.kind != ItemKind::Command {
+                    item.output.clear();
+                }
                 self.items.push(item);
             }
         } else {
@@ -327,6 +341,38 @@ fn detail(v: &str) -> String {
         160,
     )
 }
+/// The end of a command's output: ANSI codes and other control characters removed, at most
+/// the last 60 lines and 3,000 characters.
+fn output(v: &str) -> String {
+    let mut clean = String::with_capacity(v.len().min(16_384));
+    let mut chars = v.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // CSI sequences end at a letter; others are one character long.
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for next in chars.by_ref() {
+                    if next.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            } else {
+                chars.next();
+            }
+        } else if c == '\n' || c == '\t' || !c.is_control() {
+            clean.push(c);
+        }
+    }
+    let trimmed = clean.trim_end();
+    let lines: Vec<&str> = trimmed.lines().collect();
+    let tail = lines[lines.len().saturating_sub(60)..].join("\n");
+    let count = tail.chars().count();
+    if count > 3000 {
+        tail.chars().skip(count - 3000).collect()
+    } else {
+        tail
+    }
+}
 /// A skill the prompt invoked: a settled row at the start of the turn.
 pub fn skill(name: &str) -> ActivityItem {
     let mut row = item(
@@ -363,6 +409,7 @@ fn item(
         model: model.map(|v| short(v, 100)),
         detail: String::new(),
         offset: None,
+        output: String::new(),
         started_at: None,
         ended_at: None,
         steps: vec![],
@@ -474,6 +521,7 @@ pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
                 .or_else(|| v["command"].as_str())
                 .unwrap_or("")
                 .to_owned();
+            row.output = v["aggregatedOutput"].as_str().unwrap_or("").to_owned();
             vec![row]
         }
         Some("fileChange") => {
@@ -657,7 +705,7 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
                 .to_owned();
                 row
             } else if block["type"] == "tool_result" {
-                item(
+                let mut row = item(
                     identifier(&block["tool_use_id"])?,
                     ItemKind::Tool,
                     "",
@@ -667,7 +715,18 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
                         ItemState::Completed
                     },
                     None,
-                )
+                );
+                // Text content only; kept later only if the row is a command.
+                row.output = match &block["content"] {
+                    Value::String(text) => text.clone(),
+                    Value::Array(parts) => parts
+                        .iter()
+                        .filter_map(|part| part["text"].as_str())
+                        .collect::<Vec<_>>()
+                        .join("\n"),
+                    _ => String::new(),
+                };
+                row
             } else {
                 return None;
             };
@@ -727,6 +786,11 @@ pub fn opencode(v: &Value) -> Vec<ActivityItem> {
         None,
     );
     // ACP titles name the target ("Read src/app.ts"); the first location is the file itself.
+    row.output = v["rawOutput"]["output"]
+        .as_str()
+        .or_else(|| v["content"][0]["content"]["text"].as_str())
+        .unwrap_or("")
+        .to_owned();
     row.detail = v["locations"][0]["path"]
         .as_str()
         .or_else(|| v["title"].as_str())
@@ -852,6 +916,22 @@ mod tests {
             (a.items[0].offset, a.items[0].detail.as_str()),
             (Some(12), "src/app.ts")
         );
+        // A command's result keeps the end of its output, without terminal colour codes.
+        let mut b = TurnActivity::new(AgentProviderId::Claude, None);
+        b.observe(claude(&bash).remove(0));
+        let result = json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"b","is_error":true,"content":[{"type":"text","text":"\u{1b}[31mFAIL\u{1b}[0m 2 tests"}]}]}});
+        b.observe(claude(&result).remove(0));
+        assert_eq!(
+            (b.items[0].output.as_str(), &b.items[0].state),
+            ("FAIL 2 tests", &ItemState::Failed)
+        );
+        // Reads never keep output.
+        let mut c = TurnActivity::new(AgentProviderId::Claude, None);
+        c.observe(claude(&read).remove(0));
+        let read_result = json!({"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t","content":"file body"}]}});
+        c.observe(claude(&read_result).remove(0));
+        assert!(c.items[0].output.is_empty());
+        assert_eq!(output(&"x\n".repeat(100)).lines().count(), 60);
         let row = skill("graphify");
         assert_eq!(
             (row.kind, row.detail.as_str(), row.offset),

@@ -8,14 +8,14 @@ A turn's activity showed as one block of generic rows ("Read / search", "Command
 
 ## Decision
 
-- **Rows say what they touched.** `ActivityItem.detail` keeps a short, bounded detail from the native event: a file path, the first line of a command, a search pattern or query, a tool or skill name (first non-empty line, at most 160 characters, no control characters). Tool output, file contents and reasoning are still never retained. This reverses ADR-035's "no raw arguments" for this one short field; it stays local in the session file.
+- **Rows say what they touched.** `ActivityItem.detail` keeps a short, bounded detail from the native event: a file path, the first line of a command, a search pattern or query, a tool or skill name (first non-empty line, at most 160 characters, no control characters). Command rows also keep the end of their output (`output`: ANSI codes stripped, last 60 lines and 3,000 characters), shown when the row opens and opened by default when the command failed; other rows never keep output, and file contents and reasoning are never retained. This reverses ADR-035's "no raw arguments" for this one short field; it stays local in the session file.
 - **Rows know where they happened.** `ActivityItem.offset` is the reply's length (UTF-16 units) when the row first appeared, so the transcript interleaves text and work in the order they happened. Updates keep the first offset. Rows recorded before this have none and sit at the start.
 - **Skills are rows.** A new `skill` kind: skills a prompt invokes (`skills::prepare` now returns their names) open the turn as settled rows, and Claude's `Skill` tool becomes one too.
-- **The transcript (`AgentActivity`).** Text and work in order; back-to-back rows are one group whose sentence counts at most two kinds (skills, edits and commands first) and the rest ("Usou 1 skill, alterou 2 arquivos e realizou mais 2 ações"), opening into "Leu src/app.ts"-style rows. While running, the header reads "Trabalhando há 12s" and the step running now is a live present-tense row with a text shine. When finished, the header becomes the fold "Trabalhou por 1m 3s ›" (or "Você parou após…", "Falhou após…") and hides everything before the final answer, except failed steps. No dots, lines or checkmarks; workspace paths show relative. The fold follows the existing "fold finished turns" setting.
+- **The transcript (`AgentActivity`).** Text and work in order; back-to-back rows are one group whose sentence counts at most two kinds (skills, edits and commands first) and the rest ("Usou 1 skill, alterou 2 arquivos e realizou mais 2 ações"), opening into "Leu src/app.ts"-style rows. While running, the header reads "Trabalhando há 12s" and the step running now is a live present-tense row with a text shine. When finished, the header becomes the fold "Trabalhou por 1m 3s ›" (no rule under it) (or "Você parou após…", "Falhou após…") and hides everything before the final answer, except failed steps. No dots, lines or checkmarks; workspace paths show relative. The fold follows the existing "fold finished turns" setting.
 - **Composer and sent messages** paint `/skill` amber and `@file` blue (ADR-037).
 
 ## Consequences
 
-- Session files grow by a short string and a number per row (at most 128 rows per turn).
-- A command line can carry a secret typed into it; it is kept like the transcript itself, locally.
+- Session files grow by a short string and a number per row, plus at most 3,000 characters per command row (at most 128 rows per turn).
+- A command line or its output can carry a secret; both are kept like the transcript itself, locally.
 - The side chat keeps its own text rendering and shows only the work under the header.

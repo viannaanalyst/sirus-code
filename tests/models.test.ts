@@ -205,3 +205,11 @@ test("pickers offer the newest generation of each model line; favorites, the cur
   assert.ok(ids("claude", "default").includes("default"), "a selected CLI default stays visible");
   assert.equal(latestModelChoices([], null, "").length, 0);
 });
+
+test("native model ids read like the picker", async () => {
+  const { readableModelId } = await import("../src/lib/model-registry.ts");
+  assert.equal(readableModelId("claude-haiku-4-5-20251001"), "Haiku 4.5");
+  assert.equal(readableModelId("claude-opus-5"), "Opus 5");
+  assert.equal(readableModelId("gpt-6-luna"), "gpt-6-luna");
+  assert.equal(readableModelId("some-model-20260101"), "some-model");
+});

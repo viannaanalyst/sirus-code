@@ -93,7 +93,6 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 /* T3-style turn timeline: reply text and work in order, compact muted rows, no dots or lines. */
 .tl-turn { margin-bottom: 0; }
 .tl-header { margin-bottom: 6px; }
-.tl-turn:not([data-active]) .tl-header { padding-bottom: 6px; border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent); }
 .tl-fold-open { transform: rotate(90deg); }
 .tl-body { white-space: normal; }
 .tl-group { display: flex; flex-direction: column; margin: 2px 0 10px; }
@@ -109,6 +108,10 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 .tl-failed { flex-shrink: 0; color: var(--danger); }
 .tl-stopped { flex-shrink: 0; color: var(--text-muted); }
 .tl-children { padding-left: 30px; }
+.tl-detail-chevron { flex-shrink: 0; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
+/* Output aligns with the label (past the 24px icon slot) and scrolls past a few lines. */
+.tl-output { margin: 2px 0 6px 30px; max-height: 240px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); color: var(--text-secondary); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.tl-line[data-state="failed"] + .tl-output { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 .tl-children .activity-step::before, .tl-children.activity-steps::before { display: none; }
 @media (prefers-reduced-motion: no-preference) {
   .tl-rows { animation: tl-open var(--motion-fast) var(--ease-out) both; }

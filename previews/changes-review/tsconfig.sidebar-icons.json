@@ -1,6 +1,0 @@
-{
-  "extends": "../../tsconfig.json",
-  "compilerOptions": { "composite": false },
-  "include": ["sidebar-icons.tsx", "../../src/vite-env.d.ts"],
-  "references": []
-}

@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { ChevronDown, FolderPlus, Plus, Search, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
 import type { Session } from "@/client/types";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
+import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
@@ -70,6 +71,7 @@ function ProjectSwitcher() {
   return <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) setQuery(""); setCursor(0); }}>
     <PopoverTrigger asChild>
       <button type="button" className="header-project" aria-label={t("tabs.switchProject")}>
+        {project ? <ProjectGlyph project={project} size={14} /> : null}
         <span className="truncate">{project?.name ?? "Sirus Code"}</span>
         {elsewhere && <span className="header-tab-status" data-status="waiting" aria-label={t("tabs.waitingElsewhere")} role="img" />}
         <ChevronDown size={12} aria-hidden="true" />
@@ -86,6 +88,7 @@ function ProjectSwitcher() {
           const count = (tabs[row.id] ?? []).length;
           return <button key={row.id} type="button" role="option" data-index={index} aria-selected={index === cursor} data-current={row.id === project?.id || undefined}
             className="header-switcher-row" onMouseEnter={() => setCursor(index)} onClick={() => choose(row.id)}>
+            <ProjectGlyph project={row} size={15} />
             <span className="min-w-0 flex-1 truncate">{row.name}</span>
             <StatusDot status={status} label={t(`tabs.status.${status}`)} />
             {count > 0 && <span className="header-switcher-count">{t(count === 1 ? "tabs.countOne" : "tabs.count", { count })}</span>}

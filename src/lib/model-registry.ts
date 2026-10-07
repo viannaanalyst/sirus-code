@@ -177,3 +177,10 @@ export function providerModelChoices(
   }
   return choices.sort(compareModelGenerations);
 }
+
+/** A native model id as people say it: `claude-haiku-4-5-20251001` → "Haiku 4.5"; dated snapshots lose the date. */
+export function readableModelId(id: string): string {
+  const claude = /^claude-(opus|sonnet|haiku|fable)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/i.exec(id);
+  if (claude) return `${claude[1][0].toUpperCase()}${claude[1].slice(1).toLowerCase()} ${claude[2]}${claude[3] ? `.${claude[3]}` : ""}`;
+  return id.replace(/-\d{8}$/, "");
+}
