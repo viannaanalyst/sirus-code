@@ -2,7 +2,7 @@ import "./styles/index.css";
 import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import { formatUnknownError, isResizeObserverDeliveryWarning } from "./lib/format-error";
+import { formatUnknownError, isOpaqueScriptError, isResizeObserverDeliveryWarning } from "./lib/format-error";
 import { useAppStore } from "./store/app-store";
 import { configureDynamicStyleNonce } from "./lib/editor-nonce";
 import { isRemoteUi, onRemoteConnection } from "./client";
@@ -35,6 +35,7 @@ function showFatal(error?: unknown) {
 
 window.addEventListener("error", (event) => {
   if (isResizeObserverDeliveryWarning(event)) return;
+  if (isOpaqueScriptError(event)) { console.warn("Ignored an opaque script error (another origin)."); return; }
   useAppStore.setState({ error: formatUnknownError(event.error ?? event.message) });
 });
 window.addEventListener("unhandledrejection", (event) => {

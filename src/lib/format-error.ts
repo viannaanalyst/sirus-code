@@ -9,6 +9,15 @@ export function isResizeObserverDeliveryWarning(event: { message: string; error:
   );
 }
 
+/**
+ * Browsers hide the details of errors thrown by scripts from another origin (Safari
+ * extensions, content blockers, the page translator) and report only "Script error.".
+ * There is nothing to tell the person, so it is not shown.
+ */
+export function isOpaqueScriptError(event: { message: string; error: unknown }): boolean {
+  return event.error == null && /^Script error\.?$/.test(event.message);
+}
+
 export function formatUnknownError(error: unknown): string {
   if (error instanceof Error) {
     return error.message || error.name;
