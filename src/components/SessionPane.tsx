@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { ChevronDown, GitFork } from "@/components/icons/phosphor";
+import { ChevronDown, FileImage, FileText, Folder, GitFork } from "@/components/icons/phosphor";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -24,6 +24,7 @@ import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
+import { splitPromptContext } from "@/lib/prompt-context";
 import { ReplyChoices } from "@/components/ReplyChoices";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
@@ -250,6 +251,8 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     parts.push({ start, blocks: start < content.length ? parseTranscript(content.slice(start)) : [] });
     return parts;
   }, [message.role, shownContent, message.id, message.steers, session.team?.messageId]);
+  // A sent prompt shows what the person wrote; attachments appear as chips, not as the agent's reference block.
+  const { request: userRequest, references: userReferences } = useMemo(() => message.role === "user" ? splitPromptContext(message.content) : { request: message.content, references: [] }, [message.role, message.content]);
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
   const replySteers = team ? noSteers : message.steers ?? noSteers;
@@ -286,10 +289,16 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {renderBlocks(segment.blocks, offset)}
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
-        }) : !searchQuery.trim() && hasComposerTokens(message.content) ? composerSegments(message.content).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={message.content} query={searchQuery} />) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+        }) : <>
+          {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
+          {userReferences.length ? <span className="prompt-references">{userReferences.map((reference, index) => {
+            const Icon = reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
+            return <span key={index} className="prompt-reference ui-caption" title={reference.name}><Icon size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>;
+          })}</span> : null}
+        </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
-        <CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
+        <CopyButton value={userRequest} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
         <MessageTimestamp createdAt={message.createdAt} />
       </div> : null}
       {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}

@@ -156,3 +156,7 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 .follow-latest:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 @media (prefers-reduced-motion: no-preference) { .follow-latest { animation: follow-latest-in var(--motion-normal, .2s) var(--ease-out) both; } }
 @keyframes follow-latest-in { from { opacity: 0; translate: -50% 6px; } }
+
+/* Attachments of a sent prompt, shown as chips under its text. */
+.prompt-references { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
+.prompt-reference { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 9px 3px 7px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); }
