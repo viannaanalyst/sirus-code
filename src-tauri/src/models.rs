@@ -816,6 +816,19 @@ impl AppSettings {
                 "Invalid model execution preferences.",
             ));
         }
+        // Provider executable overrides: an absolute path (or a bare command name kept from
+        // older data), never relative segments or control characters.
+        if self.provider_paths.values().any(|path| {
+            path.trim().is_empty()
+                || path.len() > 4096
+                || path.chars().any(char::is_control)
+                || !(std::path::Path::new(path).is_absolute() || !path.contains('/'))
+        }) {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid provider executable path.",
+            ));
+        }
         const BINDINGS: [(&str, &str); 17] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
@@ -1083,6 +1096,24 @@ mod settings_tests {
         settings.ui_font_size = 100;
         assert!(settings.validate_controls().is_err());
     }
+    #[test]
+    fn provider_paths_must_be_absolute_or_bare_names() {
+        let mut settings = AppSettings::default();
+        for (path, ok) in [
+            ("/opt/homebrew/bin/claude", true),
+            ("claude", true),
+            ("bin/claude", false),
+            ("../claude", false),
+            ("", false),
+            ("/bin/claude\n", false),
+        ] {
+            settings.provider_paths.clear();
+            settings
+                .provider_paths
+                .insert(AgentProviderId::Claude, path.into());
+            assert_eq!(settings.validate_controls().is_ok(), ok, "{path:?}");
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1190,6 +1221,16 @@ pub struct AgentInstall {
     pub binary: String,
     pub installed: bool,
     pub path: Option<String>,
+    pub version: Option<String>,
+    /// Every install found on this machine, for Settings → Providers to choose from.
+    #[serde(default)]
+    pub candidates: Vec<ExecutableCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutableCandidate {
+    pub path: String,
     pub version: Option<String>,
 }
 

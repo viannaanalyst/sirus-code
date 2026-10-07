@@ -807,6 +807,21 @@ pub async fn detect_agents(state: State<'_, Arc<AppState>>) -> Result<Vec<AgentI
                     install.version = detect::probe_version(path).await;
                 }
             }
+            // Each alternative install reports its own version (bounded probes, concurrently).
+            let current = install.path.clone();
+            let version = install.version.clone();
+            let mut probes = tokio::task::JoinSet::new();
+            let paths: Vec<String> = install.candidates.iter().map(|item| item.path.clone()).collect();
+            for (index, path) in paths.into_iter().enumerate() {
+                if current.as_deref() == Some(path.as_str()) && version.is_some() {
+                    install.candidates[index].version = version.clone();
+                    continue;
+                }
+                probes.spawn(async move { (index, detect::probe_version(&path).await) });
+            }
+            while let Some(Ok((index, version))) = probes.join_next().await {
+                install.candidates[index].version = version;
+            }
             install
         });
     }

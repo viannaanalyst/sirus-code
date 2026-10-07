@@ -511,6 +511,13 @@ export interface AgentInstall {
   installed: boolean;
   path: string | null;
   version: string | null;
+  /** Every install found on this machine, for Settings → Providers to choose from. */
+  candidates?: ExecutableCandidate[];
+}
+
+export interface ExecutableCandidate {
+  path: string;
+  version: string | null;
 }
 
 export interface AgentEvent {

@@ -7,6 +7,9 @@
   .general-settings .settings-row > div:first-child { padding-right: 0; }
   .general-settings .settings-row-control { gap: 8px; padding-top: 0; }
   .general-settings .general-settings-select { width: 200px; min-height: 32px; border-radius: var(--radius-md); }
+  .provider-executable { border-radius: 6px; padding: 1px 4px; margin-left: -4px; transition: background var(--motion-fast), color var(--motion-fast); }
+  .provider-executable:hover:not(:disabled), .provider-executable[data-state="open"] { background: var(--background-3); color: var(--text-primary); }
+  .provider-executable-badge { flex-shrink: 0; padding: 0 6px; border-radius: 999px; background: var(--accent-muted); color: var(--text-secondary); }
   @media (max-width: 600px) {
     .general-settings .settings-row:has([role="combobox"]) { align-items: flex-start; flex-wrap: wrap; }
     .general-settings .settings-row:has([role="combobox"]) > div:first-child { flex-basis: 100%; }
