@@ -42,6 +42,11 @@ The button, strip, Enter and Escape behave the same in both.
 
 **Dictation sessions.** iPhone's recognizer stops hearing after the first session in continuous mode, so `WebDictation` listens in short sessions and starts the next one while the person is still recording. The phrases add up. A permission or service error stops it.
 
+**Lighter loading.**
+- The served app is compressed (gzip or brotli via `tower-http`): the entry script drops from about 1 MB to about 270 KB.
+- Hashed `/assets/` files are sent as `immutable` for a year.
+- `App` and `MobileApp` are separate lazy chunks, so a phone no longer downloads the Mac layout (sidebar, dock, editor) to show the phone app.
+
 **Composer at phone width.** Approval shows only its icon (its name stays in its menu), the model name truncates, and the context meter is hidden.
 
 **Dropdowns.** `MobileSelect` is a field that opens a glass menu with icons and a check. It opens toward the larger side and closes on an outside tap. New conversation uses it for Project, then Provider, then that provider's newest models or its default. The sheet closes with a round glass X instead of a text button.

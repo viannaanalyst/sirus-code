@@ -560,6 +560,8 @@ async fn start(app: AppHandle, remote: Arc<Remote>) {
         )
         .route("/api/socket", get(socket))
         .fallback(get(asset))
+        // The bundle is several megabytes of text; compressed it is about a quarter (gzip/brotli).
+        .layer(tower_http::compression::CompressionLayer::new())
         .layer(middleware::from_fn(guard))
         .with_state(shared);
     tauri::async_runtime::spawn(async move {
@@ -695,6 +697,12 @@ async fn asset(AxumState(shared): AxumState<Shared>, uri: Uri) -> Response {
             HeaderValue::from_static(CSP),
         );
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    } else if path.starts_with("/assets/") {
+        // Built files carry a content hash in their names: they never change.
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("public, max-age=31536000, immutable"),
+        );
     }
     response
 }

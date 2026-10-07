@@ -1,7 +1,6 @@
 import "./styles/index.css";
 import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
 import { formatUnknownError, isOpaqueScriptError, isResizeObserverDeliveryWarning } from "./lib/format-error";
 import { useAppStore } from "./store/app-store";
 import { configureDynamicStyleNonce } from "./lib/editor-nonce";
@@ -60,6 +59,8 @@ for (const type of ["dragover", "drop"] as const) {
   });
 }
 
+// Each shell is its own chunk: a phone never downloads the Mac layout, and the reverse.
+const App = lazy(() => import("./App"));
 const MobileApp = lazy(() => import("./components/mobile/MobileApp"));
 let root: ReactDOM.Root | null = null;
 
@@ -124,7 +125,7 @@ async function startRemote() {
       showConnect(translate(navigator.language.toLowerCase().startsWith("pt") ? "pt-BR" : "en", "mobile.connect.revoked"));
     }
   });
-  mount(window.matchMedia(MOBILE_QUERY).matches ? <Suspense fallback={null}><MobileApp /></Suspense> : <App />);
+  mount(<Suspense fallback={null}>{window.matchMedia(MOBILE_QUERY).matches ? <MobileApp /> : <App />}</Suspense>);
 }
 
 if (isRemoteUi) {
@@ -132,4 +133,4 @@ if (isRemoteUi) {
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeRemote(); });
   void startRemote();
 }
-else mount(<App />);
+else mount(<Suspense fallback={null}><App /></Suspense>);
