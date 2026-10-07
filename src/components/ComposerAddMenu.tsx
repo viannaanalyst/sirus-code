@@ -1,9 +1,10 @@
 import { useRef, useState, type RefObject } from "react";
-import { Box, Bug, Check, ChevronLeft, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
+import { Box, Bug, Camera, Check, ChevronLeft, ImagePlus, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
 import { canPreviewAttachment } from "@/lib/document-reader";
 import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";
-import { client } from "@/client";
+import { client, isRemoteUi } from "@/client";
+import { readPhoneFiles } from "@/lib/phone-attachments";
 import { type ComposerContext, composerDebugging, composerPlanning, composerTeam, composerContextForOwner } from "@/lib/composer-context";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
@@ -26,11 +27,14 @@ export function ComposerAddMenu({ owner, disabled, context, onChange, planningAv
   const [goal, setGoal] = useState("");
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const choose = async (window = false) => {
+  const photo = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const choose = async (window = false, phoneFiles?: File[]) => {
     if (picking || disabled) return;
     setPicking(true); setError(null);
     try {
-      const attachments = await (window ? client.capturePromptWindow(owner) : client.pickPromptAttachments(owner));
+      // On a phone (ADR-086) the files come from the browser's picker, not the Mac's.
+      const attachments = await (phoneFiles ? client.pastePromptAttachments(owner, await readPhoneFiles(phoneFiles)) : window ? client.capturePromptWindow(owner) : client.pickPromptAttachments(owner));
       // Preserve the owner captured when the OS picker opened, even if navigation changed.
       const state = useAppStore.getState();
       const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
@@ -47,8 +51,15 @@ export function ComposerAddMenu({ owner, disabled, context, onChange, planningAv
     <PopoverTrigger asChild><button ref={trigger} type="button" disabled={disabled || picking} aria-label={t("composer.add")} className="composer-control composer-icon-control composer-metal-button titlebar-no-drag relative inline-flex shrink-0 items-center justify-center rounded-full text-text-secondary hover:text-text-primary disabled:opacity-40"><ComposerMetalSurface disabled={disabled || picking} /><Plus size={16} className="relative z-10" aria-hidden="true" /></button></PopoverTrigger>
     <PopoverContent side="top" align="start" sideOffset={layout.sideOffset} alignOffset={layout.alignOffset} style={{ width: layout.width, maxWidth: "calc(100vw - 20px)" }} className="max-h-[var(--radix-popover-content-available-height)] overflow-auto p-2" aria-label={t("composer.add")}>
       {page === "add" ? <><p className="px-2 pb-1 pt-1 ui-caption text-text-muted">{t("composer.add")}</p>
+        {isRemoteUi ? <>
+          <button type="button" className={item} disabled={disabled || picking} onClick={() => photo.current?.click()}><ImagePlus size={15} className="shrink-0" aria-hidden="true" /><span>{t("composer.phonePhoto")}</span></button>
+          <button type="button" className={item} disabled={disabled || picking} onClick={() => camera.current?.click()}><Camera size={15} className="shrink-0" aria-hidden="true" /><span>{t("composer.phoneCamera")}</span></button>
+          <input ref={photo} type="file" multiple hidden accept="image/*,application/pdf,text/*,.md,.csv,.json,.docx,.xlsx" onChange={(event) => { const files = [...(event.currentTarget.files ?? [])]; event.currentTarget.value = ""; if (files.length) void choose(false, files); }} />
+          <input ref={camera} type="file" hidden accept="image/*" capture="environment" onChange={(event) => { const files = [...(event.currentTarget.files ?? [])]; event.currentTarget.value = ""; if (files.length) void choose(false, files); }} />
+        </> : <>
         <button type="button" className={item} disabled={disabled || picking} onClick={() => void choose()}><Paperclip size={15} className="shrink-0" /><span>{t("composer.filesFolders")}</span></button>
         <button type="button" className={item} disabled={disabled || picking} onClick={() => void choose(true)}><AppWindow size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.attachWindow")}</span><span className="min-w-0 truncate text-text-muted">{t("composer.attachWindowHint")}</span></button>
+        </>}
         <button type="button" className={item} disabled={disabled || picking} onClick={() => setPage("skills")}><Box size={15} className="shrink-0" /><span>{t("skills.use")}</span></button>
         <button type="button" className={item} disabled={disabled || picking} onClick={() => { setGoal(context.goal); setPage("goal"); }}><Target size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.goal")}</span><span className="min-w-0 truncate text-text-muted">{context.goal || t("composer.goalHint")}</span></button>
         <button type="button" className={item} aria-pressed={context.planning} disabled={disabled || picking || !planningAvailable} onClick={() => { onChange(composerPlanning(context, !context.planning)); setOpen(false); }}><Lightbulb size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.planning")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(planningAvailable ? context.planning ? "composer.planningOffHint" : "composer.planningHint" : "composer.planningUnavailable")}</span>{context.planning && planningAvailable ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>

@@ -1,6 +1,8 @@
 /** The phone app served by the Mac (ADR-081). English source, Portuguese translation. */
 const strings: Record<string, [string, string]> = {
   "mobile.home": ["Home", "Início"],
+  "composer.phonePhoto": ["Photo or file", "Foto ou arquivo"],
+  "composer.phoneCamera": ["Camera", "Câmera"],
   "mobile.projects": ["Projects", "Projetos"],
   "mobile.settings": ["Settings", "Ajustes"],
   "mobile.astroIntro": ["Your assistants, each with its own projects and memory.", "Seus assistentes, cada um com seus projetos e memória."],

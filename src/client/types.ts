@@ -288,7 +288,7 @@ export interface NotificationPreferences {
 }
 export type NotificationPermission = "prompt" | "granted" | "denied" | "unsupported";
 export type NotificationAction = { type: "status" | "request" | "test" | "settings" } | { type: "preview"; sound: NotificationSound };
-export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion"; title: string; body: string; createdAt: number; }
+export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion" | "failure"; title: string; body: string; createdAt: number; }
 
 export interface SkillOwner { projectId: string | null; sessionId: string | null }
 export interface WorkspaceFileSuggestion { path: string; isDir: boolean }

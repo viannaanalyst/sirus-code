@@ -82,6 +82,8 @@ pub enum Kind {
     Permission,
     Question,
     Completion,
+    /// A turn ended in an error (ADR-086); follows the completion switch and sound.
+    Failure,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,6 +125,20 @@ fn remember(seen: &mut VecDeque<String>, key: &str) -> bool {
     true
 }
 fn candidates(session: &Session) -> Vec<(String, Kind)> {
+    if session.status == SessionStatus::Failed {
+        return session
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == MessageRole::User)
+            .map(|message| {
+                vec![(
+                    format!("{}:failed:{}", session.id, message.id),
+                    Kind::Failure,
+                )]
+            })
+            .unwrap_or_default();
+    }
     if session.status == SessionStatus::Completed && session.last_error.is_none() {
         return session
             .messages
@@ -162,7 +178,7 @@ fn choice(prefs: &Preferences, kind: Kind) -> (bool, Sound) {
     match kind {
         Kind::Permission => (prefs.permissions, prefs.permission_sound),
         Kind::Question => (prefs.questions, prefs.question_sound),
-        Kind::Completion => (prefs.completion, prefs.completion_sound),
+        Kind::Completion | Kind::Failure => (prefs.completion, prefs.completion_sound),
     }
 }
 fn copy(kind: Kind, portuguese: bool) -> &'static str {
@@ -173,8 +189,59 @@ fn copy(kind: Kind, portuguese: bool) -> &'static str {
         (Kind::Permission, false) => "Permission needed",
         (Kind::Question, false) => "Answer needed",
         (Kind::Completion, false) => "Task completed",
+        (Kind::Failure, true) => "A tarefa falhou",
+        (Kind::Failure, false) => "Task failed",
     }
 }
+/// What a phone alert adds under the title (ADR-086): the command or files awaiting
+/// approval, the question asked, the start of the final answer or the error.
+fn detail(session: &Session, key: &str, kind: Kind, portuguese: bool) -> Option<String> {
+    let line = |text: &str| -> Option<String> {
+        let text = text
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty() && !line.starts_with("```"))?
+            .trim_start_matches(['#', '>', '-', '*', ' '])
+            .replace(['*', '`'], "");
+        (!text.is_empty()).then(|| {
+            text.chars()
+                .filter(|ch| !ch.is_control())
+                .take(140)
+                .collect()
+        })
+    };
+    match kind {
+        Kind::Permission | Kind::Question => {
+            let request_id = key.rsplit(':').next()?;
+            let request = session
+                .pending_requests
+                .iter()
+                .find(|request| request.request_id == request_id)?;
+            match &request.kind {
+                PendingRequestKind::Command { command, .. } => {
+                    line(command).map(|command| format!("$ {command}"))
+                }
+                PendingRequestKind::FileChange { changes, .. } => Some(if portuguese {
+                    format!("Alterar {} arquivo(s)", changes.len())
+                } else {
+                    format!("Change {} file(s)", changes.len())
+                }),
+                PendingRequestKind::UserInput { questions } => questions
+                    .first()
+                    .and_then(|question| line(&question.question)),
+                PendingRequestKind::Tool { name, .. } => line(name),
+            }
+        }
+        Kind::Completion => session
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == MessageRole::Agent)
+            .and_then(|message| line(&message.content)),
+        Kind::Failure => session.last_error.as_deref().and_then(line),
+    }
+}
+
 fn bounded_label(value: &str) -> String {
     value
         .chars()
@@ -260,6 +327,10 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
             .into_iter()
             .filter(|candidate| current.contains(candidate))
             .collect();
+        let details: std::collections::HashMap<String, Option<String>> = notices
+            .iter()
+            .map(|(key, kind)| (key.clone(), detail(session, key, *kind, portuguese)))
+            .collect();
         drop(data);
         for (key, kind) in notices {
             // Consume even disabled events: enabling later cannot replay them.
@@ -278,8 +349,13 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
                 title: copy(kind, portuguese).into(),
                 body: body.clone(),
             };
-            // Paired phones get the alert whether or not the Mac window has focus (ADR-082).
-            crate::remote::notify(&notice.title, &notice.body, &notice.session_id);
+            // Paired phones get the alert whether or not the Mac window has focus (ADR-082),
+            // with what it is about under the project and conversation (ADR-086).
+            let phone_body = match &details.get(&notice.id) {
+                Some(Some(detail)) => format!("{}\n{detail}", notice.body),
+                _ => notice.body.clone(),
+            };
+            crate::remote::notify(&notice.title, &phone_body, &notice.session_id);
             if prefs.toasts {
                 let _ = app.emit("notification-activity", &notice);
             }
@@ -467,13 +543,12 @@ mod tests {
         })).unwrap()
     }
     #[test]
-    fn only_successful_settlements_notify_and_each_user_turn_is_distinct() {
+    fn only_settled_turns_notify_and_each_user_turn_is_distinct() {
         let mut session = session();
         for status in [
             SessionStatus::Running,
             SessionStatus::Starting,
             SessionStatus::Stopped,
-            SessionStatus::Failed,
             SessionStatus::Idle,
         ] {
             session.status = status;
@@ -487,6 +562,43 @@ mod tests {
         assert_ne!(first, candidates(&session));
         session.last_error = Some("Failure".into());
         assert!(candidates(&session).is_empty());
+        // A failed turn alerts once, as a failure (ADR-086).
+        session.status = SessionStatus::Failed;
+        let failed = candidates(&session);
+        assert_eq!(failed.len(), 1);
+        assert_eq!(failed[0].1, Kind::Failure);
+        assert!(failed[0].0.contains(":failed:"));
+    }
+    #[test]
+    fn phone_alerts_say_what_they_are_about() {
+        let mut session = session();
+        session.status = SessionStatus::Waiting;
+        session
+            .pending_requests
+            .push(crate::models::PendingRequest {
+                request_id: "r1".into(),
+                generation: "g".into(),
+                turn_id: "t".into(),
+                item_id: "i".into(),
+                kind: PendingRequestKind::Command {
+                    command: "vercel deploy --prod\n--yes".into(),
+                    cwd: None,
+                    reason: None,
+                },
+            });
+        assert_eq!(
+            detail(&session, "s:g:t:r1", Kind::Permission, true).as_deref(),
+            Some("$ vercel deploy --prod")
+        );
+        session.last_error = Some("Usage limit reached".into());
+        assert_eq!(
+            detail(&session, "", Kind::Failure, true).as_deref(),
+            Some("Usage limit reached")
+        );
+        assert_eq!(
+            detail(&session, "s:g:t:missing", Kind::Permission, true),
+            None
+        );
     }
     #[test]
     fn pending_identity_includes_generation_and_classifies_real_questions() {

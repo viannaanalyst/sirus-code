@@ -13,7 +13,7 @@ function NoticeCard({ notice }: { notice: ActivityNotification }) {
   const close = useCallback((open: boolean) => { if (!open) afterToastExit(() => dismiss(notice.id)); }, [notice.id]);
   const duration = useMemo(() => Math.max(1, notice.createdAt + notificationLifetime(notice) - Date.now()), [notice]);
   return <div>
-    <ArcToast title={notice.title} description={notice.body} variant={notice.kind === "completion" ? "success" : "info"} duration={duration} dismissLabel={t("common.dismiss")} onOpenChange={close} />
+    <ArcToast title={notice.title} description={notice.body} variant={notice.kind === "completion" ? "success" : notice.kind === "failure" ? "error" : "info"} duration={duration} dismissLabel={t("common.dismiss")} onOpenChange={close} />
     <InteractiveButton variant="secondary" glow={false} className="mt-1" onClick={() => {
       const store = useAppStore.getState(); store.setSettingsOpen(false); void store.selectSession(notice.sessionId); dismiss(notice.id);
     }}>{t("Open session")}</InteractiveButton>

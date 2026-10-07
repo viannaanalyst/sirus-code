@@ -60,7 +60,6 @@ const DENIED: &[&str] = &[
     "pick_folder",
     "pick_executable",
     "capture_prompt_window",
-    "paste_prompt_attachments",
     "drop_prompt_attachments",
     "dictation_status",
     "start_dictation",
@@ -1021,6 +1020,12 @@ fn valid_event(event: &str) -> bool {
         })
 }
 
+fn has_files(args: &Value) -> bool {
+    args.get("files")
+        .and_then(Value::as_array)
+        .is_some_and(|files| !files.is_empty())
+}
+
 fn allowed_command(command: &str) -> bool {
     !command.is_empty()
         && command.len() <= 64
@@ -1043,6 +1048,10 @@ async fn invoke(
 ) -> std::result::Result<Reply, Value> {
     let refuse = |message: &str| json!({ "code": "remote", "message": message });
     if !allowed_command(&command) {
+        return Err(refuse("This action is only available on the Mac."));
+    }
+    // Pasting with no files reads the Mac's pasteboard; a device sends its own files (ADR-086).
+    if command == "paste_prompt_attachments" && !has_files(&args) {
         return Err(refuse("This action is only available on the Mac."));
     }
     let window = app
@@ -1301,6 +1310,11 @@ mod tests {
             assert!(!allowed_command(refused), "{refused}");
         }
         assert!(valid_event("agent-output"));
+        assert!(has_files(
+            &json!({ "owner": "s", "files": [{ "name": "a.jpg", "data": "AA" }] })
+        ));
+        assert!(!has_files(&json!({ "owner": "s", "files": [] })));
+        assert!(!has_files(&json!({ "owner": "s" })));
         assert!(!valid_event("bad event"));
         assert!(!valid_event(""));
     }
