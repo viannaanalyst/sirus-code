@@ -1,8 +1,12 @@
 @layer components {
   /* The phone app (ADR-081). Safe areas come from viewport-fit=cover. */
   /* iOS can leave the bottom of a home-screen app unpainted; it shows the page, so the page wears the app's colour. */
-  html:has(.mobile-app, .mobile-connect), html:has(.mobile-app, .mobile-connect) body { background: var(--background-0); overflow: hidden; }
-  .mobile-app { --dock-height: 62px; --dock-inset: 21px; --dock-bottom: max(12px, calc(env(safe-area-inset-bottom) - 12px)); position: fixed; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--background-0); color: var(--text-primary); font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
+  /* iOS 26 home-screen apps measure every height short by the status bar (WebKit 301108); 100lvh is the full screen.
+     While the keyboard is open, mobile-viewport.ts sets both to the visible area. */
+  :root { --app-h: 100dvh; --app-top: 0px; }
+  @media (display-mode: standalone) { @supports (-webkit-touch-callout: none) { :root { --app-h: 100lvh; } } }
+  html:has(.mobile-app, .mobile-connect), html:has(.mobile-app, .mobile-connect) body { height: var(--app-h); background: var(--background-0); overflow: hidden; }
+  .mobile-app { --dock-height: 62px; --dock-inset: 21px; --dock-bottom: max(12px, calc(env(safe-area-inset-bottom) - 12px)); position: fixed; top: var(--app-top); left: 0; right: 0; height: var(--app-h); display: flex; flex-direction: column; overflow: hidden; background: var(--background-0); color: var(--text-primary); font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
   .mobile-app button, .mobile-connect button { touch-action: manipulation; }
   .mobile-tab-page { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
   .mobile-page { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; padding-top: env(safe-area-inset-top); }
@@ -86,6 +90,17 @@
   .mobile-astro-icon { position: relative; display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: color-mix(in srgb, var(--astro) 14%, var(--background-3)); }
   .mobile-astro-unread { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--warning); color: #111; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 
+  .mobile-header-add { position: relative; border-radius: 50%; color: var(--text-primary); }
+  .mobile-astro-preview { display: grid; place-items: center; width: 104px; height: 104px; margin: 8px auto 4px; border-radius: 30px; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--astro) 28%, transparent), color-mix(in srgb, var(--astro) 8%, var(--background-2))); transition: background var(--motion-normal) var(--ease-out); }
+  .mobile-input { width: 100%; height: 50px; padding: 0 14px; border: 1px solid var(--border-subtle); border-radius: 16px; background: var(--background-2); color: var(--text-primary); font-size: 16px; text-align: center; outline: none; }
+  .mobile-input:focus { border-color: var(--border-default); }
+  .mobile-astro-icons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .mobile-astro-icons button { display: grid; place-items: center; height: 58px; border: 1px solid var(--border-subtle); border-radius: 16px; background: var(--background-2); transition: border-color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+  .mobile-astro-icons button[aria-checked="true"] { border-color: var(--text-muted); background: var(--background-3); }
+  .mobile-astro-colors { display: flex; flex-wrap: wrap; gap: 12px; padding: 2px 4px; }
+  .mobile-astro-colors button { width: 32px; height: 32px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); transition: box-shadow var(--motion-fast) var(--ease-out), scale var(--motion-fast) var(--ease-out); }
+  .mobile-astro-colors button[aria-checked="true"] { box-shadow: 0 0 0 2px var(--background-1), 0 0 0 4px var(--text-primary); scale: 1.05; }
+
   /* Floating action and tab bar */
   /* Liquid Glass (iOS 26): blur and saturation, a bright top rim and a soft specular edge. Safari ignores SVG refraction, so none is used. */
   .mobile-glass { isolation: isolate; border: 1px solid rgb(255 255 255 / .14); border-top-color: rgb(255 255 255 / .3); background: rgb(40 40 44 / .42); -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%); box-shadow: inset 0 1px 0 rgb(255 255 255 / .32), inset 0 -1px 0 rgb(255 255 255 / .06), inset 0 6px 22px rgb(255 255 255 / .05), 0 14px 40px rgb(0 0 0 / .45); }
@@ -95,8 +110,13 @@
   .mobile-fab:active { scale: .93; }
   .mobile-tabbar { position: absolute; left: var(--dock-inset); right: var(--dock-inset); bottom: var(--dock-bottom); z-index: 6; display: flex; height: var(--dock-height); padding: 4px; border-radius: calc(var(--dock-height) / 2); }
   .mobile-tab { position: relative; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 999px; color: var(--text-muted); font-size: 10px; font-weight: 500; transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
-  .mobile-tab[aria-current="page"] { background: rgb(255 255 255 / .13); color: var(--text-primary); box-shadow: inset 0 1px 0 rgb(255 255 255 / .16); }
-  html[data-theme="light"] .mobile-tab[aria-current="page"] { background: rgb(0 0 0 / .07); box-shadow: none; }
+  .mobile-tab { z-index: 1; }
+  .mobile-tab[aria-current="page"] { color: var(--text-primary); }
+  .mobile-tab:active .mobile-tab-icon { scale: .88; }
+  .mobile-tab-icon { transition: scale var(--motion-fast) var(--ease-out); }
+  .mobile-tab-indicator { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--tab-count)); border-radius: 999px; background: rgb(255 255 255 / .13); box-shadow: inset 0 1px 0 rgb(255 255 255 / .18), 0 2px 10px rgb(0 0 0 / .18); transform: translateX(calc(var(--tab-index) * 100%)); transition: transform 420ms cubic-bezier(.32, 1.36, .58, 1); }
+  html[data-theme="light"] .mobile-tab-indicator { background: rgb(0 0 0 / .07); box-shadow: inset 0 1px 0 rgb(255 255 255 / .8); }
+  @media (prefers-reduced-motion: reduce) { .mobile-tab-indicator { transition: none; } }
   .mobile-tab-icon { position: relative; display: grid; place-items: center; }
   .mobile-tab-badge { position: absolute; top: -4px; right: -9px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--warning); color: #111; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
 
@@ -107,6 +127,29 @@
   .mobile-sheet-grip { align-self: center; width: 38px; height: 5px; margin-top: 8px; border-radius: 999px; background: var(--border-default); }
   .mobile-sheet-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 12px 8px; }
   .mobile-sheet-head h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  .mobile-sheet-head { grid-template-columns: 44px 1fr 44px; padding: 6px 14px 10px; }
+  .mobile-sheet-head h1 { text-align: center; }
+  .mobile-sheet-close { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: var(--text-primary); transition: scale var(--motion-fast) var(--ease-out); }
+  .mobile-sheet-close:active { scale: .92; }
+  /* Dropdown fields and their glass menu */
+  .mobile-fields { display: flex; flex-direction: column; gap: 8px; }
+  .mobile-field { display: flex; width: 100%; align-items: center; gap: 12px; min-height: 58px; padding: 8px 14px; border: 1px solid var(--border-subtle); border-radius: 16px; background: color-mix(in srgb, var(--background-2) 70%, transparent); text-align: left; transition: border-color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+  .mobile-field[aria-expanded="true"] { border-color: var(--border-default); background: var(--background-2); }
+  .mobile-field:disabled { opacity: .5; }
+  .mobile-field-icon { display: grid; flex-shrink: 0; place-items: center; width: 22px; height: 22px; }
+  .mobile-field-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 1px; }
+  .mobile-field-label { overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-field-value { overflow: hidden; color: var(--text-primary); font-size: 15px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-field-value[data-empty] { color: var(--text-muted); font-weight: 400; }
+  .mobile-field-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out); }
+  .mobile-field[aria-expanded="true"] .mobile-field-chevron { rotate: 180deg; }
+  .mobile-menu-scrim { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .18); }
+  .mobile-menu { position: fixed; z-index: 61; overflow-y: auto; overscroll-behavior: contain; padding: 6px; border-radius: 20px; font-family: var(--font-sans); color: var(--text-primary); }
+  .mobile-menu-item { display: flex; width: 100%; align-items: center; gap: 12px; min-height: 48px; padding: 8px 12px; border-radius: 14px; text-align: left; transition: background-color var(--motion-fast) var(--ease-out); }
+  .mobile-menu-item:active, .mobile-menu-item[aria-selected="true"] { background: rgb(255 255 255 / .09); }
+  html[data-theme="light"] .mobile-menu-item:active, html[data-theme="light"] .mobile-menu-item[aria-selected="true"] { background: rgb(0 0 0 / .06); }
+  .mobile-menu-label { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-menu-check { flex-shrink: 0; color: var(--text-primary); }
 
   /* Forms */
   .mobile-form section { margin-top: 18px; }
@@ -136,6 +179,7 @@
   .mobile-chat .message-trail, .mobile-chat .dot-grid::before { display: none; }
   .mobile-chat section > div > .relative.z-10.px-6 { padding: 0 8px calc(8px + env(safe-area-inset-bottom)); }
   .mobile-chat section > div > .relative.z-10.px-6 button { white-space: nowrap; }
+
   .mobile-chat { --chat-column-width: 100%; }
 
   /* Review and terminal reuse the dock panes */
@@ -147,7 +191,7 @@
   .mobile-keys button:active { background: var(--background-3); color: var(--text-primary); }
 
   /* Connect */
-  .mobile-connect { display: flex; min-height: 100dvh; flex-direction: column; align-items: center; justify-content: center; padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: var(--background-0); color: var(--text-primary); font-family: var(--font-sans); text-align: center; animation: mobile-fade-in var(--motion-normal) var(--ease-out); }
+  .mobile-connect { position: fixed; top: var(--app-top); left: 0; right: 0; height: var(--app-h); overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: calc(56px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: var(--background-0); color: var(--text-primary); font-family: var(--font-sans); text-align: center; animation: mobile-fade-in var(--motion-normal) var(--ease-out); }
   .mobile-connect h1 { margin: 18px 0 6px; font-size: 24px; font-weight: 700; letter-spacing: -.01em; }
   .mobile-connect-intro { margin: 0; color: var(--text-secondary); font-size: 14px; }
   .mobile-connect-steps { width: 100%; max-width: 340px; margin: 24px 0 0; padding: 0; list-style: none; text-align: left; }
@@ -163,3 +207,13 @@
   @keyframes mobile-fade-in { from { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .mobile-connect, .mobile-project-sessions { animation: none; } }
 }
+
+/* iOS zooms into any field under 16px when it gets focus, which shifts the whole page.
+   Unlayered so it also covers the shared composer's own sizes. */
+.mobile-app textarea, .mobile-app input:not([type="checkbox"], [type="radio"]), .mobile-app select, .mobile-connect input { font-size: max(16px, 1em) !important; }
+
+/* The shared composer on a phone: approval shows only its icon (the name stays in its menu), the model
+   name truncates and the context meter steps aside. Unlayered to win over the composer's utilities. */
+.mobile-chat .composer-approval-trigger { gap: 2px !important; padding: 0 8px !important; font-size: 0 !important; }
+.mobile-chat .composer-model-trigger { max-width: 148px !important; }
+.mobile-chat .context-meter { display: none !important; }

@@ -151,7 +151,7 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
     }}>
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} aria-label={`${t("models.models")} · ${currentLabel} · ${providerById(currentProvider).name}`}
-          className={cn("titlebar-no-drag inline-flex max-w-[260px] min-w-0 items-center gap-2 rounded-full bg-transparent px-2 ui-control text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-[var(--accent-muted)] hover:text-text-primary disabled:opacity-40", executionControls ? "composer-control" : "h-8")}>
+          className={cn("composer-model-trigger titlebar-no-drag inline-flex max-w-[260px] min-w-0 items-center gap-2 rounded-full bg-transparent px-2 ui-control text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-[var(--accent-muted)] hover:text-text-primary disabled:opacity-40", executionControls ? "composer-control" : "h-8")}>
           <span className="relative inline-flex shrink-0">
             <span className={cn("inline-flex", orbit && "opacity-0")}>{currentModel ? <ModelIcon modelId={currentModel} provider={currentProvider} size={executionControls ? 16 : 20} /> : <ProviderIcon id={currentProvider} size={executionControls ? 16 : 20} />}</span>
             {orbit ? <ProviderOrbitSwap key={orbit.key} from={orbit.from} to={orbit.to} size={executionControls ? 16 : 20} onDone={() => setOrbit(null)} /> : null}

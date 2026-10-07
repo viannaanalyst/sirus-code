@@ -30,7 +30,7 @@ export function MobileConnect({ notice, onCode }: { notice?: string | null; onCo
       {["mobile.connect.step1", "mobile.connect.step2", "mobile.connect.step3"].map((key, index) => <li key={key}><span aria-hidden="true">{index < 2 ? <Check size={12} /> : index + 1}</span>{t(key)}</li>)}
     </ol>
     <form className="mobile-connect-form" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-      <input value={value} onChange={(event) => { setValue(event.target.value); setError(null); }} inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="000 000" aria-label={t("mobile.connect.code")} aria-invalid={error ? true : undefined} />
+      <input onFocus={(event) => { const input = event.currentTarget; setTimeout(() => input.scrollIntoView({ block: "center", behavior: "smooth" }), 320); }} value={value} onChange={(event) => { setValue(event.target.value); setError(null); }} inputMode="numeric" autoComplete="one-time-code" maxLength={7} placeholder="000 000" aria-label={t("mobile.connect.code")} aria-invalid={error ? true : undefined} />
       <button type="submit" className="mobile-primary" disabled={!code || busy}>{busy ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : null}{t("mobile.connect.submit")}</button>
     </form>
     {error ? <p role="alert" className="mobile-connect-error">{error}</p> : null}

@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { Mic, Square, X } from "@/components/icons/phosphor";
-import { client } from "@/client";
+import { client, isRemoteUi } from "@/client";
 import { ComposerMetalSurface } from "@/components/ComposerMetalSurface";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
+import { WebDictation, webDictationSupported } from "@/lib/web-dictation";
 import { Tooltip } from "@/primitives/Tooltip";
 import { useAppStore } from "@/store/app-store";
 
@@ -18,7 +19,27 @@ function dictationMessage(error: unknown): string {
   ].find((entry) => message.includes(entry)) ?? "Dictation could not start.";
 }
 
-/** Native dictation with the approved orbital recording strip. No audio-level probe. */
+/**
+ * Where the words come from: the Mac's native dictation, or on a phone (ADR-084) the
+ * browser's own speech recognition, since the Mac's microphone is out of reach there.
+ */
+interface DictationEngine {
+  status(): Promise<boolean>;
+  start(locale: string, onInterim: (text: string) => void): Promise<void>;
+  stop(cancelled: boolean): Promise<string>;
+}
+
+function createEngine(): DictationEngine {
+  if (!isRemoteUi) return {
+    status: () => client.dictationStatus().then((status) => status !== "unsupported"),
+    start: (locale) => client.startDictation(locale),
+    stop: (cancelled) => client.stopDictation(cancelled).then((text) => text ?? ""),
+  };
+  const web = new WebDictation();
+  return { status: () => Promise.resolve(webDictationSupported()), start: (locale, onInterim) => web.start(locale, onInterim), stop: (cancelled) => web.stop(cancelled) };
+}
+
+/** Dictation with the approved orbital recording strip. No audio-level probe. */
 export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
   /** `send` is true when Enter stopped the recording and Chat behavior asks to send. */
   onText: (text: string, send: boolean) => void;
@@ -42,17 +63,19 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
   const mounted = useRef(false);
   const pending = useRef(0);
   const started = useRef(0);
+  const engine = useRef<DictationEngine | null>(null);
+  engine.current ??= createEngine();
 
   useEffect(() => {
     mounted.current = true;
-    void client.dictationStatus().then((status) => {
-      if (mounted.current) setSupported(status !== "unsupported");
+    void engine.current?.status().then((ok) => {
+      if (mounted.current) setSupported(ok);
     }).catch(() => undefined);
     return () => {
       mounted.current = false;
       stopped.current = true;
       onActiveChange(false);
-      void client.stopDictation(true).catch(() => undefined);
+      void engine.current?.stop(true).catch(() => undefined);
     };
   }, [onActiveChange]);
 
@@ -81,7 +104,7 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
     setInterim(""); setListening(false); setBusy(true);
     onActiveChange(false);
     pending.current += 1;
-    void client.stopDictation(cancelled).then((text) => {
+    void engine.current!.stop(cancelled).then((text) => {
       if (cancelled || !mounted.current) return;
       if (text) onText(text, send);
       else requestAnimationFrame(() => { if (mounted.current) trigger.current?.focus(); });
@@ -115,8 +138,8 @@ export function ComposerDictationButton({ onText, disabled, onActiveChange }: {
     setBusy(true); onActiveChange(true);
     try {
       stopped.current = false;
-      await client.startDictation(locale);
-      if (!mounted.current) { void client.stopDictation(true).catch(() => undefined); return; }
+      await engine.current!.start(locale, (text) => { if (mounted.current) setInterim(text); });
+      if (!mounted.current) { void engine.current!.stop(true).catch(() => undefined); return; }
       if (stopped.current) return;
       started.current = Date.now();
       setSeconds(0); setListening(true);

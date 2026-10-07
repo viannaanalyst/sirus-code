@@ -11,6 +11,7 @@ import { MobileConnect } from "./components/mobile/MobileConnect";
 import { translate } from "./i18n";
 import { dismissAppSplash } from "./lib/app-splash";
 import { MOBILE_QUERY } from "./lib/mobile";
+import { syncViewport } from "./lib/mobile-viewport";
 
 configureDynamicStyleNonce(document);
 
@@ -111,5 +112,5 @@ async function startRemote() {
   mount(window.matchMedia(MOBILE_QUERY).matches ? <Suspense fallback={null}><MobileApp /></Suspense> : <App />);
 }
 
-if (isRemoteUi) void startRemote();
+if (isRemoteUi) { syncViewport(); void startRemote(); }
 else mount(<App />);

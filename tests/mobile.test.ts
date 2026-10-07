@@ -62,3 +62,24 @@ test("Relative time is short and localized", () => {
   assert.equal(shortAgo("2026-10-04T12:00:00Z", "en", now), "3 d");
   assert.equal(shortAgo("nope", "en", now), "");
 });
+
+test("Phone dictation keeps final phrases and shows the one still being heard", async () => {
+  const { joinTranscript } = await import("../src/lib/web-dictation.ts");
+  const result = (text: string, isFinal: boolean) => ({ isFinal, 0: { transcript: text } });
+  assert.deepEqual(joinTranscript([result("Corrija o deploy ", true), result(" da Vercel", true), result("agora", false)]), { final: "Corrija o deploy da Vercel", interim: "agora" });
+  assert.deepEqual(joinTranscript([]), { final: "", interim: "" });
+});
+
+test("The keyboard counts as open only when it takes a real share of the screen", async () => {
+  const { keyboardOpen } = await import("../src/lib/mobile-viewport.ts");
+  assert.equal(keyboardOpen(852, 852), false);
+  assert.equal(keyboardOpen(852, 780), false, "toolbars and rounding are not a keyboard");
+  assert.equal(keyboardOpen(852, 520), true);
+});
+
+test("New conversation and New Astro rise as sheets; the rest slide in", async () => {
+  const { isSheet } = await import("../src/lib/mobile.ts");
+  assert.equal(isSheet({ kind: "new", projectId: null }), true);
+  assert.equal(isSheet({ kind: "new-astro" }), true);
+  assert.equal(isSheet({ kind: "chat", sessionId: "s" }), false);
+});

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { AstroIcon } from "@/components/astros/AstroArt";
-import { ChevronRight, LoaderCircle } from "@/components/icons/phosphor";
+import { ChevronRight, LoaderCircle, Plus } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { astroActivity } from "@/lib/astro-activity";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
@@ -33,6 +33,7 @@ export function MobileAstros({ navigation }: { navigation: MobileNavigation }) {
         <h1>{t("astros.title")}</h1>
         <p>{t("mobile.astroIntro")}</p>
       </div>
+      <button type="button" className="mobile-icon-button mobile-glass mobile-header-add" aria-label={t("astros.new")} onClick={() => navigation.open({ kind: "new-astro" })}><Plus size={18} aria-hidden="true" /></button>
     </header>
     <div className="mobile-scroll">
       {astros?.length ? <div className="mobile-list">

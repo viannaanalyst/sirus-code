@@ -470,7 +470,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           <div className="composer-idle-control">
           <Dropdown onOpenChange={(open) => { if (open) setApprovalLayout(composerPopoverLayout(approvalTrigger.current, boundary.current)); }}>
             <DropdownTrigger asChild>
-              <button ref={approvalTrigger} type="button" disabled={submitting} aria-label={`${t("composer.approvals")} · ${approvalLabel}`} className={`composer-control titlebar-no-drag inline-flex items-center gap-1.5 rounded-full px-2 ui-control transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50 ${fullAccess ? "text-[var(--brand-claude)]" : "text-text-secondary"}`}>
+              <button ref={approvalTrigger} type="button" disabled={submitting} aria-label={`${t("composer.approvals")} · ${approvalLabel}`} className={`composer-approval-trigger composer-control titlebar-no-drag inline-flex items-center gap-1.5 rounded-full px-2 ui-control transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50 ${fullAccess ? "text-[var(--brand-claude)]" : "text-text-secondary"}`}>
                 {fullAccess ? <ShieldAlert size={16} /> : approval === "auto" ? <Shield size={16} /> : <Hand size={16} />}{t(approvalLabel)}<ChevronDown size={11} />
               </button>
             </DropdownTrigger>

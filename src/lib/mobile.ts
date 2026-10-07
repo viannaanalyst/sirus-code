@@ -9,6 +9,7 @@ export type MobileTab = "home" | "projects" | "astros" | "settings";
 export type MobileScreen =
   | { kind: "chat"; sessionId: string }
   | { kind: "new"; projectId: string | null }
+  | { kind: "new-astro" }
   | { kind: "review"; sessionId: string }
   | { kind: "terminal"; sessionId: string };
 
@@ -98,3 +99,8 @@ export const TERMINAL_KEYS: readonly { label: string; data: string }[] = [
   { label: "~", data: "~" },
   { label: "/", data: "/" },
 ];
+
+/** Pages that rise from the bottom as sheets instead of sliding in from the side. */
+export function isSheet(screen: MobileScreen): boolean {
+  return screen.kind === "new" || screen.kind === "new-astro";
+}

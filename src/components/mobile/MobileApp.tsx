@@ -10,7 +10,7 @@ import { AttachmentModal } from "@/components/AttachmentModal";
 import { useTranslation } from "@/i18n/use-translation";
 import { dismissAppSplash } from "@/lib/app-splash";
 import { cn } from "@/lib/cn";
-import { listedSessions, needsYou, type MobileScreen, type MobileTab } from "@/lib/mobile";
+import { isSheet, listedSessions, needsYou, type MobileScreen, type MobileTab } from "@/lib/mobile";
 import { motionTokens } from "@/lib/motion";
 import { applyAppearance } from "@/lib/settings";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
@@ -20,6 +20,7 @@ import { bindRealtime, selectSessionsMeta, useAppStore } from "@/store/app-store
 import { MobileAstros } from "./MobileAstros";
 import { MobileChat } from "./MobileChat";
 import { MobileHome } from "./MobileHome";
+import { MobileNewAstro } from "./MobileNewAstro";
 import { MobileNewSession } from "./MobileNewSession";
 import { MobileProjects } from "./MobileProjects";
 import { MobileReview } from "./MobileReview";
@@ -130,7 +131,9 @@ export default function MobileApp() {
           {tab === "astros" ? <MobileAstros navigation={navigation} /> : null}
           {tab === "settings" ? <MobileSettings online={online} /> : null}
         </main>
-        <nav className="mobile-tabbar mobile-glass" aria-label={t("mobile.home")}>
+        <nav className="mobile-tabbar mobile-glass" aria-label={t("mobile.home")} style={{ "--tab-index": tabs.findIndex((item) => item.id === tab), "--tab-count": tabs.length } as React.CSSProperties}>
+          {/* One glass pill glides to the chosen tab. */}
+          <span className="mobile-tab-indicator" aria-hidden="true" />
           {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" className="mobile-tab" aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>
             <span className="mobile-tab-icon"><Icon size={23} aria-hidden="true" />{id === "home" && waiting ? <span className="mobile-tab-badge">{waiting}</span> : null}</span>
             <span>{label}</span>
@@ -139,15 +142,16 @@ export default function MobileApp() {
         <AnimatePresence>
           {stack.map((screen, index) => <motion.section
             key={`${index}:${screen.kind}`}
-            className={cn("mobile-screen", screen.kind === "new" && "mobile-screen-sheet")}
-            initial={screen.kind === "new" ? { y: "100%" } : { x: "100%" }}
-            animate={screen.kind === "new" ? { y: 0 } : { x: 0 }}
-            exit={screen.kind === "new" ? { y: "100%" } : { x: "100%" }}
+            className={cn("mobile-screen", isSheet(screen) && "mobile-screen-sheet")}
+            initial={isSheet(screen) ? { y: "100%" } : { x: "100%" }}
+            animate={isSheet(screen) ? { y: 0 } : { x: 0 }}
+            exit={isSheet(screen) ? { y: "100%" } : { x: "100%" }}
             transition={{ duration: reducedMotion ? 0 : motionTokens.normal, ease: motionTokens.ease }}
             aria-hidden={index < stack.length - 1 ? true : undefined}
           >
             {screen.kind === "chat" ? <MobileChat sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "new" ? <MobileNewSession projectId={screen.projectId} navigation={navigation} /> : null}
+            {screen.kind === "new-astro" ? <MobileNewAstro navigation={navigation} /> : null}
             {screen.kind === "review" ? <MobileReview sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "terminal" ? <MobileTerminal sessionId={screen.sessionId} navigation={navigation} /> : null}
           </motion.section>)}
