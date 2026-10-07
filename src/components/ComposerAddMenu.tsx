@@ -1,7 +1,8 @@
 import { useRef, useState, type RefObject } from "react";
-import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
+import { Box, Bug, Check, ChevronLeft, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
 import { canPreviewAttachment } from "@/lib/document-reader";
+import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";
 import { client } from "@/client";
 import { type ComposerContext, composerDebugging, composerPlanning, composerTeam, composerContextForOwner } from "@/lib/composer-context";
 import { useTranslation } from "@/i18n/use-translation";
@@ -78,10 +79,18 @@ export function ComposerContextChips({ owner, context, disabled, onChange, plann
       const remove = () => onChange({ ...context, attachments: context.attachments.filter((item) => item.id !== attachment.id) });
       return attachment.previewUrl?.startsWith("data:image/")
         ? <ComposerImageAttachment key={attachment.id} attachment={attachment} owner={owner} disabled={disabled} onRemove={remove} onReplace={(next) => onChange({ ...context, attachments: replaceAttachment(context.attachments, attachment.id, next) })} />
-        : <span key={attachment.id} className={chip} title={attachment.name}>
-            {canPreviewAttachment(attachment) ? <button type="button" className="flex min-w-0 items-center gap-1.5 rounded hover:text-text-primary" aria-label={t("reader.open", { name: attachment.name })} onClick={() => useAppStore.getState().openAttachmentReader(owner, attachment)}><File size={12} aria-hidden="true" /><span className="max-w-44 truncate">{attachment.name}</span></button>
-              : <><span aria-hidden="true">{attachment.kind === "folder" ? <Folder size={12} /> : <File size={12} />}</span><span className="max-w-44 truncate">{attachment.name}{attachment.truncated ? ` · ${t("composer.truncated")}` : ""}</span></>}
-            <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${attachment.name}`} className="rounded p-0.5 hover:text-text-primary" onClick={remove}><X size={12} /></button>
+        : <span key={attachment.id} className="attachment-chip" title={attachment.name}>
+            {(() => {
+              // A3 (owner's pick): type icon, name, then the size on the same line, like T3 Code.
+              const label = <><FileTypeIcon kind={fileKind(attachment.name, attachment.kind, attachment.mimeType)} size={18} />
+                <span className="attachment-chip-name">{attachment.name}</span>
+                {attachment.kind === "file" && attachment.size !== undefined ? <span className="attachment-chip-size">{formatFileSize(attachment.size)}</span> : null}
+                {attachment.truncated ? <span className="attachment-chip-size">· {t("composer.truncated")}</span> : null}</>;
+              return canPreviewAttachment(attachment)
+                ? <button type="button" className="attachment-chip-open" aria-label={t("reader.open", { name: attachment.name })} onClick={() => useAppStore.getState().openAttachmentReader(owner, attachment)}>{label}</button>
+                : <span className="attachment-chip-open">{label}</span>;
+            })()}
+            <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${attachment.name}`} className="attachment-chip-remove" onClick={remove}><X size={12} /></button>
           </span>;
     })}
     {(context.snippets ?? []).map((snippet) => <span key={snippet.id} className={chip} title={snippet.text}>

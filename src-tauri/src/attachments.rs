@@ -46,6 +46,7 @@ impl PreparedAttachment {
             name: self.view.name.clone(),
             kind: self.view.kind.clone(),
             mime_type: Some(self.view.mime_type.clone()).filter(|mime| !mime.is_empty()),
+            size: (self.view.kind == "file").then_some(self.view.size as u64),
             thumbnail: self.thumbnail.clone(),
         }
     }

@@ -159,3 +159,13 @@
 .attachment-modal-body { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow: auto; background: var(--background-2); }
 .attachment-modal-page { display: block; width: 100%; height: 100%; flex: 1; border: 0; background: #fff; }
 .attachment-modal-source { flex: 1; min-height: 0; overflow: auto; }
+
+/* Attachment chips (owner's pick A3): type icon, name and size on one line, like T3 Code. */
+.attachment-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 34px; padding: 0 6px 0 8px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); background: color-mix(in srgb, var(--text-primary) 5%, transparent); color: var(--text-primary); }
+.attachment-chip-static { padding-right: 10px; }
+.attachment-chip-open { display: inline-flex; min-width: 0; align-items: center; gap: 8px; border-radius: 6px; font-size: var(--text-ui-12); }
+button.attachment-chip-open:hover .attachment-chip-name { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--text-primary) 30%, transparent); text-underline-offset: 3px; }
+.attachment-chip-name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-chip-size { flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
+.attachment-chip-remove { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--text-muted); }
+.attachment-chip-remove:hover { background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-primary); }

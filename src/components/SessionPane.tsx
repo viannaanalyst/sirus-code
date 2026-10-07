@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { ChevronDown, FileImage, FileText, Folder, GitFork, TerminalSquare } from "@/components/icons/phosphor";
+import { ChevronDown, GitFork, TerminalSquare } from "@/components/icons/phosphor";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -27,6 +27,7 @@ import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { PlanActions, ReplyChoices } from "@/components/ReplyChoices";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";
 import { HtmlPreview } from "@/components/HtmlPreview";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
@@ -261,7 +262,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   // Images show as thumbnails on top (MonoCode-style); other files and older messages as chips.
   const userImages = (message.attachments ?? []).filter((file) => file.thumbnail);
   const [openImage, setOpenImage] = useState<{ src: string; name: string } | null>(null);
-  const userFiles = message.attachments?.length ? message.attachments.filter((file) => !file.thumbnail) : userReferences;
+  const userFiles: { name: string; kind: "file" | "folder" | "terminal"; mimeType?: string; size?: number }[] = message.attachments?.length
+    ? [...message.attachments.filter((file) => !file.thumbnail), ...userReferences.filter((reference) => reference.kind === "terminal")]
+    : userReferences;
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
   const replySteers = team ? noSteers : message.steers ?? noSteers;
@@ -302,10 +305,13 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
         }) : <>
           {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage({ src: file.thumbnail!, name: file.name })}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
-          {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => {
-            const Icon = reference.kind === "terminal" ? TerminalSquare : reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
-            return <span key={index} className="prompt-reference ui-caption" title={reference.name}><Icon size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>;
-          })}</span> : null}
+          {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => reference.kind === "terminal"
+            ? <span key={index} className="prompt-reference ui-caption"><TerminalSquare size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>
+            : <span key={index} className="attachment-chip attachment-chip-static" title={reference.name}><span className="attachment-chip-open">
+              <FileTypeIcon kind={fileKind(reference.name, reference.kind, reference.mimeType)} size={18} />
+              <span className="attachment-chip-name">{reference.name}</span>
+              {reference.size !== undefined ? <span className="attachment-chip-size">{formatFileSize(reference.size)}</span> : null}
+            </span></span>)}</span> : null}
         </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {userImages.length ? <ImageLightbox images={openImage ? [openImage] : null} onClose={() => setOpenImage(null)} /> : null}

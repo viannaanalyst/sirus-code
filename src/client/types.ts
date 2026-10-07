@@ -74,7 +74,7 @@ export interface Message {
   /** User messages: what was attached, with a small thumbnail for images. */
   attachments?: MessageAttachment[];
 }
-export interface MessageAttachment { name: string; kind: "file" | "folder"; mimeType?: string; thumbnail?: string }
+export interface MessageAttachment { name: string; kind: "file" | "folder"; mimeType?: string; size?: number; thumbnail?: string }
 
 export interface NativeThread {
   providerAccountId?: string;
