@@ -10,8 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 import "@/styles/astros.css";
 
-const EMOJIS = ["🚀", "⚡", "🔥", "✨", "🌱", "🌊", "🎯", "🧠", "💡", "🛠️", "⚙️", "🧪", "📦", "📱", "💻", "🖥️", "🌐", "🔒", "🔑", "💳", "💰", "📊", "📈", "🗂️", "📝", "📚", "🎨", "🎵", "🎮", "🏠", "🏥", "🩺", "⚖️", "🛒", "🍔", "☕", "🚂", "🐙", "🦊", "🐝", "🐳", "🦄", "🌙", "☀️", "⭐", "❤️", "🟢", "🔷"];
-const ORDER = ["blue", "red", "yellow", "green", "pink", "purple", "teal", "orange"];
+export const EMOJIS = ["🚀", "⚡", "🔥", "✨", "🌱", "🌊", "🎯", "🧠", "💡", "🛠️", "⚙️", "🧪", "📦", "📱", "💻", "🖥️", "🌐", "🔒", "🔑", "💳", "💰", "📊", "📈", "🗂️", "📝", "📚", "🎨", "🎵", "🎮", "🏠", "🏥", "🩺", "⚖️", "🛒", "🍔", "☕", "🚂", "🐙", "🦊", "🐝", "🐳", "🦄", "🌙", "☀️", "⭐", "❤️", "🟢", "🔷"];
+export const COLOR_ORDER = ["blue", "red", "yellow", "green", "pink", "purple", "teal", "orange"];
 
 /** Project logo, emoji or Astro icon, and folder colour (ADR-059). Each change applies at once. */
 export function ProjectLookEditor({ projectId }: { projectId: string }) {
@@ -72,7 +72,7 @@ export function ProjectLookEditor({ projectId }: { projectId: string }) {
     </div>
     <div className="project-look-colors" role="radiogroup" aria-label={t("projectLook.color")}>
       <button type="button" role="radio" aria-checked={!look.color} aria-label={t("projectLook.defaultColor")} className="project-look-swatch" style={{ background: PROJECT_COLORS.gray }} onClick={() => run({ type: "setColor", projectId, color: null })} />
-      {ORDER.map((id) => <button key={id} type="button" role="radio" aria-checked={look.color === id} aria-label={t(`projectLook.colors.${id}`)} className="project-look-swatch" style={{ background: PROJECT_COLORS[id] }} onClick={() => run({ type: "setColor", projectId, color: id })} />)}
+      {COLOR_ORDER.map((id) => <button key={id} type="button" role="radio" aria-checked={look.color === id} aria-label={t(`projectLook.colors.${id}`)} className="project-look-swatch" style={{ background: PROJECT_COLORS[id] }} onClick={() => run({ type: "setColor", projectId, color: id })} />)}
       <label className={cn("project-look-swatch project-look-custom", custom && "project-look-custom-on")} aria-label={t("projectLook.customColor")} style={custom ? { background: custom } : undefined}>
         <input type="color" value={custom ?? "#888888"} aria-label={t("projectLook.customColor")} onChange={(event) => {
           const value = event.target.value;

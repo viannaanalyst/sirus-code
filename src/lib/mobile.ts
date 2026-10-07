@@ -13,6 +13,8 @@ export type MobileScreen =
   | { kind: "archived" }
   | { kind: "git"; sessionId: string }
   | { kind: "files"; sessionId: string }
+  | { kind: "project-look"; projectId: string }
+  | { kind: "edit-astro"; astroId: string }
   | { kind: "review"; sessionId: string }
   | { kind: "terminal"; sessionId: string };
 
@@ -114,7 +116,7 @@ export const TERMINAL_KEYS: readonly { label: string; data: string }[] = [
 
 /** Pages that rise from the bottom as sheets instead of sliding in from the side. */
 export function isSheet(screen: MobileScreen): boolean {
-  return screen.kind === "new" || screen.kind === "new-astro";
+  return screen.kind === "new" || screen.kind === "new-astro" || screen.kind === "edit-astro" || screen.kind === "project-look";
 }
 
 /** Folders first, then files, each in natural order. */

@@ -35,6 +35,20 @@ pub fn session_meta(session: &Session) -> Result<Value> {
     Ok(value)
 }
 
+/// A session as a command reply: metadata plus its messages from the last agent reply on.
+/// Callers read the new turn's state and that reply; a whole transcript would make every
+/// send from a paired phone carry megabytes it never uses.
+pub fn session_tail(session: &Session) -> Result<Value> {
+    let from = session
+        .messages
+        .iter()
+        .rposition(|message| message.role == crate::models::MessageRole::Agent)
+        .unwrap_or(session.messages.len());
+    let mut value = session_meta(session)?;
+    value["messages"] = serde_json::to_value(&session.messages[from..])?;
+    Ok(value)
+}
+
 /// `load_state` payload: every session as metadata only.
 pub fn state_meta(data: &AppData) -> Result<Value> {
     let mut value = crate::persist::without_transcripts(|| serde_json::to_value(data))?;
@@ -217,6 +231,22 @@ pub fn search_snapshot(data: &AppData) -> (Vec<Session>, HashSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_replies_carry_only_the_latest_reply_on() {
+        let data = data();
+        let session = &data.sessions[0];
+        let tail = session_tail(session).unwrap();
+        let ids: Vec<_> = tail["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|message| message["id"].as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(ids, ["a2", "a3"], "from the last agent reply on");
+        assert_eq!(tail["title"], "A");
+        assert_eq!(session_meta(session).unwrap()["messages"], json!([]));
+    }
 
     fn data() -> AppData {
         let message = |id: &str, session: &str, role: &str, content: &str| json!({"id":id,"sessionId":session,"role":role,"content":content,"createdAt":format!("2026-10-0{}T10:00:00Z", id.len() % 9 + 1),"streaming":false});

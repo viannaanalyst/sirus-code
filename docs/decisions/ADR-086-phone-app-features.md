@@ -33,6 +33,11 @@ All of these are possible in an iPhone home-screen web app; Live Activities, wid
 7. **Usage and limits.** Phone Settings shows each installed provider's windows as bars, with their reset times and refresh.
 8. **Files** (conversation ⋯ menu). It browses the session's workspace, folders first, and previews files read-only: text and code as monospace, Markdown formatted, images through `reply_image`.
 
+Also:
+- **Project icon** (conversation ⋯ menu). An Astro icon in Metal or Neon, an emoji and the folder colour, applied at once through `updateProjectLook`. A logo image is still picked on the Mac, because its file picker opens there.
+- **Astros.** The New Astro sheet chooses Metal or Neon, and slides an Astro row left to edit its name, icon, style, colour and project (`MobileNewAstro` with `astroId`; the soul, background and other projects are kept).
+- **Slim replies.** `rename_session` and `set_session_model` reply with session metadata, and `send_prompt` with metadata plus the messages from the last agent reply on (`transcript_view::session_tail`). Every caller reads only those, and the full transcript made a rename from the phone wait on megabytes: the reply drops to about 1 KB. The rename dialog also closes at once, and Cancel never waits.
+
 Phone layout fixes:
 - Compact and send keeps only its icon.
 - The review gives the history a short scrolling band, so the diff and its comment box stay visible.

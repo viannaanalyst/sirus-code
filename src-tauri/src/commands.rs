@@ -1331,7 +1331,7 @@ pub fn rename_session(
     state: State<Arc<AppState>>,
     session_id: String,
     title: String,
-) -> Result<Session> {
+) -> Result<serde_json::Value> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 {
         return Err(Error::new(
@@ -1343,10 +1343,12 @@ pub fn rename_session(
     let session = find_session_mut(&mut data, &session_id)?;
     session.title = title.to_string();
     session.last_activity_at = now_rfc3339();
-    let clone = session.clone();
+    // Metadata only: callers read the title and time, and a long transcript would make a
+    // rename from a paired phone wait on megabytes it never uses.
+    let meta = crate::transcript_view::session_meta(session)?;
     drop(data);
     state.persist()?;
-    Ok(clone)
+    Ok(meta)
 }
 
 #[tauri::command]
@@ -1437,7 +1439,7 @@ pub async fn send_prompt(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
     request: SendPromptRequest,
-) -> Result<Session> {
+) -> Result<serde_json::Value> {
     let mut request = request;
     if request.team {
         // A team plan is always a read-only planning turn (ADR-043).
@@ -1828,14 +1830,13 @@ pub async fn send_prompt(
             started.monitor(app, state.inner().clone(), session_snapshot.id.clone());
             // A disk failure must not orphan an already-spawned process.
             state.persist()?;
-            Ok(state
-                .data
-                .lock()
+            let data = state.data.lock();
+            let session = data
                 .sessions
                 .iter()
                 .find(|session| session.id == session_snapshot.id)
-                .cloned()
-                .unwrap_or(session_snapshot))
+                .unwrap_or(&session_snapshot);
+            crate::transcript_view::session_tail(session)
         }
         Err(err) => {
             let mut data = state.data.lock();
@@ -2252,7 +2253,7 @@ pub fn set_session_model(
     session_id: String,
     agent: AgentProviderId,
     model: Option<String>,
-) -> Result<Session> {
+) -> Result<serde_json::Value> {
     let mut data = state.data.lock();
     let account_id = crate::provider_accounts::selected(&data, &agent);
     let session = find_session_mut(&mut data, &session_id)?;
@@ -2271,10 +2272,11 @@ pub fn set_session_model(
     if changed_provider {
         session.provider_account_id = account_id;
     }
-    let clone = session.clone();
+    // Metadata only: the caller copies the provider, model and account fields.
+    let meta = crate::transcript_view::session_meta(session)?;
     drop(data);
     state.persist()?;
-    Ok(clone)
+    Ok(meta)
 }
 
 #[tauri::command]

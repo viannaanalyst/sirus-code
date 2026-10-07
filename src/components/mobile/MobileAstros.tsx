@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { AstroIcon } from "@/components/astros/AstroArt";
-import { ChevronRight, LoaderCircle, Plus } from "@/components/icons/phosphor";
+import { ChevronRight, LoaderCircle, Pencil, Plus } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { astroActivity } from "@/lib/astro-activity";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import type { MobileNavigation } from "./MobileApp";
+import { MobileSwipeRow } from "./MobileSwipeRow";
 import "@/styles/astros.css";
 
 const ACTIVITY_KEYS = { "needs-you": "mobile.needsYou", working: "mobile.working", idle: "mobile.astroIdle" } as const;
@@ -42,7 +43,7 @@ export function MobileAstros({ navigation }: { navigation: MobileNavigation }) {
           const scope = astro.projectIds.map((id) => projects.find((project) => project.id === id)?.name).filter(Boolean).join(", ");
           // An Astro works inside its projects; without one it cannot start (as on the Mac).
           const ready = astro.projectIds.length > 0;
-          return <button key={astro.id} type="button" className="mobile-astro" disabled={!ready} onClick={() => void open(astro.id)} aria-busy={opening === astro.id || undefined}>
+          return <MobileSwipeRow key={astro.id} actions={[{ id: "edit", label: t("mobile.edit"), icon: <Pencil size={18} />, tone: "accent", onSelect: () => navigation.open({ kind: "edit-astro", astroId: astro.id }) }]}><button type="button" className="mobile-astro" disabled={!ready} onClick={() => void open(astro.id)} aria-busy={opening === astro.id || undefined}>
             <span className="mobile-astro-icon" style={{ "--astro": astro.color } as React.CSSProperties}>
               <AstroIcon icon={astro.icon} style={astro.style} color={astro.color} size={34} activity={activity} />
               {astro.unread > 0 ? <span className="mobile-astro-unread">{astro.unread}</span> : null}
@@ -54,7 +55,7 @@ export function MobileAstros({ navigation }: { navigation: MobileNavigation }) {
               </span>
             </span>
             {opening === astro.id ? <LoaderCircle size={15} className="animate-spin text-text-muted" aria-hidden="true" /> : <ChevronRight size={15} className="text-text-muted" aria-hidden="true" />}
-          </button>;
+          </button></MobileSwipeRow>;
         })}
       </div> : astros ? <p className="mobile-empty">{t("mobile.noAstros")}</p> : null}
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronLeft, CloudOff, FolderOpen, GitBranch, FileDiff, MoreHorizontal, Pencil, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
+import { ChevronLeft, CloudOff, FolderOpen, GitBranch, Palette, FileDiff, MoreHorizontal, Pencil, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { SessionPane } from "@/components/SessionPane";
 import { useTranslation } from "@/i18n/use-translation";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
@@ -37,9 +37,11 @@ export function MobileChat({ sessionId, navigation }: { sessionId: string; navig
     if (!session || busy) return;
     setBusy(true);
     const store = useAppStore.getState();
-    const done = await store.renameSession(session.id, title.trim());
+    // Close at once and finish behind; a failure still shows as a toast.
+    (document.activeElement as HTMLElement | null)?.blur();
+    setAction(null);
+    await store.renameSession(session.id, title.trim());
     setBusy(false);
-    if (done) setAction(null);
   };
 
   return <div className="mobile-page mobile-chat">
@@ -56,14 +58,15 @@ export function MobileChat({ sessionId, navigation }: { sessionId: string; navig
     <MobileMenu open={menu} anchor={more.current} onClose={() => setMenu(false)} items={[
       { id: "git", label: t("mobile.git"), icon: <GitBranch size={16} />, onSelect: () => navigation.open({ kind: "git", sessionId }) },
       { id: "files", label: t("mobile.files"), icon: <FolderOpen size={16} />, onSelect: () => navigation.open({ kind: "files", sessionId }) },
+      { id: "look", label: t("mobile.projectIcon"), icon: <Palette size={16} />, disabled: !session, onSelect: () => { if (session) navigation.open({ kind: "project-look", projectId: session.projectId }); } },
       { id: "rename", label: t("session.rename"), icon: <Pencil size={16} />, onSelect: () => { setTitle(session?.title ?? ""); setAction("rename"); } },
       { id: "delete", label: t("session.delete"), icon: <Trash2 size={16} />, destructive: true, disabled: active, onSelect: () => setAction("delete") },
     ]} />
-    <MobileDialog open={action === "rename"} title={t("session.rename")} onClose={() => { if (!busy) setAction(null); }}>
+    <MobileDialog open={action === "rename"} title={t("session.rename")} onClose={() => setAction(null)}>
       <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
         <input className="mobile-input" autoFocus value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} aria-label={t("session.titleOptional")} enterKeyHint="done" />
         <div className="mobile-dialog-actions">
-          <button type="button" className="mobile-dialog-button" disabled={busy} onClick={() => setAction(null)}>{t("common.cancel")}</button>
+          <button type="button" className="mobile-dialog-button" onClick={() => setAction(null)}>{t("common.cancel")}</button>
           <button type="submit" className="mobile-dialog-button" data-tone="primary" disabled={busy || !title.trim()}>{t("common.save")}</button>
         </div>
       </form>
