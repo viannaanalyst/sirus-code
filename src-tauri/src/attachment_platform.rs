@@ -190,48 +190,6 @@ pub async fn paste(
     })
     .await
 }
-/// Local file and folder URLs of the last drag (Finder → composer), read once per drag.
-#[cfg(target_os = "macos")]
-pub async fn dropped(
-    app: &tauri::AppHandle,
-    state: std::sync::Arc<crate::commands::AppState>,
-) -> Result<Vec<PathBuf>> {
-    main_thread(app, move || {
-        use objc2_app_kit::{NSPasteboard, NSPasteboardNameDrag, NSPasteboardTypeFileURL};
-        use objc2_foundation::NSURL;
-        let board = NSPasteboard::pasteboardWithName(unsafe { NSPasteboardNameDrag });
-        if !state.attachments.take_drop(board.changeCount()) {
-            return Ok(Vec::new());
-        }
-        let mut paths = Vec::new();
-        if let Some(items) = board.pasteboardItems() {
-            for item in items.iter().take(9) {
-                if let Some(value) = item.stringForType(unsafe { NSPasteboardTypeFileURL }) {
-                    if let Some(url) = NSURL::URLWithString(&value).filter(|url| url.isFileURL()) {
-                        if let Some(path) = url.path() {
-                            paths.push(PathBuf::from(path.to_string()));
-                        }
-                    }
-                }
-            }
-        }
-        if paths.len() > 8 {
-            return Err(Error::new(
-                "attachment",
-                "Select at most 8 attachments at a time.",
-            ));
-        }
-        Ok(paths)
-    })
-    .await
-}
-#[cfg(not(target_os = "macos"))]
-pub async fn dropped(
-    _app: &tauri::AppHandle,
-    _state: std::sync::Arc<crate::commands::AppState>,
-) -> Result<Vec<PathBuf>> {
-    Ok(Vec::new())
-}
 #[cfg(not(target_os = "macos"))]
 pub async fn paste(
     _app: &tauri::AppHandle,

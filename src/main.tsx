@@ -35,9 +35,8 @@ window.addEventListener("unhandledrejection", (event) => {
   useAppStore.setState({ error: formatUnknownError(event.reason) });
 });
 
-// The window leaves drag and drop to the webview (`dragDropEnabled: false`) so
-// in-app reordering works. Files dragged in from Finder must never navigate
-// the webview to them; components that accept drops still handle them first.
+// Finder drops arrive natively (`dragDropEnabled`, the `file-drop` event; ADR-073). Should
+// a file drag still reach the webview, it must never navigate the window to the file.
 for (const type of ["dragover", "drop"] as const) {
   window.addEventListener(type, (event) => {
     if (event.dataTransfer?.types.includes("Files")) event.preventDefault();

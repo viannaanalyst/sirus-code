@@ -326,6 +326,14 @@ pub fn run() {
                     appearance::schedule(app, app.state::<Arc<AppState>>().inner().clone());
                 }
                 tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::DragDrop(drop),
+                    ..
+                } if label == "main" => {
+                    // Finder drops (ADR-073): paths stay native; the UI only learns where it is.
+                    attachments::window_drop(app, drop);
+                }
+                tauri::RunEvent::WindowEvent {
                     event: tauri::WindowEvent::CloseRequested { api, .. },
                     ..
                 } => {

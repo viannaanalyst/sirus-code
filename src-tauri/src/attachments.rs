@@ -94,9 +94,8 @@ impl PreparedAttachment {
 pub struct AttachmentState {
     #[cfg(target_os = "macos")]
     paste_admission: parking_lot::Mutex<Option<(std::time::Instant, isize)>>,
-    /// The drag pasteboard generation last read, so each drop is read once.
-    #[cfg(target_os = "macos")]
-    drop_read: parking_lot::Mutex<isize>,
+    /// Paths of the last Finder drop on the window, taken once by the composer.
+    dropped: parking_lot::Mutex<Option<(std::time::Instant, Vec<std::path::PathBuf>)>>,
     entries: parking_lot::Mutex<HashMap<String, (String, Arc<PreparedAttachment>)>>,
     sent: parking_lot::Mutex<std::collections::HashSet<String>>,
 }
@@ -121,15 +120,16 @@ impl AttachmentState {
             })
     }
     #[cfg(target_os = "macos")]
-    /// A drop is read once: a new drag generation is admitted, a repeated read is not.
-    #[cfg(target_os = "macos")]
-    pub fn take_drop(&self, count: isize) -> bool {
-        let mut last = self.drop_read.lock();
-        if *last == count {
-            return false;
+    /// Keeps the paths of a window drop for the composer to take.
+    pub fn set_drop(&self, paths: Vec<std::path::PathBuf>) {
+        *self.dropped.lock() = Some((std::time::Instant::now(), paths));
+    }
+    /// The last drop's paths, once and only for a few seconds after it happened.
+    pub fn take_drop(&self) -> Vec<std::path::PathBuf> {
+        match self.dropped.lock().take() {
+            Some((at, paths)) if at.elapsed() < std::time::Duration::from_secs(5) => paths,
+            _ => Vec::new(),
         }
-        *last = count;
-        true
     }
     pub fn admit_paste(&self, count: isize) {
         *self.paste_admission.lock() = Some((std::time::Instant::now(), count));
@@ -696,16 +696,21 @@ pub async fn paste_prompt_attachments(
         .attachments
         .insert(&owner, prepared, &state.data.lock())
 }
-/// Files and folders dragged from Finder onto the composer (ADR-073). The webview hides
-/// dropped paths, so the native side reads the macOS drag pasteboard, once per drop.
+/// Files and folders dragged from Finder onto the composer (ADR-073). The window's native
+/// drop keeps their paths here; the renderer never supplies a path.
 #[tauri::command]
 pub async fn drop_prompt_attachments(
-    app: tauri::AppHandle,
     state: tauri::State<'_, Arc<crate::commands::AppState>>,
     owner: String,
 ) -> Result<Vec<PromptAttachment>> {
     validate_owner(&state, &owner)?;
-    let paths = crate::attachment_platform::dropped(&app, state.inner().clone()).await?;
+    let paths = state.attachments.take_drop();
+    if paths.len() > 8 {
+        return Err(Error::new(
+            "attachment",
+            "Select at most 8 attachments at a time.",
+        ));
+    }
     let prepared = tokio::task::spawn_blocking(move || {
         paths
             .into_iter()
@@ -1086,13 +1091,45 @@ mod thumbnail_tests {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod drop_tests {
     #[test]
-    fn each_drag_is_read_once() {
+    fn a_drop_is_taken_once() {
         let state = super::AttachmentState::default();
-        assert!(state.take_drop(7));
-        assert!(!state.take_drop(7), "the same drag is never read twice");
-        assert!(state.take_drop(8));
+        state.set_drop(vec!["/tmp/a".into()]);
+        assert_eq!(state.take_drop().len(), 1);
+        assert!(
+            state.take_drop().is_empty(),
+            "the same drop is never taken twice"
+        );
     }
+}
+
+/// Forwards a native window drop to the UI without paths (they stay in `AttachmentState`).
+pub fn window_drop(app: &tauri::AppHandle, event: &tauri::DragDropEvent) {
+    use tauri::{Emitter, Manager};
+    let scale = app
+        .get_webview_window("main")
+        .and_then(|window| window.scale_factor().ok())
+        .unwrap_or(1.0);
+    let point = |position: &tauri::PhysicalPosition<f64>| (position.x / scale, position.y / scale);
+    let payload = match event {
+        tauri::DragDropEvent::Enter { paths, position } => {
+            let (x, y) = point(position);
+            serde_json::json!({ "kind": "over", "x": x, "y": y, "count": paths.len() })
+        }
+        tauri::DragDropEvent::Over { position } => {
+            let (x, y) = point(position);
+            serde_json::json!({ "kind": "over", "x": x, "y": y })
+        }
+        tauri::DragDropEvent::Drop { paths, position } => {
+            app.state::<Arc<crate::commands::AppState>>()
+                .attachments
+                .set_drop(paths.clone());
+            let (x, y) = point(position);
+            serde_json::json!({ "kind": "drop", "x": x, "y": y, "count": paths.len() })
+        }
+        _ => serde_json::json!({ "kind": "leave" }),
+    };
+    let _ = app.emit("file-drop", payload);
 }

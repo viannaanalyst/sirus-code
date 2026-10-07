@@ -121,7 +121,11 @@ export class SirusClient {
   pastePromptAttachments(owner: string, files: { name: string; data: string }[], expectedText?: string) {
     return this.transport.invoke<import("./types").PromptAttachment[]>("paste_prompt_attachments", { owner, files, expectedText: expectedText ?? null });
   }
-  /** Files and folders just dropped from Finder (read natively from the drag pasteboard, once). */
+  /** Where a Finder drag is over the window (CSS px), and when it drops; paths stay native. */
+  onFileDrop(handler: (event: { kind: "over" | "drop" | "leave"; x?: number; y?: number; count?: number }) => void) {
+    return this.listenShared<{ kind: "over" | "drop" | "leave"; x?: number; y?: number; count?: number }>("file-drop", handler);
+  }
+  /** Attaches the files and folders of the drop that just happened (taken once, natively). */
   dropPromptAttachments(owner: string) {
     return this.transport.invoke<import("./types").PromptAttachment[]>("drop_prompt_attachments", { owner });
   }

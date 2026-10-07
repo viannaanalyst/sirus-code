@@ -224,6 +224,32 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   // Reply choices under the last answer (ReplyChoices): an option is sent as the reply, unless a
   // draft is already here, which then keeps it below the option for the person to send.
   const [dropping, setDropping] = useState(false);
+  // Finder files and folders dropped on the composer become attachments (ADR-073): the native
+  // window drop reports where it is; on a drop inside this composer its paths are attached.
+  const dropAllowed = canType && !submitting;
+  useEffect(() => {
+    let alive = true;
+    const inside = (x?: number, y?: number) => {
+      const rect = boundary.current?.getBoundingClientRect();
+      return Boolean(rect && x !== undefined && y !== undefined && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+    };
+    const unlisten = client.onFileDrop((event) => {
+      if (!alive) return;
+      if (event.kind !== "drop") { setDropping(event.kind === "over" && dropAllowed && inside(event.x, event.y)); return; }
+      setDropping(false);
+      if (!dropAllowed || !inside(event.x, event.y)) return;
+      const owner = draftKey;
+      setAttachmentError(null);
+      void client.dropPromptAttachments(owner).then(async (attachments) => {
+        if (!attachments.length) return;
+        const state = useAppStore.getState();
+        const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
+        try { state.setComposerContext(owner, { ...current, attachments: appendAttachments(current.attachments, attachments) }); }
+        catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
+      }).catch((error: unknown) => setAttachmentError(formatUnknownError(error)));
+    });
+    return () => { alive = false; void unlisten.then((stop) => stop()); };
+  }, [draftKey, dropAllowed]);
   const quickReply = useRef<string | null>(null);
   const sessionId = session?.id ?? null;
   useEffect(() => {
@@ -319,25 +345,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>
-    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)] focus-within:border-[color-mix(in_oklab,var(--text-primary)_20%,transparent)]" data-dropping={dropping || undefined}
-      onDragOver={(event) => { if (canType && event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; if (!dropping) setDropping(true); } }}
-      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false); }}
-      onDrop={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
-        event.preventDefault();
-        setDropping(false);
-        if (!canType || submitting) return;
-        // Finder files and folders become attachments; the native side reads the drag pasteboard once.
-        const owner = draftKey;
-        setAttachmentError(null);
-        void client.dropPromptAttachments(owner).then(async (attachments) => {
-          if (!attachments.length) return;
-          const state = useAppStore.getState();
-          const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
-          try { state.setComposerContext(owner, { ...current, attachments: appendAttachments(current.attachments, attachments) }); }
-          catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
-        }).catch((error: unknown) => setAttachmentError(formatUnknownError(error)));
-      }}>
+    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)] focus-within:border-[color-mix(in_oklab,var(--text-primary)_20%,transparent)]" data-dropping={dropping || undefined}>
       {/* One animated rim at a time: the side chat's composer keeps a still border. */}
       {session?.sideChat ? null : <ComposerContour speed={settings.composerLineSpeed} reducedMotion={reducedMotion || dictating} />}
       {dropping ? <div className="composer-drop" aria-hidden="true">{t("composer.dropHere")}</div> : null}
