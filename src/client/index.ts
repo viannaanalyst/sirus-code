@@ -121,6 +121,10 @@ export class SirusClient {
   pastePromptAttachments(owner: string, files: { name: string; data: string }[], expectedText?: string) {
     return this.transport.invoke<import("./types").PromptAttachment[]>("paste_prompt_attachments", { owner, files, expectedText: expectedText ?? null });
   }
+  /** Files and folders just dropped from Finder (read natively from the drag pasteboard, once). */
+  dropPromptAttachments(owner: string) {
+    return this.transport.invoke<import("./types").PromptAttachment[]>("drop_prompt_attachments", { owner });
+  }
   releasePromptAttachments(owner: string, ids: string[]) {
     return this.transport.invoke<void>("release_prompt_attachments", { owner, ids });
   }

@@ -1,6 +1,9 @@
 import type { AgentProviderId, ApprovalMode, PromptAttachment, Session } from "@/client/types";
-import { withPromptContext } from "@/lib/prompt-context";
-export interface ComposerContext { attachments: PromptAttachment[]; goal: string; planning: boolean; debugging?: boolean; /** One-shot team planning request (ADR-043). */ team?: boolean; approvalByProvider?: Partial<Record<AgentProviderId, ApprovalMode>> }
+import { TERMINAL_LABEL, withPromptContext } from "@/lib/prompt-context";
+export interface ComposerContext { attachments: PromptAttachment[]; goal: string; planning: boolean; debugging?: boolean; /** One-shot team planning request (ADR-043). */ team?: boolean; approvalByProvider?: Partial<Record<AgentProviderId, ApprovalMode>>; /** Terminal output added from a selection (T3-style context chips). */ snippets?: TerminalSnippet[] }
+export interface TerminalSnippet { id: string; text: string }
+/** Bounded like a pasted text snapshot. */
+export const MAX_SNIPPET = 16 * 1024;
 export const emptyComposerContext: ComposerContext = { attachments: [], goal: "", planning: false };
 export function composerPlanning(context: ComposerContext, planning: boolean): ComposerContext {
   const approvalByProvider = { ...context.approvalByProvider };
@@ -22,6 +25,6 @@ export function composerContextForOwner(owner: string, contexts: Record<string, 
   return contexts[owner] ?? { ...emptyComposerContext, goal: sessions.find(session => owner === `session:${session.id}`)?.goal ?? "" };
 }
 export function composerPrompt(prompt: string, context: ComposerContext) {
-  const request = prompt.trim() || (context.attachments.length ? "Analyze the attached files." : "");
-  return withPromptContext(request, context.attachments.map((attachment) => ({ label: `${attachment.kind === "folder" ? "Selected folder" : "Selected file"}: ${JSON.stringify(attachment.name)}${attachment.truncated ? " (truncated)" : ""}`, content: attachment.content })));
+  const request = prompt.trim() || (context.attachments.length || context.snippets?.length ? "Analyze the attached files." : "");
+  return withPromptContext(request, [...(context.snippets ?? []).map((snippet) => ({ label: TERMINAL_LABEL, content: snippet.text })), ...context.attachments.map((attachment) => ({ label: `${attachment.kind === "folder" ? "Selected folder" : "Selected file"}: ${JSON.stringify(attachment.name)}${attachment.truncated ? " (truncated)" : ""}`, content: attachment.content }))]);
 }

@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from "react";
-import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, Users, X, AppWindow } from "@/components/icons/phosphor";
+import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
 import { canReadDocument } from "@/lib/document-reader";
 import { client } from "@/client";
@@ -72,7 +72,7 @@ export function ComposerContextChips({ owner, context, disabled, onChange, plann
 }) {
   const t = useTranslation();
   const chip = "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border-subtle bg-background-3 px-2 py-1 ui-caption text-text-secondary";
-  if (!context.attachments.length && !context.goal && !context.planning && !context.debugging && !context.team) return null;
+  if (!context.attachments.length && !context.snippets?.length && !context.goal && !context.planning && !context.debugging && !context.team) return null;
   return <div className="flex flex-wrap items-center gap-2.5 pb-1 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)]">
     {context.attachments.map((attachment) => {
       const remove = () => onChange({ ...context, attachments: context.attachments.filter((item) => item.id !== attachment.id) });
@@ -84,6 +84,10 @@ export function ComposerContextChips({ owner, context, disabled, onChange, plann
             <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${attachment.name}`} className="rounded p-0.5 hover:text-text-primary" onClick={remove}><X size={12} /></button>
           </span>;
     })}
+    {(context.snippets ?? []).map((snippet) => <span key={snippet.id} className={chip} title={snippet.text}>
+      <TerminalSquare size={12} aria-hidden="true" /><span className="max-w-44 truncate font-mono">{snippet.text.split("\n").find((line) => line.trim())?.trim() ?? t("terminal.snippet")}</span>
+      <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${t("terminal.snippet")}`} className="rounded p-0.5 hover:text-text-primary" onClick={() => onChange({ ...context, snippets: (context.snippets ?? []).filter((item) => item.id !== snippet.id) })}><X size={12} /></button>
+    </span>)}
     {context.goal ? <span className={chip} title={context.goal}><Target size={12} /><span className="max-w-44 truncate">{context.goal}</span><button type="button" disabled={disabled} aria-label={t("composer.removeGoal")} onClick={() => onChange({ ...context, goal: "" })} className="rounded p-0.5 hover:text-text-primary"><X size={12} /></button></span> : null}
     {context.planning ? <span className={chip}><Lightbulb size={12} />{t(planningAvailable ? "composer.planning" : "composer.planningUnavailable")}<button type="button" disabled={disabled} aria-label={t("composer.disablePlanning")} onClick={() => onChange({ ...context, planning: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} /></button></span> : null}
     {context.team ? <span className={chip}><Users size={12} aria-hidden="true" />{t("team.mode")}<button type="button" disabled={disabled} aria-label={t("team.disable")} onClick={() => onChange({ ...context, team: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} aria-hidden="true" /></button></span> : null}

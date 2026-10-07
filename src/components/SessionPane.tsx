@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { ChevronDown, FileImage, FileText, Folder, GitFork } from "@/components/icons/phosphor";
+import { ChevronDown, FileImage, FileText, Folder, GitFork, TerminalSquare } from "@/components/icons/phosphor";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -25,7 +25,7 @@ import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
-import { ReplyChoices } from "@/components/ReplyChoices";
+import { PlanActions, ReplyChoices } from "@/components/ReplyChoices";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { HtmlPreview } from "@/components/HtmlPreview";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
@@ -180,7 +180,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
                       <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
-                      {message === messages[messages.length - 1] && !passive ? <ReplyChoices session={session} message={message} /> : null}
+                      {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} /><ReplyChoices session={session} message={message} /></> : null}
                     </Fragment>;
                   })}
                   </div>)}
@@ -300,7 +300,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage({ src: file.thumbnail!, name: file.name })}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
           {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => {
-            const Icon = reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
+            const Icon = reference.kind === "terminal" ? TerminalSquare : reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
             return <span key={index} className="prompt-reference ui-caption" title={reference.name}><Icon size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>;
           })}</span> : null}
         </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}

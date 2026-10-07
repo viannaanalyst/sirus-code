@@ -1,9 +1,10 @@
 import { monoFontFamily } from "@/lib/fonts";
+import { composerContextForOwner, MAX_SNIPPET } from "@/lib/composer-context";
 import { terminalAppearance } from "@/lib/appearance";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
-import { Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
+import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import { queueTerminalOperation } from "@/lib/terminal-lifecycle";
@@ -205,6 +206,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const [generation, setGeneration] = useState(0);
   const [ended, setEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState("");
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
   const t = (key: string) => translate(settings.locale, key);
@@ -235,6 +237,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     };
     safeFit();
     const report = (reason: unknown) => { if (!cancelled) setError(formatUnknownError(reason)); };
+    const selection = term.onSelectionChange(() => { if (!cancelled) setSelected(term.getSelection()); });
     const input = term.onData((data) => { if (started) void client.writeTerminal(sessionId, terminalId, data).catch(report); });
     const setup = async () => {
       try {
@@ -268,6 +271,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     return () => {
       cancelled = true;
       input.dispose();
+      selection.dispose();
       observer.disconnect();
       unlisteners.forEach((unlisten) => unlisten());
       term.dispose();
@@ -312,6 +316,15 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
       {error ? <p role="alert" className="p-2 ui-control text-danger">{error}</p> : null}
       {ended ? <button type="button" onClick={() => setGeneration((value) => value + 1)} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
       <div ref={host} className="min-h-0 flex-1 p-2" />
+      {selected.trim() && visible ? <button type="button" className="terminal-add-to-chat" onMouseDown={(event) => event.preventDefault()} onClick={() => {
+        // The selection becomes a Terminal chip in this session's composer (T3-style context).
+        const state = useAppStore.getState(), owner = `session:${sessionId}`;
+        const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
+        const text = selected.replace(/\s+$/, "").slice(0, MAX_SNIPPET);
+        state.setComposerContext(owner, { ...current, snippets: [...(current.snippets ?? []), { id: crypto.randomUUID(), text }] });
+        terminal.current?.clearSelection();
+        setSelected("");
+      }}><MessageSquarePlus size={13} aria-hidden="true" />{t("Add to chat")}</button> : null}
     </div>
   );
 }

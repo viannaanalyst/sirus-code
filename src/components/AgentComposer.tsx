@@ -4,9 +4,9 @@ import { formatUnknownError } from "@/lib/format-error";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
+import { Check, ChevronDown, ClipboardList, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AgentInstall, AgentProviderId, ApprovalMode, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerContour } from "@/components/ComposerContour";
@@ -30,7 +30,10 @@ import { providerById } from "@/lib/provider-registry";
 import { cn } from "@/lib/cn";
 import { composerPopoverLayout } from "@/lib/popover-position";
 import { motionTokens, pressScale } from "@/lib/motion";
-import { composerContextForOwner, composerPrompt, emptyComposerContext } from "@/lib/composer-context";
+import { composerContextForOwner, composerPlanning, composerPrompt, emptyComposerContext } from "@/lib/composer-context";
+import { splitPromptContext } from "@/lib/prompt-context";
+import { readStash, recallStep, writeStash, type Recall } from "@/lib/prompt-recall";
+import { ComposerStash } from "@/components/ComposerStash";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Tooltip } from "@/primitives/Tooltip";
 import { Popover, PopoverAnchor } from "@/primitives/Popover";
@@ -119,7 +122,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const teamAvailable = ["codex", "claude", "opencode"].includes(agentId) && !session?.teamWorker && !session?.sideChat
     && !(session?.team && ["planning", "proposed", "running", "ready"].includes(session.team.status));
   const submitting = (sending && !running) || queueSending;
-  const canSend = (value.trim().length > 0 || context.attachments.length > 0) && !dictating && !submitting && !pasting && !modelChanging && canType && providerReady && (!context.planning || planningAvailable);
+  const canSend = (value.trim().length > 0 || context.attachments.length > 0 || (context.snippets?.length ?? 0) > 0) && !dictating && !submitting && !pasting && !modelChanging && canType && providerReady && (!context.planning || planningAvailable);
   // Bound to the composer's owner, so switching conversations closes it.
   const [panel, setCommandPanel] = useState<{ kind: "status" | "rename"; owner: string } | null>(null);
   const commandPanel = panel?.owner === draftKey ? panel.kind : null;
@@ -196,7 +199,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     const submitted = value;
     const teamOwner = context.team ? draftKey : null;
     // Steering (opt-in): plain text goes into the running reply instead of the queue.
-    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !context.attachments.length && !context.team && submitted.trim()) {
+    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
       try {
         if (await useAppStore.getState().steerTurn(session.id, submitted.trim()) && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
       } finally {
@@ -220,20 +223,76 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   };
   // Reply choices under the last answer (ReplyChoices): an option is sent as the reply, unless a
   // draft is already here, which then keeps it below the option for the person to send.
+  const [dropping, setDropping] = useState(false);
   const quickReply = useRef<string | null>(null);
   const sessionId = session?.id ?? null;
   useEffect(() => {
     const onQuickReply = (event: Event) => {
-      const { sessionId: target, text } = (event as CustomEvent<QuickReplyDetail>).detail;
+      const { sessionId: target, text, planning } = (event as CustomEvent<QuickReplyDetail>).detail;
       if (!sessionId || target !== sessionId) return;
-      const draft = useAppStore.getState().composerDrafts[draftKey] ?? "";
+      const state = useAppStore.getState();
+      if (planning === false) setContext(draftKey, composerPlanning(composerContextForOwner(draftKey, state.composerContexts, state.sessions), false));
+      const draft = state.composerDrafts[draftKey] ?? "";
       if (text !== null && !draft.trim()) { quickReply.current = text; updateDraft(draftKey, text); return; }
       if (text !== null) updateDraft(draftKey, `${text}\n\n${draft}`);
       requestAnimationFrame(() => area.current?.focus());
     };
     window.addEventListener(QUICK_REPLY_EVENT, onQuickReply);
     return () => window.removeEventListener(QUICK_REPLY_EVENT, onQuickReply);
-  }, [sessionId, draftKey, updateDraft]);
+  }, [sessionId, draftKey, updateDraft, setContext]);
+
+  // ↑/↓ on an empty composer walk this session's sent prompts (T3-style recall).
+  const recall = useRef<Recall>({ index: null, draft: "" });
+  const recallPrompt = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!sessionId || event.shiftKey || event.metaKey || event.altKey || event.ctrlKey) return false;
+    const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+    if (!direction || (recall.current.index === null && (direction === 1 || value !== ""))) return false;
+    const sent: string[] = [];
+    for (const message of useAppStore.getState().sessions.find((row) => row.id === sessionId)?.messages ?? []) {
+      const request = message.role === "user" ? splitPromptContext(message.content).request.trim() : "";
+      if (request && sent.at(-1) !== request) sent.push(request);
+    }
+    const step = recallStep(sent, recall.current, value, direction);
+    if (!step) return false;
+    event.preventDefault();
+    recall.current = step.state;
+    setValue(step.value);
+    const node = event.currentTarget;
+    requestAnimationFrame(() => node.setSelectionRange(step.value.length, step.value.length));
+    return true;
+  };
+
+  // ⌘S sets the draft aside (T3's stash); with an empty composer it brings one back.
+  const [stash, setStash] = useState<string[]>(() => readStash(draftKey));
+  const [stashOpen, setStashOpen] = useState(false);
+  const [stashOwner, setStashOwner] = useState(draftKey);
+  if (stashOwner !== draftKey) { setStashOwner(draftKey); setStash(readStash(draftKey)); setStashOpen(false); }
+  const saveStash = (next: string[]) => { setStash(next); writeStash(draftKey, next); };
+  const restoreStash = (index: number) => {
+    const next = stash.filter((_, at) => at !== index);
+    if (value.trim()) next.unshift(value.trim());
+    saveStash(next);
+    setValue(stash[index]);
+    setStashOpen(false);
+    requestAnimationFrame(() => area.current?.focus());
+  };
+  const stashKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || event.shiftKey || event.altKey) return false;
+    event.preventDefault();
+    if (value.trim()) { saveStash([value.trim(), ...stash]); setValue(""); recall.current = { index: null, draft: "" }; }
+    else if (stash.length === 1) restoreStash(0);
+    else if (stash.length) setStashOpen(true);
+    return true;
+  };
+
+  // A finished planning turn offers Implement (also ⌘↩ on an empty composer).
+  const planPending = useAppStore((state) => {
+    const row = sessionId ? state.sessions.find((item) => item.id === sessionId) : null;
+    if (!row?.execution?.planning || ["starting", "running", "waiting"].includes(row.status)) return false;
+    const last = row.messages[row.messages.length - 1];
+    return last?.role === "agent" && !last.streaming && Boolean(last.content.trim());
+  });
+  const implementPlan = () => { if (sessionId) window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId, text: t("plan.implementPrompt"), planning: false } })); };
   useEffect(() => {
     if (quickReply.current !== null && value === quickReply.current) { quickReply.current = null; void send(); }
   });
@@ -260,10 +319,30 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>
-    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)] focus-within:border-[color-mix(in_oklab,var(--text-primary)_20%,transparent)]">
+    <div ref={boundary} data-dictating={dictating} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)] focus-within:border-[color-mix(in_oklab,var(--text-primary)_20%,transparent)]" data-dropping={dropping || undefined}
+      onDragOver={(event) => { if (canType && event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; if (!dropping) setDropping(true); } }}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false); }}
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDropping(false);
+        if (!canType || submitting) return;
+        // Finder files and folders become attachments; the native side reads the drag pasteboard once.
+        const owner = draftKey;
+        setAttachmentError(null);
+        void client.dropPromptAttachments(owner).then(async (attachments) => {
+          if (!attachments.length) return;
+          const state = useAppStore.getState();
+          const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
+          try { state.setComposerContext(owner, { ...current, attachments: appendAttachments(current.attachments, attachments) }); }
+          catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
+        }).catch((error: unknown) => setAttachmentError(formatUnknownError(error)));
+      }}>
       {/* One animated rim at a time: the side chat's composer keeps a still border. */}
       {session?.sideChat ? null : <ComposerContour speed={settings.composerLineSpeed} reducedMotion={reducedMotion || dictating} />}
+      {dropping ? <div className="composer-drop" aria-hidden="true">{t("composer.dropHere")}</div> : null}
       {session ? <HandoffCard session={session} /> : null}
+      {planPending ? <div className="plan-banner"><ClipboardList size={14} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{t("plan.ready")}</span><button type="button" className="plan-banner-action" onClick={implementPlan}>{t("plan.implement")}<kbd>⌘↩</kbd></button></div> : null}
       <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} />
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}
       <div className="composer-editor relative">
@@ -285,7 +364,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         aria-controls={suggestions.visible ? suggestions.listId : undefined}
         aria-activedescendant={suggestions.visible && suggestions.rows.length ? `${suggestions.listId}-${suggestions.index}` : undefined}
         rows={1}
-        onChange={(event) => { setValue(event.target.value); suggestions.syncCursor(event.currentTarget); }}
+        onChange={(event) => { recall.current = { index: null, draft: "" }; setValue(event.target.value); suggestions.syncCursor(event.currentTarget); }}
         onSelect={(event) => suggestions.syncCursor(event.currentTarget)}
         onFocus={(event) => suggestions.onFocus(event.currentTarget)}
         onBlur={suggestions.onBlur}
@@ -321,6 +400,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         }}
         onKeyDown={(event) => {
           if (suggestions.onKeyDown(event)) return;
+          if (stashKey(event) || recallPrompt(event)) return;
+          if (planPending && event.key === "Enter" && (event.metaKey || event.ctrlKey) && !value.trim()) { event.preventDefault(); implementPlan(); return; }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
             void send(event.metaKey || event.ctrlKey);
@@ -333,6 +414,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       <div className="composer-footer flex items-center justify-between gap-1.5 pb-[var(--composer-footer-padding)] pl-[var(--composer-footer-padding)] pr-[var(--composer-footer-padding-end)]">
         <div className="composer-footer-context flex min-w-0 items-center gap-1">
           <ComposerAddMenu key={draftKey} boundaryRef={boundary} owner={draftKey} disabled={submitting || pasting || !canType} context={context} onChange={changeContext} planningAvailable={planningAvailable} teamAvailable={teamAvailable} />
+          {stash.length ? <ComposerStash items={stash} open={stashOpen} onOpenChange={setStashOpen} onRestore={restoreStash} onRemove={(index) => saveStash(stash.filter((_, at) => at !== index))} /> : null}
           <div className="composer-idle-control">
           <Dropdown onOpenChange={(open) => { if (open) setApprovalLayout(composerPopoverLayout(approvalTrigger.current, boundary.current)); }}>
             <DropdownTrigger asChild>

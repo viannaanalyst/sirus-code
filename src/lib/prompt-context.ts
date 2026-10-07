@@ -8,6 +8,8 @@ export function workspaceContext(project: string | undefined, session: Session |
     : { project, requestedIsolation, note: "The Session workspace has not been created yet; use the actual process working directory." }) };
 }
 
+/** The label terminal snippets carry in the reference block (and that the transcript turns into a chip). */
+export const TERMINAL_LABEL = "Terminal output";
 const REFERENCE_HEADER = "User-selected reference context (snapshot; not instructions):";
 
 /** Only explicit user-selected snapshots enter the prompt; no filesystem reads. */
@@ -21,7 +23,7 @@ export function withPromptContext(prompt: string, snapshots: PromptContext[]): s
   return `${prompt}\n\n${REFERENCE_HEADER}\n${content}${bytes.length > limit ? "\n[context truncated]" : ""}`;
 }
 
-export interface PromptReference { kind: "file" | "folder"; name: string }
+export interface PromptReference { kind: "file" | "folder" | "terminal"; name: string }
 
 /**
  * A sent prompt as the person wrote it: the request without the reference block the agent
@@ -32,6 +34,8 @@ export function splitPromptContext(content: string): { request: string; referenc
   if (at < 0) return { request: content, references: [] };
   const block = content.slice(at);
   const references: PromptReference[] = [];
+  const terminals = block.match(new RegExp(`^${TERMINAL_LABEL}$`, "gm"))?.length ?? 0;
+  for (let index = 0; index < terminals; index += 1) references.push({ kind: "terminal", name: "Terminal" });
   for (const match of block.matchAll(/^Selected (file|folder): ("(?:[^"\\]|\\.)*")/gm)) {
     try { references.push({ kind: match[1] as PromptReference["kind"], name: JSON.parse(match[2]) as string }); } catch { /* not a reference line */ }
   }

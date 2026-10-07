@@ -1452,7 +1452,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           // Move references into the queue before clearing the draft. They retain
           // their native owner and must not be released by chip removal.
           if (get().composerDrafts[originKey] === submittedDraft) get().setComposerDraft(originKey, "");
-          if (get().composerContexts[originKey] === originalContext) get().setComposerContext(originKey, { ...context, attachments: [] });
+          if (get().composerContexts[originKey] === originalContext) get().setComposerContext(originKey, { ...context, attachments: [], snippets: [] });
           persistDraftChanges(before, get().composerDrafts);
           set({ error: null });
           void advancePromptQueue(initialSessionId);
@@ -1509,7 +1509,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             const composerContexts = { ...state.composerContexts };
             for (const key of [originKey, `session:${sessionId}`]) if (composerContexts[key] === submittedContext ||
               (capturedAttachment && originalContext !== undefined && composerContexts[key] === originalContext)) {
-              if (submittedContext) composerContexts[key] = { ...submittedContext, attachments: [] };
+              if (submittedContext) composerContexts[key] = { ...submittedContext, attachments: [], snippets: [] };
               else delete composerContexts[key];
             }
             return { composerDrafts, composerContexts };

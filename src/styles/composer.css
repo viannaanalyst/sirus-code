@@ -130,3 +130,19 @@
 .composer-token { border-radius: 3px; }
 .composer-token-skill { color: #e8b955; background: color-mix(in srgb, #e8b955 12%, transparent); }
 .composer-token-file { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
+
+/* Drafts set aside with ⌘S. */
+.composer-stash { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: color-mix(in srgb, var(--accent) 70%, var(--text-primary)); font-size: var(--text-ui-11); }
+.composer-stash:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.composer-stash-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px 5px 8px; border-radius: 8px; }
+.composer-stash-row:hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+.composer-stash-remove { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--text-muted); opacity: 0; }
+.composer-stash-row:hover .composer-stash-remove, .composer-stash-remove:focus-visible { opacity: 1; }
+.composer-stash-remove:hover { background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-primary); }
+/* A finished plan: implement it from here (⌘↩ on an empty composer). */
+.plan-banner { display: flex; align-items: center; gap: 8px; margin: 8px 10px 0; padding: 6px 6px 6px 10px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: color-mix(in srgb, var(--accent) 55%, var(--text-primary)); font-size: var(--text-ui-12); }
+.plan-banner-action { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 7px; background: var(--text-primary); color: var(--background-1); font-weight: 600; font-size: var(--text-ui-11); }
+.plan-banner-action kbd { font: inherit; opacity: .6; }
+/* Finder files and folders dragged over the composer. */
+.agent-composer[data-dropping] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+.composer-drop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--accent) 12%, var(--background-2)); color: color-mix(in srgb, var(--accent) 60%, var(--text-primary)); font-size: var(--text-ui-13); pointer-events: none; animation: tl-open var(--motion-fast) var(--ease-out) both; }

@@ -252,7 +252,7 @@ test("approval choices stay owner and provider scoped while submitted references
   useAppStore.setState({ selectedSessionId: "approval-owner", sessions: [ownedSession("approval-owner")], promptQueues: {}, composerDrafts: { "session:approval-owner": "Task" }, composerContexts: { "session:approval-owner": initial, "session:other": other } });
   assert.equal(await useAppStore.getState().sendPrompt("Task", { approval: "full" }), true);
   assert.equal(sent?.execution?.approval, "full");
-  assert.deepEqual(useAppStore.getState().composerContexts["session:approval-owner"], initial);
+  assert.deepEqual(useAppStore.getState().composerContexts["session:approval-owner"], { ...initial, snippets: [] });
   assert.equal(sent?.goal, "Goal");
   assert.equal(useAppStore.getState().composerContexts["session:other"], other);
 });

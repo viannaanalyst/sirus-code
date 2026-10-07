@@ -94,6 +94,9 @@ impl PreparedAttachment {
 pub struct AttachmentState {
     #[cfg(target_os = "macos")]
     paste_admission: parking_lot::Mutex<Option<(std::time::Instant, isize)>>,
+    /// The drag pasteboard generation last read, so each drop is read once.
+    #[cfg(target_os = "macos")]
+    drop_read: parking_lot::Mutex<isize>,
     entries: parking_lot::Mutex<HashMap<String, (String, Arc<PreparedAttachment>)>>,
     sent: parking_lot::Mutex<std::collections::HashSet<String>>,
 }
@@ -118,6 +121,16 @@ impl AttachmentState {
             })
     }
     #[cfg(target_os = "macos")]
+    /// A drop is read once: a new drag generation is admitted, a repeated read is not.
+    #[cfg(target_os = "macos")]
+    pub fn take_drop(&self, count: isize) -> bool {
+        let mut last = self.drop_read.lock();
+        if *last == count {
+            return false;
+        }
+        *last = count;
+        true
+    }
     pub fn admit_paste(&self, count: isize) {
         *self.paste_admission.lock() = Some((std::time::Instant::now(), count));
     }
@@ -683,6 +696,29 @@ pub async fn paste_prompt_attachments(
         .attachments
         .insert(&owner, prepared, &state.data.lock())
 }
+/// Files and folders dragged from Finder onto the composer (ADR-073). The webview hides
+/// dropped paths, so the native side reads the macOS drag pasteboard, once per drop.
+#[tauri::command]
+pub async fn drop_prompt_attachments(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Arc<crate::commands::AppState>>,
+    owner: String,
+) -> Result<Vec<PromptAttachment>> {
+    validate_owner(&state, &owner)?;
+    let paths = crate::attachment_platform::dropped(&app, state.inner().clone()).await?;
+    let prepared = tokio::task::spawn_blocking(move || {
+        paths
+            .into_iter()
+            .map(|path| prepare(&path, path.is_dir()))
+            .collect::<Result<Vec<_>>>()
+    })
+    .await
+    .map_err(|_| Error::new("attachment", "Could not prepare dropped attachments."))??;
+    validate_owner(&state, &owner)?;
+    state
+        .attachments
+        .insert(&owner, prepared, &state.data.lock())
+}
 #[tauri::command]
 pub fn release_prompt_attachments(
     state: tauri::State<'_, Arc<crate::commands::AppState>>,
@@ -1047,5 +1083,16 @@ mod thumbnail_tests {
         let url = super::thumbnail(&png).unwrap();
         assert!(url.starts_with("data:image/jpeg;base64,"));
         assert!(super::thumbnail(b"not an image").is_none());
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod drop_tests {
+    #[test]
+    fn each_drag_is_read_once() {
+        let state = super::AttachmentState::default();
+        assert!(state.take_drop(7));
+        assert!(!state.take_drop(7), "the same drag is never read twice");
+        assert!(state.take_drop(8));
     }
 }

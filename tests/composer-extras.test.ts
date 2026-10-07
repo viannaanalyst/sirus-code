@@ -43,7 +43,7 @@ test("successful sends retain modes and goals, clear binary references and merge
   assert.equal(sent?.debugging, true);
   assert.equal(sent?.prompt, "Task");
   assert.deepEqual(sent?.attachmentIds, ["image"]);
-  assert.deepEqual(useAppStore.getState().composerContexts[`session:${session.id}`], { ...draft, attachments: [] });
+  assert.deepEqual(useAppStore.getState().composerContexts[`session:${session.id}`], { ...draft, attachments: [], snippets: [] });
   assert.equal(useAppStore.getState().sessions[0].messages, newer.messages);
   assert.equal(useAppStore.getState().sessions[0].goal, "Goal");
 });
@@ -71,7 +71,7 @@ test("automatic browser capture preserves restored goals and clears submitted dr
   useAppStore.setState({ composerContexts: { [owner]: draft } });
   assert.equal(await useAppStore.getState().sendPrompt("Veja a página"), true);
   assert.deepEqual(sent?.attachmentIds, ["manual", capture.id]);
-  assert.deepEqual(useAppStore.getState().composerContexts[owner], { ...draft, attachments: [] });
+  assert.deepEqual(useAppStore.getState().composerContexts[owner], { ...draft, attachments: [], snippets: [] });
 
   // An edit made while Send is pending must not be cleared by its acknowledgment.
   useAppStore.setState({ composerContexts: { [owner]: draft } });

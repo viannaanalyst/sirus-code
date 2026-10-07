@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import type { Message, Session } from "@/client/types";
+import { ClipboardList } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { replyChoices } from "@/lib/reply-choices";
 
 /** Event the composer answers: send `text` as the reply, or focus the composer for "Other…" (`text: null`). */
 export const QUICK_REPLY_EVENT = "sirus:quick-reply";
-export type QuickReplyDetail = { sessionId: string; text: string | null };
+/** `planning: false` leaves planning mode first (a plan's "Implement"). */
+export type QuickReplyDetail = { sessionId: string; text: string | null; planning?: false };
 
 /**
  * When a finished reply ends by asking the person to choose (in prose, not through the
@@ -24,5 +26,21 @@ export function ReplyChoices({ session, message }: { session: Pick<Session, "id"
       </button>)}
       <button type="button" className="reply-choice reply-choice-other ui-control" onClick={() => answer(null)}>{t("replyChoices.other")}</button>
     </div>
+  </div>;
+}
+
+/**
+ * Under a finished planning turn (after T3 Code): Implement sends "Implement the plan above."
+ * with planning switched off; Adjust plan focuses the composer.
+ */
+export function PlanActions({ session, message }: { session: Pick<Session, "id" | "status" | "execution">; message: Message }) {
+  const t = useTranslation();
+  if (!session.execution?.planning || message.role !== "agent" || message.streaming || !message.content.trim() || ["starting", "running", "waiting"].includes(session.status)) return null;
+  const send = (detail: Omit<QuickReplyDetail, "sessionId">) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, ...detail } }));
+  return <div className="plan-actions" role="group" aria-label={t("plan.ready")}>
+    <ClipboardList size={14} aria-hidden="true" className="text-text-muted" />
+    <span className="ui-caption text-text-muted">{t("plan.ready")}</span>
+    <button type="button" className="plan-actions-primary" onClick={() => send({ text: t("plan.implementPrompt"), planning: false })}>{t("plan.implement")}</button>
+    <button type="button" className="plan-actions-secondary" onClick={() => send({ text: null })}>{t("plan.adjust")}</button>
   </div>;
 }

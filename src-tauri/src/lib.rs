@@ -298,6 +298,7 @@ pub fn run() {
             document_preview::attachment_preview,
             turn_review::keep_turn_changes,
             attachments::paste_prompt_attachments,
+            attachments::drop_prompt_attachments,
             attachments::release_prompt_attachments,
             pick_executable,
             open_path,
