@@ -97,12 +97,14 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const modelChanging = useAppStore((state) => Boolean(session && state.modelChangesPending[session.id]));
   const agentId = session?.agent ?? settings.defaultAgent;
   const astroName = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro)?.name ?? null : null);
+  const astroApproval = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro)?.approval : undefined);
   const definition = providerById(agentId);
   const approvalPolicy = definition.approvalPolicy;
   // Without a choice in this draft, keep the mode last used: this session's own, or for a new
   // thread the project's most recent session with this provider. Never a global grant.
   const rememberedApproval = useAppStore((state) => {
-    if (session) return session.agent === agentId ? session.execution?.approval ?? undefined : undefined;
+    // An Astro's conversation follows the mode saved on the Astro (ADR-088).
+    if (session) return session.agent === agentId ? astroApproval ?? session.execution?.approval ?? undefined : undefined;
     let latest: { at: string; approval: ApprovalMode } | null = null;
     for (const row of state.sessions) {
       const used = row.execution?.approval;

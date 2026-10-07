@@ -123,6 +123,7 @@ pub fn fork_snapshot(
     };
     Ok(Session {
         context_usage: None,
+        launched_by: None,
         usage_limit: None,
         goal: source.goal.clone(),
         import_origin: None,
@@ -276,6 +277,7 @@ pub fn handoff_snapshot(
     }
     Ok(Session {
         context_usage: None,
+        launched_by: None,
         usage_limit: None,
         goal: source.goal.clone(),
         pinned_message_ids: vec![],

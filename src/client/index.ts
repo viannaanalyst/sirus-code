@@ -457,6 +457,15 @@ export class SirusClient {
     return this.transport.invoke<T>("astro_action", { action });
   }
 
+  /** Reads or deletes a document an Astro saved (ADR-088). */
+  astroDocument<T = unknown>(action: import("./types").AstroDocumentAction) {
+    return this.transport.invoke<T>("astro_document_action", { action });
+  }
+
+  onAstroDocumentChanged(handler: (id: string) => void) {
+    return this.transport.listen<{ id: string }>("astro-document-changed", (payload) => handler(payload.id));
+  }
+
   taskAction(action: import("./types").TaskAction) {
     return this.transport.invoke<import("./types").Task[]>("task_action", { action });
   }

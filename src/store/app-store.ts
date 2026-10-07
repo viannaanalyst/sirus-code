@@ -2644,12 +2644,12 @@ export const selectSessionsMeta = (state: AppStore): Session[] => {
 
 let listedFrom: Session[] | null = null;
 let listed: Session[] = [];
-/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049) and Astro conversations on the rail (ADR-069). */
+/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049), Astro conversations on the rail (ADR-069) and sessions an Astro hides in its replies (ADR-088). */
 export const selectListedSessions = (state: AppStore): Session[] => {
   const meta = selectSessionsMeta(state);
   if (meta !== listedFrom) {
     listedFrom = meta;
-    listed = meta.some((session) => session.sideChat || session.astro) ? meta.filter((session) => !session.sideChat && !session.astro) : meta;
+    listed = meta.some((session) => session.sideChat || session.astro || session.launchedBy?.hidden) ? meta.filter((session) => !session.sideChat && !session.astro && !session.launchedBy?.hidden) : meta;
   }
   return listed;
 };

@@ -27,6 +27,7 @@ import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { PlanActions, ReplyChoices } from "@/components/ReplyChoices";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { AstroReplyExtras } from "@/components/astros/AstroReplyExtras";
 import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";
 import { HtmlPreview } from "@/components/HtmlPreview";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
@@ -323,6 +324,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       </div> : null}
       {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review?.files.length ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}
       {session.team?.messageId === message.id && !message.streaming ? <TeamPanel session={session} /> : null}
+      {message.role === "agent" && (message.documents?.length || message.launched?.length) ? <AstroReplyExtras message={message} /> : null}
       {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
     </article>
   );

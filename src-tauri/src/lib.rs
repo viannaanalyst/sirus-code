@@ -7,6 +7,7 @@ mod activity;
 mod agent;
 mod agent_output;
 mod appearance;
+mod astro_documents;
 mod astros;
 mod attachment_platform;
 mod attachments;
@@ -224,6 +225,7 @@ pub fn run() {
             simulator::simulator_action,
             tasks::task_action,
             astros::astro_action,
+            astro_documents::astro_document_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
             project_scripts::project_scripts_action,

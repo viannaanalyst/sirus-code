@@ -24,7 +24,7 @@ export const MOBILE_QUERY = "(max-width: 820px)";
 /** Sessions the person sees in lists: no side chats, Astro chats or archived ones. */
 export function listedSessions(sessions: readonly Session[], archived: readonly string[]): Session[] {
   const hidden = new Set(archived);
-  return sessions.filter((session) => !session.sideChat && !session.astro && !hidden.has(session.id));
+  return sessions.filter((session) => !session.sideChat && !session.astro && !session.launchedBy?.hidden && !hidden.has(session.id));
 }
 
 /** Waiting on an approval, a question or the person's next message. */

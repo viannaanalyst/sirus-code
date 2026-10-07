@@ -46,6 +46,16 @@
   .astro-card.flex-col { gap: 8px; }
   .astro-card-link { text-align: left; transition: background var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
   .astro-card-link:hover { background: var(--surface-muted); border-color: var(--text-muted); }
+  /* What an Astro reply produced (ADR-088): document cards and the Sessions control. */
+  .astro-reply-extras { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; margin: 8px 0 2px; }
+  .astro-reply-extras .astro-document-card { width: 100%; }
+  .astro-reply-extras .astro-document-card:disabled { opacity: 0.6; }
+  .astro-sessions-trigger { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .astro-sessions-trigger:hover, .astro-sessions-trigger[data-state="open"] { background: var(--surface-muted); color: var(--text-primary); }
+  .astro-sessions-panel { display: flex; width: min(420px, calc(100vw - 32px)); flex-direction: column; gap: 6px; padding: 6px; }
+  .astro-sessions-panel .astro-card { max-width: none; }
+  .astro-document-reader { width: min(760px, calc(100vw - 48px)); }
+  .astro-document-body { height: min(62vh, 640px); overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--background-2); }
   button.astro-run { cursor: pointer; }
   button.astro-run:hover { opacity: 1; transform: scaleY(1.15); }
   .astro-drawer { width: min(400px, calc(100vw - 24px)); }

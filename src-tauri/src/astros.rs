@@ -21,7 +21,9 @@ use uuid::Uuid;
 
 use crate::commands::{native_task, AppState};
 use crate::error::{Error, Result};
-use crate::models::{AppData, CreateSessionRequest, Message, MessageRole, Project, SessionStatus};
+use crate::models::{
+    AppData, ApprovalMode, CreateSessionRequest, Message, MessageRole, Project, SessionStatus,
+};
 use crate::paths::now_rfc3339;
 
 pub const ICONS: &[&str] = &[
@@ -95,6 +97,26 @@ pub struct Astro {
     /// Finished sessions' results for the next turn's context; the visible message stays short.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending_report: Option<String>,
+    /// Permission mode for its conversation and the work it delegates (ADR-088).
+    #[serde(default = "auto_approval")]
+    pub approval: ApprovalMode,
+    /// Sessions it starts stay out of the sidebar; they open from its replies (ADR-088).
+    #[serde(default)]
+    pub hide_sessions: bool,
+}
+
+fn auto_approval() -> ApprovalMode {
+    ApprovalMode::Auto
+}
+
+/// Who started a session on someone's behalf, for the reply's Sessions control (ADR-088).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchedBy {
+    pub astro_id: String,
+    /// Left out of the sidebar when the Astro hides its sessions.
+    #[serde(default)]
+    pub hidden: bool,
 }
 
 /// A session an Astro started or messaged and wants to hear back from.
@@ -119,6 +141,11 @@ pub struct AstroInput {
     pub background: String,
     pub project_ids: Vec<String>,
     pub soul: String,
+    /// Kept as saved when left out (older phone builds).
+    #[serde(default)]
+    pub approval: Option<ApprovalMode>,
+    #[serde(default)]
+    pub hide_sessions: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,6 +228,7 @@ fn run(state: &AppState, action: Action) -> Result<Value> {
                     .ok_or_else(|| Error::not_found("Astro not found"))?;
                 data.astros.remove(index).session_id
             };
+            crate::astro_documents::forget_astro(state, &id);
             drop_conversation(state, session)?;
             state.persist()?;
             Ok(json!(state.data.lock().astros.clone()))
@@ -355,6 +383,12 @@ fn save(data: &mut AppData, input: AstroInput) -> Result<()> {
             astro.background = input.background;
             astro.project_ids = project_ids;
             astro.soul = input.soul;
+            if let Some(approval) = input.approval {
+                astro.approval = approval;
+            }
+            if let Some(hide) = input.hide_sessions {
+                astro.hide_sessions = hide;
+            }
         }
         None => {
             if data.astros.len() >= MAX_ASTROS {
@@ -375,6 +409,8 @@ fn save(data: &mut AppData, input: AstroInput) -> Result<()> {
                 unread: 0,
                 ready_batches: vec![],
                 pending_report: None,
+                approval: input.approval.unwrap_or(ApprovalMode::Auto),
+                hide_sessions: input.hide_sessions.unwrap_or(false),
             });
         }
     }
@@ -432,8 +468,10 @@ fn open(state: &AppState, id: &str) -> Result<Value> {
     };
     let mut session = crate::commands::create_session_locked(state, &mut data, request, "HEAD")?;
     session.astro = Some(astro.id.clone());
+    session.execution.approval = Some(astro.approval);
     if let Some(stored) = data.sessions.iter_mut().find(|item| item.id == session.id) {
         stored.astro = Some(astro.id.clone());
+        stored.execution.approval = Some(astro.approval);
     }
     if let Some(stored) = data.astros.iter_mut().find(|item| item.id == astro.id) {
         stored.session_id = Some(session.id.clone());
@@ -697,6 +735,13 @@ pub(crate) fn bounded(text: &str, limit: usize) -> String {
 
 /// Sends the report turn; a failed send puts the batches back for the next settlement.
 async fn deliver(app: &AppHandle, state: &Arc<AppState>, delivery: Delivery) {
+    let approval = state
+        .data
+        .lock()
+        .astros
+        .iter()
+        .find(|astro| astro.id == delivery.astro_id)
+        .map(|astro| astro.approval);
     let request = crate::models::SendPromptRequest {
         queued_after: None,
         debugging: false,
@@ -705,7 +750,10 @@ async fn deliver(app: &AppHandle, state: &Arc<AppState>, delivery: Delivery) {
         attachment_ids: vec![],
         attachment_owner: String::new(),
         prompt: delivery.prompt,
-        execution: Default::default(),
+        execution: crate::models::ExecutionOptions {
+            approval,
+            ..Default::default()
+        },
         team: false,
     };
     let sent =
@@ -783,6 +831,8 @@ fn post_report(data: &mut AppData, session_id: &str) -> Option<crate::models::Se
         activity: None,
         steers: vec![],
         attachments: Vec::new(),
+        launched: vec![],
+        documents: vec![],
     });
     conversation.last_activity_at = now;
     let snapshot = conversation.clone();
@@ -821,6 +871,9 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "astro_session_read", "description": "Astro conversations only: a session's status and latest answer.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" } }, "required": ["sessionId"] } }),
         json!({ "name": "astro_session_send", "description": "Astro conversations only: send a follow-up message to an idle session in your projects; with notify (default true) its result comes back to you.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "prompt": { "type": "string" }, "notify": { "type": "boolean" } }, "required": ["sessionId", "prompt"] } }),
     ]
+    .into_iter()
+    .chain(crate::astro_documents::tool_definitions())
+    .collect()
 }
 
 /// A session started on behalf of another one (Astro delegation, `sirus_*` tools).
@@ -873,12 +926,55 @@ pub(crate) fn start_from(
         planning: false,
         astro: None,
         delegation: request.delegation,
+        launched_by: launched_by(&state, caller),
     };
     match tauri::async_runtime::block_on(crate::automations::launch(app, &state, launch)) {
-        (Some(id), None) => Ok(id),
-        (_, Some(error)) => Err(error),
+        (Some(id), error) => {
+            record_launch(app, &state, &caller.id, &id);
+            match error {
+                None => Ok(id),
+                Some(error) => Err(error),
+            }
+        }
+        (None, Some(error)) => Err(error),
         _ => Err("the session did not start".into()),
     }
+}
+
+/// The Astro behind a caller (its conversation or a habit run), with its sidebar choice.
+fn launched_by(state: &AppState, caller: &crate::models::Session) -> Option<LaunchedBy> {
+    let astro_id = caller.astro.as_ref()?;
+    let data = state.data.lock();
+    let astro = data.astros.iter().find(|astro| astro.id == *astro_id)?;
+    Some(LaunchedBy {
+        astro_id: astro.id.clone(),
+        hidden: astro.hide_sessions,
+    })
+}
+
+/// Lists a started session on the caller's running reply (its Sessions control, ADR-088).
+fn record_launch(app: &AppHandle, state: &AppState, caller_id: &str, launched: &str) {
+    let snapshot = {
+        let mut data = state.data.lock();
+        let Some(caller) = data.sessions.iter_mut().find(|item| item.id == caller_id) else {
+            return;
+        };
+        let Some(index) = caller
+            .messages
+            .iter()
+            .rposition(|message| message.role == MessageRole::Agent)
+        else {
+            return;
+        };
+        let reply = &mut caller.messages[index];
+        if reply.launched.iter().any(|id| id == launched) || reply.launched.len() >= 50 {
+            return;
+        }
+        reply.launched.push(launched.to_string());
+        (caller.clone(), index)
+    };
+    let _ = state.persist();
+    crate::transcript_view::emit_from(app, &snapshot.0, snapshot.1);
 }
 
 /// Sends a follow-up to an idle session with the caller's approval.
@@ -1081,6 +1177,10 @@ pub fn execute(
         return session_tool(app, session_id, tool, args);
     }
     let state = app.state::<Arc<AppState>>();
+    if tool.starts_with("astro_document") {
+        let astro_id = astro_of(&mut state.data.lock(), session_id)?.id.clone();
+        return crate::astro_documents::execute(app, session_id, &astro_id, tool, args);
+    }
     let arg = |key: &str| {
         args.get(key)
             .and_then(Value::as_str)
@@ -1138,6 +1238,22 @@ pub fn wrap(context: &str, prompt: &str) -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn saved_astros_default_to_auto_permissions_and_shown_sessions() {
+        let astro: Astro = serde_json::from_value(json!({
+            "id": "a", "name": "Lua", "icon": "lua", "style": "metal", "color": "#8c9bff",
+            "background": "liso", "createdAt": "2026-10-07T00:00:00Z"
+        }))
+        .unwrap();
+        assert_eq!(astro.approval, ApprovalMode::Auto);
+        assert!(!astro.hide_sessions);
+        let launched: crate::models::Message = serde_json::from_value(json!({
+            "id": "m", "sessionId": "s", "role": "agent", "content": "", "createdAt": "", "streaming": false
+        }))
+        .unwrap();
+        assert!(launched.launched.is_empty() && launched.documents.is_empty());
+    }
+
     fn input(name: &str) -> AstroInput {
         AstroInput {
             id: None,
@@ -1148,6 +1264,8 @@ mod tests {
             background: "nebulosa".into(),
             project_ids: vec![],
             soul: "Fale em português.".into(),
+            approval: None,
+            hide_sessions: None,
         }
     }
 

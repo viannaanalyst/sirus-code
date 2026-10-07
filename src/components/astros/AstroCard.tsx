@@ -65,7 +65,7 @@ export function AstroCards({ source, session, settled }: { source: string; sessi
   </div>;
 }
 
-function SessionCard({ id }: { id: string }) {
+export function SessionCard({ id }: { id: string }) {
   const t = useTranslation();
   const target = useAppStore((state) => selectSessionsMeta(state).find((session) => session.id === id) ?? null);
   const project = useAppStore((state) => target ? state.projects.find((item) => item.id === target.projectId)?.name : undefined);
@@ -74,7 +74,7 @@ function SessionCard({ id }: { id: string }) {
     <ProviderIcon id={target.agent} size={16} />
     <span className="min-w-0 flex-1 text-left">
       <span className="block truncate ui-control text-text-primary">{target.title}</span>
-      <span className="block truncate ui-caption text-text-muted">{project} · {target.worktree.branch}</span>
+      <span className="block truncate ui-caption text-text-muted">{project}{target.model ? ` · ${target.model}` : ""} · {target.worktree.branch}</span>
     </span>
     <StatusIndicator status={target.status} />
     <ChevronRight size={13} className="text-text-muted" />

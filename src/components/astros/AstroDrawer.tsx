@@ -6,7 +6,7 @@ import { AstroIcon } from "@/components/astros/AstroArt";
 import { HabitsTab, MemoryTab } from "@/components/astros/AstroPanel";
 import { ModelSelector } from "@/components/ModelSelector";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
-import { ChevronDown, ChevronLeft, ChevronRight, Gauge, Plus, RotateCcw, Trash2, X } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronLeft, ChevronRight, Gauge, Plus, RotateCcw, ShieldCheck, Trash2, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { ASTRO_COLORS, ASTRO_ICONS, ASTRO_STYLES } from "@/lib/astro-art";
 import { cn } from "@/lib/cn";
@@ -17,11 +17,14 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { IconButton } from "@/primitives/IconButton";
+import { Switch } from "@/primitives/Switch";
 import { type AstroDrawerPage, useAppStore } from "@/store/app-store";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import "@/styles/astros.css";
 
-const input = (astro: Astro): AstroInput => ({ id: astro.id, name: astro.name, icon: astro.icon, style: astro.style, color: astro.color, background: astro.background, projectIds: astro.projectIds, soul: astro.soul });
+const APPROVAL_LABELS = { ask: "composer.askApproval", auto: "composer.autoReview", full: "composer.fullAccess" } as const;
+
+const input = (astro: Astro): AstroInput => ({ id: astro.id, name: astro.name, icon: astro.icon, style: astro.style, color: astro.color, background: astro.background, projectIds: astro.projectIds, soul: astro.soul, approval: astro.approval, hideSessions: astro.hideSessions });
 
 /**
  * An Astro's details (ADR-069), after MonoCode's Mono drawer: look, model and
@@ -110,6 +113,19 @@ function MainPage({ astro, go }: { astro: Astro; go: (page: AstroDrawerPage) => 
     </section>
     <section className="astro-drawer-fields">
       <ModelRow astro={astro} />
+      <div className="astro-drawer-field">
+        <span className="ui-control text-text-muted">{t("astros.permissions")}</span>
+        <Dropdown>
+          <DropdownTrigger asChild><button type="button" className="astro-drawer-select ui-control"><ShieldCheck size={14} />{t(APPROVAL_LABELS[astro.approval])}<ChevronDown size={11} /></button></DropdownTrigger>
+          <DropdownContent align="start">
+            {(["ask", "auto", "full"] as const).map((mode) => <DropdownItem key={mode} icon={<ShieldCheck size={14} />} onSelect={() => save({ approval: mode })}>{t(APPROVAL_LABELS[mode])}</DropdownItem>)}
+          </DropdownContent>
+        </Dropdown>
+      </div>
+      <div className="astro-drawer-field">
+        <span className="ui-control text-text-muted">{t("astros.sidebarSessions")}</span>
+        <Switch checked={!astro.hideSessions} label={t("astros.sidebarSessionsHint")} onChange={(shown) => save({ hideSessions: !shown })} />
+      </div>
       <div className="astro-drawer-field">
         <span className="ui-control text-text-muted">{t("astros.projects")}</span>
         <div className="flex min-w-0 flex-col gap-1">

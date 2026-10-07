@@ -91,6 +91,10 @@ export interface Message {
   steers?: { text: string; at: string; offset: number }[];
   /** User messages: what was attached, with a small thumbnail for images. */
   attachments?: MessageAttachment[];
+  /** Astro replies: sessions started during the turn (ADR-088). */
+  launched?: string[];
+  /** Astro replies: documents written or revised during the turn (ADR-088). */
+  documents?: string[];
 }
 export interface MessageAttachment { name: string; kind: "file" | "folder"; mimeType?: string; size?: number; thumbnail?: string }
 
@@ -197,9 +201,16 @@ export interface Astro {
   memory: AstroFact[];
   /** Habit reports posted since its conversation was last opened. */
   unread: number;
+  /** Permission mode for its conversation and the work it delegates (ADR-088). */
+  approval: ApprovalMode;
+  /** Sessions it starts stay out of the sidebar (ADR-088). */
+  hideSessions: boolean;
 }
+/** A Markdown document an Astro saved with its tools (ADR-088). */
+export interface AstroDocument { id: string; astroId: string; title: string; markdown: string; createdAt: string; updatedAt: string }
+export type AstroDocumentAction = { type: "read"; id: string } | { type: "delete"; id: string; confirm: true };
 export interface AstroFact { id: string; text: string; createdAt: string }
-export interface AstroInput { id: string | null; name: string; icon: AstroIconId; style: AstroStyle; color: string; background: AstroBackground; projectIds: string[]; soul: string }
+export interface AstroInput { id: string | null; name: string; icon: AstroIconId; style: AstroStyle; color: string; background: AstroBackground; projectIds: string[]; soul: string; approval?: ApprovalMode; hideSessions?: boolean }
 export type AstroAction =
   | { type: "list" } | { type: "save"; astro: AstroInput } | { type: "open"; id: string }
   | { type: "delete"; id: string; confirm: true } | { type: "reset"; id: string; confirm: true }
@@ -252,6 +263,8 @@ export interface Session {
   astro?: string | null;
   /** An Astro started or messaged this session and wants its result back (ADR-069). */
   delegation?: { astroId: string; batch: string; settled: boolean } | null;
+  /** An Astro started this session (ADR-088); `hidden` keeps it out of the sidebar. */
+  launchedBy?: { astroId: string; hidden: boolean } | null;
   /** Project script runs in this session's worktree; `setupPending` until its first turn (ADR-078). */
   scripts?: { setupPending?: boolean; runs?: ScriptRun[] } | null;
 }

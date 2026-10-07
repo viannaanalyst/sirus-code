@@ -1011,6 +1011,7 @@ pub(crate) fn create_session_locked(
     let account_id = crate::provider_accounts::selected(data, &request.agent);
     let session = Session {
         context_usage: None,
+        launched_by: None,
         usage_limit: None,
         goal: None,
         pinned_message_ids: vec![],
@@ -1634,6 +1635,8 @@ pub async fn send_prompt(
             activity: None,
             steers: Vec::new(),
             attachments: attachments.iter().map(|file| file.summary()).collect(),
+            launched: vec![],
+            documents: vec![],
         };
         session.messages.push(user);
         session.messages.push(Message {
@@ -1646,6 +1649,8 @@ pub async fn send_prompt(
             activity: None,
             steers: Vec::new(),
             attachments: Vec::new(),
+            launched: vec![],
+            documents: vec![],
         });
         if let Some(message) = session.messages.last_mut() {
             let mut activity =

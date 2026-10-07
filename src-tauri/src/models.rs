@@ -156,6 +156,12 @@ pub struct Message {
     /// User messages: what was attached, with a small thumbnail for images (ADR-071).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<MessageAttachment>,
+    /// Astro replies: sessions started during the turn (ADR-088).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub launched: Vec<String>,
+    /// Astro replies: documents written or revised during the turn (ADR-088).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub documents: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -357,6 +363,9 @@ pub struct Session {
     /// An Astro started or messaged this session and wants its result back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delegation: Option<crate::astros::Delegation>,
+    /// An Astro started this session (ADR-088); `hidden` keeps it out of the sidebar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launched_by: Option<crate::astros::LaunchedBy>,
     /// Project script runs in this session's worktree and whether Setup is still due (ADR-078).
     #[serde(
         default,

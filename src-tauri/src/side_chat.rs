@@ -69,6 +69,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
     let now = now_rfc3339();
     let session = Session {
         context_usage: None,
+        launched_by: None,
         usage_limit: None,
         goal: None,
         pinned_message_ids: vec![],
@@ -250,6 +251,8 @@ mod tests {
             activity: None,
             steers: Vec::new(),
             attachments: Vec::new(),
+            launched: vec![],
+            documents: vec![],
         }
     }
 

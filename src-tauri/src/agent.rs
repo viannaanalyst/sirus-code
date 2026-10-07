@@ -643,6 +643,8 @@ pub(crate) fn record_output(
                 activity: None,
                 steers: Vec::new(),
                 attachments: Vec::new(),
+                launched: vec![],
+                documents: vec![],
             });
             *message_id = Some(id);
         } else {
@@ -1232,6 +1234,8 @@ mod tests {
             activity: None,
             steers: Vec::new(),
             attachments: Vec::new(),
+            launched: vec![],
+            documents: vec![],
         };
         let messages = vec![
             message(MessageRole::User, "First request"),
