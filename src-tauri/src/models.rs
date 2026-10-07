@@ -513,6 +513,9 @@ pub struct AppSettings {
     /// Owner-authorized CI auto-fix: failing PR checks start an automatic fix turn,
     /// then Sirus Code commits and pushes the session branch (ADR-064).
     pub ci_auto_fix: bool,
+    /// Owner switch for PR watch (ADR-079): sessions may watch their own pull
+    /// request and get an automatic turn on new checks, reviews or conflicts.
+    pub pr_watch: bool,
     /// Chat behavior: Enter while dictating stops and sends instead of only stopping.
     pub dictation_enter_sends: bool,
     /// Chat behavior: a finished turn folds its steps into the "Worked for" line.
@@ -644,6 +647,7 @@ impl Default for AppSettings {
             sidebar_activity_view: false,
             steer_while_running: false,
             ci_auto_fix: false,
+            pr_watch: true,
             dictation_enter_sends: false,
             fold_finished_turns: true,
             github_links_in_app: true,
@@ -1157,6 +1161,9 @@ pub struct AppData {
     /// Per-session CI auto-fix progress and explicit per-PR opt-outs (ADR-064).
     #[serde(default)]
     pub ci_auto_fix: Vec<crate::ci_autofix::FixState>,
+    /// Per-session pull request watches and what their agents were told (ADR-079).
+    #[serde(default)]
+    pub pr_watches: Vec<crate::pr_watch::PrWatch>,
     /// Personal tasks, optionally handed to an agent session (ADR-052).
     #[serde(default)]
     pub tasks: Vec<crate::tasks::Task>,

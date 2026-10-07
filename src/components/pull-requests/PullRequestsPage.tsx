@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Check, ChevronDown, Ellipsis, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons/phosphor";
+import { ArrowUpDown, Check, ChevronDown, Ellipsis, Eye, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons/phosphor";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import type { GithubInbox, GithubItem, GithubItemKind, GithubItemState } from "@/client/types";
 import { PullRequestDetail } from "@/components/pull-requests/PullRequestDetail";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
+import { watchesFor } from "@/lib/pull-requests";
 import { defaultInboxFilters, filterInbox, inboxSections, itemKey, labelCounts, type InboxFilters, type Involvement } from "@/lib/github-inbox";
 import { relativeTime } from "@/lib/session-board";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
@@ -186,6 +187,7 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
 function Row({ item, active, pinned, onSelect, onPin }: { item: GithubItem; active: boolean; pinned: boolean; onSelect: () => void; onPin: () => void }) {
   const t = useTranslation();
   const time = relativeTime(item.updatedAt);
+  const watched = useAppStore((store) => item.kind === "pullRequest" && watchesFor(store.prWatches, item.repository, item.number).some((watch) => watch.status === "watching"));
   return <div role="listitem" className={cn("pulls-row group", active && "pulls-row-active")}>
     <button type="button" className="pulls-row-open" aria-current={active || undefined} onClick={onSelect}>
       <span className="pulls-row-icon"><ItemStateIcon item={item} /></span>
@@ -197,6 +199,7 @@ function Row({ item, active, pinned, onSelect, onPin }: { item: GithubItem; acti
           <span>· {time === "now" ? t("Now") : time}</span>
           {item.checks ? <span className={cn("pulls-check-dot", `pulls-check-${item.checks.toLowerCase()}`)} title={t(`pulls.checks.${item.checks.toLowerCase()}`)} /> : null}
           {item.commentCount ? <span className="inline-flex items-center gap-0.5"><MessageSquare size={11} />{item.commentCount}</span> : null}
+          {watched ? <span className="inline-flex items-center" title={t("prWatch.watching")} aria-label={t("prWatch.watching")}><Eye size={11} /></span> : null}
         </span>
       </span>
     </button>

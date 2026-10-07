@@ -616,7 +616,7 @@ fn status_of(stderr: &[u8]) -> LookupStatus {
 
 /// One fixed GraphQL document with typed variables. String values go through
 /// `-f` (raw, never `@file`); integers through `-F`.
-async fn graphql(
+pub(crate) async fn graphql(
     binary: &OsStr,
     query: &str,
     strings: &[(&str, &str)],
@@ -651,7 +651,7 @@ async fn graphql(
     Ok(value["data"].clone())
 }
 
-fn lookup_error(status: LookupStatus) -> Error {
+pub(crate) fn lookup_error(status: LookupStatus) -> Error {
     match status {
         LookupStatus::CliMissing => Error::new(
             "gh_missing",
@@ -892,7 +892,7 @@ const ISSUE_DETAIL_QUERY: &str = "query($owner:String!,$name:String!,$number:Int
 number title url state body createdAt updatedAt closedAt viewerCanUpdate author{login} labels(first:20){nodes{name color}} comments{totalCount} assignees(first:10){nodes{login}} \
 commentsList:comments(last:50){nodes{author{login} body createdAt}}}}}";
 
-fn check_status(node: &Value) -> String {
+pub(crate) fn check_status(node: &Value) -> String {
     let value = match node["__typename"].as_str() {
         Some("CheckRun") => match (node["status"].as_str(), node["conclusion"].as_str()) {
             (Some("COMPLETED"), Some("SUCCESS")) => "passed",

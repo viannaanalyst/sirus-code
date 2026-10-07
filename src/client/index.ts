@@ -462,6 +462,14 @@ export class SirusClient {
     return this.transport.invoke<import("./types").CiFixState[]>("ci_autofix_action", { action });
   }
 
+  prWatchAction(action: import("./types").PrWatchAction) {
+    return this.transport.invoke<import("./types").PrWatch[]>("pr_watch_action", { action });
+  }
+
+  onPrWatchChanged(handler: () => void) {
+    return this.transport.listen<unknown>("pr-watch-changed", () => handler());
+  }
+
   onCiAutofixChanged(handler: () => void) {
     return this.transport.listen<unknown>("ci-autofix-changed", () => handler());
   }

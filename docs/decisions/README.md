@@ -95,6 +95,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-076: Agents manage sessions](ADR-076-agents-manage-sessions.md) — opt-in `sirus_*` tools to list, read, start and continue sessions, with inherited approval and bounded fan-out.
 - [ADR-077: Private secret requests and credential masking](ADR-077-private-secret-requests-and-credential-masking.md) — `request_secret`/`use_secret` with one-use memory-only refs, masked approvals and activity.
 - [ADR-078: Project scripts and worktree cleanup](ADR-078-project-scripts-and-worktree-cleanup.md) — owner-saved Setup / On finish scripts in session worktrees, leftover worktree cleanup, opt-in release on archive.
+- [ADR-079: Watch a pull request](ADR-079-watch-a-pull-request.md) — a session watches its own PR and gets an automatic turn on new failing checks, reviews or merge conflicts; switch in the Environment card or the agent's `watch_pull_request` tool.
 
 ## Template
 

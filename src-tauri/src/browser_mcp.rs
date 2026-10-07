@@ -286,6 +286,10 @@ fn execute(
         // Private secret requests (ADR-077); blocks while the person answers.
         return crate::secrets::execute(app, session_id, tool, &args);
     }
+    if matches!(tool, "watch_pull_request" | "unwatch_pull_request") {
+        // PR watch (ADR-079): only ever for the session that owns this token.
+        return crate::pr_watch::agent_tool(app, session_id, tool);
+    }
     if tool.starts_with("simulator_") {
         // The same per-session bridge serves the iOS Simulator tools (ADR-066).
         return tauri::async_runtime::block_on(crate::simulator::execute(
@@ -426,6 +430,7 @@ fn tool_definitions() -> Vec<Value> {
     .chain(crate::astros::tool_definitions())
     .chain(crate::sirus_tools::tool_definitions())
     .chain(crate::secrets::tool_definitions())
+    .chain(crate::pr_watch::tool_definitions())
     .collect()
 }
 
@@ -455,7 +460,8 @@ mod tests {
                     || name.starts_with("simulator_")
                     || name.starts_with("astro_")
                     || name.starts_with("sirus_")
-                    || name.ends_with("_secret")));
+                    || name.ends_with("_secret")
+                    || name.ends_with("_pull_request")));
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));

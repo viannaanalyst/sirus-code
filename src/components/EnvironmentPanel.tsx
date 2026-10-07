@@ -7,6 +7,7 @@ import {
   Clock3,
   Copy,
   ExternalLink,
+  Eye,
   FileCode2,
   FolderOpen,
   GitBranch,
@@ -37,6 +38,7 @@ import { orderedUsageWindows, resetDuration, usageWindowLabel } from "@/lib/prov
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { CiFixRow } from "@/components/EnvironmentPullRequestSection";
+import { PrWatchBadge, PrWatchPanel } from "@/components/PrWatch";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
@@ -111,6 +113,7 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
   const showRepository = useAppStore((state) => state.settings.showEnvironmentRepository);
   const showEditor = useAppStore((state) => state.settings.showEnvironmentEditor);
   const ciFixActive = useAppStore((state) => state.settings.ciAutoFix && state.ciAutoFix.some((item) => item.sessionId === session?.id && (item.status === "fixing" || item.status === "paused")));
+  const prWatch = useAppStore((state) => state.settings.prWatch);
 
   useEffect(() => {
     if (project && showRepository) void loadProjectRemote(project.id);
@@ -151,6 +154,10 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
         <LocalServersSection sessionId={session.id} />
         {/* CI auto-fix shows itself only while it is working or needs attention (ADR-064). */}
         {ciFixActive ? <CiFixRow sessionId={session.id} /> : null}
+        {/* PR watch (ADR-079): the session's own pull request, never a side chat's. */}
+        {prWatch && !session.sideChat ? <Expandable icon={<Eye size={14} />} label={t("prWatch.row")} heading={null} trailing={<PrWatchBadge sessionId={session.id} />}>
+          <PrWatchPanel sessionId={session.id} />
+        </Expandable> : null}
         <SideChatRow parentSessionId={session.id} onClose={onClose} />
         {showRepository && <><Divider />
         <Section title={t("Repository")}>

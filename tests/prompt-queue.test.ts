@@ -207,6 +207,8 @@ test("native admission clears the initial draft once while startup IPC is pendin
   context.mock.method(client, "onCiAutofixChanged", async () => () => {});
   context.mock.method(client, "onSimulatorOpen", async () => () => {});
   context.mock.method(client, "ciAutofixAction", async () => []);
+  context.mock.method(client, "onPrWatchChanged", async () => () => {});
+  context.mock.method(client, "prWatchAction", async () => []);
   context.mock.method(client, "onWindowSnap", async () => () => {});
   for (const method of ["onAgentOutput", "onAgentExit", "onPtyOutput", "onBrowserState", "onBrowserCapture", "onComputerState", "onSecretState", "onActivityNotification", "onNotificationOpen"] as const) context.mock.method(client, method, async () => () => {});
   const unbind = await bindRealtime();

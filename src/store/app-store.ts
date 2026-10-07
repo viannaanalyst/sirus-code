@@ -315,6 +315,10 @@ interface AppStore {
   /** CI auto-fix progress per session (ADR-064), refreshed by native events. */
   ciAutoFix: import("@/client/types").CiFixState[];
   ciAutofixAction: (action: import("@/client/types").CiFixAction) => Promise<void>;
+  /** Pull requests watched by sessions (ADR-079), refreshed by native events. */
+  prWatches: import("@/client/types").PrWatch[];
+  /** Closed `pr_watch_action`; failures land in `error` and resolve false. */
+  prWatchAction: (action: import("@/client/types").PrWatchAction) => Promise<boolean>;
   /** Closed `pull_request_action`; failures land in `error` and resolve null. */
   pullRequestAction: (action: import("@/client/types").PullRequestAction) => Promise<import("@/client/types").PullRequestResponse | null>;
   /** Opens (or reuses) the parent's side chat in the right dock (ADR-049); `quote` starts its draft. */
@@ -883,6 +887,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try { await client.projectScriptsAction(action); } catch (error) { set({ error: formatUnknownError(error) }); }
   },
   ciAutoFix: [],
+  prWatches: [],
   astros: null,
   astroDrawer: null,
   tasks: null,
@@ -1767,6 +1772,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) { set({ error: formatUnknownError(error) }); }
   },
 
+  prWatchAction: async (action) => {
+    try {
+      set({ prWatches: await client.prWatchAction(action) });
+      return true;
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
+
   automationAction: async (action) => {
     try {
       const snapshot = await client.automationAction(action);
@@ -2506,6 +2518,8 @@ export async function bindRealtime() {
     }));
     unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
     void useAppStore.getState().ciAutofixAction({ type: "status" });
+    unlisteners.push(await client.onPrWatchChanged(() => { void useAppStore.getState().prWatchAction({ type: "status" }); }));
+    void useAppStore.getState().prWatchAction({ type: "status" });
     unlisteners.push(await client.onAstrosChanged(() => { if (useAppStore.getState().astros) void useAppStore.getState().loadAstros(); }));
     unlisteners.push(await client.onAutomationsChanged(() => {
       if (useAppStore.getState().automations) void useAppStore.getState().automationAction({ type: "list" });

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { client } from "../src/client/index.ts";
-import type { PullRequest, PullRequestSnapshot, Session } from "../src/client/types.ts";
-import { checkSummary } from "../src/lib/pull-requests.ts";
+import type { PrWatch, PullRequest, PullRequestSnapshot, Session } from "../src/client/types.ts";
+import { checkSummary, watchedEvents, watchesFor } from "../src/lib/pull-requests.ts";
 import { defaultSettings, mergeSettings, resetGeneralSettings } from "../src/lib/settings.ts";
 import { useAppStore } from "../src/store/app-store.ts";
 
@@ -71,4 +71,36 @@ test("foreign acknowledgements are refused and a failed probe can be retried", a
   foreign = false; await useAppStore.getState().refreshPullRequest("s", true);
   assert.equal(useAppStore.getState().pullRequestsBySession.s.error, null);
   assert.equal(useAppStore.getState().pullRequestsBySession.s.snapshot?.sessionId, "s");
+});
+
+const watch = (sessionId: string, overrides: Partial<PrWatch> = {}): PrWatch => ({ sessionId, repository: "Owner/Repo", pullRequest: 1, url: pr.url, baseBranch: "main", origin: "person", status: "watching",
+  startedAt: "time", failedChecks: [], conflicting: false, seen: [], wakes: 0, lastEvents: [], updatedAt: "time", ...overrides });
+
+test("PR watch is on by default and leaves failing checks to CI auto-fix while it watches", () => {
+  assert.equal(defaultSettings.prWatch, true);
+  assert.equal(mergeSettings({}).prWatch, true);
+  assert.equal(mergeSettings({ prWatch: false }).prWatch, false);
+  assert.deepEqual(watchedEvents(watch("s"), { ciAutoFix: false }, []).events, ["checks", "reviews", "conflict"]);
+  assert.deepEqual(watchedEvents(watch("s"), { ciAutoFix: true }, []), { events: ["reviews", "conflict"], checksByAutoFix: true });
+  assert.equal(watchedEvents(watch("s"), { ciAutoFix: true }, [{ sessionId: "s", status: "off" }]).checksByAutoFix, false);
+  assert.equal(watchedEvents(watch("s"), { ciAutoFix: true }, [{ sessionId: "other", status: "off" }]).checksByAutoFix, true);
+});
+
+test("the PR page finds a pull request's watches by repository and number, active first", () => {
+  const list = [watch("a", { status: "stopped" }), watch("b"), watch("c", { pullRequest: 2 }), watch("d", { repository: "other/repo" })];
+  assert.deepEqual(watchesFor(list, "owner/repo", 1).map(item => item.sessionId), ["b", "a"]);
+  assert.deepEqual(watchesFor(list, "owner/repo", 3), []);
+});
+
+test("PR watch actions replace the list and surface refusals as errors", async context => {
+  setup(); useAppStore.setState({ prWatches: [], error: null });
+  context.mock.method(client, "prWatchAction", async (action: { type: string }) => {
+    if (action.type === "set") throw new Error("This session's branch has no open pull request on GitHub.");
+    return [watch("s")];
+  });
+  assert.equal(await useAppStore.getState().prWatchAction({ type: "status" }), true);
+  assert.equal(useAppStore.getState().prWatches.length, 1);
+  assert.equal(await useAppStore.getState().prWatchAction({ type: "set", sessionId: "s", watching: true }), false);
+  assert.match(useAppStore.getState().error ?? "", /no open pull request/);
+  assert.equal(useAppStore.getState().prWatches.length, 1);
 });
