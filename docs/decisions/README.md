@@ -103,7 +103,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-084: Phone app on the device](ADR-084-phone-app-polish.md) — iOS 26 full height with `100lvh`, keyboard-aware viewport and no focus zoom, browser dictation on the phone, glass dropdowns (provider then model), New Astro sheet, gliding tab pill and an offline app shell.
 - [ADR-085: Image links in replies](ADR-085-reply-image-links.md) — links to PNG/JPEG/GIF/WebP files on the Mac open in the image gallery through `reply_image` (byte-checked, 25 MiB cap, read-only).
 - [ADR-086: Phone app features from T3 Code](ADR-086-phone-app-features.md) — failure alerts and alert details, photos and camera, swipe pin/archive/delete with an archived list, an offline message queue, branch and PR, diff comments, provider usage and a read-only file browser on the phone.
-- [ADR-087: Browser keys for agents and the browser on the phone](ADR-087-browser-keys-and-phone-browser.md) — `browser_press` and `browser_wait_for` agent tools; the phone shows the conversation's Mac browser as a polled picture with tabs and an address bar, and taps, typing, keys and swipes act on the page as the person's own input.
+- [ADR-087: Browser keys and waiting for agents](ADR-087-browser-keys-and-wait.md) — `browser_press` (a fixed list of keys) and `browser_wait_for` (text or selector, at most 8 s); tabs start 1280×800 so agent-opened tabs render before the pane is shown.
 
 ## Template
 

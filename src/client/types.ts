@@ -174,14 +174,6 @@ export interface BrowserCaptureEvent {
   data: string;
 }
 
-/** Matches `browser::PersonAction`: tap coordinates are fractions of the visible page. */
-export type BrowserPersonAction =
-  | { kind: "tap"; x: number; y: number }
-  | { kind: "type"; text: string; submit: boolean }
-  | { kind: "key"; key: string }
-  | { kind: "scroll"; dy: number }
-  | { kind: "swipe"; fraction: number };
-
 export interface BrowserAnnotation {
   selector: string;
   label: string;

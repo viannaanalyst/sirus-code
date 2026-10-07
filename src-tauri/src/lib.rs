@@ -269,8 +269,6 @@ pub fn run() {
             browser::browser_annotate_cancel,
             browser::browser_copy_link,
             browser::browser_capture,
-            browser::browser_person_action,
-            browser::browser_preview,
             commands::save_settings,
             commands::save_composer_draft,
             commands::save_context_text,

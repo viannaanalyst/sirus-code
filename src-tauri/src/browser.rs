@@ -79,7 +79,7 @@ pub fn is_allowed_favicon_url(url: &str) -> bool {
     is_allowed_browser_url(trimmed)
 }
 
-/// Keys an agent or the person may press on a page (ADR-087); anything else is refused.
+/// Keys an agent may press on a page (ADR-087); anything else is refused.
 pub const BROWSER_KEYS: &[&str] = &[
     "Enter",
     "Escape",
@@ -99,43 +99,6 @@ pub const BROWSER_KEYS: &[&str] = &[
 
 pub fn is_allowed_browser_key(key: &str) -> bool {
     BROWSER_KEYS.contains(&key)
-}
-
-/// The person's own input on a tab, sent from a paired phone (ADR-087). Tap
-/// coordinates are fractions of the visible viewport.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum PersonAction {
-    Tap {
-        x: f64,
-        y: f64,
-    },
-    Type {
-        text: String,
-        submit: bool,
-    },
-    Key {
-        key: String,
-    },
-    Scroll {
-        dy: f64,
-    },
-    /// A share of the visible page height, from a swipe on the picture.
-    Swipe {
-        fraction: f64,
-    },
-}
-
-impl PersonAction {
-    pub fn is_valid(&self) -> bool {
-        match self {
-            Self::Tap { x, y } => (0.0..=1.0).contains(x) && (0.0..=1.0).contains(y),
-            Self::Type { text, .. } => text.len() <= 16 * 1024,
-            Self::Key { key } => is_allowed_browser_key(key),
-            Self::Scroll { dy } => dy.is_finite() && dy.abs() <= 20_000.0,
-            Self::Swipe { fraction } => (-2.0..=2.0).contains(fraction),
-        }
-    }
 }
 
 /// Element annotations collected by the fixed in-page annotation script.
@@ -186,15 +149,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn person_actions_and_keys_are_bounded() {
+    fn browser_keys_are_bounded() {
         assert!(is_allowed_browser_key("Enter"));
         assert!(!is_allowed_browser_key("Meta"));
-        assert!(PersonAction::Tap { x: 0.5, y: 1.0 }.is_valid());
-        assert!(!PersonAction::Tap { x: -0.1, y: 0.5 }.is_valid());
-        assert!(!PersonAction::Key { key: "F12".into() }.is_valid());
-        assert!(!PersonAction::Scroll { dy: f64::NAN }.is_valid());
-        let tap: PersonAction = serde_json::from_str(r#"{"kind":"tap","x":0.2,"y":0.3}"#).unwrap();
-        assert_eq!(tap, PersonAction::Tap { x: 0.2, y: 0.3 });
     }
 
     #[test]
@@ -281,19 +238,18 @@ pub(crate) mod platform {
     use objc2::runtime::{AnyObject, NSObject, ProtocolObject};
     use objc2::{define_class, msg_send, AllocAnyThread, DeclaredClass, MainThreadOnly};
     use objc2_app_kit::{
-        NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSImageCompressionFactor, NSPasteboard,
-        NSPasteboardTypeString, NSView, NSWindow,
+        NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSPasteboard, NSPasteboardTypeString,
+        NSView, NSWindow,
     };
     use objc2_foundation::{
-        MainThreadMarker, NSDictionary, NSError, NSMutableDictionary, NSNumber, NSObjectProtocol,
+        MainThreadMarker, NSDictionary, NSError, NSMutableDictionary, NSObjectProtocol,
         NSOperatingSystemVersion, NSPoint, NSProcessInfo, NSRect, NSSize, NSString, NSURLRequest,
         NSURL,
     };
     use objc2_web_kit::{
         WKContentWorld, WKNavigation, WKNavigationAction, WKNavigationActionPolicy,
-        WKNavigationDelegate, WKSnapshotConfiguration, WKUIDelegate, WKUserScript,
-        WKUserScriptInjectionTime, WKWebView, WKWebViewConfiguration, WKWebsiteDataStore,
-        WKWindowFeatures,
+        WKNavigationDelegate, WKUIDelegate, WKUserScript, WKUserScriptInjectionTime, WKWebView,
+        WKWebViewConfiguration, WKWebsiteDataStore, WKWindowFeatures,
     };
     use tauri::{AppHandle, Emitter, Manager};
 
@@ -553,7 +509,7 @@ pub(crate) mod platform {
                 let config = WKWebViewConfiguration::new(mtm);
                 config.setWebsiteDataStore(&WKWebsiteDataStore::defaultDataStore(mtm));
                 // A laptop-sized page until the dock pane measures it, so a tab opened by
-                // an agent or the phone lays out and captures like a real window (ADR-087).
+                // an agent lays out and captures like a real window (ADR-087).
                 let frame = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(1280.0, 800.0));
                 let webview = WKWebView::initWithFrame_configuration(
                     mtm.alloc::<WKWebView>(),
@@ -1056,13 +1012,11 @@ window.scrollBy({ top: dy ?? 0, left: 0, behavior: "auto" });
 return JSON.stringify({ ok: true, y: window.scrollY });
 "##;
 
-    /// A key on the focused element (ADR-087). `human` marks the person's own action
-    /// (the phone), which pauses agent actions like a local click does.
+    /// A key on the focused element (ADR-087).
     const PRESS_SCRIPT: &str = r##"
 const input = JSON.parse(args);
 const key = input.key;
-if (input.human) window.__sirusHumanAt = Date.now();
-else if (Date.now() - (window.__sirusHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
+if (Date.now() - (window.__sirusHumanAt || 0) < 1500) return JSON.stringify({ interrupted: true });
 const target = document.activeElement && document.activeElement !== document.documentElement ? document.activeElement : document.body;
 const init = { key, code: key === " " ? "Space" : key, bubbles: true, cancelable: true };
 const proceed = target.dispatchEvent(new KeyboardEvent("keydown", init));
@@ -1107,56 +1061,6 @@ while (Date.now() < deadline) {
   await new Promise((resolve) => setTimeout(resolve, 150));
 }
 return JSON.stringify({ ok: false, error: "timed out waiting" });
-"##;
-
-    /// The person taps the page from the phone: `x` and `y` are fractions of the visible
-    /// viewport, the same area the screenshot shows (ADR-087).
-    const TAP_SCRIPT: &str = r##"
-const input = JSON.parse(args);
-window.__sirusHumanAt = Date.now();
-const x = input.x * window.innerWidth;
-const y = input.y * window.innerHeight;
-const target = document.elementFromPoint(x, y);
-if (!target) return JSON.stringify({ ok: false, error: "nothing there" });
-const options = { bubbles: true, cancelable: true, clientX: x, clientY: y, view: window, pointerType: "touch", isPrimary: true };
-target.dispatchEvent(new PointerEvent("pointerdown", options));
-target.dispatchEvent(new MouseEvent("mousedown", options));
-target.dispatchEvent(new PointerEvent("pointerup", options));
-target.dispatchEvent(new MouseEvent("mouseup", options));
-const field = target.closest ? target.closest("input,textarea,select,[contenteditable='true']") : null;
-if (field && field.focus) field.focus();
-target.click();
-return JSON.stringify({ ok: true, editable: Boolean(field) });
-"##;
-
-    /// The person types from the phone into whatever is focused (ADR-087).
-    const INSERT_SCRIPT: &str = r##"
-const input = JSON.parse(args);
-window.__sirusHumanAt = Date.now();
-const target = document.activeElement;
-if (!target || target === document.body) return JSON.stringify({ ok: false, error: "tap a field first" });
-if (target.isContentEditable) {
-  document.execCommand("insertText", false, input.text);
-} else if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
-  const end = target.selectionEnd ?? target.value.length;
-  target.setRangeText(input.text, target.selectionStart ?? end, end, "end");
-  target.dispatchEvent(new Event("input", { bubbles: true }));
-  target.dispatchEvent(new Event("change", { bubbles: true }));
-} else {
-  return JSON.stringify({ ok: false, error: "tap a field first" });
-}
-if (input.submit) {
-  const form = target.form || (target.closest ? target.closest("form") : null);
-  if (form) { if (form.requestSubmit) form.requestSubmit(); else form.submit(); }
-}
-return JSON.stringify({ ok: true });
-"##;
-
-    const HUMAN_SCROLL_SCRIPT: &str = r##"
-const input = JSON.parse(args);
-window.__sirusHumanAt = Date.now();
-window.scrollBy({ top: input.fraction !== undefined ? input.fraction * window.innerHeight : input.dy, left: 0, behavior: "auto" });
-return JSON.stringify({ ok: true, y: window.scrollY });
 "##;
 
     const LOGS_SCRIPT: &str = r##"
@@ -1393,22 +1297,11 @@ return result;
     }
 
     pub fn capture(app: &AppHandle, session_id: &str, tab_id: &str) -> Result<String> {
-        snapshot(app, session_id, tab_id, false)
-    }
-
-    /// A small JPEG of the visible page for the phone, which polls it (ADR-087).
-    pub fn preview(app: &AppHandle, session_id: &str, tab_id: &str) -> Result<String> {
-        snapshot(app, session_id, tab_id, true)
-    }
-
-    fn snapshot(app: &AppHandle, session_id: &str, tab_id: &str, small: bool) -> Result<String> {
         use base64::Engine as _;
         let (sender, receiver) = mpsc::channel::<Result<String>>();
         let session_id = session_id.to_string();
         let tab_id = tab_id.to_string();
         on_main(app, move || -> Result<()> {
-            let mtm = MainThreadMarker::new()
-                .ok_or_else(|| Error::new("native", "the browser must run on the main thread"))?;
             let webview = with_manager(|manager| manager.webview(&session_id, &tab_id))??;
             let handler = RcBlock::new(move |image: *mut NSImage, error: *mut NSError| {
                 let result = unsafe {
@@ -1426,23 +1319,10 @@ return result;
                                 NSBitmapImageRep::initWithData(NSBitmapImageRep::alloc(), &data)
                             })
                             .and_then(|rep| {
-                                if small {
-                                    let quality = NSNumber::new_f64(0.6);
-                                    let quality: &AnyObject = quality.as_ref();
-                                    let properties = NSDictionary::from_slices(
-                                        &[NSImageCompressionFactor],
-                                        &[quality],
-                                    );
-                                    rep.representationUsingType_properties(
-                                        NSBitmapImageFileType::JPEG,
-                                        &properties,
-                                    )
-                                } else {
-                                    rep.representationUsingType_properties(
-                                        NSBitmapImageFileType::PNG,
-                                        &NSDictionary::new(),
-                                    )
-                                }
+                                rep.representationUsingType_properties(
+                                    NSBitmapImageFileType::PNG,
+                                    &NSDictionary::new(),
+                                )
                             });
                         match png {
                             Some(png) if png.len() <= 8 * 1024 * 1024 => {
@@ -1455,16 +1335,8 @@ return result;
                 };
                 let _ = sender.send(result);
             });
-            let configuration = small.then(|| unsafe {
-                let configuration = WKSnapshotConfiguration::new(mtm);
-                configuration.setSnapshotWidth(Some(&NSNumber::new_f64(720.0)));
-                configuration
-            });
             unsafe {
-                webview.takeSnapshotWithConfiguration_completionHandler(
-                    configuration.as_deref(),
-                    &handler,
-                );
+                webview.takeSnapshotWithConfiguration_completionHandler(None, &handler);
             }
             Ok(())
         })??;
@@ -1665,36 +1537,6 @@ return result;
             WAIT_SCRIPT,
             serde_json::json!({ "text": text, "selector": selector, "timeoutMs": timeout_ms }),
         )
-    }
-
-    /// The person's own action on a tab, from a paired phone (ADR-087).
-    pub fn person_action(
-        app: &AppHandle,
-        session_id: &str,
-        tab_id: &str,
-        action: &super::PersonAction,
-    ) -> Result<String> {
-        let (body, args) = match action {
-            super::PersonAction::Tap { x, y } => {
-                (TAP_SCRIPT, serde_json::json!({ "x": x, "y": y }))
-            }
-            super::PersonAction::Type { text, submit } => (
-                INSERT_SCRIPT,
-                serde_json::json!({ "text": text, "submit": submit }),
-            ),
-            super::PersonAction::Key { key } => (
-                PRESS_SCRIPT,
-                serde_json::json!({ "key": key, "human": true }),
-            ),
-            super::PersonAction::Scroll { dy } => {
-                (HUMAN_SCROLL_SCRIPT, serde_json::json!({ "dy": dy }))
-            }
-            super::PersonAction::Swipe { fraction } => (
-                HUMAN_SCROLL_SCRIPT,
-                serde_json::json!({ "fraction": fraction }),
-            ),
-        };
-        call_page(app, session_id, tab_id, body, args)
     }
 
     pub fn mcp_scroll(app: &AppHandle, session_id: &str, dy: f64) -> Result<String> {
@@ -1958,19 +1800,6 @@ mod platform {
     pub fn capture(_app: &AppHandle, _session_id: &str, _tab_id: &str) -> Result<String> {
         Err(unsupported())
     }
-
-    pub fn preview(_app: &AppHandle, _session_id: &str, _tab_id: &str) -> Result<String> {
-        Err(unsupported())
-    }
-
-    pub fn person_action(
-        _app: &AppHandle,
-        _session_id: &str,
-        _tab_id: &str,
-        _action: &super::PersonAction,
-    ) -> Result<String> {
-        Err(unsupported())
-    }
 }
 
 #[tauri::command]
@@ -2123,32 +1952,4 @@ pub async fn browser_capture(
     tab_id: String,
 ) -> Result<String> {
     crate::commands::native_task(move || platform::capture(&app, &session_id, &tab_id)).await
-}
-
-/// A small JPEG of the visible page, base64, for the phone's browser screen (ADR-087).
-#[tauri::command]
-pub async fn browser_preview(
-    app: tauri::AppHandle,
-    session_id: String,
-    tab_id: String,
-) -> Result<String> {
-    crate::commands::native_task(move || platform::preview(&app, &session_id, &tab_id)).await
-}
-
-/// The person taps, types, presses a key or scrolls a tab from the phone (ADR-087).
-#[tauri::command]
-pub async fn browser_person_action(
-    app: tauri::AppHandle,
-    session_id: String,
-    tab_id: String,
-    action: PersonAction,
-) -> Result<serde_json::Value> {
-    if !action.is_valid() {
-        return Err(Error::new("invalid", "Invalid browser action."));
-    }
-    let raw = crate::commands::native_task(move || {
-        platform::person_action(&app, &session_id, &tab_id, &action)
-    })
-    .await?;
-    Ok(serde_json::from_str(&raw).unwrap_or(serde_json::Value::Null))
 }
