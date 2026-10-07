@@ -700,6 +700,12 @@ export type ComputerAction =
 /** A private secret card (ADR-077): what the agent asked for, never the value. `path` is the workspace file it will be written to. */
 export interface SecretRequest { id: string; sessionId: string; label: string; description: string; envName: string | null; path: string | null }
 export interface SecretSnapshot { requests: SecretRequest[] }
+
+/** Remote access (ADR-080): the Mac serving this app to paired devices over Tailscale. */
+export type RemoteAction = { type: "status" } | { type: "setEnabled"; enabled: boolean } | { type: "revoke"; deviceId: string };
+export interface RemoteDevice { id: string; name: string; createdAt: string; lastSeen: string | null }
+export interface RemoteStatus { enabled: boolean; running: boolean; port: number; urls: string[]; devices: RemoteDevice[]; error: string | null }
+export interface RemotePairing { code: string; urls: string[]; expiresAt: string }
 /** Closed secret-card controls; `value: null` declines. The value is never echoed back. */
 export type SecretAction = { type: "status" } | { type: "respond"; requestId: string; value: string | null };
 

@@ -96,6 +96,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-077: Private secret requests and credential masking](ADR-077-private-secret-requests-and-credential-masking.md) — `request_secret`/`use_secret` with one-use memory-only refs, masked approvals and activity.
 - [ADR-078: Project scripts and worktree cleanup](ADR-078-project-scripts-and-worktree-cleanup.md) — owner-saved Setup / On finish scripts in session worktrees, leftover worktree cleanup, opt-in release on archive.
 - [ADR-079: Watch a pull request](ADR-079-watch-a-pull-request.md) — a session watches its own PR and gets an automatic turn on new failing checks, reviews or merge conflicts; switch in the Environment card or the agent's `watch_pull_request` tool.
+- [ADR-080: Remote access server](ADR-080-remote-access-server.md) — off by default; paired devices reach the Mac over Tailscale, get the bundled UI and run the window's own IPC commands over one WebSocket (`RemoteTransport`), with one-time pairing codes, hashed device tokens and Mac-only commands refused.
 
 ## Template
 

@@ -1,0 +1,965 @@
+//! Remote access (ADR-080): the app can serve its own interface to the person's
+//! other devices. Off by default. When on, a small HTTP server listens on one
+//! port, answers only loopback and Tailscale peers (100.64.0.0/10,
+//! fd7a:115c:a1e0::/48), and serves the bundled UI plus one WebSocket.
+//!
+//! A device joins with a one-time pairing code (five minutes, single use) and
+//! receives its own token; only the token's SHA-256 is kept, in `remote.json`.
+//! Over the socket a paired device invokes the same IPC commands the window
+//! uses: each call is handed to the main webview's IPC entry point, so the
+//! command list, argument parsing and capability checks stay the ones the
+//! desktop has. A few commands that only make sense at the Mac (pickers,
+//! dictation, computer use) or that manage remote access itself are refused.
+//! Events are forwarded by name as the device subscribes to them.
+
+use std::collections::HashMap;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
+
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{ConnectInfo, Request, State as AxumState};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode, Uri};
+use axum::middleware::{self, Next};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, post};
+use axum::{Json, Router};
+use base64::Engine;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponse, InvokeResponseBody};
+use tauri::webview::InvokeRequest;
+use tauri::{AppHandle, Listener, Manager};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
+
+use crate::error::{Error, Result};
+
+pub const DEFAULT_PORT: u16 = 7710;
+const PAIR_TTL: Duration = Duration::from_secs(5 * 60);
+const PAIR_FAILURES: u8 = 5;
+const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
+const MAX_DEVICES: usize = 10;
+const MAX_MESSAGE: usize = 32 * 1024 * 1024;
+/// Messages queued for one device before it is considered too slow and dropped.
+const QUEUE: usize = 4096;
+const MAX_SUBSCRIPTIONS: usize = 64;
+
+/// Commands a device never runs: remote access manages itself only at the Mac,
+/// and these act on the Mac's own screen, microphone or file pickers.
+const DENIED: &[&str] = &[
+    "remote_action",
+    "remote_pair",
+    "pick_folder",
+    "pick_executable",
+    "capture_prompt_window",
+    "paste_prompt_attachments",
+    "drop_prompt_attachments",
+    "dictation_status",
+    "start_dictation",
+    "stop_dictation",
+    "computer_action",
+    "simulator_action",
+    "window_snap_action",
+];
+
+const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; script-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Config {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    devices: Vec<Device>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Device {
+    id: String,
+    name: String,
+    token_hash: String,
+    created_at: DateTime<Utc>,
+    #[serde(default)]
+    last_seen: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceInfo {
+    id: String,
+    name: String,
+    created_at: DateTime<Utc>,
+    last_seen: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    enabled: bool,
+    running: bool,
+    port: u16,
+    /// `http://<tailscale address>:<port>` for each Tailscale address of this Mac.
+    urls: Vec<String>,
+    devices: Vec<DeviceInfo>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pairing {
+    code: String,
+    /// The addresses above with `?pair=<code>`, ready for a QR code.
+    urls: Vec<String>,
+    expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Action {
+    Status,
+    SetEnabled {
+        enabled: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    Revoke {
+        device_id: String,
+    },
+}
+
+struct PairCode {
+    hash: String,
+    expires: Instant,
+    failures: u8,
+}
+
+struct Server {
+    port: u16,
+    shutdown: watch::Sender<bool>,
+}
+
+struct Remote {
+    path: PathBuf,
+    config: parking_lot::Mutex<Config>,
+    pairing: parking_lot::Mutex<Option<PairCode>>,
+    server: parking_lot::Mutex<Option<Server>>,
+    error: parking_lot::Mutex<Option<String>>,
+    /// Ids of devices whose access was just removed; their sockets close.
+    revoked: broadcast::Sender<String>,
+}
+
+static REMOTE: OnceLock<Arc<Remote>> = OnceLock::new();
+
+fn remote() -> Result<Arc<Remote>> {
+    REMOTE
+        .get()
+        .cloned()
+        .ok_or_else(|| Error::new("remote", "Remote access is not ready yet."))
+}
+
+pub fn init(app: AppHandle, data_dir: &Path) {
+    let path = data_dir.join("remote.json");
+    let config = std::fs::read(&path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Config>(&bytes).ok())
+        .unwrap_or_default();
+    let enabled = config.enabled;
+    let remote = Arc::new(Remote {
+        path,
+        config: parking_lot::Mutex::new(config),
+        pairing: parking_lot::Mutex::new(None),
+        server: parking_lot::Mutex::new(None),
+        error: parking_lot::Mutex::new(None),
+        revoked: broadcast::channel(16).0,
+    });
+    let _ = REMOTE.set(remote.clone());
+    if enabled {
+        tauri::async_runtime::spawn(async move { start(app, remote).await });
+    }
+}
+
+pub fn shutdown() {
+    if let Some(remote) = REMOTE.get() {
+        stop(remote);
+    }
+}
+
+#[tauri::command]
+pub async fn remote_action(app: AppHandle, action: Action) -> Result<Status> {
+    let remote = remote()?;
+    match action {
+        Action::Status => {}
+        Action::SetEnabled { enabled } => {
+            remote.config.lock().enabled = enabled;
+            save(&remote)?;
+            if enabled {
+                start(app, remote.clone()).await;
+            } else {
+                stop(&remote);
+                *remote.pairing.lock() = None;
+            }
+        }
+        Action::Revoke { device_id } => {
+            remote
+                .config
+                .lock()
+                .devices
+                .retain(|device| device.id != device_id);
+            save(&remote)?;
+            let _ = remote.revoked.send(device_id);
+        }
+    }
+    Ok(status(&remote))
+}
+
+/// A fresh one-time code; it replaces any earlier one.
+#[tauri::command]
+pub async fn remote_pair() -> Result<Pairing> {
+    let remote = remote()?;
+    if remote.server.lock().is_none() {
+        return Err(Error::new("remote", "Turn on remote access first."));
+    }
+    if remote.config.lock().devices.len() >= MAX_DEVICES {
+        return Err(Error::new(
+            "remote",
+            format!("Up to {MAX_DEVICES} devices can be connected. Remove one first."),
+        ));
+    }
+    let code = random_token(16);
+    *remote.pairing.lock() = Some(PairCode {
+        hash: hash(&code),
+        expires: Instant::now() + PAIR_TTL,
+        failures: 0,
+    });
+    let urls = base_urls(&remote)
+        .into_iter()
+        .map(|url| format!("{url}/?pair={code}"))
+        .collect();
+    Ok(Pairing {
+        code,
+        urls,
+        expires_at: Utc::now() + chrono::Duration::from_std(PAIR_TTL).unwrap_or_default(),
+    })
+}
+
+fn status(remote: &Remote) -> Status {
+    let config = remote.config.lock().clone();
+    Status {
+        enabled: config.enabled,
+        running: remote.server.lock().is_some(),
+        port: port(&config),
+        urls: base_urls(remote),
+        devices: config
+            .devices
+            .into_iter()
+            .map(|device| DeviceInfo {
+                id: device.id,
+                name: device.name,
+                created_at: device.created_at,
+                last_seen: device.last_seen,
+            })
+            .collect(),
+        error: remote.error.lock().clone(),
+    }
+}
+
+fn port(config: &Config) -> u16 {
+    config.port.unwrap_or(DEFAULT_PORT)
+}
+
+fn base_urls(remote: &Remote) -> Vec<String> {
+    let port = port(&remote.config.lock());
+    tailscale_addresses()
+        .into_iter()
+        .map(|ip| format!("http://{ip}:{port}"))
+        .collect()
+}
+
+fn save(remote: &Remote) -> Result<()> {
+    let bytes = serde_json::to_vec_pretty(&*remote.config.lock())?;
+    let tmp = remote.path.with_extension("json.tmp");
+    std::fs::write(&tmp, bytes)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
+    }
+    std::fs::rename(tmp, &remote.path)?;
+    Ok(())
+}
+
+async fn start(app: AppHandle, remote: Arc<Remote>) {
+    let port = port(&remote.config.lock());
+    if remote
+        .server
+        .lock()
+        .as_ref()
+        .is_some_and(|server| server.port == port)
+    {
+        return;
+    }
+    stop(&remote);
+    let listener = match tokio::net::TcpListener::bind((Ipv4Addr::UNSPECIFIED, port)).await {
+        Ok(listener) => listener,
+        Err(error) => {
+            tracing::warn!(%error, port, "remote access cannot listen");
+            *remote.error.lock() = Some(format!("Port {port} is not available: {error}"));
+            return;
+        }
+    };
+    let (shutdown, mut stopped) = watch::channel(false);
+    *remote.server.lock() = Some(Server {
+        port,
+        shutdown: shutdown.clone(),
+    });
+    *remote.error.lock() = None;
+    let shared = Shared {
+        app,
+        remote: remote.clone(),
+        shutdown: shutdown.subscribe(),
+    };
+    let router = Router::new()
+        .route(
+            "/api/health",
+            get(|| async { Json(json!({ "app": "sirus" })) }),
+        )
+        .route("/api/pair", post(pair))
+        .route("/api/socket", get(socket))
+        .fallback(get(asset))
+        .layer(middleware::from_fn(guard))
+        .with_state(shared);
+    tauri::async_runtime::spawn(async move {
+        let served = axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async move {
+            let _ = stopped.wait_for(|stopped| *stopped).await;
+        })
+        .await;
+        if let Err(error) = served {
+            tracing::warn!(%error, "remote access server stopped");
+            *remote.error.lock() = Some(error.to_string());
+        }
+        let mut server = remote.server.lock();
+        if server
+            .as_ref()
+            .is_some_and(|server| server.shutdown.same_channel(&shutdown))
+        {
+            *server = None;
+        }
+    });
+}
+
+fn stop(remote: &Remote) {
+    if let Some(server) = remote.server.lock().take() {
+        let _ = server.shutdown.send(true);
+    }
+}
+
+#[derive(Clone)]
+struct Shared {
+    app: AppHandle,
+    remote: Arc<Remote>,
+    shutdown: watch::Receiver<bool>,
+}
+
+/// Only loopback and Tailscale peers, and no cross-site requests.
+async fn guard(
+    ConnectInfo(peer): ConnectInfo<SocketAddr>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if !allowed_peer(peer.ip()) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    if !same_origin(request.headers()) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    next.run(request).await
+}
+
+fn allowed_peer(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => ip.is_loopback() || is_tailscale_v4(ip),
+        IpAddr::V6(ip) => {
+            if let Some(mapped) = ip.to_ipv4_mapped() {
+                return allowed_peer(IpAddr::V4(mapped));
+            }
+            let segments = ip.segments();
+            ip.is_loopback()
+                || (segments[0] == 0xfd7a && segments[1] == 0x115c && segments[2] == 0xa1e0)
+        }
+    }
+}
+
+fn is_tailscale_v4(ip: Ipv4Addr) -> bool {
+    let [a, b, ..] = ip.octets();
+    a == 100 && (64..128).contains(&b)
+}
+
+/// A browser sends `Origin` on cross-site requests and WebSocket handshakes; it must name this host.
+fn same_origin(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return true;
+    };
+    let Some(host) = headers
+        .get(header::HOST)
+        .and_then(|host| host.to_str().ok())
+    else {
+        return false;
+    };
+    origin
+        .to_str()
+        .ok()
+        .and_then(|origin| origin.split_once("://"))
+        .is_some_and(|(_, rest)| rest.eq_ignore_ascii_case(host))
+}
+
+async fn asset(AxumState(shared): AxumState<Shared>, uri: Uri) -> Response {
+    let path = uri.path().to_string();
+    let resolver = shared.app.asset_resolver();
+    // Tauri answers unknown paths with the app shell; that suits client-side routes,
+    // but a missing script or image must stay missing.
+    let file = path.rsplit('/').next().unwrap_or_default();
+    let wants_file = file.contains('.') && !file.ends_with(".html");
+    let Some(asset) = resolver
+        .get(path.clone())
+        .filter(|asset| !(wants_file && asset.mime_type.starts_with("text/html")))
+    else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let html = asset.mime_type.starts_with("text/html");
+    let mut response = asset.bytes.into_response();
+    let headers = response.headers_mut();
+    if let Ok(value) = HeaderValue::from_str(&asset.mime_type) {
+        headers.insert(header::CONTENT_TYPE, value);
+    }
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    if html {
+        headers.insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static(CSP),
+        );
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
+    response
+}
+
+#[derive(Deserialize)]
+struct PairRequest {
+    code: String,
+    #[serde(default)]
+    name: String,
+}
+
+async fn pair(AxumState(shared): AxumState<Shared>, Json(request): Json<PairRequest>) -> Response {
+    match redeem(&shared.remote, &request.code, &request.name) {
+        Ok((device_id, token)) => {
+            Json(json!({ "deviceId": device_id, "token": token })).into_response()
+        }
+        Err(message) => (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "message": message })),
+        )
+            .into_response(),
+    }
+}
+
+/// Exchanges a pairing code for a new device token.
+fn redeem(
+    remote: &Remote,
+    code: &str,
+    name: &str,
+) -> std::result::Result<(String, String), &'static str> {
+    {
+        let mut pairing = remote.pairing.lock();
+        let Some(current) = pairing.as_mut() else {
+            return Err("This code is no longer valid. Show a new QR code on the Mac.");
+        };
+        if current.expires <= Instant::now() {
+            *pairing = None;
+            return Err("This code has expired. Show a new QR code on the Mac.");
+        }
+        if current.hash != hash(code) {
+            current.failures += 1;
+            if current.failures >= PAIR_FAILURES {
+                *pairing = None;
+            }
+            return Err("This code is not valid.");
+        }
+        *pairing = None;
+    }
+    let token = random_token(32);
+    let device = Device {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: device_name(name),
+        token_hash: hash(&token),
+        created_at: Utc::now(),
+        last_seen: None,
+    };
+    let id = device.id.clone();
+    {
+        let mut config = remote.config.lock();
+        if config.devices.len() >= MAX_DEVICES {
+            return Err("Too many devices are connected.");
+        }
+        config.devices.push(device);
+    }
+    if save(remote).is_err() {
+        return Err("The Mac could not save this device.");
+    }
+    Ok((id, token))
+}
+
+fn device_name(name: &str) -> String {
+    let name: String = name
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(60)
+        .collect();
+    let name = name.trim();
+    if name.is_empty() {
+        "Device".into()
+    } else {
+        name.into()
+    }
+}
+
+/// The device a token belongs to, noting when it was last seen.
+fn authenticate(remote: &Remote, token: &str) -> Option<String> {
+    let hashed = hash(token);
+    let id = {
+        let mut config = remote.config.lock();
+        let device = config
+            .devices
+            .iter_mut()
+            .find(|device| device.token_hash == hashed)?;
+        device.last_seen = Some(Utc::now());
+        device.id.clone()
+    };
+    let _ = save(remote);
+    Some(id)
+}
+
+async fn socket(AxumState(shared): AxumState<Shared>, upgrade: WebSocketUpgrade) -> Response {
+    upgrade
+        .max_message_size(MAX_MESSAGE)
+        .on_upgrade(move |socket| connection(socket, shared))
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+enum Incoming {
+    Hello {
+        token: String,
+    },
+    Invoke {
+        id: u64,
+        cmd: String,
+        #[serde(default)]
+        args: Value,
+    },
+    Listen {
+        event: String,
+    },
+    Unlisten {
+        event: String,
+    },
+}
+
+async fn connection(mut socket: WebSocket, shared: Shared) {
+    let device = match tokio::time::timeout(HELLO_TIMEOUT, socket.recv()).await {
+        Ok(Some(Ok(Message::Text(text)))) => match serde_json::from_str::<Incoming>(&text) {
+            Ok(Incoming::Hello { token }) => authenticate(&shared.remote, &token),
+            _ => None,
+        },
+        _ => None,
+    };
+    let Some(device) = device else {
+        let _ = socket
+            .send(Message::Text(r#"{"type":"unauthorized"}"#.into()))
+            .await;
+        return;
+    };
+    if socket
+        .send(Message::Text(r#"{"type":"ready"}"#.into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    let (outgoing, mut queue) = mpsc::channel::<String>(QUEUE);
+    let mut revoked = shared.remote.revoked.subscribe();
+    let mut shutdown = shared.shutdown.clone();
+    let mut listeners: HashMap<String, tauri::EventId> = HashMap::new();
+    loop {
+        tokio::select! {
+            message = socket.recv() => {
+                let text = match message {
+                    Some(Ok(Message::Text(text))) => text,
+                    Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                    Some(Ok(_)) => continue,
+                };
+                match serde_json::from_str::<Incoming>(&text) {
+                    Ok(Incoming::Invoke { id, cmd, args }) => {
+                        let app = shared.app.clone();
+                        let outgoing = outgoing.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let reply = result_message(id, invoke(&app, cmd, args).await);
+                            let _ = outgoing.send(reply).await;
+                        });
+                    }
+                    Ok(Incoming::Listen { event }) => {
+                        if valid_event(&event) && !listeners.contains_key(&event) && listeners.len() < MAX_SUBSCRIPTIONS {
+                            let outgoing = outgoing.clone();
+                            let name = serde_json::to_string(&event).unwrap_or_default();
+                            let id = shared.app.listen_any(event.clone(), move |message| {
+                                let payload = if message.payload().is_empty() { "null" } else { message.payload() };
+                                let _ = outgoing.try_send(format!(r#"{{"type":"event","event":{name},"payload":{payload}}}"#));
+                            });
+                            listeners.insert(event, id);
+                        }
+                    }
+                    Ok(Incoming::Unlisten { event }) => {
+                        if let Some(id) = listeners.remove(&event) {
+                            shared.app.unlisten(id);
+                        }
+                    }
+                    Ok(Incoming::Hello { .. }) | Err(_) => {}
+                }
+            }
+            Some(reply) = queue.recv() => {
+                if socket.send(Message::Text(reply.into())).await.is_err() {
+                    break;
+                }
+            }
+            gone = revoked.recv() => {
+                if matches!(gone, Ok(ref id) if *id == device) {
+                    let _ = socket.send(Message::Text(r#"{"type":"unauthorized"}"#.into())).await;
+                    break;
+                }
+            }
+            _ = shutdown.changed() => break,
+        }
+        // A device that cannot keep up reconnects and reloads instead of growing the queue.
+        if outgoing.capacity() == 0 {
+            break;
+        }
+    }
+    for (_, id) in listeners {
+        shared.app.unlisten(id);
+    }
+    let _ = socket.send(Message::Close(None)).await;
+}
+
+fn valid_event(event: &str) -> bool {
+    !event.is_empty()
+        && event.len() <= 64
+        && event.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | ':' | '/')
+        })
+}
+
+fn allowed_command(command: &str) -> bool {
+    !command.is_empty()
+        && command.len() <= 64
+        && command
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
+        && !DENIED.contains(&command)
+}
+
+enum Reply {
+    Json(String),
+    Raw(Vec<u8>),
+}
+
+/// Runs one IPC command as the main window would, on the main thread.
+async fn invoke(
+    app: &AppHandle,
+    command: String,
+    args: Value,
+) -> std::result::Result<Reply, Value> {
+    let refuse = |message: &str| json!({ "code": "remote", "message": message });
+    if !allowed_command(&command) {
+        return Err(refuse("This action is only available on the Mac."));
+    }
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| refuse("The Sirus window is not open on the Mac."))?;
+    let url = window.url().map_err(|error| refuse(&error.to_string()))?;
+    let webview: tauri::Webview = window.as_ref().clone();
+    let request = InvokeRequest {
+        cmd: command,
+        callback: CallbackFn(0),
+        error: CallbackFn(1),
+        url,
+        body: InvokeBody::Json(if args.is_null() { json!({}) } else { args }),
+        headers: Default::default(),
+        invoke_key: app.invoke_key().to_string(),
+    };
+    let (sender, receiver) = oneshot::channel();
+    app.run_on_main_thread(move || {
+        webview.on_message(
+            request,
+            Box::new(move |_, _, response, _, _| {
+                let _ = sender.send(response);
+            }),
+        );
+    })
+    .map_err(|error| refuse(&error.to_string()))?;
+    match receiver.await {
+        Ok(InvokeResponse::Ok(InvokeResponseBody::Json(body))) => Ok(Reply::Json(body)),
+        Ok(InvokeResponse::Ok(InvokeResponseBody::Raw(bytes))) => Ok(Reply::Raw(bytes)),
+        Ok(InvokeResponse::Err(error)) => Err(error.0),
+        Err(_) => Err(refuse("The Mac did not answer this action.")),
+    }
+}
+
+fn result_message(id: u64, result: std::result::Result<Reply, Value>) -> String {
+    match result {
+        Ok(Reply::Json(body)) => {
+            let body = if body.is_empty() {
+                "null"
+            } else {
+                body.as_str()
+            };
+            format!(r#"{{"type":"result","id":{id},"ok":true,"value":{body}}}"#)
+        }
+        Ok(Reply::Raw(bytes)) => json!({
+            "type": "result",
+            "id": id,
+            "ok": true,
+            "raw": base64::engine::general_purpose::STANDARD.encode(bytes),
+        })
+        .to_string(),
+        Err(error) => {
+            json!({ "type": "result", "id": id, "ok": false, "error": error }).to_string()
+        }
+    }
+}
+
+fn random_token(bytes: usize) -> String {
+    let mut buffer = Vec::with_capacity(bytes + 16);
+    while buffer.len() < bytes {
+        buffer.extend_from_slice(uuid::Uuid::new_v4().as_bytes());
+    }
+    buffer.truncate(bytes);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(buffer)
+}
+
+fn hash(value: &str) -> String {
+    Sha256::digest(value.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+#[cfg(unix)]
+fn tailscale_addresses() -> Vec<Ipv4Addr> {
+    let mut found = Vec::new();
+    let mut head: *mut libc::ifaddrs = std::ptr::null_mut();
+    // SAFETY: getifaddrs fills `head` with a list that stays valid until freeifaddrs,
+    // and every node is only read while it is.
+    unsafe {
+        if libc::getifaddrs(&mut head) != 0 {
+            return found;
+        }
+        let mut cursor = head;
+        while !cursor.is_null() {
+            let entry = &*cursor;
+            if !entry.ifa_addr.is_null() && i32::from((*entry.ifa_addr).sa_family) == libc::AF_INET
+            {
+                let address = &*(entry.ifa_addr as *const libc::sockaddr_in);
+                let ip = Ipv4Addr::from(u32::from_be(address.sin_addr.s_addr));
+                if is_tailscale_v4(ip) && !found.contains(&ip) {
+                    found.push(ip);
+                }
+            }
+            cursor = entry.ifa_next;
+        }
+        libc::freeifaddrs(head);
+    }
+    found
+}
+
+#[cfg(not(unix))]
+fn tailscale_addresses() -> Vec<Ipv4Addr> {
+    Vec::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn remote(dir: &Path) -> Remote {
+        Remote {
+            path: dir.join("remote.json"),
+            config: parking_lot::Mutex::new(Config::default()),
+            pairing: parking_lot::Mutex::new(None),
+            server: parking_lot::Mutex::new(None),
+            error: parking_lot::Mutex::new(None),
+            revoked: broadcast::channel(4).0,
+        }
+    }
+
+    fn offer(remote: &Remote, code: &str, ttl: Duration) {
+        *remote.pairing.lock() = Some(PairCode {
+            hash: hash(code),
+            expires: Instant::now() + ttl,
+            failures: 0,
+        });
+    }
+
+    #[test]
+    fn peers_are_loopback_or_tailscale() {
+        for allowed in [
+            "127.0.0.1",
+            "100.64.0.1",
+            "100.101.102.103",
+            "100.127.255.254",
+            "::1",
+            "fd7a:115c:a1e0::1",
+            "::ffff:100.100.1.1",
+        ] {
+            assert!(allowed_peer(allowed.parse().unwrap()), "{allowed}");
+        }
+        for refused in [
+            "192.168.1.10",
+            "10.0.0.2",
+            "100.63.255.255",
+            "100.128.0.1",
+            "8.8.8.8",
+            "fd7a:115c:a1e1::1",
+            "::ffff:192.168.1.1",
+        ] {
+            assert!(!allowed_peer(refused.parse().unwrap()), "{refused}");
+        }
+    }
+
+    #[test]
+    fn origin_must_name_this_host() {
+        let mut headers = HeaderMap::new();
+        assert!(same_origin(&headers));
+        headers.insert(header::HOST, HeaderValue::from_static("100.80.1.2:7710"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://100.80.1.2:7710"),
+        );
+        assert!(same_origin(&headers));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://evil.example"),
+        );
+        assert!(!same_origin(&headers));
+        headers.remove(header::HOST);
+        assert!(!same_origin(&headers));
+    }
+
+    #[test]
+    fn pairing_codes_are_single_use_and_tokens_authenticate() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = remote(dir.path());
+        offer(&remote, "code-1", PAIR_TTL);
+        let (id, token) = redeem(&remote, "code-1", " iPhone\n").unwrap();
+        assert!(redeem(&remote, "code-1", "again").is_err());
+        assert_eq!(authenticate(&remote, &token), Some(id.clone()));
+        assert_eq!(authenticate(&remote, "wrong"), None);
+        let saved: Config =
+            serde_json::from_slice(&std::fs::read(dir.path().join("remote.json")).unwrap())
+                .unwrap();
+        assert_eq!(saved.devices[0].name, "iPhone");
+        assert_ne!(saved.devices[0].token_hash, token);
+        assert!(saved.devices[0].last_seen.is_some());
+    }
+
+    #[test]
+    fn expired_or_guessed_codes_fail() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = remote(dir.path());
+        offer(&remote, "late", Duration::ZERO);
+        assert!(redeem(&remote, "late", "").is_err());
+        offer(&remote, "right", PAIR_TTL);
+        for _ in 0..PAIR_FAILURES {
+            assert!(redeem(&remote, "guess", "").is_err());
+        }
+        // Too many wrong guesses withdraw the code itself.
+        assert!(redeem(&remote, "right", "").is_err());
+        assert!(remote.config.lock().devices.is_empty());
+    }
+
+    #[test]
+    fn device_limit_holds() {
+        let dir = tempfile::tempdir().unwrap();
+        let remote = remote(dir.path());
+        for index in 0..MAX_DEVICES {
+            offer(&remote, "code", PAIR_TTL);
+            redeem(&remote, "code", &format!("Device {index}")).unwrap();
+        }
+        offer(&remote, "code", PAIR_TTL);
+        assert!(redeem(&remote, "code", "One more").is_err());
+    }
+
+    #[test]
+    fn commands_and_events_are_checked() {
+        assert!(allowed_command("send_prompt"));
+        assert!(allowed_command("load_state"));
+        for refused in [
+            "remote_action",
+            "remote_pair",
+            "pick_folder",
+            "computer_action",
+            "plugin:opener|open_url",
+            "",
+            "a b",
+        ] {
+            assert!(!allowed_command(refused), "{refused}");
+        }
+        assert!(valid_event("agent-output"));
+        assert!(!valid_event("bad event"));
+        assert!(!valid_event(""));
+    }
+
+    #[test]
+    fn results_embed_the_command_reply() {
+        assert_eq!(
+            result_message(7, Ok(Reply::Json(r#"{"a":1}"#.into()))),
+            r#"{"type":"result","id":7,"ok":true,"value":{"a":1}}"#
+        );
+        assert_eq!(
+            result_message(8, Ok(Reply::Json(String::new()))),
+            r#"{"type":"result","id":8,"ok":true,"value":null}"#
+        );
+        let raw: Value =
+            serde_json::from_str(&result_message(9, Ok(Reply::Raw(vec![1, 2])))).unwrap();
+        assert_eq!(raw["raw"], "AQI=");
+        let error: Value =
+            serde_json::from_str(&result_message(3, Err(json!({ "code": "x" })))).unwrap();
+        assert_eq!(error["ok"], false);
+        assert_eq!(error["error"]["code"], "x");
+    }
+
+    #[test]
+    fn tokens_are_url_safe_and_distinct() {
+        let first = random_token(32);
+        assert_eq!(first.len(), 43);
+        assert!(first
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')));
+        assert_ne!(first, random_token(32));
+        assert_eq!(device_name("   "), "Device");
+    }
+}

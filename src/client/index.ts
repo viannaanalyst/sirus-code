@@ -1,4 +1,6 @@
 import { LocalTransport } from "./local-transport";
+import { REMOTE_TOKEN_KEY, socketUrl } from "./remote-pairing";
+import { RemoteTransport, type RemoteConnection } from "./remote-transport";
 import { parseSimulatorFrame } from "./simulator-frame";
 import type { Transport } from "./transport";
 import type {
@@ -679,9 +681,34 @@ export class SirusClient {
     return this.transport.listen<import("./types").BrowserCaptureEvent>("browser-capture", handler);
   }
 
+  remoteAction(action: import("./types").RemoteAction) {
+    return this.transport.invoke<import("./types").RemoteStatus>("remote_action", { action });
+  }
+
+  remotePair() {
+    return this.transport.invoke<import("./types").RemotePairing>("remote_pair");
+  }
+
 }
 
-export const client = new SirusClient(new LocalTransport());
+/** True when this UI was served to another device by the Mac's remote access (ADR-080). */
+export const isRemoteUi = typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
+
+const remoteListeners = new Set<(state: RemoteConnection, previous: RemoteConnection) => void>();
+
+/** Follows the remote connection; only the UI served to another device has one. */
+export function onRemoteConnection(handler: (state: RemoteConnection, previous: RemoteConnection) => void): () => void {
+  remoteListeners.add(handler);
+  return () => { remoteListeners.delete(handler); };
+}
+
+export const client = new SirusClient(isRemoteUi
+  ? new RemoteTransport({
+    url: socketUrl(window.location),
+    token: () => window.localStorage.getItem(REMOTE_TOKEN_KEY),
+    onConnection: (state, previous) => { for (const handler of [...remoteListeners]) handler(state, previous); },
+  })
+  : new LocalTransport());
 
 function isCancelledTitle(value: unknown): boolean {
   return !!value && typeof value === "object" && Object.keys(value).length === 1 && (value as Record<string, unknown>).type === "cancelled";
