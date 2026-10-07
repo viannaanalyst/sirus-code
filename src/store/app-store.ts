@@ -306,6 +306,12 @@ interface AppStore {
   archivePrompt: string | null;
   /** Archives a session, asking first when Chat behavior requires it. */
   requestArchive: (sessionId: string, confirmed?: boolean) => void;
+  /** What happened to an archived session's worktree when releasing it is on (ADR-078). */
+  worktreeReleaseNotice: { id: number; release: import("@/client/types").WorktreeRelease } | null;
+  /** Saves a project's Setup and On finish scripts; blank removes one. */
+  saveProjectScripts: (projectId: string, setup: string, onFinish: string) => Promise<boolean>;
+  /** Run again, stop or hide a session's project script run. */
+  projectScriptAction: (action: Exclude<import("@/client/types").ProjectScriptsAction, { type: "save" }>) => Promise<void>;
   /** CI auto-fix progress per session (ADR-064), refreshed by native events. */
   ciAutoFix: import("@/client/types").CiFixState[];
   ciAutofixAction: (action: import("@/client/types").CiFixAction) => Promise<void>;
@@ -855,7 +861,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const state = get();
     if (state.settings.confirmArchive && !confirmed) { set({ archivePrompt: sessionId }); return; }
     set({ archivePrompt: null });
-    void state.saveSettings(archiveSidebarSession(state.settings, sessionId));
+    void state.saveSettings(archiveSidebarSession(state.settings, sessionId)).then(async () => {
+      const { settings, sessions } = get();
+      const session = sessions.find((item) => item.id === sessionId);
+      if (!settings.releaseWorktreeOnArchive || !settings.archivedSessionIds.includes(sessionId) || !session?.worktree.isolated) return;
+      try {
+        const release = await client.releaseArchivedWorktree(sessionId);
+        if (release.outcome !== "missing") set({ worktreeReleaseNotice: { id: ++worktreeReleaseSequence, release } });
+      } catch (error) { set({ error: formatUnknownError(error) }); }
+    });
+  },
+  worktreeReleaseNotice: null,
+  saveProjectScripts: async (projectId, setup, onFinish) => {
+    try {
+      const updated = await client.projectScriptsAction({ type: "save", projectId, setup: setup.trim() || null, onFinish: onFinish.trim() || null });
+      if (updated) set((state) => ({ error: null, projects: state.projects.map((project) => project.id === updated.id ? { ...project, scripts: updated.scripts } : project) }));
+      return Boolean(updated);
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
+  projectScriptAction: async (action) => {
+    try { await client.projectScriptsAction(action); } catch (error) { set({ error: formatUnknownError(error) }); }
   },
   ciAutoFix: [],
   astros: null,
@@ -2618,6 +2643,7 @@ export const selectEnabledAgents = (state: AppStore) =>
   );
 
 let windowSnapSequence = 0;
+let worktreeReleaseSequence = 0;
 /**
  * A global window snap joins the composer that is open: the selected session,
  * or the selected project's new-chat landing. Nothing is sent (ADR-054).

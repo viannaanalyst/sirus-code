@@ -22,7 +22,25 @@ export interface Project {
   lastOpenedAt: string;
   /** Display-only folder colour, emoji or logo (ADR-059). */
   look?: ProjectLook;
+  /** Owner-saved Setup and On finish shell scripts (ADR-078). */
+  scripts?: ProjectScripts;
 }
+
+export interface ProjectScripts { setup?: string | null; onFinish?: string | null }
+export type ScriptKind = "setup" | "finish";
+export type ScriptRunStatus = "running" | "succeeded" | "failed" | "timedOut" | "cancelled";
+/** Latest run of one project script in a session's worktree; `output` is the bounded tail. */
+export interface ScriptRun { id: string; kind: ScriptKind; status: ScriptRunStatus; startedAt: string; finishedAt?: string | null; exitCode?: number | null; output: string }
+export type ProjectScriptsAction =
+  | { type: "save"; projectId: string; setup: string | null; onFinish: string | null }
+  | { type: "run"; sessionId: string; kind: ScriptKind }
+  | { type: "cancel"; sessionId: string }
+  | { type: "dismiss"; sessionId: string; kind: ScriptKind };
+export type WorktreeKeptReason = "uncommitted" | "unmerged" | "unverified" | "inUse" | "running" | "failed";
+export interface WorktreeLeftover { path: string; bytes: number; kept: WorktreeKeptReason | null }
+export interface WorktreeLeftoverScan { leftovers: WorktreeLeftover[]; reclaimableBytes: number }
+export interface WorktreeCleanupResult { removed: number; freedBytes: number; kept: WorktreeLeftover[] }
+export type WorktreeRelease = { outcome: "released"; branch: string } | { outcome: "kept"; reason: WorktreeKeptReason; branch: string } | { outcome: "missing" };
 
 export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null }
 /** One of the Astro cosmic icons as a project icon, drawn in the project colour. */
@@ -234,6 +252,8 @@ export interface Session {
   astro?: string | null;
   /** An Astro started or messaged this session and wants its result back (ADR-069). */
   delegation?: { astroId: string; batch: string; settled: boolean } | null;
+  /** Project script runs in this session's worktree; `setupPending` until its first turn (ADR-078). */
+  scripts?: { setupPending?: boolean; runs?: ScriptRun[] } | null;
 }
 
 export type TeamStatus = "planning" | "proposed" | "running" | "ready" | "done" | "stopped" | "failed";
@@ -333,6 +353,8 @@ export interface AppSettings {
   /** Projects without a chosen icon show their own favicon or logo. */
   projectAutoIcons: boolean;
   worktreeBasePath: string | null;
+  /** Archiving removes the session's clean, merged or pushed isolated worktree (ADR-078). */
+  releaseWorktreeOnArchive: boolean;
   defaultSessionWorkspace: "ask" | "checkout" | "worktree";
   confirmCloseRunning: boolean;
   restorePreviousSessions: boolean;

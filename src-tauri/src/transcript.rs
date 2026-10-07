@@ -150,6 +150,7 @@ pub fn fork_snapshot(
         side_chat: None,
         astro: None,
         delegation: None,
+        scripts: Default::default(),
     })
 }
 
@@ -307,6 +308,7 @@ pub fn handoff_snapshot(
         side_chat: None,
         astro: None,
         delegation: None,
+        scripts: Default::default(),
     })
 }
 

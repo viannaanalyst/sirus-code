@@ -21,4 +21,12 @@
   .usage-limit-close { display: grid; flex-shrink: 0; place-items: center; width: 24px; height: 24px; border-radius: 7px; color: var(--text-muted); }
   .usage-limit-close:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .usage-limit-action:focus-visible, .usage-limit-close:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
+
+  /* Project script run above the composer (ADR-078); its actions reuse the usage-limit buttons. */
+  .script-run { border-color: var(--border-subtle); background: var(--background-2); }
+  .script-run-icon { flex-shrink: 0; color: var(--text-muted); }
+  .script-run[data-status="succeeded"] .script-run-icon { color: var(--success); }
+  .script-run[data-status="failed"], .script-run[data-status="timedOut"] { border-color: color-mix(in oklch, var(--danger) 30%, transparent); background: color-mix(in oklch, var(--danger) 7%, var(--background-2)); }
+  .script-run[data-status="failed"] .script-run-icon, .script-run[data-status="timedOut"] .script-run-icon { color: var(--danger); }
+  .script-run-output { margin-bottom: 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--background-1); }
 }

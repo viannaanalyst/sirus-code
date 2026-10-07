@@ -1,5 +1,6 @@
 import { useTranslation } from "@/i18n/use-translation";
-import type { AgentInstall, AgentProviderId, AppSettings, HostInfo } from "@/client/types";
+import type { AgentInstall, AgentProviderId, AppSettings, HostInfo, WorktreeLeftoverScan } from "@/client/types";
+import { formatDiskSize } from "@/lib/project-scripts";
 import { client } from "@/client";
 import { RefreshCw } from "@/components/icons/phosphor";
 import "@/styles/general-settings.css";
@@ -191,6 +192,12 @@ export function SettingsPanels({
           >
             <CleanupButton />
           </SettingsRow>
+          <SettingsRow title={t("worktreeCleanup.leftovers")} description={t("worktreeCleanup.leftoversHelp")}>
+            <LeftoverCleanupButton />
+          </SettingsRow>
+          <SettingsRow title={t("worktreeCleanup.release")} description={t("worktreeCleanup.releaseHelp")}>
+            <Switch checked={settings.releaseWorktreeOnArchive} label={t("worktreeCleanup.release")} onChange={(releaseWorktreeOnArchive) => onSave({ ...settings, releaseWorktreeOnArchive })} />
+          </SettingsRow>
         </SettingsGroup>
         </div>
       </SettingsSection>
@@ -315,6 +322,40 @@ function CleanupButton() {
     />
     </>
   );
+}
+
+/** Leftover folders under the worktree location (ADR-078): check, then confirm what it frees. */
+function LeftoverCleanupButton() {
+  const t = useTranslation();
+  const [scan, setScan] = useState<WorktreeLeftoverScan | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const fail = (error: unknown) => useAppStore.setState({ error: error instanceof Error ? error.message : String(error) });
+  const check = async () => {
+    setBusy(true);
+    setDone(null);
+    try { setScan(await client.scanLeftoverWorktrees()); } catch (error) { fail(error); } finally { setBusy(false); }
+  };
+  const removable = scan?.leftovers.filter((item) => !item.kept) ?? [];
+  const kept = (scan?.leftovers.length ?? 0) - removable.length;
+  const size = formatDiskSize(scan?.reclaimableBytes ?? 0);
+  return <div className="flex flex-col items-end gap-1">
+    <InteractiveButton variant="toolbar" loading={busy && !confirming} disabled={busy || (scan !== null && removable.length === 0)} onClick={() => { if (scan && removable.length) setConfirming(true); else void check(); }}>
+      {busy && !confirming ? t("worktreeCleanup.scanning") : !scan ? t("worktreeCleanup.scan") : removable.length ? t("worktreeCleanup.action", { size }) : t("worktreeCleanup.none")}
+    </InteractiveButton>
+    {done ? <span role="status" className="ui-caption text-text-muted">{done}</span> : scan && kept > 0 ? <span className="ui-caption text-text-muted">{t("worktreeCleanup.keptCount", { count: String(kept) })}</span> : null}
+    <ConfirmDialog open={confirming} onOpenChange={setConfirming} busy={busy} title={t("worktreeCleanup.leftovers")}
+      description={t("worktreeCleanup.confirm", { count: String(removable.length), size })} confirmLabel={t("worktreeCleanup.action", { size })}
+      onConfirm={async () => {
+        setBusy(true);
+        try {
+          const result = await client.cleanLeftoverWorktrees();
+          setDone(t("worktreeCleanup.done", { size: formatDiskSize(result.freedBytes), count: String(result.removed) }));
+          setScan(null);
+        } catch (error) { fail(error); return false; } finally { setBusy(false); }
+      }} />
+  </div>;
 }
 
 function ResetLayoutButton() {

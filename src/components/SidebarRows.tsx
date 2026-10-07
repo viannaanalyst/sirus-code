@@ -9,6 +9,7 @@ import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProjectLookEditor } from "@/components/ProjectLookEditor";
+import { ProjectScriptsFields } from "@/components/ProjectScriptsFields";
 import { SessionActions } from "@/components/SessionActions";
 import { SidebarHoverCard } from "@/components/SidebarHoverCard";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
@@ -42,6 +43,7 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
   const [editing, setEditing] = useState(false);
   useSidebarPanelHold(editing);
   const [name, setName] = useState(project.name);
+  const [scripts, setScripts] = useState({ setup: "", onFinish: "" });
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const togglePin = () => { const state = useAppStore.getState(); void state.saveSettings({ ...state.settings, pinnedProjectIds: toggleSidebarId(state.settings.pinnedProjectIds, project.id) }); };
@@ -49,6 +51,13 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
     if (actionBusy) return;
     setActionBusy(true);
     void sidebarProjectAction(project.id, kind).finally(() => setActionBusy(false));
+  };
+  const openEditor = () => { setName(project.name); setScripts({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" }); setEditing(true); };
+  const save = async () => {
+    const store = useAppStore.getState();
+    if (!await store.renameProject(project.id, name)) return false;
+    const changed = scripts.setup.trim() !== (project.scripts?.setup ?? "") || scripts.onFinish.trim() !== (project.scripts?.onFinish ?? "");
+    return !changed || store.saveProjectScripts(project.id, scripts.setup, scripts.onFinish);
   };
   const folder = <ProjectGlyph project={project} expanded={expanded} />;
   const pinLabel = t(pinned ? "Unpin project" : "Pin project");
@@ -59,18 +68,19 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
       <div className="sidebar-card-separator" />
       <div className="sidebar-card-line ui-caption"><SidebarFolder /><span className="sidebar-card-path" title={project.path}>{project.path}</span></div>
       <div className="sidebar-card-separator" />
-      <button className="sidebar-card-line sidebar-card-edit ui-control" type="button" onClick={() => { setName(project.name); setEditing(true); }}><Settings />{t("Edit project")}</button>
+      <button className="sidebar-card-line sidebar-card-edit ui-control" type="button" onClick={openEditor}><Settings />{t("Edit project")}</button>
     </>}>
-      <ProjectActions project={project} onEdit={() => { setName(project.name); setEditing(true); }}><div className={cn("sidebar-project-row", pinned && "sidebar-project-pinned")}>
+      <ProjectActions project={project} onEdit={openEditor}><div className={cn("sidebar-project-row", pinned && "sidebar-project-pinned")}>
         <button {...reorderProps} type="button" className="sidebar-project-open ui-body" aria-expanded={expanded} onClick={onSelect}><span className="sidebar-folder-slot">{folder}</span><span className="sidebar-row-title">{project.name}</span></button>
         <RowAction label={pinLabel} pressed={pinned} className="sidebar-project-pin" onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction>
         <span className="sidebar-hover-actions sidebar-project-actions"><RowAction label={t("Review changes")} disabled={actionBusy} onClick={() => action("review")}><GitCompareArrows /></RowAction><RowAction label={t("New terminal session")} disabled={actionBusy} onClick={() => action("terminal")}><Terminal /></RowAction><RowAction label={t("New thread")} className="sidebar-new-thread-action" disabled={actionBusy} onClick={() => action("new")}><SquarePen /></RowAction></span>
       </div></ProjectActions>
     </SidebarHoverCard>
-    <Dialog open={editing} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(420px,calc(100vw-32px))]">
-      <form onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void useAppStore.getState().renameProject(project.id, name).then((saved) => { if (saved) setEditing(false); }).finally(() => setBusy(false)); }}>
+    <Dialog open={editing} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(460px,calc(100vw-32px))]">
+      <form onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void save().then((saved) => { if (saved) setEditing(false); }).finally(() => setBusy(false)); }}>
         <div className="mt-4"><Input label={t("Project name")} autoFocus required maxLength={200} value={name} onChange={(event) => setName(event.target.value)} disabled={busy} /></div>
         <ProjectLookEditor projectId={project.id} />
+        <ProjectScriptsFields setup={scripts.setup} onFinish={scripts.onFinish} disabled={busy} onChange={setScripts} />
         <div className="mt-5 flex justify-end gap-2"><InteractiveButton variant="ghost" disabled={busy} onClick={() => setEditing(false)}>{t("common.cancel")}</InteractiveButton><InteractiveButton type="submit" loading={busy} disabled={!name.trim()}>{t("common.save")}</InteractiveButton></div>
       </form>
     </DialogContent></Dialog>

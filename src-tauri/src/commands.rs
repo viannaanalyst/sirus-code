@@ -59,6 +59,7 @@ impl AppState {
         crate::commit_title::stop();
         self.accounts.stop();
         self.attachments.clear();
+        crate::project_scripts::cancel_all();
         for process in self.agents.lock().values() {
             if let Err(error) = process.stop() {
                 tracing::warn!(%error, "agent shutdown failed");
@@ -281,6 +282,7 @@ fn add_project_native(
         added_at: now.clone(),
         last_opened_at: now,
         look: Default::default(),
+        scripts: Default::default(),
     };
     data.projects.insert(0, project.clone());
     drop(data);
@@ -995,6 +997,8 @@ pub(crate) fn create_session_locked(
         side_chat: None,
         astro: None,
         delegation: None,
+        // A new isolated worktree runs the project's Setup script before its first turn.
+        scripts: crate::project_scripts::SessionScripts::new(request.isolated_worktree),
     };
     data.sessions.insert(0, session.clone());
     Ok(session)
@@ -1078,6 +1082,7 @@ fn fork_session_native(state: &AppState, session_id: &str, message_id: &str) -> 
             isolated: false,
         }
     };
+    fork.scripts = crate::project_scripts::SessionScripts::new(fork.worktree.isolated);
     data.sessions.insert(0, fork.clone());
     // Keep native identity and transcript together under the admission lock.
     persist::save(&state.data_path, &data)?;
@@ -1184,7 +1189,7 @@ fn handoff_session_native(
         provider_account_id,
         worktree,
     );
-    let handoff = match handoff {
+    let mut handoff = match handoff {
         Ok(handoff) => handoff,
         Err(error) => {
             // Never leave the new worktree behind; it holds nothing yet.
@@ -1199,6 +1204,7 @@ fn handoff_session_native(
             return Err(error);
         }
     };
+    handoff.scripts = crate::project_scripts::SessionScripts::new(created.is_some());
     data.sessions.insert(0, handoff.clone());
     persist::save(&state.data_path, &data)?;
     Ok(handoff)
@@ -1352,6 +1358,7 @@ pub(crate) fn delete_session_native(
             ));
         }
     }
+    crate::project_scripts::cancel(&session_id);
     if remove_worktree {
         let project = project.ok_or_else(|| Error::not_found("project not found"))?;
         worktree::remove(&PathBuf::from(project.path), &session.worktree, confirm)?;
@@ -1664,6 +1671,9 @@ pub async fn send_prompt(
             ));
         }
     }
+    // A new worktree's Setup script (and any script still running) goes first;
+    // its failure is shown but never blocks the turn (ADR-078).
+    crate::project_scripts::before_turn(&app, state.inner(), &session_snapshot.id).await;
     let review_root = PathBuf::from(&cwd);
     let review_session = session_snapshot.clone();
     let capture = native_task(move || {
@@ -1978,6 +1988,8 @@ pub async fn stop_agent(
     if let Some(process) = state.agents.lock().get(&session_id) {
         process.interrupt()?;
     }
+    // A Setup or On finish script the turn waits for stops with it (ADR-078).
+    crate::project_scripts::cancel(&session_id);
     if let Ok(session) = find_session_mut(&mut data, &session_id) {
         session.pending_requests.clear();
         session.status = SessionStatus::Stopped;

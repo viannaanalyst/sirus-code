@@ -19,6 +19,7 @@ import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import { ComposerMcpCard, ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
+import { ScriptRunNotice } from "@/components/ScriptRunNotice";
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
@@ -381,6 +382,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       </motion.div> : null}
     </AnimatePresence>
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
+    {session?.scripts?.runs?.length ? <ScriptRunNotice session={session} /> : null}
     {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>

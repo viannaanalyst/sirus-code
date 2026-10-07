@@ -19,6 +19,7 @@ import { workspacePagesEnglish, workspacePagesPortuguese } from "./workspace-pag
 import { queueEnglish, queuePortuguese } from "./queue-strings";
 import { splitEnglish, splitPortuguese } from "./split-strings";
 import { flowEnglish, flowPortuguese } from "./flow-strings";
+import { projectScriptsEnglish, projectScriptsPortuguese } from "./project-scripts-strings";
 import { reviewEnglish, reviewPortuguese } from "./review-strings";
 import { explorerEnglish, explorerPortuguese } from "./explorer-strings";
 export type Locale = "pt-BR" | "en";
@@ -48,6 +49,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...workspacePagesPortuguese,
     ...splitPortuguese,
     ...flowPortuguese,
+    ...projectScriptsPortuguese,
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[1]])),
     "common.search": "Buscar",
     "Add to chat": "Adicionar ao chat",
@@ -113,6 +115,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...workspacePagesEnglish,
     ...splitEnglish,
     ...flowEnglish,
+    ...projectScriptsEnglish,
     "shortcut.unsupported": "Use Command with a letter, number or punctuation. System and editing shortcuts are reserved.",
     "shortcut.conflict": "This combination belongs to another action. Choose another.",
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[0]])),
