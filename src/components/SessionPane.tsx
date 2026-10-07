@@ -308,7 +308,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
         <CopyButton value={userRequest} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
         <MessageTimestamp createdAt={message.createdAt} />
       </div> : null}
-      {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}
+      {message.role === "agent" && !message.streaming && message.activity?.endedAt != null && message.activity.review?.files.length ? <TurnChangeSummary sessionId={session.id} messageId={message.id} review={message.activity.review} /> : null}
       {session.team?.messageId === message.id && !message.streaming ? <TeamPanel session={session} /> : null}
       {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
     </article>
