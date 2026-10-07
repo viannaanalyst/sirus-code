@@ -39,6 +39,8 @@ The button, strip, Enter and Escape behave the same in both.
 
 **Dropdowns.** `MobileSelect` is a field that opens a glass menu with icons and a check. It opens toward the larger side and closes on an outside tap. New conversation uses it for Project, then Provider, then that provider's newest models or its default. The sheet closes with a round glass X instead of a text button.
 
+**Rename and delete.** A ⋯ in the conversation header opens Rename and Delete, through `MobileMenu` and `MobileDialog`, with the Mac's rules: a working conversation cannot be deleted, and an isolated worktree is removed only when asked (refused if it has changes).
+
 **Astros.** A + in the Astros header opens the New Astro sheet: name, icon, colour and project. It creates the Astro with `saveAstro` and opens its conversation. Its soul and memory stay on the Mac.
 
 **Dock.** One glass pill glides to the chosen tab (`--tab-index`, springy easing; none with reduced motion), and a tapped icon presses in.

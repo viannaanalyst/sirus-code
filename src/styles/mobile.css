@@ -150,6 +150,21 @@
   html[data-theme="light"] .mobile-menu-item:active, html[data-theme="light"] .mobile-menu-item[aria-selected="true"] { background: rgb(0 0 0 / .06); }
   .mobile-menu-label { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-menu-check { flex-shrink: 0; color: var(--text-primary); }
+  .mobile-menu-item[data-destructive] { color: var(--danger); }
+  .mobile-menu-item:disabled { opacity: .4; }
+  /* Dialogs */
+  .mobile-dialog-scrim { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: rgb(0 0 0 / .45); font-family: var(--font-sans); color: var(--text-primary); }
+  .mobile-dialog { position: relative; width: min(340px, 100%); padding: 20px 18px 14px; border-radius: 26px; }
+  .mobile-dialog-title { margin: 0 0 12px; font-size: 17px; font-weight: 600; text-align: center; }
+  .mobile-dialog-text { margin: 0 0 4px; text-align: center; font-size: 14px; }
+  .mobile-dialog-option { margin-top: 12px; font-size: 14px; }
+  .mobile-dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .mobile-dialog-button { height: 46px; border-radius: 14px; background: rgb(255 255 255 / .08); color: var(--text-primary); font-size: 15px; font-weight: 500; transition: opacity var(--motion-fast) var(--ease-out), scale var(--motion-fast) var(--ease-out); }
+  html[data-theme="light"] .mobile-dialog-button { background: rgb(0 0 0 / .06); }
+  .mobile-dialog-button:active { scale: .97; }
+  .mobile-dialog-button:disabled { opacity: .45; }
+  .mobile-dialog-button[data-tone="primary"] { background: var(--text-primary); color: var(--background-0); font-weight: 600; }
+  .mobile-dialog-button[data-tone="danger"] { color: var(--danger); font-weight: 600; }
 
   /* Forms */
   .mobile-form section { margin-top: 18px; }

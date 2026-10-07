@@ -28,6 +28,7 @@ const strings: Record<string, [string, string]> = {
   "mobile.failed": ["Failed", "Falhou"],
   "mobile.stopped": ["Stopped", "Parada"],
   "mobile.back": ["Back", "Voltar"],
+  "mobile.more": ["More", "Mais"],
   "mobile.all": ["All", "Todos"],
   "mobile.active": ["Active", "Ativos"],
   "mobile.projectCount": ["{count} projects", "{count} projetos"],

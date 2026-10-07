@@ -162,6 +162,8 @@ export default function App() {
     const onKey = createShortcutController(() => [
       { id: "palette", combo: "Meta+k", run: () => setPaletteOpen(true) },
       { id: "new-session", combo: "Meta+n", run: () => requestNewSession() },
+      // ⌘T opens a new blank tab of the selected project, like a browser (fixed, not customizable).
+      { id: "new-tab", combo: "Meta+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => requestNewSession() },
       { id: "settings", combo: "Meta+,", run: () => setSettingsOpen(true) },
       { id: "toggle-context", combo: "Meta+\\", run: toggleDock },
       { id: "open-terminal", combo: "Meta+`", run: () => { useAppStore.getState().openDockPane("terminal"); } },
