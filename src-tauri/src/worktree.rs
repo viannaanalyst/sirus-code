@@ -70,6 +70,45 @@ pub fn create_isolated_at(
     })
 }
 
+/// Recreates a missing isolated worktree from its branch: only an app-made folder
+/// (`…/{project id}/{name}`), only while that branch exists and nothing else has it out.
+pub fn restore(project_root: &Path, project_id: &str, worktree: &Worktree) -> Result<()> {
+    let path = Path::new(&worktree.path);
+    let owned = path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        == Some(project_id);
+    if !worktree.isolated || path.exists() || !owned || worktree.branch.is_empty() {
+        return Err(Error::invalid_path(
+            "This session's folder is missing and cannot be restored.",
+        ));
+    }
+    // Forget the registration of the deleted folder before adding it again.
+    git::run_ok(project_root, &["worktree", "prune"])?;
+    git::run_ok(
+        project_root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("refs/heads/{}", worktree.branch),
+        ],
+    )
+    .map_err(|_| {
+        Error::git(format!(
+            "The session's folder is missing and its branch {} no longer exists.",
+            worktree.branch
+        ))
+    })?;
+    fs::create_dir_all(path.parent().unwrap_or(path))?;
+    git::run_ok(
+        project_root,
+        &["worktree", "add", &display_path(path), &worktree.branch],
+    )?;
+    Ok(())
+}
+
 pub fn remove(project_root: &Path, worktree: &Worktree, confirm: bool) -> Result<()> {
     if !worktree.isolated {
         return Ok(());
@@ -163,6 +202,38 @@ fn unique_dir(parent: &Path, base: &str) -> Result<PathBuf> {
 mod tests {
     use super::*;
     use crate::git::tests::Repo;
+    #[test]
+    fn a_deleted_worktree_folder_is_restored_from_its_branch() {
+        let repo = Repo::new();
+        let parent = repo.0.join("worktrees").join("project-1");
+        let tree = create_isolated(
+            &repo.cwd(),
+            &parent,
+            "22222222-b",
+            "Lost folder",
+            "sirus/{session-name}",
+        )
+        .unwrap();
+        fs::write(Path::new(&tree.path).join("note.txt"), "kept").unwrap();
+        git::run_ok(Path::new(&tree.path), &["add", "."]).unwrap();
+        git::run_ok(Path::new(&tree.path), &["commit", "-qm", "work"]).unwrap();
+        fs::remove_dir_all(&tree.path).unwrap();
+        assert!(
+            restore(&repo.cwd(), "wrong-project", &tree).is_err(),
+            "only the app's own project folder"
+        );
+        restore(&repo.cwd(), "project-1", &tree).unwrap();
+        assert_eq!(
+            fs::read_to_string(Path::new(&tree.path).join("note.txt")).unwrap(),
+            "kept"
+        );
+        let gone = Worktree {
+            branch: "sirus/never-existed".into(),
+            ..tree.clone()
+        };
+        fs::remove_dir_all(&gone.path).unwrap();
+        assert!(restore(&repo.cwd(), "project-1", &gone).is_err());
+    }
     #[test]
     fn same_title_creates_distinct_branches_and_paths() {
         let repo = Repo::new();

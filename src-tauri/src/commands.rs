@@ -99,7 +99,12 @@ pub(crate) fn session_cwd(data: &AppData, session: &Session) -> Result<PathBuf> 
         .ok_or_else(|| Error::not_found("project not found"))?;
     let project_root = paths::ensure_dir(&PathBuf::from(&project.path))?;
     if session.worktree.isolated {
-        return paths::ensure_dir(&PathBuf::from(&session.worktree.path));
+        let path = PathBuf::from(&session.worktree.path);
+        if !path.exists() {
+            // The folder went missing (deleted outside the app); its branch still holds the work.
+            crate::worktree::restore(&project_root, &project.id, &session.worktree)?;
+        }
+        return paths::ensure_dir(&path);
     }
     paths::ensure_within(&project_root, &PathBuf::from(&session.worktree.path))
 }
