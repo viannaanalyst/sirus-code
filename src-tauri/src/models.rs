@@ -160,7 +160,7 @@ pub struct MessageAttachment {
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mime_type: Option<String>,
-    /// `data:image/jpeg;base64,…`, at most 360 px on its longer side.
+    /// `data:image/jpeg;base64,…`, at most 1280 px on its longer side (opens full screen).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail: Option<String>,
 }

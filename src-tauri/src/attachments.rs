@@ -39,8 +39,8 @@ impl PreparedAttachment {
     pub fn image(&self) -> bool {
         self.view.preview_url.is_some()
     }
-    /// What a sent message keeps of this attachment: its name and, for images, a small JPEG
-    /// thumbnail (360 px on the longer side, at most 96 KiB) for the transcript.
+    /// What a sent message keeps of this attachment: its name and, for images, a JPEG copy
+    /// (1280 px on the longer side, at most 640 KiB): small in the bubble, sharp when opened.
     pub fn summary(&self) -> crate::models::MessageAttachment {
         crate::models::MessageAttachment {
             name: self.view.name.clone(),
@@ -1011,7 +1011,7 @@ mod tests {
     }
 }
 
-/// A bounded image decode scaled to fit 360 px, as a JPEG data URL; `None` when it does not fit.
+/// A bounded image decode scaled to fit 1280 px, as a JPEG data URL; `None` when it does not fit.
 pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
@@ -1021,12 +1021,19 @@ pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
     limits.max_image_height = Some(12_000);
     limits.max_alloc = Some(512 * 1024 * 1024);
     reader.limits(limits);
-    let small = reader.decode().ok()?.thumbnail(360, 360).to_rgb8();
+    let image = reader.decode().ok()?;
+    // Small images keep their size; larger ones scale down to fit.
+    let small = if image.width() > 1280 || image.height() > 1280 {
+        image.resize(1280, 1280, image::imageops::FilterType::Triangle)
+    } else {
+        image
+    }
+    .to_rgb8();
     let mut out = Vec::new();
     image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
         .encode_image(&small)
         .ok()?;
-    (out.len() <= 96 * 1024).then(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)))
+    (out.len() <= 640 * 1024).then(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)))
 }
 
 #[cfg(test)]

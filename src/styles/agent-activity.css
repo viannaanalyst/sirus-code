@@ -161,4 +161,11 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 .prompt-references { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 .prompt-reference { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 9px 3px 7px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); }
 .prompt-thumbnails { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
-.prompt-thumbnail { display: block; height: 72px; max-width: 160px; object-fit: cover; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); }
+.prompt-thumbnail { display: block; height: 56px; max-width: 96px; object-fit: cover; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: zoom-in; transition: opacity var(--motion-fast) var(--ease-out); }
+.prompt-thumbnail-button { display: block; padding: 0; border-radius: 10px; }
+.prompt-thumbnail-button:hover .prompt-thumbnail { opacity: .85; }
+.prompt-thumbnail-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.image-lightbox { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 48px; background: rgb(0 0 0 / .82); backdrop-filter: blur(6px); cursor: zoom-out; }
+.image-lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); cursor: default; }
+.image-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .18); background: rgb(255 255 255 / .06); color: #fff; }
+.image-lightbox-close:hover { background: rgb(255 255 255 / .14); }

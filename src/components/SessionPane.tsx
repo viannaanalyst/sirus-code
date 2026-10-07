@@ -26,6 +26,7 @@ import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { ReplyChoices } from "@/components/ReplyChoices";
+import { ImageLightbox } from "@/components/ImageLightbox";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
@@ -255,6 +256,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   const { request: userRequest, references: userReferences } = useMemo(() => message.role === "user" ? splitPromptContext(message.content) : { request: message.content, references: [] }, [message.role, message.content]);
   // Images show as thumbnails on top (MonoCode-style); other files and older messages as chips.
   const userImages = (message.attachments ?? []).filter((file) => file.thumbnail);
+  const [openImage, setOpenImage] = useState<{ src: string; name: string } | null>(null);
   const userFiles = message.attachments?.length ? message.attachments.filter((file) => !file.thumbnail) : userReferences;
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
@@ -293,7 +295,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
-          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <img key={index} src={file.thumbnail} alt={file.name} title={file.name} className="prompt-thumbnail" draggable={false} />)}</span> : null}
+          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage({ src: file.thumbnail!, name: file.name })}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
           {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => {
             const Icon = reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
@@ -301,6 +303,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           })}</span> : null}
         </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
+      {userImages.length ? <ImageLightbox image={openImage} onClose={() => setOpenImage(null)} /> : null}
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={userRequest} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
         <MessageTimestamp createdAt={message.createdAt} />
