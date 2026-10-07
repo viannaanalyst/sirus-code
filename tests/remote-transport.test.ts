@@ -129,8 +129,8 @@ test("Settings → Connections counts down the code and spots the new device", a
   assert.equal(pairingCountdown("2026-10-07T12:00:00.400Z", now), "0:01");
   assert.equal(pairingCountdown("2026-10-07T11:59:59Z", now), null);
   assert.equal(pairingCountdown("not a date", now), null);
-  const phone = { id: "b", name: "iPhone · Safari", createdAt: "", lastSeen: null };
-  const mac = { id: "a", name: "Mac", createdAt: "", lastSeen: null };
+  const phone = { id: "b", name: "iPhone · Safari", createdAt: "", lastSeen: null, push: false };
+  const mac = { id: "a", name: "Mac", createdAt: "", lastSeen: null, push: false };
   assert.equal(newlyPaired([mac], [mac, phone]), phone);
   assert.equal(newlyPaired([mac, phone], [mac]), null);
   assert.ok(svgDataUrl("<svg a=\"1\"/>").startsWith("data:image/svg+xml;charset=utf-8,%3Csvg"));

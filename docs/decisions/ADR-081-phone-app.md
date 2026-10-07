@@ -12,7 +12,7 @@ ADR-080 serves the Sirus UI to paired devices. On a phone, the Mac layout does n
 
 **Navigation.**
 
-- Three tabs: Home, Projects and Settings.
+- Four tabs: Home, Projects, Astros (added in ADR-082) and Settings.
 - On top of the tabs sits a stack of full-screen pages (conversation, review, terminal) and one bottom sheet (new conversation).
 - The browser history mirrors the stack (`pushState` with a depth), so the system back gesture closes the top page. Starting a conversation replaces the sheet with that conversation.
 - Pages slide in from the side and the sheet from below. Reduced motion turns this off.
@@ -30,7 +30,7 @@ ADR-080 serves the Sirus UI to paired devices. On a phone, the Mac layout does n
 
 **Pairing codes are six digits** (was a 16-byte token in ADR-080). They can be typed, and they stay single use, valid for five minutes and withdrawn after five wrong guesses. That leaves at most five tries per code, from a device already on the person's tailnet. The QR link carries the same digits.
 
-**Installable.** `index.html` links `manifest.webmanifest` (standalone, dark background) and full-bleed icons in `public/pwa/`. It sets `viewport-fit=cover` and Apple's home-screen tags, and the phone styles respect the safe areas. There is no service worker yet; offline support and web push are stage 4.
+**Installable.** `index.html` links `manifest.webmanifest` (standalone, dark background) and full-bleed icons in `public/pwa/`. It sets `viewport-fit=cover` and Apple's home-screen tags, and the phone styles respect the safe areas. Web push and its service worker came in stage 4 (ADR-082).
 
 ## Consequences
 

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { onRemoteConnection } from "@/client";
-import { House, Folder, Settings } from "@/components/icons/phosphor";
+import { registerPushWorker } from "@/client/remote-push";
+import { House, Folder, Planet, Settings } from "@/components/icons/phosphor";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
@@ -16,6 +17,7 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useSystemPalette } from "@/lib/use-system-palette";
 import { TooltipProvider } from "@/primitives/Tooltip";
 import { bindRealtime, selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { MobileAstros } from "./MobileAstros";
 import { MobileChat } from "./MobileChat";
 import { MobileHome } from "./MobileHome";
 import { MobileNewSession } from "./MobileNewSession";
@@ -33,7 +35,7 @@ export interface MobileNavigation {
 }
 
 /**
- * The phone app (ADR-081): three tabs and a stack of full-screen pages over the
+ * The phone app (ADR-081): four tabs and a stack of full-screen pages over the
  * same store and native commands as the Mac window. The browser history mirrors
  * the stack, so the system back gesture closes the top page.
  */
@@ -81,6 +83,33 @@ export default function MobileApp() {
   }, []);
   const replace = useCallback((screen: MobileScreen) => setStack((current) => [...current.slice(0, -1), screen]), []);
   const back = useCallback(() => window.history.back(), []);
+  // A tapped alert opens its conversation: on launch through `?session=`, later by message.
+  useEffect(() => {
+    void registerPushWorker();
+    const linked = new URLSearchParams(window.location.search).get("session");
+    if (linked) window.history.replaceState({ depth: 0 }, "", window.location.pathname);
+    const openSession = (id: string) => {
+      const target = useAppStore.getState().sessions.find((session) => session.id === id);
+      if (!target) return;
+      // A side chat's alert opens the conversation it belongs to.
+      const sessionId = target.sideChat?.parentSessionId ?? target.id;
+      setTab("home");
+      setStack([]);
+      window.history.replaceState({ depth: 0 }, "");
+      open({ kind: "chat", sessionId });
+    };
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown; sessionId?: unknown } | null;
+      if (data?.type === "open-session" && typeof data.sessionId === "string") openSession(data.sessionId);
+    };
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    let stop: (() => void) | undefined;
+    if (linked) {
+      if (useAppStore.getState().ready) openSession(linked);
+      else stop = useAppStore.subscribe((state) => { if (state.ready) { stop?.(); stop = undefined; openSession(linked); } });
+    }
+    return () => { navigator.serviceWorker?.removeEventListener("message", onMessage); stop?.(); };
+  }, [open]);
   const navigation = useMemo<MobileNavigation>(() => ({ open, replace, back }), [open, replace, back]);
 
   const waiting = listedSessions(sessions, settings.archivedSessionIds).filter(needsYou).length;
@@ -88,6 +117,7 @@ export default function MobileApp() {
   const tabs: { id: MobileTab; label: string; icon: typeof House }[] = [
     { id: "home", label: t("mobile.home"), icon: House },
     { id: "projects", label: t("mobile.projects"), icon: Folder },
+    { id: "astros", label: t("astros.title"), icon: Planet },
     { id: "settings", label: t("mobile.settings"), icon: Settings },
   ];
 
@@ -97,6 +127,7 @@ export default function MobileApp() {
         <main className="mobile-tab-page" aria-hidden={top ? true : undefined}>
           {tab === "home" ? <MobileHome navigation={navigation} online={online} /> : null}
           {tab === "projects" ? <MobileProjects navigation={navigation} /> : null}
+          {tab === "astros" ? <MobileAstros navigation={navigation} /> : null}
           {tab === "settings" ? <MobileSettings online={online} /> : null}
         </main>
         <nav className="mobile-tabbar" aria-label={t("mobile.home")}>

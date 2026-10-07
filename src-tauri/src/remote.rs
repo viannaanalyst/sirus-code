@@ -37,6 +37,9 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 use crate::error::{Error, Result};
 
+mod push;
+mod tailscale;
+
 pub const DEFAULT_PORT: u16 = 7710;
 /// Emitted when a device pairs or connects, so Settings → Connections refreshes.
 pub const CHANGED: &str = "remote-changed";
@@ -78,6 +81,9 @@ struct Config {
     port: Option<u16>,
     #[serde(default)]
     devices: Vec<Device>,
+    /// The VAPID private key for web push (ADR-082), base64url.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    vapid_private: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +95,9 @@ struct Device {
     created_at: DateTime<Utc>,
     #[serde(default)]
     last_seen: Option<DateTime<Utc>>,
+    /// The browser's push subscription when the device turned alerts on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    push: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -98,6 +107,22 @@ pub struct DeviceInfo {
     name: String,
     created_at: DateTime<Utc>,
     last_seen: Option<DateTime<Utc>>,
+    push: bool,
+}
+
+/// `tailscale serve` in front of the port, for HTTPS and so for web push (ADR-082).
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Https {
+    /// Tailscale's command-line tool is installed.
+    available: bool,
+    /// `https://<mac>.<tailnet>.ts.net` while it serves this port.
+    url: Option<String>,
+    /// The tailnet must allow HTTPS first; this admin page does it.
+    setup_url: Option<String>,
+    error: Option<String>,
+    #[serde(skip)]
+    host: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -110,6 +135,7 @@ pub struct Status {
     urls: Vec<String>,
     devices: Vec<DeviceInfo>,
     error: Option<String>,
+    https: Https,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -134,6 +160,14 @@ pub enum Action {
     Revoke {
         device_id: String,
     },
+    EnableHttps,
+    DisableHttps,
+    /// Opens Tailscale's page that allows HTTPS on the tailnet.
+    OpenHttpsSetup,
+    #[serde(rename_all = "camelCase")]
+    TestPush {
+        device_id: String,
+    },
 }
 
 struct PairCode {
@@ -155,6 +189,7 @@ struct Remote {
     error: parking_lot::Mutex<Option<String>>,
     /// Ids of devices whose access was just removed; their sockets close.
     revoked: broadcast::Sender<String>,
+    https: parking_lot::Mutex<Https>,
 }
 
 static REMOTE: OnceLock<Arc<Remote>> = OnceLock::new();
@@ -180,10 +215,14 @@ pub fn init(app: AppHandle, data_dir: &Path) {
         server: parking_lot::Mutex::new(None),
         error: parking_lot::Mutex::new(None),
         revoked: broadcast::channel(16).0,
+        https: parking_lot::Mutex::new(Https::default()),
     });
     let _ = REMOTE.set(remote.clone());
     if enabled {
-        tauri::async_runtime::spawn(async move { start(app, remote).await });
+        tauri::async_runtime::spawn(async move {
+            refresh_https(&remote).await;
+            start(app, remote).await;
+        });
     }
 }
 
@@ -197,7 +236,57 @@ pub fn shutdown() {
 pub async fn remote_action(app: AppHandle, action: Action) -> Result<Status> {
     let remote = remote()?;
     match action {
-        Action::Status => {}
+        Action::Status => refresh_https(&remote).await,
+        Action::EnableHttps => {
+            let port = port(&remote.config.lock());
+            let outcome = tailscale::enable(port).await;
+            refresh_https(&remote).await;
+            let mut https = remote.https.lock();
+            match outcome {
+                tailscale::Enable::Done => {}
+                tailscale::Enable::NeedsSetup(url) => {
+                    https.setup_url = url;
+                    https.error = Some("HTTPS is not allowed on this tailnet yet.".into());
+                }
+                tailscale::Enable::Failed(message) => https.error = Some(message),
+            }
+        }
+        Action::DisableHttps => {
+            tailscale::disable().await;
+            refresh_https(&remote).await;
+        }
+        Action::OpenHttpsSetup => {
+            use tauri_plugin_opener::OpenerExt;
+            let url = remote.https.lock().setup_url.clone();
+            if let Some(url) = url.filter(|url| tailscale::is_setup_url(url)) {
+                app.opener()
+                    .open_url(url, None::<&str>)
+                    .map_err(|error| Error::new("remote", error.to_string()))?;
+            }
+        }
+        Action::TestPush { device_id } => {
+            let portuguese = app
+                .try_state::<Arc<crate::commands::AppState>>()
+                .is_some_and(|state| state.data.lock().settings.locale == "pt-BR");
+            let (title, body) = if portuguese {
+                ("Sirus Code", "Os alertas deste aparelho estão funcionando.")
+            } else {
+                ("Sirus Code", "Alerts on this device are working.")
+            };
+            let only = remote
+                .config
+                .lock()
+                .devices
+                .iter()
+                .any(|device| device.id == device_id && device.push.is_some());
+            if !only {
+                return Err(Error::new(
+                    "remote",
+                    "This device has not turned alerts on.",
+                ));
+            }
+            push::send_to(&remote, &device_id, push::payload(title, body, "")).await;
+        }
         Action::SetEnabled { enabled } => {
             remote.config.lock().enabled = enabled;
             save(&remote)?;
@@ -272,6 +361,27 @@ fn qr_svg(text: &str) -> Result<String> {
         .build())
 }
 
+/// Re-reads whether `tailscale serve` fronts the port and under which name.
+async fn refresh_https(remote: &Remote) {
+    let port = port(&remote.config.lock());
+    let available = tailscale::cli().is_some();
+    let (host, serving) = if available {
+        tokio::join!(tailscale::dns_name(), tailscale::serving(port))
+    } else {
+        (None, false)
+    };
+    let mut https = remote.https.lock();
+    https.available = available;
+    https.host = host.clone();
+    https.url = host
+        .filter(|_| serving)
+        .map(|host| format!("https://{host}"));
+    if https.url.is_some() {
+        https.setup_url = None;
+        https.error = None;
+    }
+}
+
 fn status(remote: &Remote) -> Status {
     let config = remote.config.lock().clone();
     Status {
@@ -287,9 +397,11 @@ fn status(remote: &Remote) -> Status {
                 name: device.name,
                 created_at: device.created_at,
                 last_seen: device.last_seen,
+                push: device.push.is_some(),
             })
             .collect(),
         error: remote.error.lock().clone(),
+        https: remote.https.lock().clone(),
     }
 }
 
@@ -306,9 +418,15 @@ fn base_urls(remote: &Remote) -> Vec<String> {
     if addresses.is_empty() && std::env::var("SIRUS_REMOTE_LOOPBACK").as_deref() == Ok("1") {
         addresses.push(Ipv4Addr::LOCALHOST);
     }
-    addresses
+    // The HTTPS name comes first: only it can install as an app with alerts.
+    let secure = remote.https.lock().url.clone();
+    secure
         .into_iter()
-        .map(|ip| format!("http://{ip}:{port}"))
+        .chain(
+            addresses
+                .into_iter()
+                .map(|ip| format!("http://{ip}:{port}")),
+        )
         .collect()
 }
 
@@ -361,6 +479,10 @@ async fn start(app: AppHandle, remote: Arc<Remote>) {
             get(|| async { Json(json!({ "app": "sirus" })) }),
         )
         .route("/api/pair", post(pair))
+        .route(
+            "/api/push",
+            get(push_key).put(push_subscribe).delete(push_unsubscribe),
+        )
         .route("/api/socket", get(socket))
         .fallback(get(asset))
         .layer(middleware::from_fn(guard))
@@ -410,7 +532,10 @@ async fn guard(
     if !allowed_peer(peer.ip()) {
         return StatusCode::FORBIDDEN.into_response();
     }
-    if !same_origin(request.headers()) {
+    let https_host = REMOTE
+        .get()
+        .and_then(|remote| remote.https.lock().host.clone());
+    if !same_origin(request.headers(), https_host.as_deref()) {
         return StatusCode::FORBIDDEN.into_response();
     }
     next.run(request).await
@@ -435,11 +560,17 @@ fn is_tailscale_v4(ip: Ipv4Addr) -> bool {
     a == 100 && (64..128).contains(&b)
 }
 
-/// A browser sends `Origin` on cross-site requests and WebSocket handshakes; it must name this host.
-fn same_origin(headers: &HeaderMap) -> bool {
+/// A browser sends `Origin` on cross-site requests and WebSocket handshakes; it must name
+/// this host, or this Mac's HTTPS name when `tailscale serve` forwards the request.
+fn same_origin(headers: &HeaderMap, https_host: Option<&str>) -> bool {
     let Some(origin) = headers.get(header::ORIGIN) else {
         return true;
     };
+    if let (Some(host), Ok(origin)) = (https_host, origin.to_str()) {
+        if origin.eq_ignore_ascii_case(&format!("https://{host}")) {
+            return true;
+        }
+    }
     let Some(host) = headers
         .get(header::HOST)
         .and_then(|host| host.to_str().ok())
@@ -459,13 +590,16 @@ async fn asset(AxumState(shared): AxumState<Shared>, uri: Uri) -> Response {
     // Tauri answers unknown paths with the app shell; that suits client-side routes,
     // but a missing script or image must stay missing.
     let file = path.rsplit('/').next().unwrap_or_default();
-    let wants_file = file.contains('.') && !file.ends_with(".html");
-    let Some(asset) = resolver
-        .get(path.clone())
-        .filter(|asset| !(wants_file && asset.mime_type.starts_with("text/html")))
-    else {
+    let Some(mut asset) = resolver.get(path.clone()) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    if is_static_file(file) && asset.mime_type.starts_with("text/html") {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    // Tauri does not know the web app manifest's type.
+    if file.ends_with(".webmanifest") {
+        asset.mime_type = "application/manifest+json".into();
+    }
     let html = asset.mime_type.starts_with("text/html");
     let mut response = asset.bytes.into_response();
     let headers = response.headers_mut();
@@ -488,6 +622,16 @@ async fn asset(AxumState(shared): AxumState<Shared>, uri: Uri) -> Response {
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
     }
     response
+}
+
+/// Files a browser asks for by name; the app shell in their place means they are missing.
+fn is_static_file(file: &str) -> bool {
+    const EXTENSIONS: &[&str] = &[
+        "js", "mjs", "css", "map", "json", "png", "jpg", "jpeg", "gif", "webp", "svg", "ico",
+        "woff", "woff2", "ttf", "wasm", "bcmap", "pfb",
+    ];
+    file.rsplit_once('.')
+        .is_some_and(|(_, extension)| EXTENSIONS.contains(&extension.to_ascii_lowercase().as_str()))
 }
 
 #[derive(Deserialize)]
@@ -546,6 +690,7 @@ fn redeem(
         token_hash: hash(&token),
         created_at: Utc::now(),
         last_seen: None,
+        push: None,
     };
     let id = device.id.clone();
     {
@@ -573,6 +718,83 @@ fn device_name(name: &str) -> String {
     } else {
         name.into()
     }
+}
+
+/// The device behind `Authorization: Bearer <token>`.
+fn bearer_device(remote: &Remote, headers: &HeaderMap) -> Option<String> {
+    let token = headers
+        .get(header::AUTHORIZATION)?
+        .to_str()
+        .ok()?
+        .strip_prefix("Bearer ")?;
+    authenticate(remote, token.trim())
+}
+
+async fn push_key(AxumState(shared): AxumState<Shared>, headers: HeaderMap) -> Response {
+    if bearer_device(&shared.remote, &headers).is_none() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    match push::public_key(&shared.remote) {
+        Ok(key) => Json(json!({ "publicKey": key })).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+async fn push_subscribe(
+    AxumState(shared): AxumState<Shared>,
+    headers: HeaderMap,
+    Json(subscription): Json<Value>,
+) -> Response {
+    let Some(device_id) = bearer_device(&shared.remote, &headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    if !push::valid_subscription(&subscription) {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    set_push(&shared, &device_id, Some(subscription))
+}
+
+async fn push_unsubscribe(AxumState(shared): AxumState<Shared>, headers: HeaderMap) -> Response {
+    let Some(device_id) = bearer_device(&shared.remote, &headers) else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    set_push(&shared, &device_id, None)
+}
+
+fn set_push(shared: &Shared, device_id: &str, subscription: Option<Value>) -> Response {
+    if let Some(device) = shared
+        .remote
+        .config
+        .lock()
+        .devices
+        .iter_mut()
+        .find(|device| device.id == device_id)
+    {
+        device.push = subscription;
+    }
+    if save(&shared.remote).is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let _ = shared.app.emit(CHANGED, ());
+    StatusCode::NO_CONTENT.into_response()
+}
+
+/// Sends a session alert to every device that turned alerts on (ADR-082).
+pub fn notify(title: &str, body: &str, session_id: &str) {
+    let Some(remote) = REMOTE.get().cloned() else {
+        return;
+    };
+    if !remote
+        .config
+        .lock()
+        .devices
+        .iter()
+        .any(|device| device.push.is_some())
+    {
+        return;
+    }
+    let payload = push::payload(title, body, session_id);
+    tauri::async_runtime::spawn(async move { push::send_all(&remote, payload).await });
 }
 
 /// The device a token belongs to, noting when it was last seen.
@@ -864,6 +1086,7 @@ mod tests {
             server: parking_lot::Mutex::new(None),
             error: parking_lot::Mutex::new(None),
             revoked: broadcast::channel(4).0,
+            https: parking_lot::Mutex::new(Https::default()),
         }
     }
 
@@ -904,20 +1127,31 @@ mod tests {
     #[test]
     fn origin_must_name_this_host() {
         let mut headers = HeaderMap::new();
-        assert!(same_origin(&headers));
+        assert!(same_origin(&headers, None));
         headers.insert(header::HOST, HeaderValue::from_static("100.80.1.2:7710"));
         headers.insert(
             header::ORIGIN,
             HeaderValue::from_static("http://100.80.1.2:7710"),
         );
-        assert!(same_origin(&headers));
+        assert!(same_origin(&headers, None));
         headers.insert(
             header::ORIGIN,
             HeaderValue::from_static("https://evil.example"),
         );
-        assert!(!same_origin(&headers));
+        assert!(!same_origin(&headers, None));
+        // `tailscale serve` forwards with the Mac's HTTPS name as the origin.
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://mac.tail6e87c3.ts.net"),
+        );
+        assert!(same_origin(&headers, Some("mac.tail6e87c3.ts.net")));
+        assert!(!same_origin(&headers, Some("other.tail6e87c3.ts.net")));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://evil.example"),
+        );
         headers.remove(header::HOST);
-        assert!(!same_origin(&headers));
+        assert!(!same_origin(&headers, None));
     }
 
     #[test]
@@ -1004,6 +1238,15 @@ mod tests {
             serde_json::from_str(&result_message(3, Err(json!({ "code": "x" })))).unwrap();
         assert_eq!(error["ok"], false);
         assert_eq!(error["error"]["code"], "x");
+    }
+
+    #[test]
+    fn missing_files_are_told_apart_from_routes() {
+        assert!(is_static_file("index-abc.js"));
+        assert!(is_static_file("logo.PNG"));
+        assert!(!is_static_file("manifest.webmanifest"));
+        assert!(!is_static_file("route"));
+        assert!(!is_static_file("index.html"));
     }
 
     #[test]

@@ -98,6 +98,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-079: Watch a pull request](ADR-079-watch-a-pull-request.md) — a session watches its own PR and gets an automatic turn on new failing checks, reviews or merge conflicts; switch in the Environment card or the agent's `watch_pull_request` tool.
 - [ADR-080: Remote access server](ADR-080-remote-access-server.md) — off by default; paired devices reach the Mac over Tailscale, get the bundled UI and run the window's own IPC commands over one WebSocket (`RemoteTransport`), with one-time pairing codes, hashed device tokens and Mac-only commands refused.
 - [ADR-081: Phone app](ADR-081-phone-app.md) — a phone-sized remote UI gets its own shell (Home, Projects, Settings tabs; conversation, review, terminal pages; new-conversation sheet) over the same store and components, six-digit pairing codes and an installable PWA manifest.
+- [ADR-082: Phone alerts and HTTPS](ADR-082-phone-alerts-and-https.md) — `tailscale serve` gives remote access a real HTTPS name; the Mac sends approvals, questions and finished tasks as encrypted web push straight to the phone's push service; tapping opens the conversation. Also the phone's Astros tab.
 
 ## Template
 

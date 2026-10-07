@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, RefreshCw, Smartphone } from "@/components/icons/phosphor";
+import { Check, Copy, LoaderCircle, RefreshCw, ShieldCheck, Smartphone } from "@/components/icons/phosphor";
 import { client } from "@/client";
-import type { RemotePairing, RemoteStatus } from "@/client/types";
+import type { RemoteAction, RemotePairing, RemoteStatus } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { newlyPaired, pairingCountdown, svgDataUrl } from "@/lib/remote-connections";
@@ -61,7 +61,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
     setNow(Date.now());
     setPairing(next);
   });
-  const revoke = (deviceId: string) => run(async () => apply(await client.remoteAction({ type: "revoke", deviceId })));
+  const act = (action: RemoteAction) => run(async () => apply(await client.remoteAction(action)));
   const copy = (url: string) => {
     void navigator.clipboard.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); }, (reason: unknown) => setError(formatUnknownError(reason)));
   };
@@ -70,6 +70,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
   const times = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
   const enabled = !!status?.enabled;
   const url = status?.urls[0];
+  const https = status?.https;
   const countdown = pairing ? pairingCountdown(pairing.expiresAt, now) : null;
 
   return <SettingsSection title={t("connections.title")} description={t("connections.intro")}>
@@ -88,8 +89,17 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
           : <SettingsRow title={t("connections.noTailscale")} description={t("connections.noTailscaleHelp")}>
             <InteractiveButton variant="toolbar" aria-label={t("connections.checkAgain")} onClick={() => void refresh()}><RefreshCw size={14} aria-hidden="true" /></InteractiveButton>
           </SettingsRow> : null}
+        {enabled && https?.available ? <SettingsRow title={t("connections.https")} description={t(https.url ? "connections.httpsOn" : "connections.httpsHelp")}>
+          {https.url
+            ? <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void act({ type: "disableHttps" })}>{t("connections.httpsOff")}</InteractiveButton>
+            : <InteractiveButton variant="secondary" glow={false} disabled={busy} onClick={() => void act({ type: "enableHttps" })}>{busy ? <LoaderCircle size={14} className="animate-spin" aria-hidden="true" /> : <ShieldCheck size={14} aria-hidden="true" />}{t("connections.httpsEnable")}</InteractiveButton>}
+        </SettingsRow> : null}
+        {enabled && https?.setupUrl && !https.url ? <SettingsRow title={t("connections.httpsSetup")} description={t("connections.httpsSetupHelp")}>
+          <InteractiveButton variant="secondary" glow={false} onClick={() => void act({ type: "openHttpsSetup" })}>{t("connections.httpsOpenSetup")}</InteractiveButton>
+          <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void act({ type: "enableHttps" })}>{t("connections.checkAgain")}</InteractiveButton>
+        </SettingsRow> : null}
       </SettingsGroup>
-      {status?.error || error ? <p role="alert" className="-mt-6 mb-8 ui-caption text-warning">{error ?? status?.error}</p> : null}
+      {status?.error || error || (https?.error && !https.setupUrl) ? <p role="alert" className="-mt-6 mb-8 ui-caption text-warning">{error ?? status?.error ?? https?.error}</p> : null}
 
       {enabled && url ? <SettingsGroup title={t("connections.connect")} card>
         <div className="connections-pair settings-row">
@@ -115,10 +125,11 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
 
       <SettingsGroup title={t("connections.devices")} card>
         {status?.devices.length ? status.devices.map((device) => (
-          <SettingsRow key={device.id} title={device.name} description={device.lastSeen
+          <SettingsRow key={device.id} title={device.name} description={(device.lastSeen
             ? t("connections.deviceSeen", { date: dates.format(new Date(device.createdAt)), seen: times.format(new Date(device.lastSeen)) })
-            : t("connections.deviceAdded", { date: dates.format(new Date(device.createdAt)) })}>
-            <InteractiveButton variant="toolbar" disabled={busy} aria-label={t("connections.removeLabel", { name: device.name })} onClick={() => void revoke(device.id)}>{t("connections.remove")}</InteractiveButton>
+            : t("connections.deviceAdded", { date: dates.format(new Date(device.createdAt)) })) + (device.push ? ` · ${t("connections.alertsOn")}` : "")}>
+            {device.push ? <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void act({ type: "testPush", deviceId: device.id })}>{t("connections.testAlert")}</InteractiveButton> : null}
+            <InteractiveButton variant="toolbar" disabled={busy} aria-label={t("connections.removeLabel", { name: device.name })} onClick={() => void act({ type: "revoke", deviceId: device.id })}>{t("connections.remove")}</InteractiveButton>
           </SettingsRow>
         )) : <p className="connections-empty ui-description"><Smartphone size={15} aria-hidden="true" />{t("connections.noDevices")}</p>}
       </SettingsGroup>

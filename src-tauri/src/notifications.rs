@@ -203,6 +203,7 @@ pub fn announce(app: &AppHandle, state: &Arc<AppState>, title: String, body: Str
         title: bounded_label(&title),
         body: bounded_label(&body),
     };
+    crate::remote::notify(&notice.title, &notice.body, "");
     if prefs.toasts {
         let _ = app.emit("notification-activity", &notice);
     }
@@ -277,6 +278,8 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
                 title: copy(kind, portuguese).into(),
                 body: body.clone(),
             };
+            // Paired phones get the alert whether or not the Mac window has focus (ADR-082).
+            crate::remote::notify(&notice.title, &notice.body, &notice.session_id);
             if prefs.toasts {
                 let _ = app.emit("notification-activity", &notice);
             }

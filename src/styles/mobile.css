@@ -73,6 +73,14 @@
   .mobile-project-sessions .mobile-row { padding-left: 0; }
   .mobile-project-new { display: flex; align-items: center; gap: 6px; padding: 10px 0; color: var(--text-secondary); font-size: 13px; }
 
+  /* Astros */
+  .mobile-astro { display: flex; width: 100%; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+  .mobile-astro:last-child { border-bottom: 0; }
+  .mobile-astro:active:not(:disabled) { background: var(--accent-muted); }
+  .mobile-astro:disabled .mobile-astro-icon { opacity: .55; }
+  .mobile-astro-icon { position: relative; display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: color-mix(in srgb, var(--astro) 14%, var(--background-3)); }
+  .mobile-astro-unread { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--warning); color: #111; font-size: 10px; font-weight: 700; line-height: 16px; text-align: center; }
+
   /* Floating action and tab bar */
   .mobile-fab { position: absolute; right: 16px; bottom: 14px; z-index: 5; display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 18px; border-radius: 999px; background: var(--text-primary); color: var(--background-0); font-size: 14px; font-weight: 600; box-shadow: 0 10px 30px rgb(0 0 0 / .35); transition: scale var(--motion-fast) var(--ease-out); }
   .mobile-fab:active { scale: .96; }

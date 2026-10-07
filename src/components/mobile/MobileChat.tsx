@@ -20,7 +20,8 @@ export function MobileChat({ sessionId, navigation }: { sessionId: string; navig
   const setSessionModel = useAppStore((state) => state.setSessionModel);
   const selected = useAppStore((state) => state.selectedSessionId === sessionId);
   useRetainedTranscripts([sessionId]);
-  useEffect(() => { void useAppStore.getState().selectSession(sessionId); }, [sessionId]);
+  // Startup (a tapped alert) can restore another selection after this page opened; keep ours.
+  useEffect(() => { if (!selected) void useAppStore.getState().selectSession(sessionId); }, [selected, sessionId]);
 
   return <div className="mobile-page mobile-chat">
     <header className="mobile-bar">

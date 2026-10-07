@@ -5,7 +5,7 @@ import type { Project, Session } from "@/client/types";
  * a small stack on top of three tabs; the browser history mirrors the stack so the
  * system back gesture closes the top screen.
  */
-export type MobileTab = "home" | "projects" | "settings";
+export type MobileTab = "home" | "projects" | "astros" | "settings";
 export type MobileScreen =
   | { kind: "chat"; sessionId: string }
   | { kind: "new"; projectId: string | null }

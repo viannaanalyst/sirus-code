@@ -41,6 +41,7 @@ toml_edit = "0.25"
 regex = "1"
 axum = { version = "0.8.9", default-features = false, features = ["ws", "http1", "tokio", "json", "query"] }
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
+web-push-native = "0.5"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.4"
