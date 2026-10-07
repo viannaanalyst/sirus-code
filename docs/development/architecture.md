@@ -81,7 +81,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 | `editor.rs` | fixed editor allowlist (`detect_editors` / `open_in_editor`), real app icons (`editor_app_icons`) and jailed bounded text read/overwrite |
 | `cli_output.rs` | bounded read-only probe capture and owned process cleanup |
 | `detect.rs` | Nine allowlisted CLI providers on PATH or fixed user install locations |
-| `dictation.rs` | native macOS dictation (bounded `AVAudioEngine` capture to a private temp file, on-stop macOS 26 `DictationTranscriber`; no live events) |
+| `dictation.rs` | native macOS dictation (bounded `AVAudioEngine` capture to a private temp file, on-stop macOS 26 `DictationTranscriber`; no live events). The bundle is signed with the hardened runtime, so `src-tauri/Entitlements.plist` declares `com.apple.security.device.audio-input`; without it macOS reports the microphone as denied |
 | `agent.rs` | provider argv, bounded fallback conversation context, spawn, stream, cancel |
 | `codex.rs` | typed app-server turns, shared bounded native wire/monitor, exact native resume and scoped approvals/input |
 | `claude.rs` | native stream-json turns, exact session resume, original-input tool approvals and interruption |

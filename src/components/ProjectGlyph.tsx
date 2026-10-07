@@ -19,7 +19,15 @@ export function ProjectGlyph({ project, expanded = false, size = 15, className }
   const look = project.look;
   if (look?.logo) return <img src={look.logo} alt="" draggable={false} aria-hidden="true" className={cn("project-glyph-logo", className)} style={{ width: size, height: size }} />;
   if (look?.emoji) return <span aria-hidden="true" className={cn("project-glyph-emoji", className)} style={{ width: size, height: size, fontSize: Math.round(size * 0.9) }}>{look.emoji}</span>;
-  if (look?.astro) return <AstroIcon icon={look.astro.icon} style={look.astro.style} color={projectColor(look) ?? ASTRO_DEFAULT} size={size} still className={cn("project-glyph-astro", className)} />;
+  if (look?.astro) {
+    // The drawings leave a margin inside their square; draw larger and let it overhang so it reads like the folder.
+    const drawn = Math.round(size * 1.45);
+    return <span aria-hidden="true" className={cn("project-glyph-astro", className)} style={{ position: "relative", display: "inline-block", width: size, height: size, flexShrink: 0 }}>
+      <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", pointerEvents: "none" }}>
+        <AstroIcon icon={look.astro.icon} style={look.astro.style} color={projectColor(look) ?? ASTRO_DEFAULT} size={drawn} still />
+      </span>
+    </span>;
+  }
   const Glyph = expanded ? FolderOpenGlyph : FolderGlyph;
   const color = projectColor(look);
   return <Glyph aria-hidden="true" size={size} weight={color ? "duotone" : "regular"} className={cn("sidebar-folder-glyph", className)} style={color ? { color } : undefined} />;
