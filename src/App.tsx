@@ -42,6 +42,7 @@ import {
 } from "@/store/app-store";
 
 const SettingsPage = lazy(() => import("@/components/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
+const CreateProjectDialog = lazy(() => import("@/components/CreateProjectDialog").then((module) => ({ default: module.CreateProjectDialog })));
 const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then((module) => ({ default: module.NewSessionDialog })));
 const SessionBoard = lazy(() => import("@/components/SessionBoard").then((module) => ({ default: module.SessionBoard })));
 const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
@@ -77,6 +78,9 @@ export default function App() {
   // Stays mounted after the first open so closing plays the dialog's exit.
   const [newSessionMounted, setNewSessionMounted] = useState(false);
   if (newSessionOpen && !newSessionMounted) setNewSessionMounted(true);
+  const createProjectOpen = useAppStore((state) => state.createProjectOpen);
+  const [createProjectMounted, setCreateProjectMounted] = useState(createProjectOpen);
+  if (createProjectOpen && !createProjectMounted) setCreateProjectMounted(true);
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
@@ -112,6 +116,7 @@ export default function App() {
       return [
         { id: "new-session", label: t("New thread"), group: actions, icon: <SquarePen />, shortcut: shortcut("new-session"), run: () => requestNewSession() },
         { id: "open-project", label: t("Open Project"), group: actions, icon: <FolderPlus />, shortcut: shortcut("open-project"), run: () => void addProjectFromPicker() },
+        { id: "create-project", label: t("newProject.menu"), group: actions, icon: <FolderPlus />, run: () => useAppStore.getState().setCreateProjectOpen(true) },
         { id: "toggle-side-chat", label: t("Toggle side chat"), group: actions, icon: <MessagesSquare />, shortcut: shortcut("toggle-side-chat"), run: () => { setMainView("session"); useAppStore.getState().toggleSideChat(); } },
         { id: "search-conversations", label: t("Search all conversations"), group: actions, icon: <Search />, shortcut: shortcut("search-conversations"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch("all"); } },
         { id: "find-in-conversation", label: t("Find in conversation"), group: actions, icon: <TextSearch />, shortcut: shortcut("find-in-conversation"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
@@ -318,6 +323,7 @@ export default function App() {
         <CommandPalette commands={commands} />
         <Suspense fallback={null}>
           {newSessionMounted ? <NewSessionDialog /> : null}
+          {createProjectMounted ? <CreateProjectDialog /> : null}
           {settingsMounted ? <SettingsPage /> : null}
         </Suspense>
         {!settingsOpen ? <TopToastStack>

@@ -216,6 +216,11 @@ interface AppStore {
   bootstrap: () => Promise<void>;
   refreshAgents: () => Promise<void>;
   addProjectFromPicker: () => Promise<void>;
+  /** "Create new project…" dialog (T3 #14527). */
+  createProjectOpen: boolean;
+  setCreateProjectOpen: (open: boolean) => void;
+  /** Creates the folder, repository and first commit natively, then opens a new thread there. Throws on failure. */
+  createProject: (name: string, parent: string) => Promise<void>;
   selectProject: (projectId: string) => Promise<void>;
   removeProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, name: string) => Promise<boolean>;
@@ -1074,6 +1079,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
       gitStatus: null, selectedDiff: null, diffText: null,
       gitByPath: { ...state.gitByPath, [project.path]: identity },
     }));
+  },
+
+  createProjectOpen: false,
+  setCreateProjectOpen: (open) => set({ createProjectOpen: open }),
+  createProject: async (name, parent) => {
+    const project = await client.createProject(name, parent);
+    const identity = await client.gitIdentity(project.path).catch(() => null);
+    set((state) => ({
+      projects: [project, ...state.projects.filter((item) => item.id !== project.id)],
+      selectedProjectId: project.id,
+      gitStatus: null, selectedDiff: null, diffText: null,
+      ...(identity ? { gitByPath: { ...state.gitByPath, [project.path]: identity } } : {}),
+    }));
+    get().requestNewSession();
   },
 
   selectProject: async (projectId) => {

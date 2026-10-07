@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpDown, Check, ChevronDown, ChevronRight, Plus, SquarePen, CheckCircle2 } from "@/components/icons/phosphor";
+import { ArrowUpDown, Check, ChevronDown, ChevronRight, FolderOpen, FolderPlus, Plus, SquarePen, CheckCircle2 } from "@/components/icons/phosphor";
 import { SidebarActivityRow } from "@/components/SidebarRows";
 import { SidebarHoverCards } from "@/components/SidebarHoverCard";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
@@ -55,7 +55,13 @@ export function SidebarActivityView({ floating }: { floating: boolean }) {
       </Dropdown>
       <span className="sidebar-activity-quick">
         <Tooltip label={t("activity.newChat")}><button type="button" className="sidebar-header-action" aria-label={t("activity.newChatHint")} onClick={() => useAppStore.getState().requestNewSession()}><SquarePen size={14} /></button></Tooltip>
-        <Tooltip label={t("activity.addProject")}><button type="button" className="sidebar-header-action" aria-label={t("activity.addProject")} onClick={() => void useAppStore.getState().addProjectFromPicker()}><Plus size={15} /></button></Tooltip>
+        <Dropdown>
+          <Tooltip label={t("activity.addProject")}><DropdownTrigger asChild><button type="button" className="sidebar-header-action" aria-label={t("activity.addProject")}><Plus size={15} /></button></DropdownTrigger></Tooltip>
+          <DropdownContent align="end" side="bottom">
+            <DropdownItem icon={<FolderOpen size={15} />} onSelect={() => void useAppStore.getState().addProjectFromPicker()}>{t("newProject.openFolder")}</DropdownItem>
+            <DropdownItem icon={<FolderPlus size={15} />} onSelect={() => useAppStore.getState().setCreateProjectOpen(true)}>{t("newProject.menu")}</DropdownItem>
+          </DropdownContent>
+        </Dropdown>
       </span>
       <Dropdown>
         <Tooltip label={t("activity.options")}><DropdownTrigger asChild>

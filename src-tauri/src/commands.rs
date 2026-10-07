@@ -228,12 +228,38 @@ fn save_context_text_native(state: &AppState, key: &str, value: String, flush: b
 
 #[tauri::command]
 pub fn add_project(state: State<Arc<AppState>>, path: String) -> Result<Project> {
-    let canonical = paths::ensure_dir(&PathBuf::from(&path))?;
-    let name = canonical
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| "Project".into());
+    add_project_native(&state, &PathBuf::from(&path), None)
+}
+
+/// New project from a name (T3 #14527): creates `<parent>/<slug>` with Git, a README and a
+/// first commit (`new_project.rs`), then adds it like an opened folder, named as typed.
+#[tauri::command]
+pub async fn create_project(
+    state: State<'_, Arc<AppState>>,
+    name: String,
+    parent: String,
+) -> Result<Project> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let folder = crate::new_project::create(&name, &parent)?;
+        add_project_native(&state, &folder, Some(name.trim().to_string()))
+    })
+    .await
+}
+
+fn add_project_native(
+    state: &AppState,
+    path: &std::path::Path,
+    name: Option<String>,
+) -> Result<Project> {
+    let canonical = paths::ensure_dir(path)?;
+    let name = name.unwrap_or_else(|| {
+        canonical
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .filter(|name| !name.is_empty())
+            .unwrap_or_else(|| "Project".into())
+    });
     let now = now_rfc3339();
     let mut data = state.data.lock();
     if let Some(existing) = data
@@ -811,7 +837,11 @@ pub async fn detect_agents(state: State<'_, Arc<AppState>>) -> Result<Vec<AgentI
             let current = install.path.clone();
             let version = install.version.clone();
             let mut probes = tokio::task::JoinSet::new();
-            let paths: Vec<String> = install.candidates.iter().map(|item| item.path.clone()).collect();
+            let paths: Vec<String> = install
+                .candidates
+                .iter()
+                .map(|item| item.path.clone())
+                .collect();
             for (index, path) in paths.into_iter().enumerate() {
                 if current.as_deref() == Some(path.as_str()) && version.is_some() {
                     install.candidates[index].version = version.clone();

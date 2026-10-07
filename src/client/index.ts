@@ -150,6 +150,11 @@ export class SirusClient {
     return this.transport.invoke<Project>("add_project", { path });
   }
 
+  /** New folder `<parent>/<slug of name>` with `git init`, README.md and a first commit, added as a project. */
+  createProject(name: string, parent: string) {
+    return this.transport.invoke<Project>("create_project", { name, parent });
+  }
+
   removeProject(projectId: string) {
     return this.transport.invoke<void>("remove_project", { projectId });
   }

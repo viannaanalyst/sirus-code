@@ -40,6 +40,7 @@ mod html_preview;
 mod local_servers;
 mod mcp_stdio;
 mod models;
+mod new_project;
 mod notifications;
 mod opencode;
 mod paths;
@@ -252,6 +253,7 @@ pub fn run() {
             commands::save_context_text,
             commands::session_pull_request,
             commands::add_project,
+            commands::create_project,
             commands::remove_project,
             commands::open_project,
             commands::rename_project,
