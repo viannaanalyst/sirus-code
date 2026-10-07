@@ -28,6 +28,8 @@ import type {
   BrowserBounds,
   BrowserSessionState,
   ComputerAction,
+  SecretAction,
+  SecretSnapshot,
   ComputerSnapshot,
   ExecutionOptions,
   AgentEvent,
@@ -240,6 +242,9 @@ interface AppStore {
   /** Native computer-use state (permissions, pending approvals, grants, history); memory-only. */
   computer: ComputerSnapshot | null;
   computerAction: (action: ComputerAction) => Promise<boolean>;
+  /** Private secret cards waiting for the person (ADR-077); values never enter the store. */
+  secrets: SecretSnapshot | null;
+  secretAction: (action: SecretAction) => Promise<boolean>;
   loadBrowser: (sessionId: string) => Promise<void>;
   openBrowser: (sessionId: string) => Promise<boolean>;
   closeBrowser: (sessionId: string) => Promise<boolean>;
@@ -937,6 +942,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().selectProject(projectId);
     // Returning to a project restores its last active tab; a project without tabs keeps selectProject's choice.
     if (target) await get().selectSession(target);
+  },
+  secrets: null,
+  secretAction: async (action) => {
+    try {
+      set({ secrets: await client.secretAction(action) });
+      return true;
+    } catch (error) {
+      set({ error: formatUnknownError(error) });
+      return false;
+    }
   },
   computer: null,
   computerAction: async (action) => {
@@ -2465,6 +2480,7 @@ export async function bindRealtime() {
       useAppStore.setState((state) => ({ browserBySession: { ...state.browserBySession, [browser.sessionId]: browser } }));
     }));
     unlisteners.push(await client.onComputerState((computer) => useAppStore.setState({ computer })));
+    unlisteners.push(await client.onSecretState((secrets) => useAppStore.setState({ secrets })));
     unlisteners.push(await client.onBrowserCapture((event) => {
       const owner = `session:${event.sessionId}`;
       void (async () => {

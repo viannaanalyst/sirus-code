@@ -68,6 +68,7 @@ import {
   DownloadSimple as PhDownloadSimple,
   Eraser as PhEraser,
   Eye as PhEye,
+  EyeSlash as PhEyeSlash,
   Eyedropper as PhEyedropper,
   File as PhFile,
   FileAudio as PhFileAudio,
@@ -244,6 +245,7 @@ export const Ellipsis = adapt(PhDotsThree, "Ellipsis");
 export const Eraser = adapt(PhEraser, "Eraser");
 export const ExternalLink = adapt(PhArrowSquareOut, "ExternalLink");
 export const Eye = adapt(PhEye, "Eye");
+export const EyeOff = adapt(PhEyeSlash, "EyeOff");
 export const File = adapt(PhFile, "File");
 export const FileArchive = adapt(PhFileZip, "FileArchive");
 export const FileAudio = adapt(PhFileAudio, "FileAudio");

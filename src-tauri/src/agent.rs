@@ -508,6 +508,8 @@ pub(crate) fn finalize_session(
         SessionStatus::Failed
     };
     crate::activity::sync(session);
+    // Secret references, env files and open secret cards never outlive the turn (ADR-077).
+    crate::secrets::end_turn(&session.id);
     session.last_activity_at = now_rfc3339();
     if session.status == SessionStatus::Completed {
         if let (Some(origin), Some(thread)) = (&mut session.fork_origin, &session.native_thread) {
@@ -617,6 +619,8 @@ pub(crate) fn record_output(
     stream: &str,
     chunk: String,
 ) -> Result<Option<AgentEvent>> {
+    // An echoed secret value never reaches the transcript.
+    let chunk = crate::secrets::scrub(&session.id, chunk);
     let message_id = &mut cursor.message_id;
     if matches!(
         session.status,

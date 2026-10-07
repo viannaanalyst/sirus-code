@@ -2,8 +2,9 @@ import { memo, useState, type FormEvent } from "react";
 import type { AgentResponse, PendingRequest, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
-import { MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons/phosphor";
-import type { ComputerRequest } from "@/client/types";
+import { Eye, EyeOff, Lock, MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons/phosphor";
+import type { ComputerRequest, SecretRequest } from "@/client/types";
+import { maskInput, maskSecrets } from "@/lib/redact";
 import "@/styles/computer.css";
 import { providerById } from "@/lib/provider-registry";
 import { canAnswer } from "@/lib/agent-activity";
@@ -52,8 +53,8 @@ function RequestCard({ sessionId, provider, request }: { sessionId: string; prov
         <InteractiveButton type="submit" variant="primary" loading={busy} disabled={busy || !currentQuestion || !canAnswer(currentQuestion, answers[currentQuestion.id])}>{t(step < questions.length - 1 ? "Continue" : "Send answer")}</InteractiveButton>
       </div>
     </form> : <>
-      {request.kind.reason ? <p className="mb-2 whitespace-pre-wrap text-text-secondary">{request.kind.reason}</p> : null}
-      {request.kind.type === "command" ? <><pre className="scroll-thin mb-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{request.kind.command}</pre>{request.kind.cwd ? <p className="mb-2 break-all text-text-muted">{request.kind.cwd}</p> : null}</> : request.kind.type === "tool" ? <div className="mb-2"><p className="mb-1 font-medium">{request.kind.name}</p><pre className="scroll-thin max-h-48 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{JSON.stringify(request.kind.input, null, 2)}</pre></div> : <div className="mb-2 text-text-secondary"><p>{t("Allow this file change?")}</p>{request.kind.changes.map((change, index) => <div key={`${change.path}:${index}`} className="mt-2"><p className="break-all font-mono ui-control">{change.kind}: {change.path}{change.movePath ? ` → ${change.movePath}` : ""}</p><pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap bg-background-2 p-2 font-mono ui-caption">{change.diff}</pre></div>)}</div>}
+      {request.kind.reason ? <p className="mb-2 whitespace-pre-wrap text-text-secondary">{maskSecrets(request.kind.reason)}</p> : null}
+      {request.kind.type === "command" ? <><pre className="scroll-thin mb-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{maskSecrets(request.kind.command)}</pre>{request.kind.cwd ? <p className="mb-2 break-all text-text-muted">{request.kind.cwd}</p> : null}</> : request.kind.type === "tool" ? <div className="mb-2"><p className="mb-1 font-medium">{request.kind.name}</p><pre className="scroll-thin max-h-48 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{JSON.stringify(maskInput(request.kind.input), null, 2)}</pre></div> : <div className="mb-2 text-text-secondary"><p>{t("Allow this file change?")}</p>{request.kind.changes.map((change, index) => <div key={`${change.path}:${index}`} className="mt-2"><p className="break-all font-mono ui-control">{change.kind}: {change.path}{change.movePath ? ` → ${change.movePath}` : ""}</p><pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap bg-background-2 p-2 font-mono ui-caption">{maskSecrets(change.diff)}</pre></div>)}</div>}
       <p className="mb-3 text-text-muted">{t("Applies only to this request. Review the action before allowing it.")}</p>
       <div className="flex gap-2">
         <InteractiveButton variant="primary" loading={busy} disabled={busy} onClick={() => void send({ type: "approval", decision: "accept" })}>{t("Allow once")}</InteractiveButton>
@@ -84,10 +85,53 @@ function ComputerRequestCard({ request }: { request: ComputerRequest }) {
   </div>;
 }
 
+/** Private secret request (ADR-077): the value goes straight to native memory, never to the store or transcript. */
+function SecretRequestCard({ provider, request }: { provider: string; request: SecretRequest }) {
+  const t = useTranslation();
+  const act = useAppStore((state) => state.secretAction);
+  const [value, setValue] = useState("");
+  const [shown, setShown] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const answer = async (provided: string | null) => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    const ok = await act({ type: "respond", requestId: request.id, value: provided });
+    setValue("");
+    if (!ok) { setBusy(false); setFailed(true); }
+  };
+  const submit = (event: FormEvent) => { event.preventDefault(); if (value) void answer(value); };
+  const title = t("secret.title", { provider, label: request.label });
+  const inputId = `secret-${request.id}`;
+  return <form className="computer-request secret-request" aria-label={title} aria-busy={busy} onSubmit={submit}>
+    <span className="computer-request-icon secret-request-icon" aria-hidden="true"><Lock size={16} /></span>
+    <div className="min-w-0 flex-1">
+      <p className="ui-control font-medium text-text-primary">{title}</p>
+      {request.description ? <p className="mt-0.5 whitespace-pre-wrap ui-description text-text-secondary">{request.description}</p> : null}
+      {request.path || request.envName ? <p className="mt-1.5 flex flex-wrap gap-1.5">{request.path ? <span className="computer-chip ui-caption break-all">{t("secret.writesTo", { path: request.path })}</span> : null}{request.envName ? <span className="computer-chip ui-caption font-mono">{t("secret.variable", { name: request.envName })}</span> : null}</p> : null}
+      <label htmlFor={inputId} className="mt-3 block ui-caption text-text-secondary">{t("secret.value")}</label>
+      <div className="secret-request-field mt-1">
+        <input id={inputId} type={shown ? "text" : "password"} value={value} maxLength={16384} disabled={busy} autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} data-1p-ignore onChange={(event) => setValue(event.target.value)} aria-describedby={failed ? `${inputId}-error` : `${inputId}-note`} className="w-full rounded-[7px] border border-border-default bg-background-1 py-2 pl-3 pr-9 font-mono ui-control text-text-primary focus-visible:outline-2 focus-visible:outline-accent" />
+        <button type="button" className="secret-request-reveal" aria-label={t(shown ? "secret.hide" : "secret.show")} aria-pressed={shown} onClick={() => setShown(!shown)}>{shown ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}</button>
+      </div>
+      <p id={`${inputId}-note`} className="mt-1.5 ui-caption text-text-muted">{t("secret.private")}</p>
+      {failed ? <p id={`${inputId}-error`} role="alert" className="mt-1.5 ui-caption text-danger">{t("secret.failed")}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <InteractiveButton type="submit" variant="primary" loading={busy} disabled={busy || !value}>{t("secret.provide")}</InteractiveButton>
+        <InteractiveButton type="button" variant="secondary" glow={false} disabled={busy} onClick={() => void answer(null)}>{t("secret.decline")}</InteractiveButton>
+      </div>
+    </div>
+  </form>;
+}
+
 function AgentRequestsView({ session }: { session: Session }) {
   const computer = useAppStore((state) => state.computer?.requests);
+  const secrets = useAppStore((state) => state.secrets?.requests);
   const computerRequests = computer?.filter((request) => request.sessionId === session.id) ?? [];
-  return session.pendingRequests?.length || computerRequests.length ? <div className="scroll-thin max-h-[40vh] overflow-y-auto px-6 py-3" aria-live="polite">
+  const secretRequests = secrets?.filter((request) => request.sessionId === session.id) ?? [];
+  return session.pendingRequests?.length || computerRequests.length || secretRequests.length ? <div className="scroll-thin max-h-[40vh] overflow-y-auto px-6 py-3" aria-live="polite">
+    {secretRequests.map((request) => <SecretRequestCard key={request.id} provider={providerById(session.agent).name} request={request} />)}
     {computerRequests.map((request) => <ComputerRequestCard key={request.id} request={request} />)}
     {session.pendingRequests?.map((request) => <RequestCard key={`${session.id}:${request.generation}:${request.requestId}`} sessionId={session.id} provider={providerById(session.agent).name} request={request} />)}
   </div> : null;

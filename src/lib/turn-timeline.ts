@@ -1,4 +1,10 @@
 import type { ActivityItem } from "@/client/types";
+import { maskSecrets } from "@/lib/redact";
+
+/** The app's own row for a secret the person provided privately (ADR-077); it names the label only. */
+export function isSecretRow(item: Pick<ActivityItem, "id" | "kind" | "label">): boolean {
+  return item.kind === "tool" && item.label === "Secret provided" && item.id.startsWith("secret:");
+}
 
 /**
  * A turn as T3 Code shows it: reply text and tool work in the order they happened.
@@ -64,7 +70,8 @@ export function stepCategory(item: Pick<ActivityItem, "kind" | "label" | "detail
 
 /** A detail as shown: workspace paths become relative, long ones keep their end. */
 export function stepDetail(detail: string | undefined, cwd?: string): string {
-  let value = (detail ?? "").trim();
+  // Rows recorded before native masking are masked here too.
+  let value = maskSecrets((detail ?? "").trim());
   if (cwd && value.startsWith(`${cwd}/`)) value = value.slice(cwd.length + 1);
   return value.length > 72 ? `…${value.slice(-71)}` : value;
 }
@@ -78,6 +85,7 @@ export function stepSentence(item: ActivityItem, t: Translate, cwd?: string): st
   const live = item.state === "running";
   if (category === "skill") return t("timeline.done.skill");
   if (category === "agent") return item.label || t("Subagent");
+  if (isSecretRow(item)) return t("timeline.secretProvided", { label: item.detail ?? "" });
   if (!detail) return t(`timeline.${live ? "plainLive" : "plain"}.${category}`);
   return t(`timeline.${live ? "live" : "done"}.${category}`, { detail });
 }

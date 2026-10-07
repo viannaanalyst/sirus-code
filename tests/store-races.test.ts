@@ -41,6 +41,7 @@ test("pin acknowledgments serialize without replacing newer output and old snaps
   context.mock.method(client, "onBrowserState", async () => () => {});
   context.mock.method(client, "onBrowserCapture", async () => () => {});
   context.mock.method(client, "onComputerState", async () => () => {});
+  context.mock.method(client, "onSecretState", async () => () => {});
   context.mock.method(client, "onActivityNotification", async () => () => {});
   context.mock.method(client, "onNotificationOpen", async () => () => {});
   const unbind = await bindRealtime();

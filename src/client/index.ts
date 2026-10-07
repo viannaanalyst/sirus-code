@@ -599,6 +599,14 @@ export class SirusClient {
     return this.transport.listen<import("./types").WindowSnapEvent>("window-snap", handler);
   }
 
+  secretAction(action: import("./types").SecretAction) {
+    return this.transport.invoke<import("./types").SecretSnapshot>("secret_action", { action });
+  }
+
+  onSecretState(handler: (state: import("./types").SecretSnapshot) => void) {
+    return this.transport.listen<import("./types").SecretSnapshot>("secret-state", handler);
+  }
+
   onComputerState(handler: (state: import("./types").ComputerSnapshot) => void) {
     return this.transport.listen<import("./types").ComputerSnapshot>("computer-state", handler);
   }

@@ -52,6 +52,8 @@ mod provider_usage;
 mod provider_usage_http;
 mod pty_term;
 mod pull_requests;
+mod redact;
+mod secrets;
 mod session_export;
 mod side_chat;
 mod sidebar;
@@ -152,6 +154,7 @@ pub fn run() {
             }
             let data_path = app_dir.join("state.json");
             browser_mcp::init(app.handle().clone(), app_dir.clone());
+            secrets::init(&app_dir);
             simulator::init(app.handle().clone(), &app_dir);
             let worktree_root = app_dir.join("worktrees");
             std::fs::create_dir_all(&worktree_root)?;
@@ -218,6 +221,7 @@ pub fn run() {
             skills::skill_action,
             notifications::notification_action,
             computer_mcp::computer_action,
+            secrets::secret_action,
             commands::load_state,
             provider_accounts::create_provider_account,
             provider_accounts::select_provider_account,
@@ -347,6 +351,7 @@ pub fn run() {
             if matches!(event, tauri::RunEvent::Exit) {
                 attachment_platform::remove_paste_listener();
                 simulator::shutdown_all();
+                secrets::clear_all();
                 let state = app.state::<Arc<AppState>>();
                 if let Err(error) = state.shutdown() {
                     tracing::error!(%error, "cannot persist application shutdown");
