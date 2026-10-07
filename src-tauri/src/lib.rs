@@ -117,9 +117,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .menu(native_menu)
         .on_menu_event(|app, event| {
-            if event.id().as_ref() == "sirus-quit" {
-                // Custom native Quit goes through RunEvent::ExitRequested. macOS
-                // predefined Quit calls NSApp terminate: and bypasses that event.
+            // Custom native Quit goes through RunEvent::ExitRequested. macOS
+            // predefined Quit calls NSApp terminate: and bypasses that event.
+            if event.id().as_ref() == "sirus-quit" && close::quit_pressed(app) {
                 app.exit(0);
             }
         })

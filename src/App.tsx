@@ -8,6 +8,7 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { client } from "@/client";
 import { useChatBackground } from "@/lib/use-chat-background";
+import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Archive, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
@@ -345,6 +346,7 @@ export default function App() {
           {createProjectMounted ? <CreateProjectDialog /> : null}
           {settingsMounted ? <SettingsPage /> : null}
         </Suspense>
+        <QuitToast />
         {!settingsOpen ? <TopToastStack>
           <ErrorToast />
           <WindowSnapToast />

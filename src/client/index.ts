@@ -471,6 +471,11 @@ export class SirusClient {
     return this.transport.invoke<string | null>("chat_background_image", { name });
   }
 
+  /** The first ⌘Q armed quitting; a second press within `ms` quits (ADR-090). */
+  onQuitArmed(handler: (ms: number) => void) {
+    return this.transport.listen<number>("quit-armed", handler);
+  }
+
   /** From the floating Astro chat: show its conversation in the main window (ADR-088). */
   astroShowInMain(sessionId: string) {
     return this.transport.invoke<void>("astro_show_in_main", { sessionId });

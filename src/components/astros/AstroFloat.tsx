@@ -5,6 +5,7 @@ import { AstroDrawer } from "@/components/astros/AstroDrawer";
 import { ErrorToast } from "@/components/ErrorToast";
 import { ExternalLink } from "@/components/icons/phosphor";
 import { SessionPane } from "@/components/SessionPane";
+import { QuitToast } from "@/components/QuitToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { useTranslation } from "@/i18n/use-translation";
 import { dismissAppSplash } from "@/lib/app-splash";
@@ -78,6 +79,7 @@ export default function AstroFloat({ initialAstroId }: { initialAstroId: string 
         /> : <div className="flex-1" aria-busy="true" />}
         <AstroDrawer />
         <TopToastStack><ErrorToast /></TopToastStack>
+        <QuitToast />
       </div>
     </TooltipProvider>
   </MotionConfig>;
