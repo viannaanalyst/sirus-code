@@ -130,9 +130,9 @@ export default function MobileApp() {
           {tab === "astros" ? <MobileAstros navigation={navigation} /> : null}
           {tab === "settings" ? <MobileSettings online={online} /> : null}
         </main>
-        <nav className="mobile-tabbar" aria-label={t("mobile.home")}>
+        <nav className="mobile-tabbar mobile-glass" aria-label={t("mobile.home")}>
           {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" className="mobile-tab" aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>
-            <span className="mobile-tab-icon"><Icon size={21} aria-hidden="true" />{id === "home" && waiting ? <span className="mobile-tab-badge">{waiting}</span> : null}</span>
+            <span className="mobile-tab-icon"><Icon size={23} aria-hidden="true" />{id === "home" && waiting ? <span className="mobile-tab-badge">{waiting}</span> : null}</span>
             <span>{label}</span>
           </button>)}
         </nav>

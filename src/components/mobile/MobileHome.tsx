@@ -41,6 +41,6 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
       </section>)}
       {ready && !groups.length ? <p className="mobile-empty">{query ? t("mobile.noResults") : t("mobile.empty")}</p> : null}
     </div>
-    <button type="button" className="mobile-fab" onClick={() => navigation.open({ kind: "new", projectId: null })}><Plus size={17} aria-hidden="true" />{t("mobile.newConversation")}</button>
+    <button type="button" className="mobile-fab mobile-glass" aria-label={t("mobile.newConversation")} title={t("mobile.newConversation")} onClick={() => navigation.open({ kind: "new", projectId: null })}><Plus size={24} aria-hidden="true" /></button>
   </div>;
 }

@@ -13,6 +13,7 @@ ADR-080 serves the Sirus UI to paired devices. On a phone, the Mac layout does n
 **Navigation.**
 
 - Four tabs: Home, Projects, Astros (added in ADR-082) and Settings.
+- The tab bar is a floating Liquid Glass capsule (iOS 26 sizes: 62 pt tall, 21 pt from the edges), made with CSS alone (blur, saturation, a top rim and a specular edge). Safari does not apply SVG refraction. New conversation is a round glass button floating above the bar's right end. Tab pages scroll under both. The page behind the app wears the app's background, so a strip iOS leaves unpainted at the bottom of home-screen apps does not show as a black band.
 - On top of the tabs sits a stack of full-screen pages (conversation, review, terminal) and one bottom sheet (new conversation).
 - The browser history mirrors the stack (`pushState` with a depth), so the system back gesture closes the top page. Starting a conversation replaces the sheet with that conversation.
 - Pages slide in from the side and the sheet from below. Reduced motion turns this off.
