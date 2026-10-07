@@ -44,6 +44,7 @@ mod notifications;
 mod opencode;
 mod paths;
 mod persist;
+mod pr_watch;
 mod project_look;
 mod provider_accounts;
 mod provider_models;
@@ -181,6 +182,7 @@ pub fn run() {
             notifications::install(app.handle());
             automations::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
+            pr_watch::start(app.handle().clone());
             {
                 let state = app.state::<Arc<AppState>>().inner().clone();
                 let settings = state.data.lock().settings.clone();
@@ -205,6 +207,7 @@ pub fn run() {
             github_inbox::pull_request_action,
             automations::automation_action,
             ci_autofix::ci_autofix_action,
+            pr_watch::pr_watch_action,
             local_servers::local_server_action,
             simulator::simulator_action,
             tasks::task_action,

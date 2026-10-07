@@ -4,10 +4,12 @@ import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
 import { DiffViewer } from "@/components/DiffViewer";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
+import { PrWatchList } from "@/components/PrWatch";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { formatUnknownError } from "@/lib/format-error";
 import { agentDraft, mergeBlocker, splitDiff } from "@/lib/github-inbox";
+import { watchesFor } from "@/lib/pull-requests";
 import { relativeTime } from "@/lib/session-board";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
@@ -31,6 +33,8 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
   const [pending, setPending] = useState<Pending | null>(null);
   const [fixing, setFixing] = useState(false);
   const isPull = item.kind === "pullRequest";
+  const allWatches = useAppStore((store) => store.prWatches);
+  const watches = useMemo(() => isPull ? watchesFor(allWatches, item.repository, item.number) : [], [allWatches, isPull, item.repository, item.number]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -132,6 +136,7 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
     <div className="scroll-thin pulls-detail-body">
       {error ? <p role="alert" className="ui-description text-danger">{t(error)}</p> : null}
       {!detail && !error ? <p role="status" className="ui-description text-text-muted">{t("common.loading")}</p> : null}
+      {tab === "summary" ? <PrWatchList watches={watches} /> : null}
       {detail && tab === "summary" ? <Summary detail={detail} onFixChecks={isPull && view.state === "open" && projectIds.length ? () => void sendToAgent("fix") : undefined} fixing={fixing} /> : null}
       {detail && tab === "timeline" ? <Timeline detail={detail} onCommented={() => { void load(); onChanged(); }} /> : null}
       {detail && tab === "code" ? <Code item={item} /> : null}

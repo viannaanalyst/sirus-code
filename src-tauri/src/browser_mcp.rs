@@ -270,6 +270,10 @@ fn execute(
         // Astro memory and soul tools (ADR-069), allowed only in an Astro's sessions.
         return crate::astros::execute(app, session_id, tool, &args);
     }
+    if matches!(tool, "watch_pull_request" | "unwatch_pull_request") {
+        // PR watch (ADR-074): only ever for the session that owns this token.
+        return crate::pr_watch::agent_tool(app, session_id, tool);
+    }
     if tool.starts_with("simulator_") {
         // The same per-session bridge serves the iOS Simulator tools (ADR-066).
         return tauri::async_runtime::block_on(crate::simulator::execute(
@@ -408,6 +412,7 @@ fn tool_definitions() -> Vec<Value> {
     .into_iter()
     .chain(crate::simulator::tool_definitions())
     .chain(crate::astros::tool_definitions())
+    .chain(crate::pr_watch::tool_definitions())
     .collect()
 }
 
@@ -435,7 +440,8 @@ mod tests {
                 .as_str()
                 .is_some_and(|name| name.starts_with("browser_")
                     || name.starts_with("simulator_")
-                    || name.starts_with("astro_")));
+                    || name.starts_with("astro_")
+                    || name.ends_with("_pull_request")));
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));

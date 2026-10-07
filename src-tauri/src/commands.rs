@@ -301,6 +301,7 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     crate::automations::prune(&mut data);
     crate::tasks::prune(&mut data);
     crate::astros::prune(&mut data);
+    crate::pr_watch::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);
@@ -1326,6 +1327,7 @@ pub(crate) fn delete_session_native(
         .retain(|item| item.id != session_id && !side_chats.contains(&item.id));
     crate::tasks::prune(&mut data);
     crate::astros::prune(&mut data);
+    crate::pr_watch::prune(&mut data);
     crate::drafts::prune(&mut data);
     crate::context_text::prune(&mut data);
     crate::sidebar::prune(&mut data);

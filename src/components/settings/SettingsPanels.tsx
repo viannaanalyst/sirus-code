@@ -118,6 +118,9 @@ export function SettingsPanels({
           <SettingsRow title={t("ciFix.setting")} description={t("ciFix.settingHelp")}>
             <Switch checked={settings.ciAutoFix} label={t("ciFix.setting")} onChange={(ciAutoFix) => onSave({ ...settings, ciAutoFix })} />
           </SettingsRow>
+          <SettingsRow title={t("prWatch.setting")} description={t("prWatch.settingHelp")}>
+            <Switch checked={settings.prWatch} label={t("prWatch.setting")} onChange={(prWatch) => onSave({ ...settings, prWatch })} />
+          </SettingsRow>
           <SettingsRow title={t("Show untracked files")}>
             <Switch checked={settings.gitShowUntracked} onChange={(gitShowUntracked) => onSave({ ...settings, gitShowUntracked })} />
           </SettingsRow>

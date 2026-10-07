@@ -1,4 +1,4 @@
-import type { PullRequest, PullRequestCheckStatus, PullRequestLookupStatus, PullRequestSnapshot } from "@/client/types";
+import type { AppSettings, CiFixState, PrWatch, PrWatchEvent, PullRequest, PullRequestCheckStatus, PullRequestLookupStatus, PullRequestSnapshot } from "@/client/types";
 
 export interface PullRequestLoadState {
   workspacePath: string;
@@ -21,4 +21,18 @@ export const lookupLabels: Record<Exclude<PullRequestLookupStatus, "ready">, str
 };
 export function pullRequestState(pr: PullRequest): string {
   return pr.state === "merged" ? "Merged" : pr.state === "closed" ? "Closed" : pr.draft ? "Draft" : "Ready for review";
+}
+
+/**
+ * What a PR watch (ADR-074) wakes its session for. Failing checks are left to
+ * CI auto-fix (ADR-064) while it is on and not turned off for the session.
+ */
+export function watchedEvents(watch: Pick<PrWatch, "sessionId">, settings: Pick<AppSettings, "ciAutoFix">, fixes: Pick<CiFixState, "sessionId" | "status">[]): { events: PrWatchEvent[]; checksByAutoFix: boolean } {
+  const checksByAutoFix = settings.ciAutoFix && !fixes.some(fix => fix.sessionId === watch.sessionId && fix.status === "off");
+  return { events: checksByAutoFix ? ["reviews", "conflict"] : ["checks", "reviews", "conflict"], checksByAutoFix };
+}
+/** Watches of one GitHub pull request (case-insensitive repository), active first. */
+export function watchesFor(watches: PrWatch[], repository: string, number: number): PrWatch[] {
+  return watches.filter(watch => watch.pullRequest === number && watch.repository.toLowerCase() === repository.toLowerCase())
+    .sort((a, b) => (a.status === "watching" ? 0 : 1) - (b.status === "watching" ? 0 : 1));
 }

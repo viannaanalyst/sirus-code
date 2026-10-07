@@ -294,6 +294,8 @@ export interface AppSettings {
   steerWhileRunning: boolean;
   /** Owner-authorized CI auto-fix (ADR-064). */
   ciAutoFix: boolean;
+  /** Owner switch for PR watch (ADR-074); on by default, each watch is still per session. */
+  prWatch: boolean;
   /** Chat behavior (Settings → Chat behavior). */
   dictationEnterSends: boolean;
   foldFinishedTurns: boolean;
@@ -888,6 +890,31 @@ export interface CiFixState {
   updatedAt: string;
 }
 export type CiFixAction = { type: "status" } | { type: "setEnabled"; sessionId: string; enabled: boolean };
+
+/** PR watch (ADR-074): a session watching its own pull request. Mirrors Rust `pr_watch::PrWatch`. */
+export type PrWatchEvent = "checks" | "reviews" | "conflict";
+export interface PrWatch {
+  sessionId: string;
+  repository: string;
+  pullRequest: number;
+  url: string;
+  baseBranch: string;
+  origin: "person" | "agent";
+  status: "watching" | "stopped";
+  reason?: "wakeLimit" | "sendFailed" | null;
+  detail?: string | null;
+  startedAt: string;
+  checkedAt?: string | null;
+  head?: string | null;
+  failedChecks: string[];
+  conflicting: boolean;
+  seen: string[];
+  wakes: number;
+  lastEvents: PrWatchEvent[];
+  lastWakeAt?: string | null;
+  updatedAt: string;
+}
+export type PrWatchAction = { type: "status" } | { type: "set"; sessionId: string; watching: boolean };
 
 /** iOS Simulator pane (ADR-066). */
 export interface SimulatorDevice { udid: string; name: string; runtime: string; booted: boolean; family: "phone" | "tablet" }
