@@ -13,11 +13,15 @@ const COLORS: Record<Exclude<FileKind, "folder">, string> = {
 export function fileKind(name: string, kind: "file" | "folder" = "file", mimeType?: string): FileKind {
   if (kind === "folder") return "folder";
   const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
-  if (ext === "pdf" || mimeType === "application/pdf") return "pdf";
-  if (ext === "html" || ext === "htm" || mimeType === "text/html") return "html";
-  if (ext === "csv" || ext === "tsv") return "csv";
+  // The extension names what the person sees (a Word "Web page" .doc is still a Word file);
+  // the sniffed MIME type only decides when the extension says nothing.
+  if (ext === "pdf") return "pdf";
   if (ext === "docx" || ext === "doc" || ext === "rtf" || ext === "odt") return "docx";
   if (ext === "xlsx" || ext === "xls" || ext === "ods" || ext === "numbers") return "xlsx";
+  if (ext === "csv" || ext === "tsv") return "csv";
+  if (ext === "html" || ext === "htm") return "html";
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType === "text/html") return "html";
   if (/^(png|jpe?g|gif|webp|heic|svg|bmp|tiff?)$/.test(ext) || mimeType?.startsWith("image/")) return "img";
   return "text";
 }
