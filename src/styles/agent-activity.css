@@ -122,3 +122,17 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 }
 @keyframes tl-open { from { opacity: 0; transform: translateY(-2px); } }
 @keyframes tl-shine { from { background-position: -4.5rem 0, 0 0; } to { background-position: calc(100% + 4.5rem) 0, 0 0; } }
+
+/* Turn header (ADR-070): the model's logo as a planet with an orbiting satellite. */
+.tl-model-orbit { position: relative; display: inline-grid; place-items: center; width: 20px; height: 20px; flex-shrink: 0; margin-right: 2px; }
+.tl-model-orbit::before { content: ""; position: absolute; inset: -1px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent); }
+.tl-satellite { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: var(--text-primary); transform: rotate(-35deg) translateX(11px); }
+.tl-model-orbit[data-status="waiting"] .tl-satellite { background: var(--warning); }
+.tl-model-orbit[data-status="completed"] .tl-satellite { background: var(--success); }
+.tl-model-orbit[data-status="failed"] .tl-satellite { background: var(--danger); }
+.tl-model-orbit[data-status="stopped"] .tl-satellite { background: var(--text-muted); }
+@media (prefers-reduced-motion: no-preference) {
+  .tl-model-orbit[data-moving] .tl-satellite { animation: tl-orbit 1.6s linear infinite; }
+  .tl-model-orbit[data-moving][data-status="waiting"] .tl-satellite { animation-duration: 5s; }
+}
+@keyframes tl-orbit { from { transform: rotate(0deg) translateX(11px); } to { transform: rotate(360deg) translateX(11px); } }

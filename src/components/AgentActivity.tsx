@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Eye, FilePenLine, Globe, Hammer, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
-import type { ActivityItem, ActivityKind, ActivityStep, TurnActivity } from "@/client/types";
+import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity } from "@/client/types";
+import { ModelIcon } from "@/components/ModelIcon";
+import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { modelDisplayName, readableModelId } from "@/lib/model-registry";
 import { useAppStore } from "@/store/app-store";
 import { providerById } from "@/lib/providers";
@@ -13,18 +15,15 @@ import { foldBoundary, groupSentence, stepCategory, stepSentence, timelineParts,
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
 
-/** The spinning world: a planet with a tilted ring; its satellite only travels while the turn is live. */
-function ActivityOrbit({ moving, slow }: { moving: boolean; slow: boolean }) {
-  return <svg className="activity-orbit" viewBox="0 0 24 24" aria-hidden="true">
-    {/* The tilt lives on the group so the ring's own settle animation never replaces it. */}
-    <g transform="rotate(-28 12 12)"><ellipse className="activity-orbit-ring" cx="12" cy="12" rx="10.5" ry="4.4" /></g>
-    <circle className="activity-orbit-core" cx="12" cy="12" r="3.6" />
-    <g transform="rotate(-28 12 12)">
-      {moving
-        ? <circle className="activity-orbit-satellite" r="2"><animateMotion dur={slow ? "5s" : "1.6s"} repeatCount="indefinite" path="M1.5,12 a10.5,4.4 0 1,1 21,0 a10.5,4.4 0 1,1 -21,0" /></circle>
-        : <circle className="activity-orbit-satellite" cx="22.5" cy="12" r="2" />}
-    </g>
-  </svg>;
+/**
+ * The turn's model as a small planet: its own logo, with a satellite that orbits while the
+ * turn works (slowly, amber, while it waits for you) and rests green, red or grey when it ends.
+ */
+function ModelOrbit({ provider, model, status, moving }: { provider: AgentProviderId; model: string | null; status: TurnActivity["status"]; moving: boolean }) {
+  return <span className="tl-model-orbit" data-status={status} data-moving={moving || undefined} aria-hidden="true">
+    {model ? <ModelIcon modelId={model} provider={provider} size={14} /> : <ProviderIcon id={provider} size={14} className="bg-transparent" />}
+    <i className="tl-satellite" />
+  </span>;
 }
 
 /** A child's own small world, tinted per name while it works. */
@@ -215,7 +214,7 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   const foldable = !active && boundary > 0;
   const lastWork = parts.reduce((last, part, index) => part.kind === "work" ? index : last, -1);
   const chrome = <>
-    <ActivityOrbit moving={live || waitingMotion} slow={waiting} />
+    <ModelOrbit provider={activity.provider} model={activity.model} status={activity.status} moving={live || waitingMotion} />
     <span className="activity-model">{modelName}</span>
     <span className="activity-state">{label}</span>
     {waiting ? <span className="ui-micro text-text-muted">· {t("Paused")}</span> : null}
