@@ -816,7 +816,7 @@ impl AppSettings {
                 "Invalid model execution preferences.",
             ));
         }
-        const BINDINGS: [(&str, &str); 16] = [
+        const BINDINGS: [(&str, &str); 17] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
@@ -833,6 +833,7 @@ impl AppSettings {
             ("find-in-conversation", "meta+f"),
             ("search-conversations", "meta+shift+f"),
             ("toggle-side-chat", "meta+alt+s"),
+            ("send-new-thread", "meta+alt+enter"),
         ];
         for (id, combo) in &self.custom_shortcuts {
             let mut parts = combo.split('+').collect::<Vec<_>>();
@@ -850,10 +851,12 @@ impl AppSettings {
                 || parts
                     .iter()
                     .any(|part| !["meta", "alt", "shift"].contains(part))
-                || key.len() != 1
-                || !key.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
-                })
+                || (key == "enter" && parts.len() == 1)
+                || (key != "enter"
+                    && (key.len() != 1
+                        || !key.chars().all(|c| {
+                            c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
+                        })))
                 || [
                     "q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-",
                 ]
@@ -1051,6 +1054,8 @@ mod settings_tests {
             ("palette", "meta+q"),
             ("palette", "meta+meta+b"),
             ("unknown", "meta+shift+b"),
+            ("send-new-thread", "meta+enter"),
+            ("send-new-thread", "meta+alt+return"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());
@@ -1069,6 +1074,7 @@ mod settings_tests {
             ("find-in-conversation", "meta+alt+f"),
             ("search-conversations", "meta+alt+g"),
             ("toggle-side-chat", "meta+shift+s"),
+            ("send-new-thread", "meta+shift+enter"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());

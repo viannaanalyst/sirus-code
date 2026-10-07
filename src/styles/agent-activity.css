@@ -59,6 +59,8 @@ button.activity-line { cursor: pointer; }
 .activity-child-folded { min-height: 22px; display: flex; align-items: center; color: var(--text-muted); }
 .activity-line:focus-visible, .activity-trail-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .shortcut-tooltip { display: flex; align-items: center; gap: 8px; }
+.shortcut-tooltip-stack { display: grid; gap: 4px; }
+.shortcut-tooltip-stack .shortcut-tooltip { justify-content: space-between; }
 .shortcut-tooltip kbd { min-width: 17px; padding: 0 3px; line-height: 17px; border-radius: 3px; background: var(--navigation-hover); color: var(--text-secondary); border-color: var(--border-default); }
 .agent-request { background: var(--background-1); }
 .agent-request-eyebrow { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; color: var(--text-muted); }

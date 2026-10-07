@@ -22,6 +22,8 @@ import { ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCo
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
+import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
+import { shortcutMatches } from "@/lib/shortcuts";
 import { HandoffCard } from "@/components/HandoffCard";
 import { QUICK_REPLY_EVENT, type QuickReplyDetail } from "@/components/ReplyChoices";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
@@ -191,10 +193,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     };
   }, []);
 
-  /** `invert` (⌘Enter) flips the queue/steer preference for this one message. */
-  const send = async (invert = false) => {
+  /** `invert` (⌘Enter) flips the queue/steer preference for this one message. Resolves whether it went out. */
+  const send = async (invert = false): Promise<boolean> => {
     const guard = queueing ? enqueueRef : sendingRef;
-    if (!canSend || guard.current) return;
+    if (!canSend || guard.current) return false;
     guard.current = true;
     if (queueing) setQueueSending(true); else setSending(true);
     const submitted = value;
@@ -202,12 +204,13 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     // Steering (opt-in): plain text goes into the running reply instead of the queue.
     if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
       try {
-        if (await useAppStore.getState().steerTurn(session.id, submitted.trim()) && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
+        const steered = await useAppStore.getState().steerTurn(session.id, submitted.trim());
+        if (steered && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
+        return steered;
       } finally {
         guard.current = false;
         setQueueSending(false); setSending(false);
       }
-      return;
     }
     try {
       const sent = await onSend(composerPrompt(submitted, context), { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning: context.planning, approval: definition.approvalModes.length ? approval : null });
@@ -217,11 +220,15 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         const current = state.composerContexts[teamOwner];
         if (current?.team) state.setComposerContext(teamOwner, { ...current, team: false });
       }
+      return sent;
     } finally {
       guard.current = false;
       if (queueing) setQueueSending(false); else setSending(false);
     }
   };
+  // ⌥⌘↩ (customizable): send like Enter, then open a new thread in this project (T3's "send and new").
+  const sendNewCombo = effectiveShortcut(settings.customShortcuts, "send-new-thread");
+  const sendAndStartNew = async () => { if (await send()) useAppStore.getState().requestNewSession(); };
   // Reply choices under the last answer (ReplyChoices): an option is sent as the reply, unless a
   // draft is already here, which then keeps it below the option for the person to send.
   const [dropping, setDropping] = useState(false);
@@ -421,6 +428,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         onKeyDown={(event) => {
           if (suggestions.onKeyDown(event)) return;
           if (stashKey(event) || recallPrompt(event)) return;
+          if (!event.nativeEvent.isComposing && shortcutMatches(event, sendNewCombo)) { event.preventDefault(); void sendAndStartNew(); return; }
           if (planPending && event.key === "Enter" && (event.metaKey || event.ctrlKey) && !value.trim()) { event.preventDefault(); implementPlan(); return; }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
@@ -486,7 +494,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
               </Tooltip>
             ) : null}
             {!queueing || value.trim().length > 0 ? (
-              <Tooltip label={t(queueing ? "queue.add" : "Send")} shortcut="⏎">
+              <Tooltip label={t(queueing ? "queue.add" : "Send")} shortcut="⏎" secondary={{ label: t("composer.sendNewThread"), shortcut: shortcutLabel(sendNewCombo) }}>
                 <motion.button
                   key="send"
                   type="button"

@@ -15,6 +15,7 @@ export const KEYBINDINGS = [
   { id: "find-in-conversation", label: "Find in conversation", combo: "meta+f", group: "Session" },
   { id: "search-conversations", label: "Search all conversations", combo: "meta+shift+f", group: "Session" },
   { id: "toggle-side-chat", label: "Toggle side chat", combo: "meta+alt+s", group: "Session" },
+  { id: "send-new-thread", label: "Send and start new thread", combo: "meta+alt+enter", group: "Session" },
 ] as const;
 export type ShortcutId = (typeof KEYBINDINGS)[number]["id"];
 export type CustomShortcuts = Partial<Record<ShortcutId, string>>;
@@ -25,9 +26,10 @@ export function normalizeShortcutCombo(value: unknown): string | null {
   if (typeof value !== "string" || value.length > 40) return null;
   const parts = value.toLowerCase().split("+").map((part) => part.trim().replace(/^(mod|cmd)$/, "meta"));
   const key = parts.pop();
-  if (!key || !/^[a-z0-9,.;/\\[\]`']$/.test(key) || !parts.includes("meta")) return null;
+  if (!key || !/^([a-z0-9,.;/\\[\]`']|enter)$/.test(key) || !parts.includes("meta")) return null;
   if (new Set(parts).size !== parts.length || parts.some((part) => !["meta", "alt", "shift"].includes(part))) return null;
-  if (RESERVED.has(key)) return null;
+  // ⌘↩ alone stays the composer's own queue/steer inversion (ADR-062).
+  if (RESERVED.has(key) || (key === "enter" && parts.length === 1)) return null;
   return [...["meta", "alt", "shift"].filter((part) => parts.includes(part)), key].join("+");
 }
 
@@ -35,7 +37,7 @@ export function effectiveShortcut(custom: CustomShortcuts | undefined, id: Short
   return custom?.[id] ?? KEYBINDINGS.find((item) => item.id === id)!.combo;
 }
 export function shortcutLabel(combo: string): string {
-  return combo.replace("meta+", "⌘").replace("alt+", "⌥").replace("shift+", "⇧")
+  return combo.replace(/enter$/, "↩").replace("meta+", "⌘").replace("alt+", "⌥").replace("shift+", "⇧")
     .replace(/^⌘(⌥?)(⇧?)/, "$1$2⌘").toUpperCase();
 }
 

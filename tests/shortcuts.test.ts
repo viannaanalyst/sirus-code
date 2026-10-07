@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { effectiveShortcut, filterKeybindings, KEYBINDINGS, normalizeShortcutCombo, sanitizeShortcuts, shortcutConflict, validateShortcutChange, shortcutLabel } from "../src/lib/keybindings.ts";
-import { createShortcutController, escapeStopsAgent, workspaceShortcutsAvailable } from "../src/lib/shortcuts.ts";
+import { createShortcutController, escapeStopsAgent, shortcutMatches, workspaceShortcutsAvailable } from "../src/lib/shortcuts.ts";
 import { translate } from "../src/i18n/index.ts";
 import { readFileSync } from "node:fs";
 
@@ -71,4 +71,15 @@ test("Escape stops only the selected live agent and only from the conversation",
   for (const status of ["starting", "waiting"]) assert.equal(escapeStopsAgent({ ...state, sessions: [{ id: "owned", status }] }, null), true);
   for (const status of ["idle", "completed", "failed", "stopped"]) assert.equal(escapeStopsAgent({ ...state, sessions: [{ id: "owned", status }] }, null), false);
   for (const change of [{ environmentOpen: true }, { settingsOpen: true }, { paletteOpen: true }, { newSessionOpen: true }, { mainView: "kanban" }, { selectedSessionId: "missing" }]) assert.equal(escapeStopsAgent({ ...state, ...change }, null), false);
+});
+
+test("send and start new thread binds Enter with modifiers but never plain ⌘↩", () => {
+  assert.equal(effectiveShortcut({}, "send-new-thread"), "meta+alt+enter");
+  assert.equal(shortcutLabel("meta+alt+enter"), "⌥⌘↩");
+  assert.equal(normalizeShortcutCombo("cmd+shift+enter"), "meta+shift+enter");
+  for (const combo of ["meta+enter", "alt+enter", "meta+alt+return"]) assert.equal(normalizeShortcutCombo(combo), null, combo);
+  const event = { code: "Enter", key: "Enter", metaKey: true, altKey: true, shiftKey: false, ctrlKey: false, repeat: false };
+  assert.equal(shortcutMatches(event, "meta+alt+enter"), true);
+  assert.equal(shortcutMatches({ ...event, altKey: false }, "meta+alt+enter"), false);
+  assert.equal(translate("pt-BR", "Send and start new thread"), "Enviar e começar nova conversa");
 });

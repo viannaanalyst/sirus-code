@@ -13,6 +13,7 @@ const descriptions: Record<string, [string, string]> = {
   forward: ["Advance through application navigation history.", "Avance pelo histórico de navegação do aplicativo."],
   "open-files": ["Open Files. Available in an active session view.", "Abra Arquivos. Disponível na visualização de uma sessão."],
   "open-browser": ["Open Browser. Available in an active session view.", "Abra o Navegador. Disponível na visualização de uma sessão."],
+  "send-new-thread": ["In the composer: send the message (or queue it, like Enter), then open a new thread in the same project.", "No composer: envia a mensagem (ou põe na fila, como Enter) e abre uma nova conversa no mesmo projeto."],
   "toggle-environment": ["Show or hide Environment in the current session.", "Mostre ou oculte Ambiente na sessão atual."],
 };
 export const keybindingEnglish: Record<string, string> = {
@@ -27,7 +28,7 @@ export const keybindingEnglish: Record<string, string> = {
   "keybindings.count": "{shown} of {total} commands",
 };
 export const keybindingPortuguese: Record<string, string> = {
-  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas", "Toggle side chat": "Abrir ou fechar o chat lateral",
+  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas", "Toggle side chat": "Abrir ou fechar o chat lateral", "Send and start new thread": "Enviar e começar nova conversa",
   ...Object.fromEntries(Object.entries(descriptions).map(([id, text]) => [`keybindings.description.${id}`, text[1]])),
   "Open Files": "Abrir Arquivos", "Open Browser": "Abrir Navegador", "Toggle Environment": "Mostrar/ocultar Ambiente",
   "keybindings.intro": "Personalize os comandos de teclado que você usa no aplicativo.",
