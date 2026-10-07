@@ -687,7 +687,7 @@ fn take_ready(data: &mut AppData, astro_id: &str, busy: &dyn Fn(&str) -> bool) -
     })
 }
 
-fn bounded(text: &str, limit: usize) -> String {
+pub(crate) fn bounded(text: &str, limit: usize) -> String {
     if text.chars().count() <= limit {
         return text.to_owned();
     }
@@ -823,7 +823,98 @@ pub fn tool_definitions() -> Vec<Value> {
     ]
 }
 
-fn session_row(data: &AppData, session: &crate::models::Session) -> Value {
+/// A session started on behalf of another one (Astro delegation, `sirus_*` tools).
+pub(crate) struct StartRequest {
+    pub project_id: String,
+    pub title: String,
+    pub prompt: String,
+    /// Empty: the caller's provider.
+    pub provider: String,
+    /// Empty: the caller's model when the provider is the same.
+    pub model: String,
+    pub new_worktree: bool,
+    pub delegation: Option<Delegation>,
+}
+
+/// The caller's own permission choice carries over to the work it delegates.
+pub(crate) fn inherited_approval(caller: &crate::models::Session) -> crate::models::ApprovalMode {
+    caller
+        .execution
+        .approval
+        .unwrap_or(crate::models::ApprovalMode::Ask)
+}
+
+/// Starts a normal, visible session whose first turn inherits the caller's approval.
+pub(crate) fn start_from(
+    app: &AppHandle,
+    caller: &crate::models::Session,
+    request: StartRequest,
+) -> std::result::Result<String, String> {
+    let state = app.state::<Arc<AppState>>().inner().clone();
+    let agent = if request.provider.is_empty() {
+        caller.agent.clone()
+    } else {
+        serde_json::from_value::<crate::models::AgentProviderId>(json!(request.provider))
+            .map_err(|_| "unknown provider")?
+    };
+    let model = match request.model {
+        model if !model.is_empty() => Some(model),
+        _ if agent == caller.agent => caller.model.clone(),
+        _ => None,
+    };
+    let launch = crate::automations::Launch {
+        project_id: request.project_id,
+        title: request.title,
+        agent,
+        model,
+        isolated_worktree: request.new_worktree,
+        prompt: request.prompt,
+        approval: inherited_approval(caller),
+        planning: false,
+        astro: None,
+        delegation: request.delegation,
+    };
+    match tauri::async_runtime::block_on(crate::automations::launch(app, &state, launch)) {
+        (Some(id), None) => Ok(id),
+        (_, Some(error)) => Err(error),
+        _ => Err("the session did not start".into()),
+    }
+}
+
+/// Sends a follow-up to an idle session with the caller's approval.
+pub(crate) fn send_from(
+    app: &AppHandle,
+    caller: &crate::models::Session,
+    target: &str,
+    prompt: String,
+) -> std::result::Result<Value, String> {
+    if prompt.trim().is_empty() {
+        return Err("prompt is required".into());
+    }
+    let request = crate::models::SendPromptRequest {
+        queued_after: None,
+        debugging: false,
+        goal: None,
+        session_id: target.to_string(),
+        attachment_ids: vec![],
+        attachment_owner: String::new(),
+        prompt,
+        execution: crate::models::ExecutionOptions {
+            approval: Some(inherited_approval(caller)),
+            ..Default::default()
+        },
+        team: false,
+    };
+    tauri::async_runtime::block_on(crate::commands::send_prompt(
+        app.clone(),
+        app.state::<Arc<AppState>>(),
+        request,
+    ))
+    .map(|_| json!({ "sent": true, "sessionId": target }))
+    .map_err(|error| error.to_string())
+}
+
+pub(crate) fn session_row(data: &AppData, session: &crate::models::Session) -> Value {
     json!({
         "id": session.id,
         "title": session.title,
@@ -931,59 +1022,37 @@ fn session_tool(
             if prompt.is_empty() || title.is_empty() {
                 return Err("title and prompt are required".into());
             }
-            let launch = {
+            let project_id = {
                 let data = state.data.lock();
                 let wanted = arg("project");
-                let project = data
-                    .projects
+                data.projects
                     .iter()
                     .filter(|project| astro.project_ids.contains(&project.id))
                     .find(|project| {
                         project.id == wanted || project.name.eq_ignore_ascii_case(&wanted)
                     })
-                    .ok_or("that project is not one of yours")?;
-                let provider = arg("provider");
-                let agent = if provider.is_empty() {
-                    caller.agent.clone()
-                } else {
-                    serde_json::from_value::<crate::models::AgentProviderId>(json!(provider))
-                        .map_err(|_| "unknown provider")?
-                };
-                let model = match arg("model") {
-                    model if !model.is_empty() => Some(model),
-                    _ if agent == caller.agent => caller.model.clone(),
-                    _ => None,
-                };
-                crate::automations::Launch {
-                    project_id: project.id.clone(),
+                    .map(|project| project.id.clone())
+                    .ok_or("that project is not one of yours")?
+            };
+            let id = start_from(
+                app,
+                &caller,
+                StartRequest {
+                    project_id,
                     title,
-                    agent,
-                    model,
-                    isolated_worktree: args
+                    prompt,
+                    provider: arg("provider"),
+                    model: arg("model"),
+                    new_worktree: args
                         .get("newWorktree")
                         .and_then(Value::as_bool)
                         .unwrap_or(true),
-                    prompt,
-                    // The Astro's own permission choice carries over to the work it delegates.
-                    approval: caller
-                        .execution
-                        .approval
-                        .unwrap_or(crate::models::ApprovalMode::Ask),
-                    planning: false,
-                    astro: None,
                     delegation: delegation(flag("notify")),
-                }
-            };
-            let (session, error) =
-                tauri::async_runtime::block_on(crate::automations::launch(app, &state, launch));
-            match (session, error) {
-                (Some(id), None) => Ok(json!({ "started": true, "sessionId": id })),
-                (_, Some(error)) => Err(error),
-                _ => Err("the session did not start".into()),
-            }
+                },
+            )?;
+            Ok(json!({ "started": true, "sessionId": id }))
         }
         "astro_session_send" => {
-            let prompt = arg("prompt");
             let target = {
                 let mut data = state.data.lock();
                 let session = owned(&data, &arg("sessionId"))?;
@@ -995,32 +1064,7 @@ fn session_tool(
                 }
                 session.id
             };
-            let request = crate::models::SendPromptRequest {
-                queued_after: None,
-                debugging: false,
-                goal: None,
-                session_id: target.clone(),
-                attachment_ids: vec![],
-                attachment_owner: String::new(),
-                prompt,
-                execution: crate::models::ExecutionOptions {
-                    approval: Some(
-                        caller
-                            .execution
-                            .approval
-                            .unwrap_or(crate::models::ApprovalMode::Ask),
-                    ),
-                    ..Default::default()
-                },
-                team: false,
-            };
-            tauri::async_runtime::block_on(crate::commands::send_prompt(
-                app.clone(),
-                app.state::<Arc<AppState>>(),
-                request,
-            ))
-            .map(|_| json!({ "sent": true, "sessionId": target }))
-            .map_err(|error| error.to_string())
+            send_from(app, &caller, &target, arg("prompt"))
         }
         _ => Err("unknown Astro tool".into()),
     }

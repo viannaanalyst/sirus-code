@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Monitor,
   MousePointerClick,
+  Plug,
   Puzzle,
   Settings2,
   SlidersHorizontal,
@@ -35,6 +36,7 @@ const GROUPS: { label: string; items: { id: SettingsSectionId; label: string; ic
     items: [
       { id: "providers", label: "Providers", icon: Puzzle },
       { id: "skills", label: "skills.title", icon: Box },
+      { id: "mcp", label: "mcp.title", icon: Plug },
       { id: "computer", label: "computer.title", icon: MousePointerClick },
       { id: "git", label: "Git", icon: GitBranch },
       { id: "worktrees", label: "Worktrees", icon: FolderGit2 },

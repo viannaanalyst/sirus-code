@@ -6,6 +6,8 @@ import { X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/provider-registry";
 import { modelDisplayName } from "@/lib/model-registry";
+import { isMcpProvider, serversFor, serverTarget } from "@/lib/mcp-servers";
+import { useMcpCatalog } from "@/lib/use-mcp-catalog";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useAppStore } from "@/store/app-store";
 
@@ -33,6 +35,35 @@ export function RenameSessionDialog({ session, open, onClose }: { session: Sessi
       </form>
     </DialogContent>
   </Dialog>;
+}
+
+/** `/mcp`: the MCP servers this conversation's provider has configured (ADR-075). */
+export function ComposerMcpCard({ session, onClose }: { session: Session; onClose: () => void }) {
+  const t = useTranslation();
+  const provider = providerById(session.agent).name;
+  const supported = isMcpProvider(session.agent);
+  const { catalog, loading, error } = useMcpCatalog(supported ? session.projectId : null);
+  const servers = supported ? serversFor(catalog?.servers ?? [], session.agent) : [];
+  const manage = () => { const store = useAppStore.getState(); store.setSettingsSection("mcp"); store.setSettingsOpen(true); onClose(); };
+  return <section aria-label={t("mcp.panel.title").replace("{provider}", provider)} className="mx-auto mb-2 w-full max-w-[var(--chat-column-width)] rounded-2xl border border-border-subtle bg-background-2 px-3 py-2" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+    <div className="flex items-center gap-2">
+      <span className="flex-1 ui-control text-text-primary">{t("mcp.panel.title").replace("{provider}", provider)}</span>
+      <button type="button" className="ui-caption text-text-muted hover:text-text-primary" onClick={manage}>{t("mcp.panel.manage")}</button>
+      <button type="button" autoFocus aria-label={t("mcp.panel.close")} className="usage-limit-close" onClick={onClose}><X size={13} aria-hidden="true" /></button>
+    </div>
+    {!supported ? <p className="mt-1 ui-caption text-text-muted">{t("mcp.panel.unsupported").replace("{provider}", provider)}</p>
+      : error ? <p role="alert" className="mt-1 ui-caption text-danger">{error}</p>
+      : loading && !catalog ? <p role="status" className="mt-1 ui-caption text-text-muted">{t("mcp.loading")}</p>
+      : !servers.length ? <p className="mt-1 ui-caption text-text-muted">{t("mcp.panel.empty").replace("{provider}", provider)}</p>
+      : <ul className="scroll-thin mt-1 max-h-48 space-y-0.5 overflow-y-auto">
+        {servers.map(server => <li key={`${server.scope}:${server.path}:${server.name}`} className="flex min-w-0 items-baseline gap-2">
+          <span className={`shrink-0 ui-caption ${server.enabled ? "text-text-secondary" : "text-text-muted line-through"}`}>{server.name}</span>
+          <span className="shrink-0 ui-caption text-text-muted">{t(`mcp.scope.${server.scope}`)} · {server.transport}</span>
+          <code className="min-w-0 flex-1 truncate ui-caption text-text-muted selectable" title={serverTarget(server)}>{serverTarget(server)}</code>
+        </li>)}
+      </ul>}
+    {session.agent === "codex" || session.agent === "claude" || session.agent === "opencode" ? <p className="mt-1 ui-caption text-text-muted/70">{t("mcp.panel.builtIn")}</p> : null}
+  </section>;
 }
 
 /** `/status`: what this conversation runs with, from data the app already has. */

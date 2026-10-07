@@ -18,7 +18,7 @@ import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
-import { ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
+import { ComposerMcpCard, ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
@@ -128,7 +128,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const submitting = (sending && !running) || queueSending;
   const canSend = (value.trim().length > 0 || context.attachments.length > 0 || (context.snippets?.length ?? 0) > 0) && !dictating && !submitting && !pasting && !modelChanging && canType && providerReady && (!context.planning || planningAvailable);
   // Bound to the composer's owner, so switching conversations closes it.
-  const [panel, setCommandPanel] = useState<{ kind: "status" | "rename"; owner: string } | null>(null);
+  const [panel, setCommandPanel] = useState<{ kind: "status" | "rename" | "mcp"; owner: string } | null>(null);
   const commandPanel = panel?.owner === draftKey ? panel.kind : null;
   const fastToggle = Boolean(modelId) && execution.fastAvailable && !(agentId === "cursor" && !execution.parameterized);
   const executionFor = (planning: boolean): ExecutionOptions => {
@@ -143,7 +143,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     switch (id) {
       case "review": void onSend(REVIEW_PROMPT, executionFor(planningAvailable)); break;
       case "compact": void onSend("/compact", executionFor(context.planning)); break;
-      case "status": case "rename": setCommandPanel({ kind: id, owner: draftKey }); break;
+      case "status": case "rename": case "mcp": setCommandPanel({ kind: id, owner: draftKey }); break;
       case "fast": {
         const key = modelKey(agentId, modelId ?? "");
         void store.saveSettings({ ...store.settings, modelExecution: { ...store.settings.modelExecution, [key]: { ...store.settings.modelExecution[key], fast: !execution.fast } } });
@@ -375,6 +375,11 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   return (
     <>
     {session && commandPanel === "status" ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus(); }} /> : null}
+    <AnimatePresence initial={false}>
+      {session && commandPanel === "mcp" ? <motion.div key="mcp" initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }} transition={{ duration: reducedMotion ? 0 : motionTokens.fast }}>
+        <ComposerMcpCard session={session} onClose={() => { setCommandPanel(null); area.current?.focus(); }} />
+      </motion.div> : null}
+    </AnimatePresence>
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
     {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}

@@ -91,6 +91,8 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-072: HTML in the transcript, image gallery, automatic project icons](ADR-072-html-previews-gallery-auto-icons.md) — agent HTML on an isolated `sirus-preview://` origin, reply image gallery, optional favicon/logo project icons.
 - [ADR-073: Prompt recall, stash, plan actions, terminal snippets and Finder drops](ADR-073-composer-recall-stash-plan-terminal-drop.md) — ↑ recall, ⌘S stash, Implement plan, terminal selection chips, folders dropped from Finder.
 - [ADR-074: Send and new thread, compact and send, new project from a name, CLI install choice](ADR-074-send-and-new-compact-and-send-new-project-cli-choice.md) — ⌥⌘↩, `/compact` before a heavy idle send, native `create_project` (slug folder, Git, README, first commit), per-provider executable picker.
+- [ADR-075: MCP server manager](ADR-075-mcp-server-manager.md) — Settings view of every provider CLI's MCP servers, paste-JSON install into several providers with backups and atomic writes, `/mcp` card.
+- [ADR-076: Agents manage sessions](ADR-076-agents-manage-sessions.md) — opt-in `sirus_*` tools to list, read, start and continue sessions, with inherited approval and bounded fan-out.
 
 ## Template
 

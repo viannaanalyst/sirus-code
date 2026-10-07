@@ -196,6 +196,10 @@ pub async fn start(
             for (key, value) in values {
                 cmd.arg("-c").arg(format!("{key}={value}"));
             }
+            if let Some((key, value)) = crate::sirus_tools::child_env() {
+                cmd.arg("-c")
+                    .arg(format!("mcp_servers.sirus_browser.env.{key}={value:?}"));
+            }
             for value in crate::computer_mcp::codex_overrides(&session.id) {
                 cmd.arg("-c").arg(value);
             }

@@ -576,6 +576,8 @@ pub struct AppSettings {
     pub developer_logs: bool,
     /// Offers the app-owned computer-use MCP server to Codex/Claude/OpenCode turns (ADR-038).
     pub computer_use_enabled: bool,
+    /// Lists the `sirus_*` session tools on the per-session MCP bridge (ADR-076).
+    pub agents_manage_sessions: bool,
     pub experimental: bool,
     #[serde(default)]
     pub disabled_models: Vec<String>,
@@ -686,6 +688,7 @@ impl Default for AppSettings {
             terminal_scrollback: 2000,
             developer_logs: false,
             computer_use_enabled: false,
+            agents_manage_sessions: false,
             experimental: false,
             disabled_models: Vec::new(),
             disabled_skills: Vec::new(),

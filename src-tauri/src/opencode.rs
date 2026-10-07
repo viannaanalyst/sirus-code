@@ -471,14 +471,18 @@ pub(crate) async fn execute(
         crate::browser_mcp::ensure_endpoint(&run.session.id)
             .and_then(|endpoint| {
                 let exe = std::env::current_exe().ok()?;
+                let mut env = vec![
+                    json!({ "name": crate::browser_mcp::SOCKET_ENV, "value": endpoint.socket.to_string_lossy() }),
+                    json!({ "name": crate::browser_mcp::TOKEN_ENV, "value": endpoint.token }),
+                ];
+                if let Some((key, value)) = crate::sirus_tools::child_env() {
+                    env.push(json!({ "name": key, "value": value }));
+                }
                 Some(json!({
                     "name": "sirus_browser",
                     "command": exe.to_string_lossy(),
                     "args": ["--mcp-browser"],
-                    "env": [
-                        { "name": crate::browser_mcp::SOCKET_ENV, "value": endpoint.socket.to_string_lossy() },
-                        { "name": crate::browser_mcp::TOKEN_ENV, "value": endpoint.token },
-                    ]
+                    "env": env
                 }))
             })
             .map(|server| vec![server])
