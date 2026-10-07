@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { onRemoteConnection } from "@/client";
+import { onRemoteConnection, remoteReachable } from "@/client";
+import { flushOutbox } from "@/lib/phone-outbox";
 import { registerPushWorker } from "@/client/remote-push";
 import { House, Folder, Planet, Settings } from "@/components/icons/phosphor";
 import { ErrorToast } from "@/components/ErrorToast";
@@ -17,8 +18,11 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useSystemPalette } from "@/lib/use-system-palette";
 import { TooltipProvider } from "@/primitives/Tooltip";
 import { bindRealtime, selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { MobileArchived } from "./MobileArchived";
 import { MobileAstros } from "./MobileAstros";
 import { MobileChat } from "./MobileChat";
+import { MobileFiles } from "./MobileFiles";
+import { MobileGit } from "./MobileGit";
 import { MobileHome } from "./MobileHome";
 import { MobileNewAstro } from "./MobileNewAstro";
 import { MobileNewSession } from "./MobileNewSession";
@@ -66,6 +70,14 @@ export default function MobileApp() {
   useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
   useEffect(() => { applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette); }, [settings, hostInfo, systemPalette]);
   useEffect(() => onRemoteConnection((state) => setOnline(state === "open" || state === "connecting" || state === "idle")), []);
+  // Messages written while the Mac was out of reach go out once it answers again (ADR-086).
+  useEffect(() => {
+    const flush = () => { if (useAppStore.getState().ready && remoteReachable()) void flushOutbox((message) => useAppStore.getState().sendPrompt(message.prompt, message.execution, message.sessionId)); };
+    flush();
+    const stopConnection = onRemoteConnection((state) => { if (state === "open") setTimeout(flush, 1500); });
+    const stopReady = useAppStore.subscribe((state, previous) => { if (state.ready && !previous.ready) flush(); });
+    return () => { stopConnection(); stopReady(); };
+  }, []);
 
   useEffect(() => {
     window.history.replaceState({ depth: 0 }, "");
@@ -152,6 +164,9 @@ export default function MobileApp() {
             {screen.kind === "chat" ? <MobileChat sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "new" ? <MobileNewSession projectId={screen.projectId} navigation={navigation} /> : null}
             {screen.kind === "new-astro" ? <MobileNewAstro navigation={navigation} /> : null}
+            {screen.kind === "archived" ? <MobileArchived navigation={navigation} /> : null}
+            {screen.kind === "git" ? <MobileGit sessionId={screen.sessionId} navigation={navigation} /> : null}
+            {screen.kind === "files" ? <MobileFiles sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "review" ? <MobileReview sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "terminal" ? <MobileTerminal sessionId={screen.sessionId} navigation={navigation} /> : null}
           </motion.section>)}

@@ -1,4 +1,4 @@
-import type { Project, Session } from "@/client/types";
+import type { FileEntry, Project, Session } from "@/client/types";
 
 /**
  * The phone app (ADR-081) is a separate shell over the same store. Its screens form
@@ -10,6 +10,9 @@ export type MobileScreen =
   | { kind: "chat"; sessionId: string }
   | { kind: "new"; projectId: string | null }
   | { kind: "new-astro" }
+  | { kind: "archived" }
+  | { kind: "git"; sessionId: string }
+  | { kind: "files"; sessionId: string }
   | { kind: "review"; sessionId: string }
   | { kind: "terminal"; sessionId: string };
 
@@ -46,17 +49,26 @@ export function sessionBadge(session: Session): SessionBadge {
 const recentFirst = (list: Session[]) => list.sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
 
 /** Home: first what needs the person, then what is running, then the rest by recency. */
-export function homeSections(sessions: readonly Session[], projects: readonly Project[], query: string) {
+export function homeSections(sessions: readonly Session[], projects: readonly Project[], query: string, pinned: readonly string[] = []) {
   const needle = query.trim().toLowerCase();
   const names = new Map(projects.map((project) => [project.id, project.name.toLowerCase()]));
+  const pins = new Set(pinned);
   const matches = needle
     ? sessions.filter((session) => `${session.title} ${names.get(session.projectId) ?? ""} ${session.worktree.branch}`.toLowerCase().includes(needle))
     : [...sessions];
+  const settled = matches.filter((session) => !needsYou(session) && !isWorking(session));
   return {
     needsYou: recentFirst(matches.filter(needsYou)),
     working: recentFirst(matches.filter(isWorking)),
-    recent: recentFirst(matches.filter((session) => !needsYou(session) && !isWorking(session))),
+    // Pinned conversations come before the rest; what needs the person still comes first.
+    pinned: recentFirst(settled.filter((session) => pins.has(session.id))),
+    recent: recentFirst(settled.filter((session) => !pins.has(session.id))),
   };
+}
+
+/** How far a swiped row stays open: its actions' width once past half of it, else closed. */
+export function swipeRest(offset: number, actionsWidth: number): number {
+  return offset <= -actionsWidth / 2 ? -actionsWidth : 0;
 }
 
 /** Projects with their listed sessions, most recently used first. */
@@ -103,4 +115,9 @@ export const TERMINAL_KEYS: readonly { label: string; data: string }[] = [
 /** Pages that rise from the bottom as sheets instead of sliding in from the side. */
 export function isSheet(screen: MobileScreen): boolean {
   return screen.kind === "new" || screen.kind === "new-astro";
+}
+
+/** Folders first, then files, each in natural order. */
+export function sortEntries(entries: readonly FileEntry[]): FileEntry[] {
+  return [...entries].sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
 }

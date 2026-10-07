@@ -709,6 +709,12 @@ export class SirusClient {
 export const isRemoteUi = typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
 
 const remoteListeners = new Set<(state: RemoteConnection, previous: RemoteConnection) => void>();
+let remoteState: RemoteConnection = "idle";
+
+/** Whether the UI served to another device can reach the Mac right now. */
+export function remoteReachable(): boolean {
+  return !isRemoteUi || remoteState === "open";
+}
 
 /** Follows the remote connection; only the UI served to another device has one. */
 export function onRemoteConnection(handler: (state: RemoteConnection, previous: RemoteConnection) => void): () => void {
@@ -720,7 +726,7 @@ const remoteTransport = isRemoteUi
   ? new RemoteTransport({
     url: socketUrl(window.location),
     token: () => window.localStorage.getItem(REMOTE_TOKEN_KEY),
-    onConnection: (state, previous) => { for (const handler of [...remoteListeners]) handler(state, previous); },
+    onConnection: (state, previous) => { remoteState = state; for (const handler of [...remoteListeners]) handler(state, previous); },
   })
   : null;
 

@@ -11,18 +11,20 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { fileIconFor } from "@/lib/file-icons";
 import { DiffViewer } from "./DiffViewer";
+import type { DiffComment } from "@/lib/diff-comment";
 import { GitHistory } from "./GitHistory";
 import "@/styles/changes.css";
 
 type Api = Pick<SirusClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" | "gitPush" | "gitCommitTitle" | "cancelCommitTitle"> & Partial<Pick<SirusClient, "gitWorkspaceHistory">>;
-type Props = { sessionId: string; workspacePath: string; api?: Api };
+/** `onComment` lets the person comment on diff lines (the phone review, ADR-086). */
+type Props = { sessionId: string; workspacePath: string; api?: Api; onComment?: (selection: DiffComment) => boolean };
 type Selection = { entry: GitWorkspaceEntry; staged: boolean };
 
 /** Session/workspace remount makes obsolete reads and writes unable to populate another view. */
 export function ChangesPane(props: Props) {
   return <WorkspaceChanges key={`${props.sessionId}:${props.workspacePath}`} {...props} />;
 }
-function WorkspaceChanges({ sessionId, api = client }: Props) {
+function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
   const t = useTranslation();
   const showUntracked = useAppStore(state => state.settings.gitShowUntracked);
   const [snapshot, setSnapshot] = useState<GitWorkspaceSnapshot | null>(null);
@@ -231,7 +233,7 @@ function WorkspaceChanges({ sessionId, api = client }: Props) {
               <span className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind} title={t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`)}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
             </div>
             {open && selected ? <div className="changes-diff">
-              {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} />}
+              {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} onComment={onComment && diff ? onComment : undefined} />}
             </div> : null}
           </div>;
         })}

@@ -118,3 +118,37 @@ test("Coming back reloads only when the Mac serves a newer build", async () => {
   assert.equal(isNewerBuild('<script src="/assets/index-abc.js"></script>', "/assets/index-abc.js"), false);
   assert.equal(isNewerBuild('<script src="/assets/index-def.js"></script>', "/assets/index-abc.js"), true);
 });
+
+test("Phone photos are scaled to fit 2048 px and never enlarged", async () => {
+  const { fittedSize } = await import("../src/lib/phone-attachments.ts");
+  assert.deepEqual(fittedSize(4032, 3024), { width: 2048, height: 1536 });
+  assert.deepEqual(fittedSize(3024, 4032), { width: 1536, height: 2048 });
+  assert.deepEqual(fittedSize(800, 600), { width: 800, height: 600 });
+});
+
+test("Messages written offline wait in order and stop at the first that fails", async () => {
+  const { enqueueMessage, flushOutbox, readOutbox } = await import("../src/lib/phone-outbox.ts");
+  const data = new Map<string, string>();
+  const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => void data.set(key, value) };
+  enqueueMessage({ sessionId: "a", prompt: "primeira" }, storage);
+  enqueueMessage({ sessionId: "a", prompt: "segunda" }, storage);
+  enqueueMessage({ sessionId: "b", prompt: "terceira" }, storage);
+  const sent: string[] = [];
+  assert.equal(await flushOutbox(async (message) => { sent.push(message.prompt); return message.prompt !== "segunda"; }, storage), 1);
+  assert.deepEqual(sent, ["primeira", "segunda"]);
+  assert.deepEqual(readOutbox(storage).map((item) => item.prompt), ["segunda", "terceira"]);
+  storage.setItem("sirus.outbox", "not json");
+  assert.deepEqual(readOutbox(storage), []);
+});
+
+test("A swiped row opens past half its actions and pinned conversations group together", async () => {
+  const { homeSections, sortEntries, swipeRest } = await import("../src/lib/mobile.ts");
+  assert.equal(swipeRest(-100, 222), 0);
+  assert.equal(swipeRest(-130, 222), -222);
+  const sessions = [session("a", { status: "completed" }), session("b", { status: "completed" }), session("c", { status: "waiting" })];
+  const sections = homeSections(sessions, [], "", ["b", "c"]);
+  assert.deepEqual(sections.pinned.map((item) => item.id), ["b"]);
+  assert.deepEqual(sections.needsYou.map((item) => item.id), ["c"], "needing the person beats pinning");
+  assert.deepEqual(sections.recent.map((item) => item.id), ["a"]);
+  assert.deepEqual(sortEntries([{ name: "b.ts", path: "/b.ts", isDir: false }, { name: "src", path: "/src", isDir: true }, { name: "a10.md", path: "/a10.md", isDir: false }, { name: "a2.md", path: "/a2.md", isDir: false }]).map((item) => item.name), ["src", "a2.md", "a10.md", "b.ts"]);
+});

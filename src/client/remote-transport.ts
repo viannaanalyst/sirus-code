@@ -41,6 +41,14 @@ type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => vo
 const OPEN = 1;
 const MAX_DELAY = 30_000;
 
+const UNREACHABLE = "Cannot reach the Mac. Check that Sirus is open and Tailscale is on.";
+const LOST = "The connection to the Mac was lost.";
+
+/** The transport's own "Mac out of reach" failures, which the phone shows as reconnecting instead. */
+export function isRemoteConnectionError(message: string): boolean {
+  return message === UNREACHABLE || message === LOST;
+}
+
 export function reconnectDelay(attempt: number): number {
   return Math.min(MAX_DELAY, 1000 * 2 ** Math.max(0, attempt));
 }
@@ -69,7 +77,7 @@ export class RemoteTransport implements Transport {
 
   async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
     await this.connect();
-    if (this.socket?.readyState !== OPEN) throw new Error("The connection to the Mac was lost.");
+    if (this.socket?.readyState !== OPEN) throw new Error(LOST);
     const id = this.nextId++;
     const reply = new Promise<unknown>((resolve, reject) => this.pending.set(id, { resolve, reject }));
     this.socket!.send(JSON.stringify({ type: "invoke", id, cmd: command, args: args ?? {} }));
@@ -146,9 +154,9 @@ export class RemoteTransport implements Transport {
         if (this.socket !== socket) return;
         this.socket = null;
         this.opening = null;
-        for (const [, waiting] of this.pending) waiting.reject(new Error("The connection to the Mac was lost."));
+        for (const [, waiting] of this.pending) waiting.reject(new Error(LOST));
         this.pending.clear();
-        if (!settled) { settled = true; reject(new Error("Cannot reach the Mac. Check that Sirus is open and Tailscale is on.")); }
+        if (!settled) { settled = true; reject(new Error(UNREACHABLE)); }
         if (this.state === "unauthorized") return;
         this.setState("lost");
         this.scheduleRetry();

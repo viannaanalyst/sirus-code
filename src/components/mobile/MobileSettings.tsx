@@ -5,6 +5,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { Switch } from "@/primitives/Switch";
 import { useAppStore } from "@/store/app-store";
+import { MobileUsage } from "./MobileUsage";
 
 /** Alerts from the Mac (ADR-082): explains what is missing, or offers the switch. */
 function AlertsSection() {
@@ -68,6 +69,7 @@ export function MobileSettings({ online }: { online: boolean }) {
         <p className="mobile-help">{t("mobile.installHelp")}</p>
       </section>
       <AlertsSection />
+      <MobileUsage />
       <section>
         <button type="button" className="mobile-danger" onClick={disconnect}>{t("mobile.disconnect")}</button>
         <p className="mobile-help">{t("mobile.disconnectHelp")}</p>

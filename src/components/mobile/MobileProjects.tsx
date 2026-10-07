@@ -5,7 +5,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { listedSessions, projectGroups, shortAgo } from "@/lib/mobile";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
 import type { MobileNavigation } from "./MobileApp";
-import { MobileSessionRow } from "./MobileSessionRow";
+import { MobileSessionItem } from "./MobileSessionRow";
 
 /** Projects with the look chosen on the Mac; each opens in place to list its conversations. */
 export function MobileProjects({ navigation }: { navigation: MobileNavigation }) {
@@ -49,7 +49,7 @@ export function MobileProjects({ navigation }: { navigation: MobileNavigation })
               <ChevronDown size={14} className="mobile-project-chevron" aria-hidden="true" />
             </button>
             {expanded ? <div className="mobile-project-sessions">
-              {own.slice(0, 12).map((session) => <MobileSessionRow key={session.id} session={session} project={project} showProject={false} onOpen={() => navigation.open({ kind: "chat", sessionId: session.id })} />)}
+              {own.slice(0, 12).map((session) => <MobileSessionItem key={session.id} session={session} project={project} showProject={false} onOpen={() => navigation.open({ kind: "chat", sessionId: session.id })} />)}
               <button type="button" className="mobile-project-new" onClick={() => navigation.open({ kind: "new", projectId: project.id })}><Plus size={14} aria-hidden="true" />{t("mobile.newHere")}</button>
             </div> : null}
           </div>;

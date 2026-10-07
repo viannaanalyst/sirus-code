@@ -1,7 +1,10 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
+import { Checkbox } from "@/components/arc/checkbox/checkbox";
+import { useTranslation } from "@/i18n/use-translation";
 import { motionTokens } from "@/lib/motion";
+import { useAppStore } from "@/store/app-store";
 
 /** A centred glass card over a dimmed screen (ADR-084); tapping outside or Escape closes it. */
 export function MobileDialog({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
@@ -40,4 +43,34 @@ export function MobileMenu({ open, anchor, onClose, items }: {
       </motion.div>
     </> : null}
   </AnimatePresence>, document.body);
+}
+
+/**
+ * Deleting a conversation from the phone, under the Mac's rules: a working one cannot be
+ * deleted, and an isolated worktree goes too only when asked (refused if it has changes).
+ */
+export function MobileDeleteDialog({ session, open, onClose, onDeleted }: { session: import("@/client/types").Session | null; open: boolean; onClose: () => void; onDeleted?: () => void }) {
+  const t = useTranslation();
+  const [removeWorktree, setRemoveWorktree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (open) setRemoveWorktree(false); }, [open]);
+  const submit = async () => {
+    if (!session || busy) return;
+    setBusy(true);
+    const done = await useAppStore.getState().deleteSession(session.id, removeWorktree);
+    setBusy(false);
+    if (!done) return;
+    onClose();
+    onDeleted?.();
+  };
+  return <MobileDialog open={open} title={t("session.delete")} onClose={() => { if (!busy) onClose(); }}>
+    <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+      <p className="mobile-help mobile-dialog-text">{t("session.deleteHelp")}</p>
+      {session?.worktree.isolated ? <div className="mobile-dialog-option"><Checkbox label={t("session.removeWorktree")} checked={removeWorktree} onCheckedChange={(value) => setRemoveWorktree(value === true)} disabled={busy} /></div> : null}
+      <div className="mobile-dialog-actions">
+        <button type="button" className="mobile-dialog-button" disabled={busy} onClick={onClose}>{t("common.cancel")}</button>
+        <button type="submit" className="mobile-dialog-button" data-tone="danger" disabled={busy}>{t("session.delete")}</button>
+      </div>
+    </form>
+  </MobileDialog>;
 }

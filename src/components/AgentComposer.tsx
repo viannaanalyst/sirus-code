@@ -549,7 +549,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
                   aria-label={t("composer.compactSend")}
                   onClick={(event) => void send(false, event.shiftKey)}
                   className={cn(
-                    "composer-control inline-flex items-center gap-1.5 rounded-full px-3 ui-control transition-colors duration-[var(--motion-fast)]",
+                    "composer-compact-send composer-control inline-flex items-center gap-1.5 rounded-full px-3 ui-control transition-colors duration-[var(--motion-fast)]",
                     canSend ? "bg-text-primary text-background-0" : "bg-background-3 text-text-muted",
                   )}
                 >

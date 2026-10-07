@@ -65,6 +65,79 @@
   .mobile-badge[data-badge="failed"] { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
   .mobile-empty { margin: 32px 16px; color: var(--text-muted); font-size: 14px; text-align: center; }
 
+  /* Diff comments heading to the conversation (ADR-086) */
+  .mobile-review-note { position: absolute; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 16px; background: var(--text-primary); color: var(--background-0); font-size: 13px; box-shadow: 0 10px 30px rgb(0 0 0 / .35); animation: mobile-fade-in var(--motion-normal) var(--ease-out); }
+  .mobile-review-note span { flex: 1; }
+  .mobile-review-note button { flex-shrink: 0; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--background-0); color: var(--text-primary); font-weight: 600; }
+
+  /* Files (ADR-086) */
+  .mobile-file { display: flex; width: 100%; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+  .mobile-file:last-child { border-bottom: 0; }
+  .mobile-file:active { background: var(--accent-muted); }
+  .mobile-file svg:first-child { flex-shrink: 0; }
+  .mobile-file-name { flex: 1; min-width: 0; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-file-preview { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+  .mobile-file-text { margin: 0; color: var(--text-primary); font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .mobile-file-image { display: block; max-width: 100%; margin: 0 auto; border-radius: 12px; }
+  .mobile-file-markdown { font-size: 15px; line-height: 1.55; }
+
+  /* Provider usage (ADR-086) */
+  .mobile-usage-title { align-items: center; justify-content: space-between; }
+  .mobile-usage-title button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: var(--text-muted); }
+  .mobile-usage { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
+  .mobile-usage:last-child { border-bottom: 0; }
+  .mobile-usage-head { display: flex; align-items: center; gap: 8px; }
+  .mobile-usage-head .mobile-option-help { margin-left: auto; }
+  .mobile-usage-window { display: flex; flex-direction: column; gap: 5px; }
+  .mobile-usage-row { display: flex; justify-content: space-between; color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .mobile-usage-bar { height: 6px; overflow: hidden; border-radius: 999px; background: var(--background-3); }
+  .mobile-usage-bar span { display: block; height: 100%; border-radius: inherit; background: var(--success); transition: width var(--motion-normal) var(--ease-out); }
+  .mobile-usage-bar span[data-level="mid"] { background: var(--warning); }
+  .mobile-usage-bar span[data-level="high"] { background: var(--danger); }
+
+  /* Branch and pull request (ADR-086) */
+  .mobile-git-branch { display: inline-flex; min-width: 0; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 14px; }
+  .mobile-git-branch span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-search-inline { margin: 0 0 8px; }
+  .mobile-option:disabled { opacity: 1; }
+  .mobile-pr { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+  .mobile-pr-head { display: flex; align-items: flex-start; gap: 8px; }
+  .mobile-pr-head svg { flex-shrink: 0; margin-top: 2px; color: var(--success); }
+  .mobile-pr-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .mobile-pr-meta .mobile-badge { margin-left: 0; }
+  .mobile-pr-checks { font-size: 12px; color: var(--text-secondary); }
+  .mobile-pr-checks[data-status="failed"] { color: var(--danger); }
+  .mobile-pr-checks[data-status="passed"] { color: var(--success); }
+  .mobile-pr-checks[data-status="pending"] { color: var(--warning); }
+  .mobile-pr-open { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: var(--accent-muted); color: var(--text-primary); font-size: 14px; }
+
+  /* Messages waiting for the Mac (ADR-086) */
+  .mobile-outbox { display: flex; gap: 10px; margin: 8px 12px 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--warning); font-size: 13px; animation: mobile-fade-in var(--motion-normal) var(--ease-out); }
+  .mobile-outbox > svg { flex-shrink: 0; margin-top: 2px; }
+  .mobile-outbox-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; }
+  .mobile-outbox-text strong { font-weight: 600; }
+  .mobile-outbox-item { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .mobile-outbox-item > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-outbox-item button { display: grid; flex-shrink: 0; place-items: center; width: 26px; height: 26px; border-radius: 50%; color: var(--text-muted); }
+
+  /* Swipe actions (ADR-086) */
+  .mobile-swipe { position: relative; overflow: hidden; border-bottom: 1px solid var(--border-subtle); }
+  .mobile-swipe:last-child { border-bottom: 0; }
+  .mobile-swipe .mobile-row { border-bottom: 0; }
+  .mobile-swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+  .mobile-swipe-action { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #fff; font-size: 11px; font-weight: 600; }
+  .mobile-swipe-action[data-tone="accent"] { background: #5b6bff; }
+  .mobile-swipe-action[data-tone="warning"] { background: #d98a1f; }
+  .mobile-swipe-action[data-tone="danger"] { background: var(--danger); }
+  .mobile-swipe-action:disabled { opacity: .45; }
+  .mobile-swipe-content { position: relative; background: var(--background-1); touch-action: pan-y; transition: transform 260ms cubic-bezier(.22, 1, .36, 1); }
+  .mobile-swipe-content[data-dragging] { transition: none; }
+  .mobile-row-pin { display: inline; margin-right: 5px; vertical-align: -1px; color: var(--text-muted); }
+  .mobile-archived-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 18px; padding: 12px; border-radius: 14px; color: var(--text-secondary); font-size: 14px; }
+  .mobile-archived-link:active { background: var(--accent-muted); }
+  .mobile-swipe-hint { margin-top: 10px; opacity: .7; }
+  @media (prefers-reduced-motion: reduce) { .mobile-swipe-content { transition: none; } }
+
   /* Projects */
   .mobile-project { border-bottom: 1px solid var(--border-subtle); }
   .mobile-project:last-child { border-bottom: 0; }
@@ -232,3 +305,13 @@
 .mobile-chat .composer-approval-trigger { gap: 2px !important; padding: 0 8px !important; font-size: 0 !important; }
 .mobile-chat .composer-model-trigger { max-width: 148px !important; }
 .mobile-chat .context-meter { display: none !important; }
+/* Compact and send keeps only its icon on a phone, so the row fits small screens (iPhone SE). */
+.mobile-chat .composer-compact-send { gap: 0 !important; padding: 0 10px !important; font-size: 0 !important; }
+.mobile-chat .composer-footer-actions { min-width: 0; }
+/* On a phone the review keeps room for the diff and its comment box: history scrolls in a short band. */
+.mobile-review .changes-history { max-height: 30%; overflow-y: auto; }
+/* A turn's change summary puts its actions on their own line at phone width. */
+.mobile-chat .changed-files-header { flex-wrap: wrap; row-gap: 4px; }
+.mobile-chat .changed-files-header > :first-child { flex-basis: 100%; }
+.mobile-chat .changed-files-header > :first-child > span:first-child { white-space: nowrap; }
+.mobile-chat .changed-files-header > :last-child { margin-left: -6px; }

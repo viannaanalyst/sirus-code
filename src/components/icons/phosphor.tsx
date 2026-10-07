@@ -13,6 +13,7 @@ import {
   Power as PhPower,
   Camera as PhCameraIcon,
   House as PhHouseIcon,
+  CloudSlash as PhCloudSlash,
   Planet as PhPlanet,
   DeviceRotate as PhDeviceRotate,
   Archive as PhArchive,
@@ -396,6 +397,7 @@ export const Unlink = adapt(PhLinkBreak, "Unlink");
 export const CameraShot = adapt(PhCameraIcon, "CameraShot");
 export const HomeButton = adapt(PhHouseIcon, "HomeButton");
 export const House = adapt(PhHouseIcon, "House");
+export const CloudOff = adapt(PhCloudSlash, "CloudOff");
 export const Planet = adapt(PhPlanet, "Planet");
 export const RotateView = adapt(PhDeviceRotate, "RotateView");
 export const ScreenDashed = adapt(PhRectangleDashed, "ScreenDashed");
