@@ -67,6 +67,7 @@ const DENIED: &[&str] = &[
     "computer_action",
     "simulator_action",
     "window_snap_action",
+    "astro_show_in_main",
 ];
 
 const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; script-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'";

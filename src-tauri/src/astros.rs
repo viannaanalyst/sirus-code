@@ -194,9 +194,19 @@ pub enum Action {
 }
 
 #[tauri::command]
-pub async fn astro_action(state: State<'_, Arc<AppState>>, action: Action) -> Result<Value> {
+pub async fn astro_action(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    action: Action,
+) -> Result<Value> {
     let state = state.inner().clone();
-    native_task(move || run(&state, action)).await
+    let renamed = matches!(action, Action::Save { .. } | Action::Delete { .. });
+    let result = native_task(move || run(&state, action)).await;
+    if renamed && result.is_ok() {
+        // The menu bar lists Astros by name and colour (ADR-088).
+        crate::astro_tray::refresh(&app);
+    }
+    result
 }
 
 fn run(state: &AppState, action: Action) -> Result<Value> {

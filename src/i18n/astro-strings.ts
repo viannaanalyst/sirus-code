@@ -48,6 +48,7 @@ const strings: Record<string, [string, string]> = {
   "astros.editItem": ["Edit", "Editar"],
   "astros.newName": ["New Astro", "Novo Astro"],
   "astros.model": ["Model", "Modelo"],
+  "astros.float.openInApp": ["Open in Sirus Code", "Abrir no Sirus Code"],
   "astros.launched": ["Sessions · {count}", "Sessões · {count}"],
   "astros.document.updated": ["Updated {time}", "Atualizado em {time}"],
   "astros.document.copy": ["Copy Markdown", "Copiar Markdown"],

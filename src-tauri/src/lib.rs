@@ -8,6 +8,7 @@ mod agent;
 mod agent_output;
 mod appearance;
 mod astro_documents;
+mod astro_tray;
 mod astros;
 mod attachment_platform;
 mod attachments;
@@ -205,6 +206,7 @@ pub fn run() {
                 app.handle(),
                 app.state::<Arc<AppState>>().inner().clone(),
             );
+            astro_tray::setup(app.handle());
             #[cfg(debug_assertions)]
             if std::env::var("SIRUS_DEVTOOLS").as_deref() == Ok("1") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -226,6 +228,7 @@ pub fn run() {
             tasks::task_action,
             astros::astro_action,
             astro_documents::astro_document_action,
+            astro_tray::astro_show_in_main,
             window_snap::window_snap_action,
             project_look::project_look_action,
             project_scripts::project_scripts_action,
@@ -360,10 +363,21 @@ pub fn run() {
                     attachments::window_drop(app, drop);
                 }
                 tauri::RunEvent::WindowEvent {
+                    label,
                     event: tauri::WindowEvent::CloseRequested { api, .. },
                     ..
-                } => {
+                } if label == "main" => {
                     request_close(app, || api.prevent_close());
+                }
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::Destroyed,
+                    ..
+                } if label == "main" => {
+                    // The floating Astro chat never outlives the app window (ADR-088).
+                    if let Some(float) = app.get_webview_window(astro_tray::FLOAT) {
+                        let _ = float.close();
+                    }
                 }
                 tauri::RunEvent::ExitRequested { api, .. } => {
                     request_close(app, || api.prevent_exit());

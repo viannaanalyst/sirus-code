@@ -462,6 +462,21 @@ export class SirusClient {
     return this.transport.invoke<T>("astro_document_action", { action });
   }
 
+  /** From the floating Astro chat: show its conversation in the main window (ADR-088). */
+  astroShowInMain(sessionId: string) {
+    return this.transport.invoke<void>("astro_show_in_main", { sessionId });
+  }
+
+  /** The menu bar switched the floating chat to another Astro. */
+  onAstroFloatSelect(handler: (astroId: string) => void) {
+    return this.transport.listen<{ astroId: string }>("astro-float-select", (payload) => handler(payload.astroId));
+  }
+
+  /** The floating chat asked the main window to show a conversation. */
+  onAstroOpenInMain(handler: (sessionId: string) => void) {
+    return this.transport.listen<{ sessionId: string }>("astro-open-in-main", (payload) => handler(payload.sessionId));
+  }
+
   onAstroDocumentChanged(handler: (id: string) => void) {
     return this.transport.listen<{ id: string }>("astro-document-changed", (payload) => handler(payload.id));
   }

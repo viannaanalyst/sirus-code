@@ -62,6 +62,9 @@ for (const type of ["dragover", "drop"] as const) {
 // Each shell is its own chunk: a phone never downloads the Mac layout, and the reverse.
 const App = lazy(() => import("./App"));
 const MobileApp = lazy(() => import("./components/mobile/MobileApp"));
+const AstroFloat = lazy(() => import("./components/astros/AstroFloat"));
+/** Set by the menu bar's floating Astro window before this script runs (ADR-088). */
+const floatingAstro = (window as { __SIRUS_ASTRO_FLOAT__?: unknown }).__SIRUS_ASTRO_FLOAT__;
 let root: ReactDOM.Root | null = null;
 
 function mount(node: React.ReactNode) {
@@ -133,4 +136,5 @@ if (isRemoteUi) {
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeRemote(); });
   void startRemote();
 }
+else if (typeof floatingAstro === "string") mount(<Suspense fallback={null}><AstroFloat initialAstroId={floatingAstro} /></Suspense>);
 else mount(<Suspense fallback={null}><App /></Suspense>);

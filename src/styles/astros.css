@@ -55,6 +55,9 @@
   .astro-sessions-panel { display: flex; width: min(420px, calc(100vw - 32px)); flex-direction: column; gap: 6px; padding: 6px; }
   .astro-sessions-panel .astro-card { max-width: none; }
   .astro-document-reader { width: min(760px, calc(100vw - 48px)); }
+  /* The floating Astro chat from the menu bar (ADR-088). */
+  .astro-float { display: flex; height: 100vh; flex-direction: column; overflow: hidden; background: var(--background-0); }
+  .astro-float-bar { display: flex; flex-shrink: 0; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); }
   .astro-document-body { height: min(62vh, 640px); overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--background-2); }
   button.astro-run { cursor: pointer; }
   button.astro-run:hover { opacity: 1; transform: scaleY(1.15); }
