@@ -93,6 +93,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-074: Send and new thread, compact and send, new project from a name, CLI install choice](ADR-074-send-and-new-compact-and-send-new-project-cli-choice.md) — ⌥⌘↩, `/compact` before a heavy idle send, native `create_project` (slug folder, Git, README, first commit), per-provider executable picker.
 - [ADR-075: MCP server manager](ADR-075-mcp-server-manager.md) — Settings view of every provider CLI's MCP servers, paste-JSON install into several providers with backups and atomic writes, `/mcp` card.
 - [ADR-076: Agents manage sessions](ADR-076-agents-manage-sessions.md) — opt-in `sirus_*` tools to list, read, start and continue sessions, with inherited approval and bounded fan-out.
+- [ADR-077: Private secret requests and credential masking](ADR-077-private-secret-requests-and-credential-masking.md) — `request_secret`/`use_secret` with one-use memory-only refs, masked approvals and activity.
 
 ## Template
 

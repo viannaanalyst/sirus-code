@@ -16,5 +16,11 @@
   .computer-request { display: flex; align-items: flex-start; gap: 12px; margin: 0 auto 8px; max-width: var(--chat-column-width); padding: 14px 16px; border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--background-2); animation: computer-request-in var(--motion-normal) var(--ease-out); }
   .computer-request-icon { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: color-mix(in srgb, #6ea8fe 18%, transparent); color: #6ea8fe; }
   @keyframes computer-request-in { from { opacity: 0; translate: 0 6px; } }
+  /* Private secret request (ADR-077) */
+  .secret-request-icon { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
+  .secret-request-field { position: relative; }
+  .secret-request-reveal { position: absolute; top: 50%; right: 6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--text-muted); translate: 0 -50%; transition: color var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out); }
+  .secret-request-reveal:hover { background: var(--accent-muted); color: var(--text-primary); }
+  .secret-request-reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .computer-request { animation: none; } }
 }

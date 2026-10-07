@@ -677,6 +677,12 @@ export type ComputerAction =
   | { type: "revoke"; sessionId: string; bundleId: string }
   | { type: "stop" };
 
+/** A private secret card (ADR-077): what the agent asked for, never the value. `path` is the workspace file it will be written to. */
+export interface SecretRequest { id: string; sessionId: string; label: string; description: string; envName: string | null; path: string | null }
+export interface SecretSnapshot { requests: SecretRequest[] }
+/** Closed secret-card controls; `value: null` declines. The value is never echoed back. */
+export type SecretAction = { type: "status" } | { type: "respond"; requestId: string; value: string | null };
+
 /** Live Git workspace metadata; renames are explicit deletion/addition paths. */
 export interface GitWorkspaceEntry {
   path: string;

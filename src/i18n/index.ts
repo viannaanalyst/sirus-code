@@ -5,6 +5,7 @@ import { documentEnglish, documentPortuguese } from "./document-strings";
 import { keybindingEnglish, keybindingPortuguese } from "./keybinding-strings";
 import { computerEnglish, computerPortuguese } from "./computer-strings";
 import { mcpEnglish, mcpPortuguese } from "./mcp-strings";
+import { secretEnglish, secretPortuguese } from "./secret-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
 import { astroEnglish, astroPortuguese } from "./astro-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
@@ -34,6 +35,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...keybindingPortuguese,
     ...computerPortuguese,
     ...mcpPortuguese,
+    ...secretPortuguese,
     ...tabsPortuguese,
     ...astroPortuguese,
     ...timelinePortuguese,
@@ -98,6 +100,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...keybindingEnglish,
     ...computerEnglish,
     ...mcpEnglish,
+    ...secretEnglish,
     ...tabsEnglish,
     ...astroEnglish,
     ...timelineEnglish,

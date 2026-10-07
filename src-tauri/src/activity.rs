@@ -166,8 +166,9 @@ impl TurnActivity {
             return false;
         }
         item.label = short(&item.label, 100);
-        item.detail = detail(&item.detail);
-        item.output = output(&item.output);
+        // Credentials are masked before anything is kept (ADR-077).
+        item.detail = detail(&crate::redact::mask(head(&item.detail, 4096)));
+        item.output = output(&crate::redact::mask(tail(&item.output, 16_384)));
         item.model = item
             .model
             .as_deref()
@@ -373,6 +374,34 @@ fn output(v: &str) -> String {
         tail
     }
 }
+/// The first `limit` bytes of `v` on a character boundary.
+fn head(v: &str, limit: usize) -> &str {
+    let mut end = v.len().min(limit);
+    while !v.is_char_boundary(end) {
+        end -= 1;
+    }
+    &v[..end]
+}
+/// The last `limit` bytes of `v` on a character boundary, so masking scans bounded text.
+fn tail(v: &str, limit: usize) -> &str {
+    let mut start = v.len().saturating_sub(limit);
+    while !v.is_char_boundary(start) {
+        start += 1;
+    }
+    &v[start..]
+}
+/// A secret the person provided privately: a settled row naming its label only (ADR-077).
+pub fn secret_row(request_id: &str, label: &str) -> ActivityItem {
+    let mut row = item(
+        format!("secret:{}", short(request_id, 64)),
+        ItemKind::Tool,
+        crate::secrets::PROVIDED_LABEL,
+        ItemState::Completed,
+        None,
+    );
+    row.detail = short(label, 80);
+    row
+}
 /// A skill the prompt invoked: a settled row at the start of the turn.
 pub fn skill(name: &str) -> ActivityItem {
     let mut row = item(
@@ -463,6 +492,11 @@ pub fn observe(session: &mut Session, observation: ActivityItem) -> bool {
         return false;
     }
     let mut observation = observation;
+    // A value the person provided privately this turn never lands in a row.
+    observation.detail =
+        crate::secrets::scrub(&session.id, std::mem::take(&mut observation.detail));
+    observation.output =
+        crate::secrets::scrub(&session.id, std::mem::take(&mut observation.output));
     // The reply so far, in the UTF-16 units the transcript slices by.
     let reply = session
         .messages

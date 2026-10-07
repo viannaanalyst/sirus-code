@@ -192,6 +192,11 @@ pub async fn start(
                     "mcp_servers.sirus_browser.default_tools_approval_mode",
                     "\"approve\"".to_string(),
                 ),
+                // A private secret card waits up to five minutes for the person (ADR-077).
+                (
+                    "mcp_servers.sirus_browser.tool_timeout_sec",
+                    "330".to_string(),
+                ),
             ];
             for (key, value) in values {
                 cmd.arg("-c").arg(format!("{key}={value}"));

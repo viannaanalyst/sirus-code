@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Eye, FilePenLine, Globe, Hammer, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
+import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Eye, FilePenLine, Globe, Hammer, Lock, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -10,7 +10,8 @@ import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { foldBoundary, groupSentence, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { foldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { maskSecrets } from "@/lib/redact";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
@@ -105,9 +106,10 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
   const t = useTranslation();
   const outputId = useId();
   const category = stepCategory(item);
-  const Icon = categoryIcons[category];
+  const Icon = isSecretRow(item) ? Lock : categoryIcons[category];
   const sentence = stepSentence(item, t, cwd);
-  const output = item.output?.trim() ? item.output : "";
+  // Rows recorded before native masking are masked here too.
+  const output = useMemo(() => item.output?.trim() ? maskSecrets(item.output) : "", [item.output]);
   // Output always starts folded (failed steps stay visible as red rows); a click opens it.
   const [open, setOpen] = useState(false);
   const expanded = Boolean(output) && open;

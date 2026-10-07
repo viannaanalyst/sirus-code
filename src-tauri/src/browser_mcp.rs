@@ -53,6 +53,11 @@ pub fn init(app: tauri::AppHandle, data_dir: PathBuf) {
     start_server(app, socket);
 }
 
+/// The app handle once the bridge is initialised (never in unit tests).
+pub(crate) fn app_handle() -> Option<tauri::AppHandle> {
+    APP.get().map(|(app, _)| app.clone())
+}
+
 /// Returns (creating once) the endpoint bound to a session.
 pub fn ensure_endpoint(session_id: &str) -> Option<Endpoint> {
     let (_, socket) = APP.get()?;
@@ -277,6 +282,10 @@ fn execute(
         // Session tools for every session, behind the Settings switch (ADR-076).
         return crate::sirus_tools::execute(app, session_id, tool, &args);
     }
+    if matches!(tool, "request_secret" | "use_secret") {
+        // Private secret requests (ADR-077); blocks while the person answers.
+        return crate::secrets::execute(app, session_id, tool, &args);
+    }
     if tool.starts_with("simulator_") {
         // The same per-session bridge serves the iOS Simulator tools (ADR-066).
         return tauri::async_runtime::block_on(crate::simulator::execute(
@@ -416,6 +425,7 @@ fn tool_definitions() -> Vec<Value> {
     .chain(crate::simulator::tool_definitions())
     .chain(crate::astros::tool_definitions())
     .chain(crate::sirus_tools::tool_definitions())
+    .chain(crate::secrets::tool_definitions())
     .collect()
 }
 
@@ -444,7 +454,8 @@ mod tests {
                 .is_some_and(|name| name.starts_with("browser_")
                     || name.starts_with("simulator_")
                     || name.starts_with("astro_")
-                    || name.starts_with("sirus_")));
+                    || name.starts_with("sirus_")
+                    || name.ends_with("_secret")));
             assert!(tool["description"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty()));
