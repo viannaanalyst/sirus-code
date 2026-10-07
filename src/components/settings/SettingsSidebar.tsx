@@ -15,8 +15,10 @@ import {
   Puzzle,
   Settings2,
   SlidersHorizontal,
+  Smartphone,
   TerminalSquare,
 } from "@/components/icons/phosphor";
+import { isRemoteUi } from "@/client";
 import { cn } from "@/lib/cn";
 import type { SettingsSectionId } from "@/lib/settings";
 
@@ -46,6 +48,8 @@ const GROUPS: { label: string; items: { id: SettingsSectionId; label: string; ic
   {
     label: "System",
     items: [
+      // Remote access is managed only at the Mac (ADR-080).
+      { id: "connections", label: "connections.title", icon: Smartphone },
       { id: "advanced", label: "Advanced", icon: SlidersHorizontal },
     ],
   },
@@ -101,7 +105,7 @@ export function SettingsSidebar({
         {GROUPS.map((group, index) => (
           <div key={group.label}>
             <p className={cn("mb-1 px-2.5 ui-caption text-text-muted", index === 0 ? "mt-1" : "mt-4")}>{t(group.label)}</p>
-            {group.items.map((item) => {
+            {group.items.filter((item) => !(isRemoteUi && item.id === "connections")).map((item) => {
               const Icon = item.icon;
               const active = item.id === section;
               return (

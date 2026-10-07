@@ -705,7 +705,7 @@ export interface SecretSnapshot { requests: SecretRequest[] }
 export type RemoteAction = { type: "status" } | { type: "setEnabled"; enabled: boolean } | { type: "revoke"; deviceId: string };
 export interface RemoteDevice { id: string; name: string; createdAt: string; lastSeen: string | null }
 export interface RemoteStatus { enabled: boolean; running: boolean; port: number; urls: string[]; devices: RemoteDevice[]; error: string | null }
-export interface RemotePairing { code: string; urls: string[]; expiresAt: string }
+export interface RemotePairing { code: string; urls: string[]; qrSvg: string; expiresAt: string }
 /** Closed secret-card controls; `value: null` declines. The value is never echoed back. */
 export type SecretAction = { type: "status" } | { type: "respond"; requestId: string; value: string | null };
 

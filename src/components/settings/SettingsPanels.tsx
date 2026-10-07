@@ -7,6 +7,7 @@ import "@/styles/general-settings.css";
 import { KeybindingsSettings } from "./KeybindingsSettings";
 import { ProviderRow } from "@/components/settings/ProviderRow";
 import { ComputerSettings } from "@/components/settings/ComputerSettings";
+import { ConnectionsSettings } from "@/components/settings/ConnectionsSettings";
 import { SettingsGroup, SettingsRow, SettingsSection } from "@/components/settings/SettingsSection";
 import { AppearanceSettings, FontSizeControl, MonoFontControl } from "./AppearanceSettings";
 import { ChatBehaviorSettings } from "@/components/settings/ChatBehaviorSettings";
@@ -54,6 +55,7 @@ export function SettingsPanels({
   if (section === "notifications") return <NotificationSettings settings={settings} onSave={onSave} />;
   if (section === "skills") return <SkillsSettings settings={settings} />;
   if (section === "computer") return <ComputerSettings settings={settings} onSave={onSave} />;
+  if (section === "connections") return <ConnectionsSettings locale={settings.locale} />;
   if (section === "mcp") return <McpSettings settings={settings} agents={agents} onSave={onSave} />;
 
   if (section === "providers") {

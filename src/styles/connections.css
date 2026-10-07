@@ -1,0 +1,16 @@
+@layer components {
+  /* Settings → Connections (ADR-080) */
+  .connections-address { padding: 3px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--background-1); color: var(--text-secondary); font-family: var(--font-mono); user-select: text; }
+  .general-settings .settings-group-card > .connections-pair { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+  .connections-steps { margin: 0; padding-left: 18px; color: var(--text-secondary); list-style: decimal; }
+  .connections-steps li + li { margin-top: 6px; }
+  .connections-steps li::marker { color: var(--text-muted); }
+  .connections-qr, .connections-qr-start { display: flex; flex-shrink: 0; flex-direction: column; align-items: center; gap: 8px; min-width: 192px; }
+  .connections-qr { animation: connections-qr-in var(--motion-normal) var(--ease-out); }
+  .connections-qr img { padding: 8px; border-radius: var(--radius-lg); background: #fff; box-shadow: 0 0 0 1px var(--border-subtle); transition: opacity var(--motion-fast) var(--ease-out), filter var(--motion-fast) var(--ease-out); }
+  .connections-qr[data-expired] img { opacity: .35; filter: blur(2px); }
+  .connections-paired { display: inline-flex; align-items: center; gap: 6px; color: var(--success); animation: connections-qr-in var(--motion-normal) var(--ease-out); }
+  .connections-empty { display: flex; align-items: center; gap: 8px; margin: 0; padding: 14px 16px; color: var(--text-muted); }
+  @keyframes connections-qr-in { from { opacity: 0; scale: .96; } }
+  @media (prefers-reduced-motion: reduce) { .connections-qr, .connections-paired { animation: none; } }
+}

@@ -685,6 +685,10 @@ export class SirusClient {
     return this.transport.invoke<import("./types").RemoteStatus>("remote_action", { action });
   }
 
+  onRemoteChanged(handler: () => void) {
+    return this.transport.listen<unknown>("remote-changed", () => handler());
+  }
+
   remotePair() {
     return this.transport.invoke<import("./types").RemotePairing>("remote_pair");
   }

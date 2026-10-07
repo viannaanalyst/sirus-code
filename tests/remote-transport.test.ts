@@ -119,3 +119,17 @@ test("pairing reads the QR link and names the device", async () => {
   const refused = (async () => new Response(JSON.stringify({ message: "This code has expired." }), { status: 401 })) as typeof fetch;
   await assert.rejects(redeemPairing("code", "iPhone", refused), /expired/);
 });
+
+test("Settings → Connections counts down the code and spots the new device", async () => {
+  const { newlyPaired, pairingCountdown, svgDataUrl } = await import("../src/lib/remote-connections.ts");
+  const now = Date.parse("2026-10-07T12:00:00Z");
+  assert.equal(pairingCountdown("2026-10-07T12:04:32Z", now), "4:32");
+  assert.equal(pairingCountdown("2026-10-07T12:00:00.400Z", now), "0:01");
+  assert.equal(pairingCountdown("2026-10-07T11:59:59Z", now), null);
+  assert.equal(pairingCountdown("not a date", now), null);
+  const phone = { id: "b", name: "iPhone · Safari", createdAt: "", lastSeen: null };
+  const mac = { id: "a", name: "Mac", createdAt: "", lastSeen: null };
+  assert.equal(newlyPaired([mac], [mac, phone]), phone);
+  assert.equal(newlyPaired([mac, phone], [mac]), null);
+  assert.ok(svgDataUrl("<svg a=\"1\"/>").startsWith("data:image/svg+xml;charset=utf-8,%3Csvg"));
+});

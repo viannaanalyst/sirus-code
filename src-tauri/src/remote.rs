@@ -32,12 +32,14 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tauri::ipc::{CallbackFn, InvokeBody, InvokeResponse, InvokeResponseBody};
 use tauri::webview::InvokeRequest;
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 use crate::error::{Error, Result};
 
 pub const DEFAULT_PORT: u16 = 7710;
+/// Emitted when a device pairs or connects, so Settings → Connections refreshes.
+pub const CHANGED: &str = "remote-changed";
 const PAIR_TTL: Duration = Duration::from_secs(5 * 60);
 const PAIR_FAILURES: u8 = 5;
 const HELLO_TIMEOUT: Duration = Duration::from_secs(10);
@@ -116,6 +118,8 @@ pub struct Pairing {
     code: String,
     /// The addresses above with `?pair=<code>`, ready for a QR code.
     urls: Vec<String>,
+    /// The first URL as a QR code (SVG markup).
+    qr_svg: String,
     expires_at: DateTime<Utc>,
 }
 
@@ -230,21 +234,42 @@ pub async fn remote_pair() -> Result<Pairing> {
             format!("Up to {MAX_DEVICES} devices can be connected. Remove one first."),
         ));
     }
+    let bases = base_urls(&remote);
+    if bases.is_empty() {
+        return Err(Error::new(
+            "remote",
+            "Tailscale is not connected on this Mac. Open Tailscale and sign in, then try again.",
+        ));
+    }
     let code = random_token(16);
     *remote.pairing.lock() = Some(PairCode {
         hash: hash(&code),
         expires: Instant::now() + PAIR_TTL,
         failures: 0,
     });
-    let urls = base_urls(&remote)
+    let urls: Vec<String> = bases
         .into_iter()
         .map(|url| format!("{url}/?pair={code}"))
         .collect();
+    let qr_svg = qr_svg(&urls[0])?;
     Ok(Pairing {
         code,
         urls,
+        qr_svg,
         expires_at: Utc::now() + chrono::Duration::from_std(PAIR_TTL).unwrap_or_default(),
     })
+}
+
+fn qr_svg(text: &str) -> Result<String> {
+    let code = qrcode::QrCode::with_error_correction_level(text, qrcode::EcLevel::M)
+        .map_err(|error| Error::new("remote", error.to_string()))?;
+    Ok(code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(240, 240)
+        .quiet_zone(true)
+        .dark_color(qrcode::render::svg::Color("#000000"))
+        .light_color(qrcode::render::svg::Color("#ffffff"))
+        .build())
 }
 
 fn status(remote: &Remote) -> Status {
@@ -274,7 +299,14 @@ fn port(config: &Config) -> u16 {
 
 fn base_urls(remote: &Remote) -> Vec<String> {
     let port = port(&remote.config.lock());
-    tailscale_addresses()
+    #[allow(unused_mut)]
+    let mut addresses = tailscale_addresses();
+    // Development builds can pair over loopback to test without Tailscale.
+    #[cfg(debug_assertions)]
+    if addresses.is_empty() && std::env::var("SIRUS_REMOTE_LOOPBACK").as_deref() == Ok("1") {
+        addresses.push(Ipv4Addr::LOCALHOST);
+    }
+    addresses
         .into_iter()
         .map(|ip| format!("http://{ip}:{port}"))
         .collect()
@@ -468,6 +500,7 @@ struct PairRequest {
 async fn pair(AxumState(shared): AxumState<Shared>, Json(request): Json<PairRequest>) -> Response {
     match redeem(&shared.remote, &request.code, &request.name) {
         Ok((device_id, token)) => {
+            let _ = shared.app.emit(CHANGED, ());
             Json(json!({ "deviceId": device_id, "token": token })).into_response()
         }
         Err(message) => (
@@ -583,7 +616,13 @@ enum Incoming {
 async fn connection(mut socket: WebSocket, shared: Shared) {
     let device = match tokio::time::timeout(HELLO_TIMEOUT, socket.recv()).await {
         Ok(Some(Ok(Message::Text(text)))) => match serde_json::from_str::<Incoming>(&text) {
-            Ok(Incoming::Hello { token }) => authenticate(&shared.remote, &token),
+            Ok(Incoming::Hello { token }) => {
+                let device = authenticate(&shared.remote, &token);
+                if device.is_some() {
+                    let _ = shared.app.emit(CHANGED, ());
+                }
+                device
+            }
             _ => None,
         },
         _ => None,
@@ -950,6 +989,13 @@ mod tests {
             serde_json::from_str(&result_message(3, Err(json!({ "code": "x" })))).unwrap();
         assert_eq!(error["ok"], false);
         assert_eq!(error["error"]["code"], "x");
+    }
+
+    #[test]
+    fn pairing_links_become_qr_codes() {
+        let svg = qr_svg("http://100.80.1.2:7710/?pair=abcdefghijklmnopqrstuv").unwrap();
+        assert!(svg.starts_with("<?xml") || svg.starts_with("<svg"));
+        assert!(svg.contains("#000000"));
     }
 
     #[test]

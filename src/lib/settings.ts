@@ -266,6 +266,7 @@ export type SettingsSectionId =
   | "providers"
   | "skills"
   | "computer"
+  | "connections"
   | "mcp"
   | "appearance"
   | "git"

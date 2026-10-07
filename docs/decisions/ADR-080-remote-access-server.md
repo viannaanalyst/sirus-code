@@ -4,7 +4,7 @@
 
 ## Context
 
-The owner wants to follow and drive sessions from a phone while the Mac does the work, the way T3 Code's remote access does (`docs/user/remote-access.md` in pingdotgg/t3code: a server on the person's machine, reached over Tailscale, with one-time pairing). A native app would need the paid Apple developer program, so the first client is the existing web UI, served by the Mac and opened in the phone's browser (later a PWA). This ADR is stage 1 of that plan: the Mac becomes reachable. Pairing UI (Settings → Connections with a QR code), the mobile screens and push notifications are later stages.
+The owner wants to follow and drive sessions from a phone while the Mac does the work, the way T3 Code's remote access does (`docs/user/remote-access.md` in pingdotgg/t3code: a server on the person's machine, reached over Tailscale, with one-time pairing). A native app would need the paid Apple developer program, so the first client is the existing web UI, served by the Mac and opened in the phone's browser (later a PWA). This ADR covers stages 1 and 2 of that plan: the Mac becomes reachable, and Settings → Connections pairs devices with a QR code. The mobile screens and push notifications are later stages.
 
 The UI already talks to the Mac only through `Transport` (`src/client/transport.ts`). Only `LocalTransport` touches Tauri, so a second transport can carry the same commands over the network.
 
@@ -12,12 +12,21 @@ The UI already talks to the Mac only through `Transport` (`src/client/transport.
 
 **Off by default.** `remote.rs` keeps its own `remote.json` in the app data folder (`0600`): `enabled`, `port` (default 7710) and the paired devices. It is not part of `AppSettings`, so `save_settings` (which a remote device can call) cannot change it. Two commands manage it and are refused to remote devices: `remote_action` (`status`, `setEnabled`, `revoke`) and `remote_pair`.
 
+**Settings → Connections.** The Mac manages remote access on its own Settings page (the section is hidden in the UI served to other devices):
+
+- a switch for remote access;
+- the Tailscale address, with a copy button, or a hint to install Tailscale and sign in;
+- three steps and a QR code made natively (`qrcode` crate, SVG shown as an image), with a countdown. The code closes by itself when a device pairs, and the page names the device;
+- the device list (name, added, last used) with Remove.
+
+`remote-changed` is emitted when a device pairs or connects. Development builds accept `SIRUS_REMOTE_LOOPBACK=1` to pair over `127.0.0.1` without Tailscale.
+
 **Who can connect.** When on, an axum server listens on `0.0.0.0:<port>`. Every request passes a guard:
 
 - The peer must be loopback or Tailscale (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`); LAN and internet peers get 403. Tailscale already encrypts the traffic between devices.
 - When the browser sends `Origin`, it must name the requested host. This blocks other websites and cross-site WebSocket hijacking.
 
-**Pairing.** `remote_pair` creates a 16-byte code that is used once and expires after five minutes. It replaces any earlier code and is withdrawn after five wrong guesses. It returns `http://<tailscale address>:<port>/?pair=<code>` for each Tailscale address of the Mac. The page exchanges the code at `POST /api/pair` for the device's own 32-byte token. The Mac keeps only the token's SHA-256, the device name and when it was created and last seen, for at most ten devices. Revoking a device closes its open sockets.
+**Pairing.** `remote_pair` creates a 16-byte code that is used once and expires after five minutes. It replaces any earlier code and is withdrawn after five wrong guesses. It returns `http://<tailscale address>:<port>/?pair=<code>` for each Tailscale address of the Mac and a QR code of the first one. Without a Tailscale address it refuses. The page exchanges the code at `POST /api/pair` for the device's own 32-byte token. The Mac keeps only the token's SHA-256, the device name and when it was created and last seen, for at most ten devices. Revoking a device closes its open sockets.
 
 **Serving the UI.** Other paths are served from the bundled frontend through Tauri's asset resolver. Client-side routes fall back to `index.html`; missing files return 404. The HTML gets its own CSP (`connect-src 'self'`, no frames).
 
