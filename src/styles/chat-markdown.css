@@ -18,3 +18,7 @@
   .chat-file-ref:focus-visible, .chat-link:focus-visible { border-radius: 4px; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   .chat-file-ref-icon { display: inline-block; margin-right: 0.25rem; vertical-align: -0.12em; }
 }
+/* Reply images: a bounded thumbnail that opens the gallery. */
+.chat-image-button { display: inline-block; margin: 4px 0; padding: 0; border-radius: 10px; vertical-align: top; }
+.chat-image { display: block; max-width: min(100%, 420px); max-height: 300px; object-fit: contain; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: zoom-in; }
+.chat-image-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

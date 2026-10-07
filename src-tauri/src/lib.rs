@@ -36,6 +36,7 @@ mod git;
 mod git_workspace;
 mod github_inbox;
 mod goals;
+mod html_preview;
 mod local_servers;
 mod mcp_stdio;
 mod models;
@@ -90,6 +91,15 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .manage(html_preview::HtmlPreviews::default())
+        // Agent HTML rendered in the transcript, isolated on its own origin (ADR-072).
+        .register_uri_scheme_protocol("sirus-preview", |ctx, request| {
+            use tauri::Manager;
+            html_preview::serve(
+                &ctx.app_handle().state::<html_preview::HtmlPreviews>(),
+                &request,
+            )
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .menu(native_menu)
@@ -189,6 +199,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            html_preview::html_preview,
             team::team_action,
             side_chat::side_chat_action,
             github_inbox::pull_request_action,
@@ -200,6 +211,7 @@ pub fn run() {
             astros::astro_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
+            project_look::project_auto_icon,
             session_export::export_conversation,
             turn_undo::undo_turn_changes,
             commands::trash_workspace_entry,

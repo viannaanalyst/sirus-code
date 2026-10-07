@@ -8,7 +8,9 @@ export type ChatInline =
   | { kind: "text"; text: string }
   | { kind: "code"; text: string }
   | { kind: "bold" | "italic" | "strike"; children: ChatInline[] }
-  | { kind: "link"; url: string; children: ChatInline[] };
+  | { kind: "link"; url: string; children: ChatInline[] }
+  /** `![alt](https://… | data:image/…)`; other image paths stay links. */
+  | { kind: "image"; url: string; alt: string };
 
 export type ChatBlock =
   | { kind: "heading"; level: number; text: string }
@@ -118,6 +120,16 @@ export function parseChatInline(text: string): ChatInline[] {
         flush();
         out.push({ kind: marker === "~~" ? "strike" : marker.length === 2 ? "bold" : "italic", children: parseChatInline(text.slice(i + marker.length, end)) });
         i = end + marker.length;
+        continue;
+      }
+    }
+    if (ch === "!" && text[i + 1] === "[") {
+      const image = /^!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
+      if (image) {
+        flush();
+        const url = image[2], alt = image[1];
+        out.push(/^https:\/\//.test(url) || /^data:image\/(?:png|jpe?g|gif|webp);base64,/.test(url) ? { kind: "image", url, alt } : { kind: "link", url, children: [{ kind: "text", text: alt || url }] });
+        i += image[0].length;
         continue;
       }
     }

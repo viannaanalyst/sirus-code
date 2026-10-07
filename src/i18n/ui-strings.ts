@@ -8,6 +8,8 @@ const pairs: Record<string, string> = {
   "Collapse sidebar": "Recolher barra lateral",
   "All activity": "Toda atividade",
   "Recent": "Recentes",
+  "Automatic project icons": "Ícones automáticos de projeto",
+  "Projects without a chosen icon show their own favicon or logo, found in the project folder.": "Projetos sem ícone escolhido mostram o próprio favicon ou logo, encontrado na pasta do projeto.",
   "Search sessions": "Buscar sessões",
   "Sort sessions": "Ordenar sessões",
   "Last activity": "Última atividade",

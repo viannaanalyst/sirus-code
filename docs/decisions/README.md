@@ -88,6 +88,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-069: Astros](ADR-069-astros.md) — persistent assistants on the rail with a cosmic icon, colour, soul, projects and one long conversation.
 - [ADR-070: T3-style turn timeline](ADR-070-t3-turn-timeline.md) — reply text and work interleaved in order, sentence groups, live row, "Worked for" fold, skill rows.
 - [ADR-071: Smooth replies and reply choices](ADR-071-smooth-replies-and-choices.md) — steady reveal of streamed text; a prose question's options become buttons plus "Other…".
+- [ADR-072: HTML in the transcript, image gallery, automatic project icons](ADR-072-html-previews-gallery-auto-icons.md) — agent HTML on an isolated `sirus-preview://` origin, reply image gallery, optional favicon/logo project icons.
 
 ## Template
 

@@ -30,7 +30,7 @@ parking_lot = "0.12"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 base64 = "0.22"
 sha2 = "0.10"
-image = { version = "0.25.10", default-features = false, features = ["png", "jpeg"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "ico"] }
 tempfile = "3.27"
 objc2-avf-audio = { version = "0.3.2", default-features = false, features = ["AVAudioEngine", "AVAudioNode", "AVAudioFormat", "AVAudioBuffer", "AVAudioFile", "AVAudioTime", "AVAudioTypes", "AVAudioIONode", "AVAudioApplication", "block2"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }

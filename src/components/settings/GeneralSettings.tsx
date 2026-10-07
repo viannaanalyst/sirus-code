@@ -18,7 +18,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
 }) {
   const t = useTranslation();
   const changed = GENERAL_SETTING_KEYS.some(key => settings[key] !== defaultSettings[key]);
-  const booleanRow = (key: "openLastProject" | "confirmCloseRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
+  const booleanRow = (key: "openLastProject" | "projectAutoIcons" | "confirmCloseRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
     <SettingsRow title={t(title)} description={t(description)}>
       <Switch checked={settings[key]} label={t(title)} onChange={value => onSave({ ...settings, [key]: value })} />
     </SettingsRow>
@@ -60,6 +60,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
     </SettingsGroup>
     <SettingsGroup title={t("Startup")} card>
       {booleanRow("openLastProject", "Reopen last project", "Automatically reopen the last active project when Sirus Code starts.")}
+      {booleanRow("projectAutoIcons", "Automatic project icons", "Projects without a chosen icon show their own favicon or logo, found in the project folder.")}
       {booleanRow("restorePreviousSessions", "Reopen newest session", "Reopen the newest-created session in the last project. Other sessions remain in the sidebar; agents do not start automatically.")}
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card>

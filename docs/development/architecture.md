@@ -55,7 +55,8 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 | `diagnostics.rs` | opt-in bounded lifecycle counts; no content, paths or credentials |
 | `close.rs` | native close/Quit authorization and one pending running-agent dialog |
 | `sidebar.rs` | bounded owner-validated sidebar pins/archives and project display-name edits |
-| `project_look.rs` | Project folder colour, emoji, logo or Astro icon (ADR-059): closed `project_look_action`, native image picker, bounded decode into a 96 px PNG data URL |
+| `html_preview.rs` | agent HTML for the transcript: in-memory pages served on the isolated `sirus-preview://` scheme with their own CSP, inside a sandboxed frame (ADR-072) |
+| `project_look.rs` | Project folder colour, emoji, logo or Astro icon (ADR-059), and the optional automatic favicon/logo lookup (`project_auto_icon`, ADR-072): closed `project_look_action`, native image picker, bounded decode into a 96 px PNG data URL |
 | `drafts.rs` | owner-validated unsent drafts; event-driven native persistence |
 | `context_text.rs` | bounded owner-validated session notes and project instructions; local reference metadata |
 | `pull_requests.rs` | session-owned read-only GitHub origin PR/check snapshots through bounded fixed gh GET probes |

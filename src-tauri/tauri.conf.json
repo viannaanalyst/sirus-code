@@ -32,7 +32,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; script-src 'self'; worker-src 'self' blob:",
+      "csp": "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; script-src 'self'; worker-src 'self' blob:; frame-src sirus-preview: sirus-preview://localhost",
       "devCsp": "default-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 ws://localhost:1421 http://127.0.0.1:1420 ws://127.0.0.1:1421; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 ws://localhost:1421 http://127.0.0.1:1420 ws://127.0.0.1:1421; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' http://localhost:1420 http://127.0.0.1:1420; worker-src 'self' blob:"
     }
   },

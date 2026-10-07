@@ -30,6 +30,7 @@ export const defaultSettings: AppSettings = {
   railProjectShortcuts: [],
   defaultAgent: "codex",
   openLastProject: true,
+  projectAutoIcons: false,
   worktreeBasePath: null,
   defaultSessionWorkspace: "ask",
   confirmCloseRunning: true,
@@ -173,7 +174,7 @@ function sidebarIds(ids: string[] | undefined): string[] {
   return [...new Set((ids ?? []).filter((id) => typeof id === "string" && id.length > 0 && id.length <= 64))].slice(0, 4096);
 }
 
-export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject",
+export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject", "projectAutoIcons",
   "confirmCloseRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
   "environmentPanelDefaultOpen", "showEnvironmentUsage", "showEnvironmentRepository", "showEnvironmentEditor", "showEnvironmentPullRequest",
   "showEnvironmentPinned", "showEnvironmentNotepad", "showEnvironmentInstructions"] as const satisfies readonly (keyof AppSettings)[];

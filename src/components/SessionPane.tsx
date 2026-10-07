@@ -27,6 +27,7 @@ import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { ReplyChoices } from "@/components/ReplyChoices";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { HtmlPreview } from "@/components/HtmlPreview";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
@@ -268,6 +269,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       const start = offset;
       offset += block.content.length + 1;
       if (block.kind === "code" && block.language.toLowerCase() === "sirus-card" && session.astro && !message.streaming && !searchQuery.trim()) return <AstroCards key={index} source={block.content} session={session} settled={!message.streaming} />;
+      if (block.kind === "code" && block.language.toLowerCase() === "html" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><HtmlPreview source={block.content} /></div>;
       if (block.kind === "code" && block.language.toLowerCase() === "mermaid" && !message.streaming && !searchQuery.trim()) return <div className="my-3" key={index}><MermaidDiagram source={block.content} /></div>;
       if (block.kind === "code") return <div className="my-3" key={index}><TranscriptCodeBlock code={block.content} language={block.language} maxLines={searchQuery.trim() ? undefined : 18} animateChanges={false} searchQuery={searchQuery} searchOffset={start} /></div>;
       // Search highlights need the raw text offsets, so a search shows the reply unformatted.
@@ -303,7 +305,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           })}</span> : null}
         </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
-      {userImages.length ? <ImageLightbox image={openImage} onClose={() => setOpenImage(null)} /> : null}
+      {userImages.length ? <ImageLightbox images={openImage ? [openImage] : null} onClose={() => setOpenImage(null)} /> : null}
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={userRequest} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
         <MessageTimestamp createdAt={message.createdAt} />

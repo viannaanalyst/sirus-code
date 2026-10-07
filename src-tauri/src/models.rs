@@ -527,6 +527,8 @@ pub struct AppSettings {
     pub custom_shortcuts: std::collections::HashMap<String, String>,
     pub default_agent: AgentProviderId,
     pub open_last_project: bool,
+    /// Projects without a chosen icon show their own favicon or logo (off by default).
+    pub project_auto_icons: bool,
     pub worktree_base_path: Option<String>,
     pub default_session_workspace: SessionWorkspacePref,
     pub confirm_close_running: bool,
@@ -638,6 +640,7 @@ impl Default for AppSettings {
             rail_project_shortcuts: Vec::new(),
             default_agent: AgentProviderId::Codex,
             open_last_project: true,
+            project_auto_icons: false,
             worktree_base_path: None,
             default_session_workspace: SessionWorkspacePref::Ask,
             confirm_close_running: true,

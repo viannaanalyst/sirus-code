@@ -1,6 +1,9 @@
 import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
 import type { Project, ProjectLook } from "@/client/types";
+import { useEffect, useState } from "react";
+import { client } from "@/client";
 import { AstroIcon } from "@/components/astros/AstroArt";
+import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/cn";
 
 /** Preset folder colours (ADR-059); custom colours are stored as `#rrggbb`. */
@@ -14,9 +17,29 @@ const ASTRO_DEFAULT = "#8c9bff";
 
 export const projectColor = (look?: ProjectLook) => look?.color ? PROJECT_COLORS[look.color] ?? look.color : undefined;
 
-/** A project's sidebar icon: its logo, emoji or Astro icon, else the folder in its colour. */
-export function ProjectGlyph({ project, expanded = false, size = 15, className }: { project: Pick<Project, "look">; expanded?: boolean; size?: number; className?: string }) {
+// One native lookup per project while the app runs (cleared when the setting changes).
+const autoIcons = new Map<string, Promise<string | null>>();
+let autoIconsEnabled = false;
+function useAutoIcon(projectId: string | undefined, wanted: boolean): string | null {
+  const enabled = useAppStore((state) => state.settings.projectAutoIcons);
+  const [icon, setIcon] = useState<{ id: string; url: string | null } | null>(null);
+  if (enabled !== autoIconsEnabled) { autoIconsEnabled = enabled; autoIcons.clear(); }
+  const active = Boolean(enabled && wanted && projectId);
+  useEffect(() => {
+    if (!active || !projectId) return;
+    let alive = true;
+    let lookup = autoIcons.get(projectId);
+    if (!lookup) { lookup = client.projectAutoIcon(projectId).catch(() => null); autoIcons.set(projectId, lookup); }
+    void lookup.then((url) => { if (alive) setIcon({ id: projectId, url }); });
+    return () => { alive = false; };
+  }, [active, projectId]);
+  return active && icon && icon.id === projectId ? icon.url : null;
+}
+
+/** A project's sidebar icon: its logo, emoji or Astro icon, else (optionally) its own favicon, else the folder in its colour. */
+export function ProjectGlyph({ project, expanded = false, size = 15, className }: { project: Pick<Project, "look"> & { id?: string }; expanded?: boolean; size?: number; className?: string }) {
   const look = project.look;
+  const auto = useAutoIcon(project.id, !look?.logo && !look?.emoji && !look?.astro);
   if (look?.logo) return <img src={look.logo} alt="" draggable={false} aria-hidden="true" className={cn("project-glyph-logo", className)} style={{ width: size, height: size }} />;
   if (look?.emoji) return <span aria-hidden="true" className={cn("project-glyph-emoji", className)} style={{ width: size, height: size, fontSize: Math.round(size * 0.9) }}>{look.emoji}</span>;
   if (look?.astro) {
@@ -29,6 +52,7 @@ export function ProjectGlyph({ project, expanded = false, size = 15, className }
       </span>
     </span>;
   }
+  if (auto) return <img src={auto} alt="" draggable={false} aria-hidden="true" className={cn("project-glyph-logo", className)} style={{ width: size, height: size }} />;
   const Glyph = expanded ? FolderOpenGlyph : FolderGlyph;
   const color = projectColor(look);
   return <Glyph aria-hidden="true" size={size} weight={color ? "duotone" : "regular"} className={cn("sidebar-folder-glyph", className)} style={color ? { color } : undefined} />;

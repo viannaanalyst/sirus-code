@@ -305,6 +305,16 @@ export class SirusClient {
     return this.transport.invoke<FileEntry>("create_workspace_entry", { sessionId, kind, name, parentPath });
   }
 
+  /** The project's own favicon or logo when Settings → Automatic project icons is on (ADR-072). */
+  projectAutoIcon(projectId: string) {
+    return this.transport.invoke<string | null>("project_auto_icon", { projectId });
+  }
+
+  /** Registers agent-written HTML for the transcript; returns the id served on `sirus-preview://localhost/<id>` (ADR-072). */
+  htmlPreview(html: string) {
+    return this.transport.invoke<string>("html_preview", { html });
+  }
+
   workspaceFiles(owner: import("./types").SkillOwner, query: string) {
     return this.transport.invoke<import("./types").WorkspaceFiles>("workspace_files", { owner, query });
   }

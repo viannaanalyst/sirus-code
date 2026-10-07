@@ -8,6 +8,7 @@ import { fileReference, parseChatInline, parseChatMarkdown, type ChatBlock, type
 import { fileIconFor, folderIconFor } from "@/lib/file-icons";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
+import { GALLERY_EVENT } from "@/components/ImageLightbox";
 import "@/styles/chat-markdown.css";
 
 type RefKind = "file" | "dir" | null;
@@ -117,6 +118,12 @@ function openLink(url: string, external: boolean) {
   void client.openExternalUrl(url).catch(() => void navigator.clipboard.writeText(url));
 }
 
+function openGallery(button: HTMLElement, url: string) {
+  const scope = button.closest("[data-message-id]") ?? document.body;
+  const images = [...scope.querySelectorAll<HTMLImageElement>("img.chat-image")].map((image) => ({ src: image.src, name: image.alt || image.src }));
+  window.dispatchEvent(new CustomEvent(GALLERY_EVENT, { detail: { images, index: Math.max(0, images.findIndex((image) => image.src === url || image.src === new URL(url, location.href).href)) } }));
+}
+
 function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }): ReactNode {
   return nodes.map((node, index) => {
     switch (node.kind) {
@@ -129,6 +136,11 @@ function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }):
         const code = <code className="chat-inline-code">{node.text}</code>;
         return reference && owner ? <FileReference key={index} owner={owner} path={reference.path} line={reference.line} fallback={code}>{node.text}</FileReference> : <Fragment key={index}>{code}</Fragment>;
       }
+      case "image":
+        // Images in a reply open together in the gallery, in the order they appear in the message.
+        return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, node.url)}>
+          <img src={node.url} alt={node.alt} loading="lazy" className="chat-image" draggable={false} />
+        </button>;
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {
           return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}><Inline nodes={node.children} owner={owner} /></a>;

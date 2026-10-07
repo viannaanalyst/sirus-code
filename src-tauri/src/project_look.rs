@@ -119,6 +119,101 @@ pub async fn project_look_action(
     .await
 }
 
+/// Where projects keep their own icon, most specific first (ADR-072).
+const ICON_CANDIDATES: &[&str] = &[
+    "public/favicon.svg",
+    "public/favicon.png",
+    "public/favicon.ico",
+    "public/icon.svg",
+    "public/icon.png",
+    "app/icon.svg",
+    "app/icon.png",
+    "app/favicon.ico",
+    "src/app/icon.svg",
+    "src/app/icon.png",
+    "src/app/favicon.ico",
+    "public/apple-touch-icon.png",
+    "public/logo.svg",
+    "public/logo.png",
+    "static/favicon.svg",
+    "static/favicon.png",
+    "static/favicon.ico",
+    "favicon.svg",
+    "favicon.png",
+    "favicon.ico",
+    "logo.svg",
+    "logo.png",
+    "icon.svg",
+    "icon.png",
+    "assets/logo.svg",
+    "assets/logo.png",
+    "assets/icon.png",
+    "src/assets/logo.svg",
+    "src/assets/logo.png",
+    "src-tauri/icons/128x128.png",
+    "build/icon.png",
+    "resources/icon.png",
+];
+const MAX_ICON_FILE: u64 = 512 * 1024;
+
+/// The project's own favicon or logo as a small data URL, when Settings → Automatic project
+/// icons is on. Only fixed candidate paths inside the project are read; nothing is written.
+#[tauri::command]
+pub async fn project_auto_icon(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+) -> Result<Option<String>> {
+    let state = state.inner().clone();
+    crate::commands::native_task(move || {
+        let root = {
+            let data = state.data.lock();
+            if !data.settings.project_auto_icons {
+                return Ok(None);
+            }
+            data.projects
+                .iter()
+                .find(|row| row.id == project_id)
+                .map(|row| std::path::PathBuf::from(&row.path))
+                .ok_or_else(|| Error::not_found("project not found"))?
+        };
+        Ok(find_project_icon(&root))
+    })
+    .await
+}
+
+fn find_project_icon(root: &std::path::Path) -> Option<String> {
+    let root = root.canonicalize().ok()?;
+    for candidate in ICON_CANDIDATES {
+        let Ok(path) = root.join(candidate).canonicalize() else {
+            continue;
+        };
+        // A symlink must not lead the read outside the project.
+        if !path.starts_with(&root) || !path.is_file() {
+            continue;
+        }
+        if std::fs::metadata(&path)
+            .map(|meta| meta.len() > MAX_ICON_FILE)
+            .unwrap_or(true)
+        {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(&path) else {
+            continue;
+        };
+        if candidate.ends_with(".svg") {
+            // Shown through <img>, where SVG scripts never run.
+            return Some(format!(
+                "data:image/svg+xml;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            ));
+        }
+        if let Ok(url) = logo_from_bytes(&bytes) {
+            return Some(url);
+        }
+    }
+    None
+}
+
 fn project_id(action: &Action) -> String {
     match action {
         Action::SetColor { project_id, .. }
@@ -283,6 +378,36 @@ mod tests {
         assert!(valid_astro(icon("foguete", "neon")).is_ok());
         assert!(valid_astro(icon("../x", "metal")).is_err());
         assert!(valid_astro(icon("foguete", "pixel")).is_err());
+    }
+
+    #[test]
+    fn auto_icons_read_known_paths_inside_the_project_only() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(find_project_icon(dir.path()).is_none());
+        std::fs::create_dir_all(dir.path().join("public")).unwrap();
+        std::fs::write(
+            dir.path().join("public/favicon.svg"),
+            "<svg xmlns='http://www.w3.org/2000/svg'/>",
+        )
+        .unwrap();
+        assert!(find_project_icon(dir.path())
+            .unwrap()
+            .starts_with("data:image/svg+xml;base64,"));
+        #[cfg(unix)]
+        {
+            let outside = tempfile::tempdir().unwrap();
+            std::fs::write(outside.path().join("logo.svg"), "<svg/>").unwrap();
+            let other = tempfile::tempdir().unwrap();
+            std::os::unix::fs::symlink(
+                outside.path().join("logo.svg"),
+                other.path().join("logo.svg"),
+            )
+            .unwrap();
+            assert!(
+                find_project_icon(other.path()).is_none(),
+                "symlinks out of the project are ignored"
+            );
+        }
     }
 
     #[test]

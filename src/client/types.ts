@@ -316,6 +316,8 @@ export interface AppSettings {
   customShortcuts: Partial<Record<import("../lib/keybindings").ShortcutId, string>>;
   defaultAgent: AgentProviderId;
   openLastProject: boolean;
+  /** Projects without a chosen icon show their own favicon or logo. */
+  projectAutoIcons: boolean;
   worktreeBasePath: string | null;
   defaultSessionWorkspace: "ask" | "checkout" | "worktree";
   confirmCloseRunning: boolean;
