@@ -1,5 +1,6 @@
 import { SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
+import { AttachmentModal } from "@/components/AttachmentModal";
 import { useSidebarMotion } from "@/lib/sidebar-motion";
 import { dismissAppSplash } from "@/lib/app-splash";
 import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings";
@@ -325,6 +326,7 @@ export default function App() {
           <ActivityNotifications />
           <ProviderUpdateToast />
           <ImageGalleryHost />
+          <AttachmentModal />
         </TopToastStack> : null}
       </div>
     </TooltipProvider>

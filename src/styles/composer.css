@@ -149,3 +149,13 @@
 /* A Finder drag anywhere on the window (T3-style): the whole window says where it will land. */
 .window-drop { position: fixed; inset: 10px; z-index: 200; display: grid; place-items: center; border: 2px dashed color-mix(in srgb, var(--accent) 65%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--accent) 8%, rgb(0 0 0 / .35)); pointer-events: none; animation: tl-open var(--motion-fast) var(--ease-out) both; }
 .window-drop span { padding: 10px 16px; border-radius: 12px; background: var(--background-2); color: var(--text-primary); font-size: var(--text-ui-13); box-shadow: 0 10px 30px rgb(0 0 0 / .35); }
+
+/* Draft attachments open centered over the app (after T3 Code). */
+.attachment-modal-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 40px; background: rgb(0 0 0 / .55); backdrop-filter: blur(4px); }
+.attachment-modal { display: flex; flex-direction: column; width: min(1100px, 100%); height: min(860px, 100%); overflow: hidden; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent); background: var(--background-1); box-shadow: 0 30px 80px rgb(0 0 0 / .5); }
+.attachment-modal-header { display: flex; align-items: center; gap: 8px; height: 46px; flex-shrink: 0; padding: 0 8px 0 16px; border-bottom: 1px solid color-mix(in srgb, var(--text-primary) 8%, transparent); }
+.attachment-modal-action { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: var(--text-muted); }
+.attachment-modal-action:hover, .attachment-modal-action[aria-pressed="true"] { background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-primary); }
+.attachment-modal-body { display: flex; flex-direction: column; min-height: 0; flex: 1; overflow: auto; background: var(--background-2); }
+.attachment-modal-page { display: block; width: 100%; height: 100%; flex: 1; border: 0; background: #fff; }
+.attachment-modal-source { flex: 1; min-height: 0; overflow: auto; }

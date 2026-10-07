@@ -20,6 +20,26 @@ export function ReaderZoom({ zoom, onChange }: { zoom: number; onChange: (zoom: 
   </div>;
 }
 
+/** A readable attachment's body (PDF, Word, spreadsheet, CSV), shared by the dock reader and the attachment modal. */
+export function DocumentBody({ owner, attachmentId, active, zoom }: { owner: string; attachmentId: string; active: boolean; zoom: number }) {
+  const t = useTranslation();
+  const [result, setResult] = useState<DocumentPreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    client.attachmentPreview(owner, attachmentId).then((preview) => {
+      if (!cancelled) { setResult(preview); setError(null); }
+    }).catch((reason: unknown) => { if (!cancelled) setError(documentError(reason)); });
+    return () => { cancelled = true; };
+  }, [owner, attachmentId, retry]);
+  return error ? <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-text-muted">{t(error)}</p><InteractiveButton variant="toolbar" onClick={() => { setError(null); setRetry((value) => value + 1); }}>{t("reader.retry")}</InteractiveButton></div>
+    : !result ? <p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>
+    : result.type === "pdf" ? <Suspense fallback={<p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>}><PdfReader data={result.data} active={active} /></Suspense>
+    : result.type === "word" ? <WordReader blocks={result.blocks} zoom={zoom} />
+    : <SheetReader sheets={result.sheets} zoom={zoom} />;
+}
+
 export function DocumentReader({ document, active }: { document: NonNullable<DockPane["document"]>; active: boolean }) {
   const t = useTranslation();
   const [result, setResult] = useState<DocumentPreview | null>(null);

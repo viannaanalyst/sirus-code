@@ -10,7 +10,7 @@ import type { ComposerContext } from "@/lib/composer-context";
 import { applyAgentOutput } from "@/lib/agent-events";
 import { mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "@/lib/transcripts";
 import { appendAttachments } from "@/lib/composer-attachments";
-import { canReadDocument } from "@/lib/document-reader";
+import { canPreviewAttachment } from "@/lib/document-reader";
 import { composerContextForOwner, composerPrompt, emptyComposerContext } from "@/lib/composer-context";
 import { supportsPlanning } from "@/lib/execution-options";
 import { secondOpinionPrompt, secondOpinionTurn } from "@/lib/second-opinion";
@@ -324,6 +324,9 @@ interface AppStore {
   openTurnReview: (sessionId: string, messageId: string, path?: string) => void;
   keepTurnChanges: (sessionId: string, messageId: string) => Promise<void>;
   openAttachmentReader: (scope: string, attachment: import("@/client/types").PromptAttachment) => void;
+  /** The draft attachment open in the centered attachment modal (after T3 Code). */
+  attachmentModal: { scope: string; attachmentId: string } | null;
+  closeAttachmentModal: () => void;
   closeDockPane: (paneId: string) => void;
   /** Moves a dock tab before/after another (drag to reorder). */
   moveDockPane: (paneId: string, targetId: string, edge: "before" | "after") => void;
@@ -1809,19 +1812,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
         dockActivePaneId: pane.id, dockOpen: true, dockWidth: clampDockWidth(state.dockWidth, state) };
     });
   },
+  attachmentModal: null,
+  closeAttachmentModal: () => set({ attachmentModal: null }),
   openAttachmentReader: (scope, attachment) => {
     const state = get();
-    if (!hasContextOwner(scope, state.projects, state.sessions) || !canReadDocument(attachment)
+    if (!hasContextOwner(scope, state.projects, state.sessions) || !canPreviewAttachment(attachment)
       || !state.composerContexts[scope]?.attachments.some((file) => file.id === attachment.id)) return;
-    const owner = attachment.owner ?? scope;
-    set((current) => {
-      const existing = current.dockPanes.find((pane) => pane.document?.scope === scope && pane.document.attachmentId === attachment.id);
-      const pane: DockPane = existing ?? { id: newId(), kind: "document", document: { owner, scope, attachmentId: attachment.id, name: attachment.name } };
-      const panes = existing ? current.dockPanes : [...current.dockPanes, pane];
-      const documents = panes.filter((item) => item.kind === "document");
-      return { dockPanes: documents.length > 8 ? panes.filter((item) => item !== documents[0]) : panes,
-        dockActivePaneId: pane.id, dockOpen: true, dockWidth: clampDockWidth(current.dockWidth, current) };
-    });
+    // Attachments open centered over the app, like T3 Code; the dock reader stays for older panes.
+    set({ attachmentModal: { scope, attachmentId: attachment.id } });
   },
   openDockPane: (kind, path) => {
     if (kind === "document" || kind === "review") return;

@@ -191,9 +191,12 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
           </div>
 
         )}
-        {!empty && !following ? <button type="button" aria-label={t("session.followLatest")} title={t("session.followLatest")} className="follow-latest" onClick={() => {
-          scrolling.current?.follow();
-        }}><ChevronDown size={13} aria-hidden="true" /></button> : null}
+        {/* The jump arrow floats just above whatever sits on top of the bottom stack (requests, composer). */}
+        <div className="follow-latest-anchor">
+          {!empty && !following ? <button type="button" aria-label={t("session.followLatest")} title={t("session.followLatest")} className="follow-latest" onClick={() => {
+            scrolling.current?.follow();
+          }}><ChevronDown size={13} aria-hidden="true" /></button> : null}
+        </div>
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-4">

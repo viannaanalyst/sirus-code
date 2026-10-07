@@ -5,22 +5,21 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 import { useTranslation } from "@/i18n/use-translation";
 
 /**
- * An agent's HTML running in the transcript (after T3 Code): served on its own isolated
- * origin inside a sandboxed frame that fits its height, with a toggle to the source.
+ * HTML running on its own isolated origin (ADR-072) in a sandboxed frame. With `fit`, the frame
+ * follows the page height (80–720 px); otherwise it fills its container.
  */
-export function HtmlPreview({ source }: { source: string }) {
+export function HtmlPage({ source, fit = false, className }: { source: string; fit?: boolean; className?: string }) {
   const t = useTranslation();
   const frame = useRef<HTMLIFrameElement>(null);
-  const [view, setView] = useState<"page" | "code">("page");
   const [id, setId] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
   const [height, setHeight] = useState(240);
   useEffect(() => {
     let alive = true;
-    client.htmlPreview(source).then((value) => { if (alive) setId(value); }, () => { if (alive) setFailed(true); });
+    client.htmlPreview(source).then((value) => { if (alive) setId(value); }, () => undefined);
     return () => { alive = false; };
   }, [source]);
   useEffect(() => {
+    if (!fit) return;
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.current?.contentWindow) return;
       const next = Number((event.data as { sirusPreviewHeight?: unknown } | null)?.sirusPreviewHeight);
@@ -28,19 +27,25 @@ export function HtmlPreview({ source }: { source: string }) {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
-  const showCode = view === "code" || failed;
+  }, [fit]);
+  const style = fit ? { height } : undefined;
+  return id
+    ? <iframe ref={frame} title={t("htmlPreview.page")} src={`sirus-preview://localhost/${id}`} sandbox="allow-scripts allow-forms allow-modals" className={className ?? "html-preview-frame"} style={style} />
+    : <div className={className ?? "html-preview-frame"} style={style} />;
+}
+
+/** An agent's HTML in the transcript (after T3 Code), with a toggle to its source. */
+export function HtmlPreview({ source }: { source: string }) {
+  const t = useTranslation();
+  const [view, setView] = useState<"page" | "code">("page");
   return <div className="html-preview">
     <div className="html-preview-bar">
       <span className="ui-caption text-text-muted">HTML</span>
       <div className="html-preview-toggle" role="group" aria-label={t("htmlPreview.view")}>
-        <button type="button" aria-pressed={!showCode} disabled={failed} onClick={() => setView("page")}><Eye size={13} aria-hidden="true" />{t("htmlPreview.page")}</button>
-        <button type="button" aria-pressed={showCode} onClick={() => setView("code")}><Code size={13} aria-hidden="true" />{t("htmlPreview.code")}</button>
+        <button type="button" aria-pressed={view === "page"} onClick={() => setView("page")}><Eye size={13} aria-hidden="true" />{t("htmlPreview.page")}</button>
+        <button type="button" aria-pressed={view === "code"} onClick={() => setView("code")}><Code size={13} aria-hidden="true" />{t("htmlPreview.code")}</button>
       </div>
     </div>
-    {showCode
-      ? <CodeBlock code={source} language="html" maxLines={18} animateChanges={false} />
-      : id ? <iframe ref={frame} title={t("htmlPreview.page")} src={`sirus-preview://localhost/${id}`} sandbox="allow-scripts allow-forms allow-modals" className="html-preview-frame" style={{ height }} />
-      : <div className="html-preview-frame" style={{ height }} />}
+    {view === "code" ? <CodeBlock code={source} language="html" maxLines={18} animateChanges={false} /> : <HtmlPage source={source} fit />}
   </div>;
 }

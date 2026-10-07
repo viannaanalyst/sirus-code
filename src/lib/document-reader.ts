@@ -3,6 +3,10 @@ import type { PromptAttachment } from "../client/types";
 export function canReadDocument(file: PromptAttachment): boolean {
   return file.kind === "file" && (file.mimeType === "application/pdf" || /\.(pdf|docx|xlsx|csv|doc|xls)$/i.test(file.name));
 }
+/** What the attachment modal can show: readable documents, HTML pages and text sources. */
+export function canPreviewAttachment(file: PromptAttachment): boolean {
+  return file.kind === "file" && (canReadDocument(file) || /\.html?$/i.test(file.name) || file.mimeType === "text/html" || Boolean(file.content));
+}
 export function columnName(column: number): string {
   let value = column + 1;
   let result = "";

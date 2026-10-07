@@ -1,7 +1,7 @@
 import { useRef, useState, type RefObject } from "react";
 import { Box, Bug, Check, ChevronLeft, File, Folder, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
-import { canReadDocument } from "@/lib/document-reader";
+import { canPreviewAttachment } from "@/lib/document-reader";
 import { client } from "@/client";
 import { type ComposerContext, composerDebugging, composerPlanning, composerTeam, composerContextForOwner } from "@/lib/composer-context";
 import { useTranslation } from "@/i18n/use-translation";
@@ -79,7 +79,7 @@ export function ComposerContextChips({ owner, context, disabled, onChange, plann
       return attachment.previewUrl?.startsWith("data:image/")
         ? <ComposerImageAttachment key={attachment.id} attachment={attachment} owner={owner} disabled={disabled} onRemove={remove} onReplace={(next) => onChange({ ...context, attachments: replaceAttachment(context.attachments, attachment.id, next) })} />
         : <span key={attachment.id} className={chip} title={attachment.name}>
-            {canReadDocument(attachment) ? <button type="button" className="flex min-w-0 items-center gap-1.5 rounded hover:text-text-primary" aria-label={t("reader.open", { name: attachment.name })} onClick={() => useAppStore.getState().openAttachmentReader(owner, attachment)}><File size={12} aria-hidden="true" /><span className="max-w-44 truncate">{attachment.name}</span></button>
+            {canPreviewAttachment(attachment) ? <button type="button" className="flex min-w-0 items-center gap-1.5 rounded hover:text-text-primary" aria-label={t("reader.open", { name: attachment.name })} onClick={() => useAppStore.getState().openAttachmentReader(owner, attachment)}><File size={12} aria-hidden="true" /><span className="max-w-44 truncate">{attachment.name}</span></button>
               : <><span aria-hidden="true">{attachment.kind === "folder" ? <Folder size={12} /> : <File size={12} />}</span><span className="max-w-44 truncate">{attachment.name}{attachment.truncated ? ` · ${t("composer.truncated")}` : ""}</span></>}
             <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${attachment.name}`} className="rounded p-0.5 hover:text-text-primary" onClick={remove}><X size={12} /></button>
           </span>;

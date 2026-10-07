@@ -22,16 +22,18 @@ try {
   const originalRelease = client.releasePromptAttachments;
   const released = [];
   client.releasePromptAttachments = async (key, ids) => { released.push({ key, ids }); };
+  // Attachments open in the centered modal (after T3 Code), never in a new session or dock tab.
   store().openAttachmentReader(owner, file);
-  assert.equal(store().dockOpen, true);
+  assert.deepEqual(store().attachmentModal, { scope: owner, attachmentId: file.id });
   assert.equal(store().selectedSessionId, null, "Opening a reader must not create a session");
-  assert.equal(store().dockPanes[0].document.owner, owner);
-  const originalPane = store().dockPanes[0];
-  store().openAttachmentReader(owner, file);
-  assert.equal(store().dockPanes.length, 1, "Same attachment focuses the existing tab");
+  assert.equal(store().dockPanes.length, 0);
+  store().closeAttachmentModal();
   store().openAttachmentReader("project:foreign", file);
   store().openAttachmentReader(owner, { ...file, id: "unadmitted" });
-  assert.equal(store().dockPanes.length, 1);
+  assert.equal(store().attachmentModal, null, "foreign owners and unadmitted files never open");
+  // A dock reader pane from before still closes with its attachment.
+  useAppStore.setState({ dockPanes: [{ id: "reader-pane", kind: "document", document: { owner, scope: owner, attachmentId: file.id, name: file.name } }], dockActivePaneId: "reader-pane", dockOpen: true });
+  const originalPane = store().dockPanes[0];
   for (const locale of ["pt-BR", "en"]) {
     // SSR uses the initial store snapshot, matching the existing verification scripts.
     useAppStore.getInitialState().settings = { ...settings, locale };
@@ -70,13 +72,14 @@ try {
     useAppStore.setState({ composerContexts: { [owner]: { attachments: [next], goal: "", planning: false } } });
     store().openAttachmentReader(owner, next);
   }
-  assert.equal(store().dockPanes.length, 8);
+  assert.equal(store().attachmentModal.attachmentId, "attachment-8", "the modal shows the attachment opened last");
+  assert.equal(store().dockPanes.length, 0);
   client.releasePromptAttachments = originalRelease;
   const calls = [];
   const api = new SirusClient({ invoke: async (command, args) => { calls.push({ command, args }); return { type: "word", blocks: [] }; }, listen: async () => () => {} });
   await api.attachmentPreview(owner, file.id);
   assert.deepEqual(calls, [{ command: "attachment_preview", args: { owner, id: file.id } }]);
-  console.log("Document reader: safe Word/sheet/chip rendering in both locales, virtual rows, opaque IPC, landing, transfer, removal and bounded tabs passed");
+  console.log("Document reader: safe Word/sheet/chip rendering in both locales, virtual rows, opaque IPC, landing, transfer, removal and the attachment modal passed");
 } finally { await server.close(); }
 
 // Render an actual two-page PDF using the same bundled PDF.js display and worker.

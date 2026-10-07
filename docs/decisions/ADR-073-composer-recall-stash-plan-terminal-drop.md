@@ -14,3 +14,7 @@
 
 - The stash lives per machine (local storage), not in session files.
 - A drop is only read when the composer receives it; a later call for the same drag returns nothing.
+
+## Attachment modal (2026-10-07)
+
+Draft attachments open centered over the app, like T3 Code, instead of in a dock reader tab: "Rascunho › name  size" with a page/source toggle (HTML and CSV), copy contents, remove from the draft and close (Escape or a backdrop click). PDF, Word, spreadsheets and CSV render through the existing document preview (`DocumentBody`), HTML runs as a page on the isolated preview origin (ADR-072), and other text attachments show as source. Removing the attachment closes it. The jump-to-latest arrow is anchored just above the bottom stack (requests, composer) instead of a fixed distance, so it never overlaps a taller composer.
