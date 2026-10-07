@@ -261,7 +261,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   const { request: userRequest, references: userReferences } = useMemo(() => message.role === "user" ? splitPromptContext(message.content) : { request: message.content, references: [] }, [message.role, message.content]);
   // Images show as thumbnails on top (MonoCode-style); other files and older messages as chips.
   const userImages = (message.attachments ?? []).filter((file) => file.thumbnail);
-  const [openImage, setOpenImage] = useState<{ src: string; name: string } | null>(null);
+  const [openImage, setOpenImage] = useState<number | null>(null);
+  // One stable list, so the lightbox keeps its place while moving between the message's photos.
+  const gallery = useMemo(() => (message.attachments ?? []).filter((file) => file.thumbnail).map((file) => ({ src: file.thumbnail!, name: file.name })), [message.attachments]);
   const userFiles: { name: string; kind: "file" | "folder" | "terminal"; mimeType?: string; size?: number }[] = message.attachments?.length
     ? [...message.attachments.filter((file) => !file.thumbnail), ...userReferences.filter((reference) => reference.kind === "terminal")]
     : userReferences;
@@ -303,7 +305,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
-          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage({ src: file.thumbnail!, name: file.name })}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
+          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
           {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => reference.kind === "terminal"
             ? <span key={index} className="prompt-reference ui-caption"><TerminalSquare size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>
@@ -314,7 +316,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             </span></span>)}</span> : null}
         </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
-      {userImages.length ? <ImageLightbox images={openImage ? [openImage] : null} onClose={() => setOpenImage(null)} /> : null}
+      {userImages.length ? <ImageLightbox images={openImage === null ? null : gallery} index={openImage ?? 0} onClose={() => setOpenImage(null)} /> : null}
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         <CopyButton value={userRequest} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" />
         <MessageTimestamp createdAt={message.createdAt} />

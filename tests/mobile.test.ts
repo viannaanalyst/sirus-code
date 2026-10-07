@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { PendingRequest, Project, Session } from "../src/client/types.ts";
-import { homeSections, listedSessions, needsYou, projectGroups, sessionBadge, shortAgo } from "../src/lib/mobile.ts";
+import { homeSections, listedSessions, needsYou, pageTapPoint, projectGroups, sessionBadge, shortAgo } from "../src/lib/mobile.ts";
 
 function session(id: string, fields: Partial<Session> = {}): Session {
   return {
@@ -151,4 +151,14 @@ test("A swiped row opens past half its actions and pinned conversations group to
   assert.deepEqual(sections.needsYou.map((item) => item.id), ["c"], "needing the person beats pinning");
   assert.deepEqual(sections.recent.map((item) => item.id), ["a"]);
   assert.deepEqual(sortEntries([{ name: "b.ts", path: "/b.ts", isDir: false }, { name: "src", path: "/src", isDir: true }, { name: "a10.md", path: "/a10.md", isDir: false }, { name: "a2.md", path: "/a2.md", isDir: false }]).map((item) => item.name), ["src", "a2.md", "a10.md", "b.ts"]);
+});
+
+test("page taps land inside the drawn picture only", () => {
+  // A 1000×500 picture drawn whole in a 300×300 box: 300×150, centred with 75px bands.
+  const box = { left: 0, top: 0, width: 300, height: 300 };
+  const natural = { width: 1000, height: 500 };
+  assert.deepEqual(pageTapPoint(box, natural, 150, 150), { x: 0.5, y: 0.5 });
+  assert.deepEqual(pageTapPoint(box, natural, 0, 75), { x: 0, y: 0 });
+  assert.equal(pageTapPoint(box, natural, 150, 20), null);
+  assert.equal(pageTapPoint(box, { width: 0, height: 0 }, 10, 10), null);
 });

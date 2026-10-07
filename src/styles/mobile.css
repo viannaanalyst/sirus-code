@@ -86,6 +86,25 @@
   .mobile-file:active { background: var(--accent-muted); }
   .mobile-file svg:first-child { flex-shrink: 0; }
   .mobile-file-name { flex: 1; min-width: 0; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  /* The conversation's browser (ADR-087): a live picture of the Mac tab with its controls. */
+  .mobile-browser-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 8px 10px 0; scrollbar-width: none; }
+  .mobile-browser-tab { display: flex; flex-shrink: 0; align-items: center; max-width: 180px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--background-2); color: var(--text-secondary); font-size: 12px; }
+  .mobile-browser-tab[data-active] { border-color: var(--border-default); color: var(--text-primary); }
+  .mobile-browser-tab > button:first-child { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 6px 4px 6px 9px; }
+  .mobile-browser-tab > button:first-child span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-browser-tab > button:last-child { display: grid; place-items: center; width: 26px; height: 28px; color: var(--text-muted); }
+  .mobile-browser-address, .mobile-browser-type { display: flex; align-items: center; gap: 2px; padding: 6px 8px; }
+  .mobile-browser-address .mobile-icon-button:disabled, .mobile-browser-type .mobile-icon-button:disabled { opacity: 0.35; }
+  .mobile-browser-url { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--background-2); color: var(--text-primary); font-size: 16px; outline: none; }
+  .mobile-browser-url:focus { border-color: var(--border-default); }
+  .mobile-browser-page { display: grid; flex: 1; min-height: 0; place-items: center; overflow: hidden; margin: 0 8px; border-radius: 14px; background: var(--background-2); }
+  .mobile-browser-picture { width: 100%; height: 100%; object-fit: contain; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .mobile-browser-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; color: var(--text-muted); text-align: center; }
+  .mobile-browser-controls { display: flex; flex-direction: column; gap: 2px; padding: 6px 0 calc(8px + env(safe-area-inset-bottom)); }
+  .mobile-browser-controls > .mobile-help { margin: 0; padding: 0 14px; font-size: 12px; }
+  .mobile-browser-keys { display: flex; gap: 6px; overflow-x: auto; padding: 0 8px; scrollbar-width: none; }
+  .mobile-browser-keys button { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; min-width: 44px; height: 34px; padding: 0 12px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--background-2); color: var(--text-secondary); font-size: 13px; }
+  .mobile-browser-keys button:active { background: var(--background-3); }
   .mobile-file-preview { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
   .mobile-file-text { margin: 0; color: var(--text-primary); font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
   .mobile-file-image { display: block; max-width: 100%; margin: 0 auto; border-radius: 12px; }

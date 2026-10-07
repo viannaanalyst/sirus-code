@@ -372,6 +372,39 @@ fn execute(
                 .map_err(map_error)
                 .and_then(action_result)
         }
+        "browser_press" => {
+            let mut key = arg_str(&args, "key", 16).unwrap_or_default();
+            if key.is_empty() || key.eq_ignore_ascii_case("space") {
+                key = " ".into();
+            }
+            if !crate::browser::is_allowed_browser_key(&key) {
+                return Err(format!(
+                    "key must be one of: {}",
+                    crate::browser::BROWSER_KEYS.join(", ")
+                ));
+            }
+            browser::mcp_press(app, session_id, &key)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
+        "browser_wait_for" => {
+            let text = arg_str(&args, "text", 500).unwrap_or_default();
+            let selector = arg_str(&args, "selector", 300).unwrap_or_default();
+            if !valid_selector(&selector) {
+                return Err("invalid selector".into());
+            }
+            if text.is_empty() && selector.is_empty() {
+                return Err("provide text or a selector".into());
+            }
+            let timeout = args
+                .get("timeoutMs")
+                .and_then(Value::as_u64)
+                .unwrap_or(5000)
+                .clamp(100, 8000);
+            browser::mcp_wait_for(app, session_id, &text, &selector, timeout)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
         "browser_scroll" => {
             let dy = args.get("dy").and_then(Value::as_f64).unwrap_or(0.0);
             if !dy.is_finite() || dy.abs() > 20_000.0 {
@@ -422,6 +455,8 @@ fn tool_definitions() -> Vec<Value> {
         json!({ "name": "browser_click", "description": "Click an element by ref or selector. Interrupted if the person is using the page.", "inputSchema": element.clone() }),
         json!({ "name": "browser_type", "description": "Type into an element by ref or selector, optional submit.", "inputSchema": { "type": "object", "properties": { "ref": { "type": "string" }, "selector": { "type": "string" }, "text": { "type": "string" }, "submit": { "type": "boolean" } } } }),
         json!({ "name": "browser_scroll", "description": "Scroll the page by dy pixels.", "inputSchema": { "type": "object", "properties": { "dy": { "type": "number" } }, "required": ["dy"] } }),
+        json!({ "name": "browser_press", "description": "Press a key on the focused element (Enter submits its form). Keys: Enter, Escape, Tab, Backspace, Delete, arrows, PageUp, PageDown, Home, End, space.", "inputSchema": { "type": "object", "properties": { "key": { "type": "string" } }, "required": ["key"] } }),
+        json!({ "name": "browser_wait_for", "description": "Wait until text appears on the page or a selector matches (at most 8 s).", "inputSchema": { "type": "object", "properties": { "text": { "type": "string" }, "selector": { "type": "string" }, "timeoutMs": { "type": "number" } } } }),
         json!({ "name": "browser_logs", "description": "Bounded console/error log buffer; optionally clear it.", "inputSchema": { "type": "object", "properties": { "clear": { "type": "boolean" } } } }),
         json!({ "name": "browser_close", "description": "Close all tabs of the session browser.", "inputSchema": { "type": "object", "properties": {} } }),
     ]

@@ -13,6 +13,7 @@ export type MobileScreen =
   | { kind: "archived" }
   | { kind: "git"; sessionId: string }
   | { kind: "files"; sessionId: string }
+  | { kind: "browser"; sessionId: string }
   | { kind: "project-look"; projectId: string }
   | { kind: "edit-astro"; astroId: string }
   | { kind: "review"; sessionId: string }
@@ -117,6 +118,26 @@ export const TERMINAL_KEYS: readonly { label: string; data: string }[] = [
 /** Pages that rise from the bottom as sheets instead of sliding in from the side. */
 export function isSheet(screen: MobileScreen): boolean {
   return screen.kind === "new" || screen.kind === "new-astro" || screen.kind === "edit-astro" || screen.kind === "project-look";
+}
+
+/**
+ * Where a tap on the page picture lands on the page, as fractions of the visible page
+ * (ADR-087). The picture is drawn whole (`object-fit: contain`), so letterboxing is
+ * left out; a tap outside the picture lands nowhere.
+ */
+export function pageTapPoint(
+  box: { left: number; top: number; width: number; height: number },
+  natural: { width: number; height: number },
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  if (!box.width || !box.height || !natural.width || !natural.height) return null;
+  const scale = Math.min(box.width / natural.width, box.height / natural.height);
+  const width = natural.width * scale;
+  const height = natural.height * scale;
+  const x = (clientX - box.left - (box.width - width) / 2) / width;
+  const y = (clientY - box.top - (box.height - height) / 2) / height;
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
 }
 
 /** Folders first, then files, each in natural order. */

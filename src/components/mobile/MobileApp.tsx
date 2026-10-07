@@ -20,6 +20,7 @@ import { TooltipProvider } from "@/primitives/Tooltip";
 import { bindRealtime, selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { MobileArchived } from "./MobileArchived";
 import { MobileAstros } from "./MobileAstros";
+import { MobileBrowser } from "./MobileBrowser";
 import { MobileChat } from "./MobileChat";
 import { MobileFiles } from "./MobileFiles";
 import { MobileGit } from "./MobileGit";
@@ -168,6 +169,7 @@ export default function MobileApp() {
             {screen.kind === "archived" ? <MobileArchived navigation={navigation} /> : null}
             {screen.kind === "git" ? <MobileGit sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "files" ? <MobileFiles sessionId={screen.sessionId} navigation={navigation} /> : null}
+            {screen.kind === "browser" ? <MobileBrowser sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "project-look" ? <MobileProjectLook projectId={screen.projectId} navigation={navigation} /> : null}
             {screen.kind === "edit-astro" ? <MobileNewAstro astroId={screen.astroId} navigation={navigation} /> : null}
             {screen.kind === "review" ? <MobileReview sessionId={screen.sessionId} navigation={navigation} /> : null}

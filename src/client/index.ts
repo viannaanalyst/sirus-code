@@ -627,6 +627,16 @@ export class SirusClient {
     return this.transport.invoke<string>("browser_capture", { sessionId, tabId });
   }
 
+  /** A small JPEG of the visible page, base64, for the phone (ADR-087). */
+  browserPreview(sessionId: string, tabId: string) {
+    return this.transport.invoke<string>("browser_preview", { sessionId, tabId });
+  }
+
+  /** The person's own tap, typing, key or scroll on a tab, from the phone (ADR-087). */
+  browserPersonAction(sessionId: string, tabId: string, action: import("./types").BrowserPersonAction) {
+    return this.transport.invoke<{ ok?: boolean; error?: string; editable?: boolean } | null>("browser_person_action", { sessionId, tabId, action });
+  }
+
 
   computerAction(action: import("./types").ComputerAction) {
     return this.transport.invoke<import("./types").ComputerSnapshot>("computer_action", { action });
