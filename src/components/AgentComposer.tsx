@@ -18,6 +18,7 @@ import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
+import { ScriptRunNotice } from "@/components/ScriptRunNotice";
 import { ComposerStatusCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
@@ -352,6 +353,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     <>
     {session && commandPanel === "status" ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus(); }} /> : null}
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
+    {session?.scripts?.runs?.length ? <ScriptRunNotice session={session} /> : null}
     {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>

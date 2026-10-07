@@ -93,6 +93,12 @@ pub struct Project {
     /// Display-only folder colour, emoji or logo (ADR-059); empty means the plain folder.
     #[serde(default, skip_serializing_if = "ProjectLook::is_empty")]
     pub look: ProjectLook,
+    /// Owner-saved Setup and On finish shell scripts (ADR-074); omitted when empty.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::project_scripts::ProjectScripts::is_empty"
+    )]
+    pub scripts: crate::project_scripts::ProjectScripts,
 }
 
 /// How a project's sidebar icon looks: one of a logo, an emoji or an Astro icon; the colour tints it.
@@ -351,6 +357,12 @@ pub struct Session {
     /// An Astro started or messaged this session and wants its result back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delegation: Option<crate::astros::Delegation>,
+    /// Project script runs in this session's worktree and whether Setup is still due (ADR-074).
+    #[serde(
+        default,
+        skip_serializing_if = "crate::project_scripts::SessionScripts::is_empty"
+    )]
+    pub scripts: crate::project_scripts::SessionScripts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -533,6 +545,9 @@ pub struct AppSettings {
     /// Projects without a chosen icon show their own favicon or logo (off by default).
     pub project_auto_icons: bool,
     pub worktree_base_path: Option<String>,
+    /// Archiving a session removes its isolated worktree when it is clean and its
+    /// branch is merged or pushed (ADR-074); off by default.
+    pub release_worktree_on_archive: bool,
     pub default_session_workspace: SessionWorkspacePref,
     pub confirm_close_running: bool,
     pub restore_previous_sessions: bool,
@@ -645,6 +660,7 @@ impl Default for AppSettings {
             open_last_project: true,
             project_auto_icons: false,
             worktree_base_path: None,
+            release_worktree_on_archive: false,
             default_session_workspace: SessionWorkspacePref::Ask,
             confirm_close_running: true,
             restore_previous_sessions: true,

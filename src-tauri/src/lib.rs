@@ -45,6 +45,7 @@ mod opencode;
 mod paths;
 mod persist;
 mod project_look;
+mod project_scripts;
 mod provider_accounts;
 mod provider_models;
 mod provider_updates;
@@ -68,6 +69,7 @@ mod window_attachment;
 mod window_snap;
 mod workspace_entries;
 mod worktree;
+mod worktree_cleanup;
 
 use commands::AppState;
 
@@ -211,6 +213,8 @@ pub fn run() {
             astros::astro_action,
             window_snap::window_snap_action,
             project_look::project_look_action,
+            project_scripts::project_scripts_action,
+            worktree_cleanup::worktree_cleanup_action,
             project_look::project_auto_icon,
             session_export::export_conversation,
             turn_undo::undo_turn_changes,

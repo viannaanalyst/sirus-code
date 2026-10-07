@@ -57,7 +57,7 @@ const KNOWN: &[KnownAgent] = &[
     },
 ];
 
-fn cli_path() -> std::ffi::OsString {
+pub(crate) fn cli_path() -> std::ffi::OsString {
     let mut dirs: Vec<_> = std::env::var_os("PATH")
         .into_iter()
         .flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())

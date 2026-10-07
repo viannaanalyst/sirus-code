@@ -88,6 +88,7 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
             recovered = true;
         }
         crate::activity::recover(session);
+        recovered |= crate::project_scripts::recover(session);
         for message in &mut session.messages {
             if message.streaming {
                 message.streaming = false;

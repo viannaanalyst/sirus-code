@@ -162,6 +162,22 @@ export class SirusClient {
     return this.transport.invoke<Project | null>("project_look_action", { action });
   }
 
+  projectScriptsAction(action: import("./types").ProjectScriptsAction) {
+    return this.transport.invoke<Project | null>("project_scripts_action", { action });
+  }
+
+  scanLeftoverWorktrees() {
+    return this.transport.invoke<import("./types").WorktreeLeftoverScan>("worktree_cleanup_action", { action: { type: "scan" } });
+  }
+
+  cleanLeftoverWorktrees() {
+    return this.transport.invoke<import("./types").WorktreeCleanupResult>("worktree_cleanup_action", { action: { type: "clean", confirm: true } });
+  }
+
+  releaseArchivedWorktree(sessionId: string) {
+    return this.transport.invoke<import("./types").WorktreeRelease>("worktree_cleanup_action", { action: { type: "releaseArchived", sessionId } });
+  }
+
   renameProject(projectId: string, name: string) {
     return this.transport.invoke<Project>("rename_project", { projectId, name });
   }

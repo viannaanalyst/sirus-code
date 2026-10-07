@@ -91,7 +91,50 @@ pub fn remove(project_root: &Path, worktree: &Worktree, confirm: bool) -> Result
             "worktree remove refused (no force flags are used automatically): {stderr}"
         )));
     }
+    tidy(project_root, Path::new(&worktree.path));
     Ok(())
+}
+
+/// After a removal: drops stale Git worktree metadata and the project folder under
+/// the worktree base once it is empty (ADR-074). Never deletes anything else.
+pub fn tidy(project_root: &Path, removed: &Path) {
+    let _ = git::run(project_root, &["worktree", "prune"]);
+    if let Some(parent) = removed.parent() {
+        // `remove_dir` only succeeds on an empty folder.
+        let _ = fs::remove_dir(parent);
+    }
+}
+
+/// Why an isolated worktree cannot be released without losing work, if anything:
+/// uncommitted or untracked changes, or a HEAD no other branch or remote contains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Unsafe {
+    Uncommitted,
+    Unmerged,
+}
+
+pub fn release_blocker(tree: &Path, branch: &str) -> Result<Option<Unsafe>> {
+    if git::status(tree)?.dirty {
+        return Ok(Some(Unsafe::Uncommitted));
+    }
+    let head = git::run_ok(tree, &["rev-parse", "--verify", "HEAD"])?;
+    let refs = git::run_ok(
+        tree,
+        &[
+            "for-each-ref",
+            "--contains",
+            &head,
+            "--format=%(refname)",
+            "refs/heads",
+            "refs/remotes",
+        ],
+    )?;
+    let own = format!("refs/heads/{branch}");
+    let elsewhere = refs
+        .lines()
+        .any(|name| name != own && !name.ends_with("/HEAD"));
+    Ok((!elsewhere).then_some(Unsafe::Unmerged))
 }
 
 fn unique_dir(parent: &Path, base: &str) -> Result<PathBuf> {
@@ -161,6 +204,40 @@ mod tests {
             fs::read_to_string(Path::new(&tree.path).join("important.txt")).unwrap(),
             "user work"
         );
+    }
+    #[test]
+    fn release_needs_a_clean_tree_whose_commits_live_elsewhere() {
+        let repo = Repo::new();
+        let parent = repo.0.join("worktrees").join("project");
+        let tree = create_isolated(
+            &repo.cwd(),
+            &parent,
+            "11111111-a",
+            "Fix",
+            "sirus/{session-name}-{id}",
+        )
+        .unwrap();
+        let path = PathBuf::from(&tree.path);
+        // Fresh branch: its HEAD is still on the project's branch.
+        assert_eq!(release_blocker(&path, &tree.branch).unwrap(), None);
+        fs::write(path.join("new.txt"), "work").unwrap();
+        assert_eq!(
+            release_blocker(&path, &tree.branch).unwrap(),
+            Some(Unsafe::Uncommitted)
+        );
+        git::run_ok(&path, &["add", "--", "new.txt"]).unwrap();
+        git::run_ok(&path, &["commit", "-qm", "work"]).unwrap();
+        assert_eq!(
+            release_blocker(&path, &tree.branch).unwrap(),
+            Some(Unsafe::Unmerged)
+        );
+        git::run_ok(&repo.cwd(), &["merge", "-q", "--ff-only", &tree.branch]).unwrap();
+        assert_eq!(release_blocker(&path, &tree.branch).unwrap(), None);
+        // Removal prunes metadata and the emptied project folder, keeping the branch.
+        remove(&repo.cwd(), &tree, true).unwrap();
+        assert!(!path.exists());
+        assert!(!parent.exists());
+        assert!(git::run_ok(&repo.cwd(), &["rev-parse", "--verify", &tree.branch]).is_ok());
     }
     #[test]
     fn invalid_branch_is_rejected_before_directory_creation() {

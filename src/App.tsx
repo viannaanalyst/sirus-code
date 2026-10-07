@@ -12,6 +12,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { WindowSnapToast } from "@/components/WindowSnapToast";
+import { WorktreeReleaseToast } from "@/components/WorktreeReleaseToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -323,6 +324,7 @@ export default function App() {
         {!settingsOpen ? <TopToastStack>
           <ErrorToast />
           <WindowSnapToast />
+          <WorktreeReleaseToast />
           <ActivityNotifications />
           <ProviderUpdateToast />
           <ImageGalleryHost />

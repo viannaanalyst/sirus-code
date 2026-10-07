@@ -1017,6 +1017,7 @@ pub fn monitor(
         crate::team::settled(&app, &state, &session_id);
         crate::astros::settled(&app, &state, &session_id);
         crate::ci_autofix::settled(&state, &session_id);
+        crate::project_scripts::settled(&app, &state, &session_id);
         let _ = app.emit(
             "agent-exit",
             AgentExitEvent {

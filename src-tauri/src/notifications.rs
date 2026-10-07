@@ -522,6 +522,7 @@ mod tests {
             added_at: "time".into(),
             last_opened_at: "time".into(),
             look: Default::default(),
+            scripts: Default::default(),
         });
         let mut session = session();
         session.status = SessionStatus::Completed;

@@ -90,6 +90,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-071: Smooth replies and reply choices](ADR-071-smooth-replies-and-choices.md) — steady reveal of streamed text; a prose question's options become buttons plus "Other…".
 - [ADR-072: HTML in the transcript, image gallery, automatic project icons](ADR-072-html-previews-gallery-auto-icons.md) — agent HTML on an isolated `sirus-preview://` origin, reply image gallery, optional favicon/logo project icons.
 - [ADR-073: Prompt recall, stash, plan actions, terminal snippets and Finder drops](ADR-073-composer-recall-stash-plan-terminal-drop.md) — ↑ recall, ⌘S stash, Implement plan, terminal selection chips, folders dropped from Finder.
+- [ADR-074: Project scripts and worktree cleanup](ADR-074-project-scripts-and-worktree-cleanup.md) — owner-saved Setup / On finish scripts in session worktrees, leftover worktree cleanup, opt-in release on archive.
 
 ## Template
 

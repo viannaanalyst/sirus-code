@@ -30,6 +30,7 @@ Project shortcuts reuse existing authority: New thread opens the clicked project
 - Sidebar organization survives restart without another persistence mechanism or new pin/archive IPC commands.
 - Metadata removal cannot retain bookmarks to unrelated sessions.
 - Archives remain visible through other session inventories such as Kanban; archiving is a sidebar preference, not a native lifecycle state.
+- Since ADR-074, the opt-in "Release the worktree when a session is archived" setting lets an archive also remove that session's clean, merged or pushed isolated worktree (its branch stays). With the setting off, archiving still never touches worktrees.
 - Rename/remove remain keyboard-accessible through existing dialogs and context menus. A sidebar-local hover-card context admits one card at a time and dismisses replaced cards immediately; delayed leave callbacks are bound to their own row. Expand/collapse keeps a grid shell mounted for height/opacity transitions, marks collapsed children inert and follows animation preferences. Hover cards retain pointer access across their gap and support focus entry with Arrow Right. Session menus/dialogs dismiss and suspend cards until closed; focus from portalled actions cannot reopen a background card.
 
 ## Alternatives considered

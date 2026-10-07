@@ -102,6 +102,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
         }),
         astro: None,
         delegation: None,
+        scripts: Default::default(),
     };
     let view = crate::transcript_view::session_meta(&session)?;
     data.sessions.insert(0, session);
@@ -328,6 +329,7 @@ mod tests {
                 added_at: "t".into(),
                 last_opened_at: "t".into(),
                 look: Default::default(),
+                scripts: Default::default(),
             }],
             sessions: vec![parent],
             ..Default::default()
