@@ -99,6 +99,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-080: Remote access server](ADR-080-remote-access-server.md) — off by default; paired devices reach the Mac over Tailscale, get the bundled UI and run the window's own IPC commands over one WebSocket (`RemoteTransport`), with one-time pairing codes, hashed device tokens and Mac-only commands refused.
 - [ADR-081: Phone app](ADR-081-phone-app.md) — a phone-sized remote UI gets its own shell (Home, Projects, Settings tabs; conversation, review, terminal pages; new-conversation sheet) over the same store and components, six-digit pairing codes and an installable PWA manifest.
 - [ADR-082: Phone alerts and HTTPS](ADR-082-phone-alerts-and-https.md) — `tailscale serve` gives remote access a real HTTPS name; the Mac sends approvals, questions and finished tasks as encrypted web push straight to the phone's push service; tapping opens the conversation. Also the phone's Astros tab.
+- [ADR-083: Keep the Mac awake for paired devices](ADR-083-keep-the-mac-awake.md) — an opt-in switch in Connections runs `caffeinate -s -w <pid>` while remote access is on: no system sleep on power, display still sleeps and locks, released when Sirus quits.
 
 ## Template
 

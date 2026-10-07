@@ -5,6 +5,8 @@ const strings: Record<string, [string, string]> = {
   "connections.access": ["Remote access", "Acesso remoto"],
   "connections.enable": ["Allow other devices", "Permitir outros aparelhos"],
   "connections.enableHelp": ["Only devices on your Tailscale network can reach this Mac, and each one needs a QR code from this page.", "Só aparelhos na sua rede Tailscale alcançam este Mac, e cada um precisa de um QR code desta página."],
+  "connections.keepAwake": ["Keep the Mac awake for the phone", "Manter o Mac acordado para o celular"],
+  "connections.keepAwakeHelp": ["While plugged in, the Mac does not go to sleep, so your devices can always reach it. The screen still turns off and locks; on battery, sleep works as usual. Closing the lid still puts it to sleep.", "Na tomada, o Mac não entra em repouso e seus aparelhos sempre o alcançam. A tela continua apagando e bloqueando; na bateria, o repouso funciona normalmente. Fechar a tampa ainda põe o Mac em repouso."],
   "connections.address": ["Address", "Endereço"],
   "connections.addressHelp": ["Where your devices find this Mac on Tailscale.", "Onde seus aparelhos encontram este Mac na Tailscale."],
   "connections.copy": ["Copy address", "Copiar endereço"],

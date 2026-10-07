@@ -81,6 +81,9 @@ struct Config {
     port: Option<u16>,
     #[serde(default)]
     devices: Vec<Device>,
+    /// Keep the Mac awake on power while remote access is on (ADR-083).
+    #[serde(default)]
+    keep_awake: bool,
     /// The VAPID private key for web push (ADR-082), base64url.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     vapid_private: Option<String>,
@@ -136,6 +139,9 @@ pub struct Status {
     devices: Vec<DeviceInfo>,
     error: Option<String>,
     https: Https,
+    keep_awake: bool,
+    /// The Mac is being kept awake right now (it is, while on power).
+    awake: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -168,6 +174,9 @@ pub enum Action {
     TestPush {
         device_id: String,
     },
+    SetKeepAwake {
+        enabled: bool,
+    },
 }
 
 struct PairCode {
@@ -190,6 +199,8 @@ struct Remote {
     /// Ids of devices whose access was just removed; their sockets close.
     revoked: broadcast::Sender<String>,
     https: parking_lot::Mutex<Https>,
+    /// `caffeinate -s` while the Mac should stay awake for paired devices.
+    awake: parking_lot::Mutex<Option<std::process::Child>>,
 }
 
 static REMOTE: OnceLock<Arc<Remote>> = OnceLock::new();
@@ -216,8 +227,10 @@ pub fn init(app: AppHandle, data_dir: &Path) {
         error: parking_lot::Mutex::new(None),
         revoked: broadcast::channel(16).0,
         https: parking_lot::Mutex::new(Https::default()),
+        awake: parking_lot::Mutex::new(None),
     });
     let _ = REMOTE.set(remote.clone());
+    sync_awake(&remote);
     if enabled {
         tauri::async_runtime::spawn(async move {
             refresh_https(&remote).await;
@@ -229,14 +242,68 @@ pub fn init(app: AppHandle, data_dir: &Path) {
 pub fn shutdown() {
     if let Some(remote) = REMOTE.get() {
         stop(remote);
+        release_awake(remote);
     }
+}
+
+/// Paired devices can only reach an awake Mac: while remote access and the switch are on,
+/// `caffeinate -s` holds off system sleep on power (the display still sleeps and locks).
+/// `-w` releases it if Sirus quits without cleaning up.
+fn sync_awake(remote: &Remote) {
+    let wanted = awake_wanted(&remote.config.lock());
+    let mut awake = remote.awake.lock();
+    if let Some(child) = awake.as_mut() {
+        // A caffeinate that ended on its own is started again below.
+        if !matches!(child.try_wait(), Ok(None)) {
+            *awake = None;
+        }
+    }
+    match (wanted, awake.is_some()) {
+        (true, false) => {
+            match std::process::Command::new("/usr/bin/caffeinate")
+                .args(caffeinate_args(std::process::id()))
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+            {
+                Ok(child) => *awake = Some(child),
+                Err(error) => tracing::warn!(%error, "cannot keep the Mac awake"),
+            }
+        }
+        (false, true) => {
+            if let Some(mut child) = awake.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+        _ => {}
+    }
+}
+
+fn release_awake(remote: &Remote) {
+    if let Some(mut child) = remote.awake.lock().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
+fn awake_wanted(config: &Config) -> bool {
+    config.enabled && config.keep_awake
+}
+
+fn caffeinate_args(pid: u32) -> Vec<String> {
+    vec!["-s".into(), "-w".into(), pid.to_string()]
 }
 
 #[tauri::command]
 pub async fn remote_action(app: AppHandle, action: Action) -> Result<Status> {
     let remote = remote()?;
     match action {
-        Action::Status => refresh_https(&remote).await,
+        Action::Status => {
+            sync_awake(&remote);
+            refresh_https(&remote).await;
+        }
         Action::EnableHttps => {
             let port = port(&remote.config.lock());
             let outcome = tailscale::enable(port).await;
@@ -296,6 +363,12 @@ pub async fn remote_action(app: AppHandle, action: Action) -> Result<Status> {
                 stop(&remote);
                 *remote.pairing.lock() = None;
             }
+            sync_awake(&remote);
+        }
+        Action::SetKeepAwake { enabled } => {
+            remote.config.lock().keep_awake = enabled;
+            save(&remote)?;
+            sync_awake(&remote);
         }
         Action::Revoke { device_id } => {
             remote
@@ -402,6 +475,8 @@ fn status(remote: &Remote) -> Status {
             .collect(),
         error: remote.error.lock().clone(),
         https: remote.https.lock().clone(),
+        keep_awake: config.keep_awake,
+        awake: remote.awake.lock().is_some(),
     }
 }
 
@@ -1087,6 +1162,7 @@ mod tests {
             error: parking_lot::Mutex::new(None),
             revoked: broadcast::channel(4).0,
             https: parking_lot::Mutex::new(Https::default()),
+            awake: parking_lot::Mutex::new(None),
         }
     }
 
@@ -1238,6 +1314,21 @@ mod tests {
             serde_json::from_str(&result_message(3, Err(json!({ "code": "x" })))).unwrap();
         assert_eq!(error["ok"], false);
         assert_eq!(error["error"]["code"], "x");
+    }
+
+    #[test]
+    fn the_mac_stays_awake_only_with_remote_access_and_the_switch() {
+        let mut config = Config {
+            keep_awake: true,
+            ..Config::default()
+        };
+        assert!(!awake_wanted(&config), "remote access off");
+        config.enabled = true;
+        assert!(awake_wanted(&config));
+        config.keep_awake = false;
+        assert!(!awake_wanted(&config));
+        // On power only, and released when Sirus exits.
+        assert_eq!(caffeinate_args(42), ["-s", "-w", "42"]);
     }
 
     #[test]

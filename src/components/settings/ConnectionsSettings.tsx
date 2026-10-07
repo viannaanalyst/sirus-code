@@ -79,6 +79,9 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
         <SettingsRow title={t("connections.enable")} description={t("connections.enableHelp")}>
           <Switch checked={enabled} disabled={!status || busy} onChange={(value) => void setEnabled(value)} label={t("connections.enable")} />
         </SettingsRow>
+        {enabled ? <SettingsRow title={t("connections.keepAwake")} description={t("connections.keepAwakeHelp")}>
+          <Switch checked={!!status?.keepAwake} disabled={busy} onChange={(value) => void act({ type: "setKeepAwake", enabled: value })} label={t("connections.keepAwake")} />
+        </SettingsRow> : null}
         {enabled ? url
           ? <SettingsRow title={t("connections.address")} description={t("connections.addressHelp")}>
             <code className="connections-address ui-caption">{url}</code>
