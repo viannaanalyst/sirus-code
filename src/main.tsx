@@ -5,13 +5,14 @@ import App from "./App";
 import { formatUnknownError, isOpaqueScriptError, isResizeObserverDeliveryWarning } from "./lib/format-error";
 import { useAppStore } from "./store/app-store";
 import { configureDynamicStyleNonce } from "./lib/editor-nonce";
-import { isRemoteUi, onRemoteConnection } from "./client";
+import { isRemoteUi, onRemoteConnection, wakeRemote } from "./client";
 import { REMOTE_TOKEN_KEY, deviceName, pairingCode, redeemPairing } from "./client/remote-pairing";
 import { MobileConnect } from "./components/mobile/MobileConnect";
 import { translate } from "./i18n";
 import { dismissAppSplash } from "./lib/app-splash";
 import { MOBILE_QUERY } from "./lib/mobile";
 import { syncViewport } from "./lib/mobile-viewport";
+import { isNewerBuild } from "./lib/remote-resume";
 
 configureDynamicStyleNonce(document);
 
@@ -87,6 +88,19 @@ function showConnect(notice?: string | null) {
   mount(<MobileConnect notice={notice} onCode={pair} />);
 }
 
+/** Back from the background: a newer build reloads; otherwise the data refreshes and the open conversation stays. */
+async function resumeRemote() {
+  const served = await fetch("/", { cache: "no-store" }).then((response) => response.ok ? response.text() : null).catch(() => null);
+  if (served && isNewerBuild(served, new URL(import.meta.url).pathname)) { window.location.reload(); return; }
+  const store = useAppStore.getState();
+  const selected = store.selectedSessionId;
+  await store.bootstrap();
+  if (selected && useAppStore.getState().sessions.some((session) => session.id === selected)) {
+    await useAppStore.getState().selectSession(selected);
+    void useAppStore.getState().ensureTranscript(selected, true);
+  }
+}
+
 /** The UI served to another device (ADR-080/081): pair first, then the phone app or the full app. */
 async function startRemote() {
   const code = pairingCode(window.location.search);
@@ -103,8 +117,8 @@ async function startRemote() {
   let lost = false;
   onRemoteConnection((state) => {
     if (state === "lost") lost = true;
-    // State may have moved on while the Mac was out of reach; start again from it.
-    if (state === "open" && lost) window.location.reload();
+    // State may have moved on while the Mac was out of reach: refresh it in place.
+    if (state === "open" && lost) { lost = false; void resumeRemote(); }
     if (state === "unauthorized") {
       window.localStorage.removeItem(REMOTE_TOKEN_KEY);
       showConnect(translate(navigator.language.toLowerCase().startsWith("pt") ? "pt-BR" : "en", "mobile.connect.revoked"));
@@ -113,5 +127,9 @@ async function startRemote() {
   mount(window.matchMedia(MOBILE_QUERY).matches ? <Suspense fallback={null}><MobileApp /></Suspense> : <App />);
 }
 
-if (isRemoteUi) { syncViewport(); void startRemote(); }
+if (isRemoteUi) {
+  syncViewport();
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") wakeRemote(); });
+  void startRemote();
+}
 else mount(<App />);

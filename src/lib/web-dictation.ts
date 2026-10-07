@@ -45,50 +45,87 @@ function errorMessage(code: string): string {
   return "Dictation failed.";
 }
 
+/**
+ * iPhone's recognizer stops hearing after the first session in continuous mode, so this
+ * listens in short sessions and starts the next one while the person is still recording;
+ * the phrases of every session add up.
+ */
 export class WebDictation {
   private recognition: Recognition | null = null;
-  private text = "";
+  private listening = false;
+  private earlier = "";
+  private current = "";
   private ended: Promise<void> = Promise.resolve();
+  private finish: () => void = () => undefined;
   private failure: string | null = null;
+  private locale = "";
+  private onInterim: (text: string) => void = () => undefined;
 
   /** Resolves once the browser is listening; `onInterim` follows the words as they come. */
   start(locale: string, onInterim: (text: string) => void): Promise<void> {
-    const Constructor = recognitionConstructor();
-    if (!Constructor) return Promise.reject(new Error("Speech recognition is unavailable right now."));
-    const recognition = new Constructor();
-    recognition.lang = locale;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    this.recognition = recognition;
-    this.text = "";
+    if (!recognitionConstructor()) return Promise.reject(new Error("Speech recognition is unavailable right now."));
+    this.locale = locale;
+    this.onInterim = onInterim;
+    this.earlier = "";
+    this.current = "";
     this.failure = null;
-    let finish: () => void = () => undefined;
-    this.ended = new Promise((resolve) => { finish = resolve; });
-    recognition.onresult = (event) => {
-      const { final, interim } = joinTranscript(event.results);
-      this.text = final;
-      onInterim([final, interim].filter(Boolean).join(" "));
-    };
-    recognition.onerror = (event) => { if (event.error !== "aborted" && event.error !== "no-speech") this.failure = errorMessage(event.error); };
-    recognition.onend = () => finish();
+    this.listening = true;
+    this.ended = new Promise((resolve) => { this.finish = resolve; });
     try {
-      recognition.start();
+      this.listen();
     } catch (error) {
+      this.listening = false;
       return Promise.reject(error instanceof Error ? error : new Error("Dictation could not start."));
     }
     return Promise.resolve();
   }
 
+  private text(): string {
+    return [this.earlier, this.current].filter(Boolean).join(" ");
+  }
+
+  private listen() {
+    const Constructor = recognitionConstructor()!;
+    const recognition = new Constructor();
+    recognition.lang = this.locale;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    this.recognition = recognition;
+    recognition.onresult = (event) => {
+      const { final, interim } = joinTranscript(event.results);
+      this.current = final;
+      this.onInterim([this.text(), interim].filter(Boolean).join(" "));
+    };
+    recognition.onerror = (event) => {
+      if (event.error === "aborted" || event.error === "no-speech") return;
+      this.failure = errorMessage(event.error);
+      // Permission refused or no service: stop instead of trying again.
+      if (event.error !== "network") this.listening = false;
+    };
+    recognition.onend = () => {
+      if (this.recognition !== recognition) return;
+      this.earlier = this.text();
+      this.current = "";
+      if (this.listening) {
+        try { this.listen(); return; } catch { this.listening = false; }
+      }
+      this.recognition = null;
+      this.finish();
+    };
+    recognition.start();
+  }
+
   /** Stops listening; the final text, or nothing when cancelled. */
   async stop(cancelled: boolean): Promise<string> {
     const recognition = this.recognition;
-    this.recognition = null;
-    if (!recognition) return "";
-    if (cancelled) { recognition.abort(); return ""; }
+    this.listening = false;
+    if (!recognition) return cancelled ? "" : this.text();
+    if (cancelled) { this.recognition = null; recognition.abort(); this.finish(); return ""; }
     recognition.stop();
     // The last phrase arrives just before `end`; give up after a few seconds.
     await Promise.race([this.ended, new Promise((resolve) => setTimeout(resolve, 4000))]);
-    if (this.failure && !this.text) throw new Error(this.failure);
-    return this.text;
+    const text = this.text();
+    if (this.failure && !text) throw new Error(this.failure);
+    return text;
   }
 }

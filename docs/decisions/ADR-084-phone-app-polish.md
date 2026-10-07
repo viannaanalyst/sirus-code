@@ -35,6 +35,13 @@ Using the phone app (ADR-081) on a real iPhone showed problems that desktop emul
 
 The button, strip, Enter and Escape behave the same in both.
 
+**Coming back to the app.** iOS suspends a home-screen app in the background, which drops its socket.
+- Bringing it to the front reconnects at once (`visibilitychange` → `wakeRemote`).
+- It used to reload the page after a lost connection, which replayed the splash each time and asked for dictation permission again. Now it refreshes the data in place (`bootstrap`), keeps the open conversation and reloads its transcript.
+- It reloads only when the Mac serves a newer build: the served `index.html` no longer names the running script (`isNewerBuild`). That way updates arrive by themselves.
+
+**Dictation sessions.** iPhone's recognizer stops hearing after the first session in continuous mode, so `WebDictation` listens in short sessions and starts the next one while the person is still recording. The phrases add up. A permission or service error stops it.
+
 **Composer at phone width.** Approval shows only its icon (its name stays in its menu), the model name truncates, and the context meter is hidden.
 
 **Dropdowns.** `MobileSelect` is a field that opens a glass menu with icons and a check. It opens toward the larger side and closes on an outside tap. New conversation uses it for Project, then Provider, then that provider's newest models or its default. The sheet closes with a round glass X instead of a text button.

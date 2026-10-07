@@ -83,3 +83,38 @@ test("New conversation and New Astro rise as sheets; the rest slide in", async (
   assert.equal(isSheet({ kind: "new-astro" }), true);
   assert.equal(isSheet({ kind: "chat", sessionId: "s" }), false);
 });
+
+test("Phone dictation restarts short sessions and works again the second time", async () => {
+  const { WebDictation } = await import("../src/lib/web-dictation.ts");
+  const made: FakeRecognition[] = [];
+  class FakeRecognition {
+    lang = ""; continuous = true; interimResults = false;
+    onresult: ((event: unknown) => void) | null = null;
+    onerror: ((event: { error: string }) => void) | null = null;
+    onend: (() => void) | null = null;
+    constructor() { made.push(this); }
+    start() {}
+    stop() { this.onend?.(); }
+    abort() { this.onend?.(); }
+    say(text: string) { this.onresult?.({ resultIndex: 0, results: [{ isFinal: true, 0: { transcript: text } }] }); }
+  }
+  (globalThis as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition = FakeRecognition;
+  const dictation = new WebDictation();
+  await dictation.start("pt-BR", () => undefined);
+  assert.equal(made[0].continuous, false, "short sessions, not iPhone's flaky continuous mode");
+  made[0].say("corrija o deploy");
+  made[0].onend?.(); // the recognizer paused on its own; a new session starts
+  assert.equal(made.length, 2);
+  made[1].say("da Vercel");
+  assert.equal(await dictation.stop(false), "corrija o deploy da Vercel");
+  await dictation.start("pt-BR", () => undefined);
+  made[2].say("segunda vez");
+  assert.equal(await dictation.stop(false), "segunda vez");
+  delete (globalThis as { webkitSpeechRecognition?: unknown }).webkitSpeechRecognition;
+});
+
+test("Coming back reloads only when the Mac serves a newer build", async () => {
+  const { isNewerBuild } = await import("../src/lib/remote-resume.ts");
+  assert.equal(isNewerBuild('<script src="/assets/index-abc.js"></script>', "/assets/index-abc.js"), false);
+  assert.equal(isNewerBuild('<script src="/assets/index-def.js"></script>', "/assets/index-abc.js"), true);
+});

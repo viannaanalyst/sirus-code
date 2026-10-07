@@ -92,6 +92,16 @@ export class RemoteTransport implements Transport {
     };
   }
 
+  /**
+   * The page came back to the front (an iPhone app resumed): reconnect now instead of
+   * waiting for the backoff timer.
+   */
+  wake() {
+    if (this.state !== "lost" || !this.handlers.size) return;
+    this.attempt = 0;
+    void this.connect().catch(() => undefined);
+  }
+
   private send(message: object) {
     if (this.socket?.readyState === OPEN) this.socket.send(JSON.stringify(message));
   }

@@ -716,13 +716,20 @@ export function onRemoteConnection(handler: (state: RemoteConnection, previous: 
   return () => { remoteListeners.delete(handler); };
 }
 
-export const client = new SirusClient(isRemoteUi
+const remoteTransport = isRemoteUi
   ? new RemoteTransport({
     url: socketUrl(window.location),
     token: () => window.localStorage.getItem(REMOTE_TOKEN_KEY),
     onConnection: (state, previous) => { for (const handler of [...remoteListeners]) handler(state, previous); },
   })
-  : new LocalTransport());
+  : null;
+
+export const client = new SirusClient(remoteTransport ?? new LocalTransport());
+
+/** Reconnects the UI served to another device at once, e.g. when the app returns to the front. */
+export function wakeRemote() {
+  remoteTransport?.wake();
+}
 
 function isCancelledTitle(value: unknown): boolean {
   return !!value && typeof value === "object" && Object.keys(value).length === 1 && (value as Record<string, unknown>).type === "cancelled";
