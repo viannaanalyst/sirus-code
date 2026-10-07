@@ -496,6 +496,77 @@ pub fn identity(path: &Path) -> Result<GitIdentity> {
     })
 }
 
+/// Lines added and removed in the checkout, for the project row's `+N -M`: tracked
+/// changes against HEAD (staged and unstaged) plus the lines of new, untracked text
+/// files. Bounded: up to 500 new files of at most 1 MiB each; binaries count as nothing.
+pub fn diff_totals(path: &Path) -> Result<(u32, u32)> {
+    if !identity(path)?.is_repo {
+        return Ok((0, 0));
+    }
+    let numstat = run(
+        path,
+        &[
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--numstat",
+            "HEAD",
+        ],
+    )?;
+    // No commit yet: every file is new, counted below.
+    let (mut added, removed) = if numstat.status.success() {
+        sum_numstat(&String::from_utf8_lossy(&numstat.stdout))
+    } else {
+        (0, 0)
+    };
+    let untracked = run(path, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    if untracked.status.success() {
+        for name in String::from_utf8_lossy(&untracked.stdout)
+            .split('\0')
+            .filter(|name| !name.is_empty())
+            .take(500)
+        {
+            added = added.saturating_add(text_lines(&path.join(name)));
+        }
+    }
+    Ok((added, removed))
+}
+
+/// Lines of a small text file; binaries, links and large files count as nothing.
+fn text_lines(file: &Path) -> u32 {
+    const LIMIT: u64 = 1024 * 1024;
+    let Ok(metadata) = std::fs::symlink_metadata(file) else {
+        return 0;
+    };
+    if !metadata.is_file() || metadata.len() > LIMIT {
+        return 0;
+    }
+    let Ok(bytes) = std::fs::read(file) else {
+        return 0;
+    };
+    if bytes.is_empty() || bytes.contains(&0) {
+        return 0;
+    }
+    let newlines = bytes.iter().filter(|byte| **byte == b'\n').count() as u32;
+    newlines + u32::from(!bytes.ends_with(b"\n"))
+}
+
+/// Sums `git diff --numstat` rows; binary files (`-`) count as nothing.
+pub fn sum_numstat(text: &str) -> (u32, u32) {
+    text.lines().fold((0, 0), |(added, removed), row| {
+        let mut columns = row.split('\t');
+        let plus = columns
+            .next()
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(0);
+        let minus = columns
+            .next()
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(0);
+        (added.saturating_add(plus), removed.saturating_add(minus))
+    })
+}
+
 pub fn status(path: &Path) -> Result<GitStatus> {
     let identity = identity(path)?;
     if !identity.is_repo {
@@ -775,6 +846,30 @@ fn parse_worktree_inventory(text: &str) -> Result<Vec<GitWorktree>> {
 pub(crate) mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn numstat_rows_add_up_and_binaries_count_as_nothing() {
+        assert_eq!(
+            sum_numstat("10\t2\tsrc/a.ts\n44\t11\tsrc/b.ts\n-\t-\tlogo.png\n"),
+            (54, 13)
+        );
+        assert_eq!(sum_numstat(""), (0, 0));
+    }
+
+    #[test]
+    fn project_totals_count_uncommitted_lines() {
+        let repo = Repo::new();
+        fs::write(repo.cwd().join("a.txt"), "one\ntwo\n").unwrap();
+        run_ok(&repo.cwd(), &["add", "."]).unwrap();
+        run_ok(&repo.cwd(), &["commit", "-qm", "init"]).unwrap();
+        assert_eq!(diff_totals(&repo.cwd()).unwrap(), (0, 0));
+        fs::write(repo.cwd().join("a.txt"), "one\nTWO\nthree\n").unwrap();
+        assert_eq!(diff_totals(&repo.cwd()).unwrap(), (2, 1));
+        // New files count their lines; binaries count as nothing.
+        fs::write(repo.cwd().join("new.md"), "a\nb\nc").unwrap();
+        fs::write(repo.cwd().join("logo.bin"), [0u8, 1, 2]).unwrap();
+        assert_eq!(diff_totals(&repo.cwd()).unwrap(), (5, 1));
+    }
     pub(crate) struct Repo(pub(crate) std::path::PathBuf);
     impl Repo {
         pub(crate) fn new() -> Self {

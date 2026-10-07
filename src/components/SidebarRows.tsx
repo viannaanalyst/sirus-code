@@ -40,6 +40,7 @@ function RowAction({ label, children, onClick, pressed, className, disabled }: {
 export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, reorderProps }: { project: Project; expanded: boolean; onSelect: () => void; sessionCount: number; reorderProps?: ButtonHTMLAttributes<HTMLButtonElement> }) {
   const t = useTranslation();
   const pinned = useAppStore((state) => state.settings.pinnedProjectIds.includes(project.id));
+  const diff = useAppStore((state) => state.projectDiffs[project.id]);
   const [editing, setEditing] = useState(false);
   useSidebarPanelHold(editing);
   const [name, setName] = useState(project.name);
@@ -71,7 +72,7 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
       <button className="sidebar-card-line sidebar-card-edit ui-control" type="button" onClick={openEditor}><Settings />{t("Edit project")}</button>
     </>}>
       <ProjectActions project={project} onEdit={openEditor}><div className={cn("sidebar-project-row", pinned && "sidebar-project-pinned")}>
-        <button {...reorderProps} type="button" className="sidebar-project-open ui-body" aria-expanded={expanded} onClick={onSelect}><span className="sidebar-folder-slot">{folder}</span><span className="sidebar-row-title">{project.name}</span></button>
+        <button {...reorderProps} type="button" className="sidebar-project-open ui-body" aria-expanded={expanded} onClick={onSelect}><span className="sidebar-folder-slot">{folder}</span><span className="sidebar-row-title">{project.name}</span>{diff && (diff.additions || diff.deletions) ? <span className="sidebar-project-diff ui-caption" aria-label={t("project.diff", { additions: diff.additions, deletions: diff.deletions })}><span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span></span> : null}</button>
         <RowAction label={pinLabel} pressed={pinned} className="sidebar-project-pin" onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction>
         <span className="sidebar-hover-actions sidebar-project-actions"><RowAction label={t("Review changes")} disabled={actionBusy} onClick={() => action("review")}><GitCompareArrows /></RowAction><RowAction label={t("New terminal session")} disabled={actionBusy} onClick={() => action("terminal")}><Terminal /></RowAction><RowAction label={t("New thread")} className="sidebar-new-thread-action" disabled={actionBusy} onClick={() => action("new")}><SquarePen /></RowAction></span>
       </div></ProjectActions>

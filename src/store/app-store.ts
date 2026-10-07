@@ -211,6 +211,9 @@ interface AppStore {
   settingsSection: SettingsSection;
   newSessionOpen: boolean;
   gitByPath: Record<string, GitIdentity>;
+  /** Uncommitted lines per project checkout (`+additions -deletions`), refreshed on demand. */
+  projectDiffs: Record<string, { additions: number; deletions: number }>;
+  refreshProjectDiffs: () => Promise<void>;
   gitStatus: GitStatus | null;
   selectedDiff: FileChange | null;
   diffText: string | null;
@@ -1041,6 +1044,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   settingsSection: "general",
   newSessionOpen: false,
   gitByPath: {},
+  projectDiffs: {},
+  refreshProjectDiffs: async () => {
+    try {
+      const stats = await client.projectDiffStats();
+      set({ projectDiffs: Object.fromEntries(stats.map(({ projectId, additions, deletions }) => [projectId, { additions, deletions }])) });
+    } catch {
+      // A missing folder or Git error just leaves the numbers out.
+    }
+  },
   gitStatus: null,
   selectedDiff: null,
   diffText: null,
@@ -1088,6 +1100,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         selectedProviderAccounts: data.selectedProviderAccounts ?? {},
       });
       void detection.then((result) => set("agents" in result ? { agents: result.agents } : { error: formatUnknownError(result.error) }));
+      scheduleProjectDiffs();
       void Promise.all(projects.filter((project) => project !== selectedProject).map(identify)).then((rest) => set((state) => ({
         gitByPath: { ...Object.fromEntries(rest.filter((item) => item !== null)), ...state.gitByPath },
       })));
@@ -1838,6 +1851,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   refreshGitStatus: async () => {
+    // Selections, commits and pushes all pass here; the project totals follow.
+    scheduleProjectDiffs();
     const sequence = ++gitRequestSequence;
     const sessionId = get().selectedSessionId;
     if (!sessionId) {
@@ -2742,6 +2757,19 @@ useAppStore.subscribe((state, previous) => {
     deletingTemporary.add(id);
     void state.deleteSession(id, false).finally(() => { deletingTemporary.delete(id); forget(); });
   }
+});
+
+// Project `+N -M` totals: re-read shortly after a turn settles (and on demand), never on a timer.
+let projectDiffTimer: ReturnType<typeof setTimeout> | undefined;
+export function scheduleProjectDiffs() {
+  clearTimeout(projectDiffTimer);
+  projectDiffTimer = setTimeout(() => void useAppStore.getState().refreshProjectDiffs(), 800);
+}
+useAppStore.subscribe((state, previous) => {
+  if (state.sessions === previous.sessions) return;
+  const before = new Map(previous.sessions.map((session) => [session.id, session.status]));
+  const busy = (status: string | undefined) => status === "running" || status === "starting" || status === "waiting";
+  if (state.sessions.some((session) => busy(before.get(session.id)) && !busy(session.status))) scheduleProjectDiffs();
 });
 
 // The active pane follows the selection; panes of deleted sessions close.

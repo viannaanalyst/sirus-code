@@ -20,7 +20,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { initialSidebarPanel, SIDEBAR_RAIL_WIDTH, sidebarActivityFeed, sidebarPanelReducer, type SidebarSection } from "@/lib/sidebar-panels";
 import { playSidebarCascade, type SidebarMotion } from "@/lib/sidebar-motion";
 import { useGlidingHover } from "@/lib/use-gliding-hover";
-import { useAppStore, selectListedSessions } from "@/store/app-store";
+import { scheduleProjectDiffs, useAppStore, selectListedSessions } from "@/store/app-store";
 import "@/styles/sidebar.css";
 
 const sections = [
@@ -38,6 +38,11 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   const toggleSidebar = useAppStore(state => state.toggleSidebar);
   const projects = useAppStore(state => state.projects);
   const [panel, dispatch] = useReducer(sidebarPanelReducer, initialSidebarPanel);
+  // Edits made outside Sirus (an editor, a terminal) show up when the window comes back.
+  useEffect(() => {
+    window.addEventListener("focus", scheduleProjectDiffs);
+    return () => window.removeEventListener("focus", scheduleProjectDiffs);
+  }, []);
   const rail = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);

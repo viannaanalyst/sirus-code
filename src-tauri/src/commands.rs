@@ -409,6 +409,41 @@ pub async fn git_identity(path: String) -> Result<crate::models::GitIdentity> {
     .await
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDiff {
+    project_id: String,
+    additions: u32,
+    deletions: u32,
+}
+
+/// Uncommitted `+N -M` of every project checkout, for the sidebar's project rows.
+#[tauri::command]
+pub async fn project_diff_stats(state: State<'_, Arc<AppState>>) -> Result<Vec<ProjectDiff>> {
+    let projects: Vec<(String, String)> = state
+        .data
+        .lock()
+        .projects
+        .iter()
+        .map(|project| (project.id.clone(), project.path.clone()))
+        .collect();
+    native_task(move || {
+        Ok(projects
+            .into_iter()
+            .filter_map(|(project_id, path)| {
+                let canonical = paths::ensure_dir(&PathBuf::from(path)).ok()?;
+                let (additions, deletions) = git::diff_totals(&canonical).ok()?;
+                Some(ProjectDiff {
+                    project_id,
+                    additions,
+                    deletions,
+                })
+            })
+            .collect())
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn git_status(state: State<'_, Arc<AppState>>, session_id: String) -> Result<GitStatus> {
     let state = state.inner().clone();

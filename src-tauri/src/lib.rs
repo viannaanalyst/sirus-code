@@ -280,6 +280,7 @@ pub fn run() {
             commands::rename_project,
             commands::git_identity,
             commands::git_status,
+            commands::project_diff_stats,
             commands::git_diff,
             commands::list_branches,
             commands::checkout_branch,

@@ -33,6 +33,11 @@
   .sidebar-project-open, .sidebar-session-open { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; height: max(var(--sidebar-row-height), calc(var(--text-ui-13) * 2.15)); padding: 0 8px; border-radius: inherit; text-align: left; }
   .sidebar-session-open { gap: 8px; padding: 0 8px; }
   .sidebar-row-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* Uncommitted lines of the project checkout; the row's hover actions take their place. */
+  .sidebar-project-diff { display: inline-flex; flex-shrink: 0; gap: 5px; font-variant-numeric: tabular-nums; transition: opacity var(--motion-fast) var(--ease-out); }
+  .sidebar-project-diff [data-kind="added"] { color: color-mix(in srgb, var(--success) 78%, var(--text-muted)); }
+  .sidebar-project-diff [data-kind="removed"] { color: color-mix(in srgb, var(--danger) 72%, var(--text-muted)); }
+  .sidebar-project-row:is(:hover, :focus-within) .sidebar-project-diff { opacity: 0; }
   .sidebar-session-selected { color: var(--text-primary); }
   .sidebar-session-selected::before, .sidebar-hover-track .sidebar-session-selected:hover:not(:has(:focus-visible))::before { background: var(--navigation-selected); }
   .sidebar-folder-slot { display: inline-flex; flex-shrink: 0; align-items: center; width: 13px; height: 13px; color: color-mix(in srgb, var(--text-primary) 85%, transparent); }

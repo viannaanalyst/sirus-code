@@ -198,6 +198,11 @@ export class SirusClient {
     return this.transport.invoke<GitIdentity>("git_identity", { path });
   }
 
+  /** Uncommitted `+N -M` of every project checkout, for the sidebar. */
+  projectDiffStats() {
+    return this.transport.invoke<{ projectId: string; additions: number; deletions: number }[]>("project_diff_stats");
+  }
+
   gitStatus(sessionId: string) {
     return this.transport.invoke<GitStatus>("git_status", { sessionId });
   }
