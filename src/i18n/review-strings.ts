@@ -1,6 +1,10 @@
 export const reviewPortuguese: Record<string, string> = {
   "review.title": "Revisão do turno",
   "review.files": "{count} arquivos alterados",
+  "review.files.one": "1 arquivo alterado",
+  "review.openDiff": "Abrir diff",
+  "review.expandFolders": "Expandir todas as pastas",
+  "review.collapseFolders": "Recolher todas as pastas",
   "review.partialFiles": "{count} arquivos observados",
   "review.keep": "Manter",
   "review.kept": "Mantidas",
@@ -28,6 +32,10 @@ export const reviewPortuguese: Record<string, string> = {
 export const reviewEnglish: Record<string, string> = {
   "review.title": "Turn review",
   "review.files": "{count} changed files",
+  "review.files.one": "1 changed file",
+  "review.openDiff": "Open diff",
+  "review.expandFolders": "Expand all folders",
+  "review.collapseFolders": "Collapse all folders",
   "review.partialFiles": "{count} observed files",
   "review.keep": "Keep",
   "review.kept": "Kept",

@@ -169,3 +169,17 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 .image-lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); cursor: default; }
 .image-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .18); background: rgb(255 255 255 / .06); color: #fff; }
 .image-lightbox-close:hover { background: rgb(255 255 255 / .14); }
+
+/* Changed files card, after T3 Code: a quiet panel, sticky header, folder tree with mono names. */
+.changed-files { margin: 16px 0 4px; border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); white-space: normal; }
+.changed-files-header { position: sticky; top: 8px; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; border-radius: 10px 10px 0 0; background: color-mix(in srgb, var(--background-2) 96%, var(--text-primary)); }
+.changed-files-action { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 7px; border-radius: 6px; color: var(--text-muted); font-size: var(--text-ui-11); }
+.changed-files-action:hover:not(:disabled) { background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-primary); }
+.changed-files-action:disabled { opacity: .6; cursor: default; }
+.changed-files-tree { padding: 4px 6px 6px; }
+.changed-files-row { display: flex; align-items: center; gap: 8px; width: 100%; padding-top: 5px; padding-bottom: 5px; padding-right: 8px; border-radius: 6px; text-align: left; transition: background var(--motion-fast) var(--ease-out); }
+.changed-files-row:hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+.changed-files-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.changed-files-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.4 var(--font-mono); }
+.changed-files-chevron { flex-shrink: 0; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
+.changed-files-chevron-open { transform: rotate(90deg); }
