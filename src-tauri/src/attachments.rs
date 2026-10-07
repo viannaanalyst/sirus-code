@@ -257,6 +257,17 @@ impl AttachmentState {
         Ok(files)
     }
 }
+/// An HTML document regardless of its extension: `<!doctype html` or `<html` near the start.
+fn looks_like_html(bytes: &[u8]) -> bool {
+    let head = &bytes[..bytes.len().min(1024)];
+    let head = head.strip_prefix(b"\xef\xbb\xbf").unwrap_or(head);
+    let start = head
+        .iter()
+        .position(|byte| !byte.is_ascii_whitespace())
+        .unwrap_or(head.len());
+    let lower = head[start..].to_ascii_lowercase();
+    lower.starts_with(b"<!doctype html") || lower.starts_with(b"<html")
+}
 fn mime(name: &str, bytes: &[u8]) -> &'static str {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         "image/png"
@@ -268,6 +279,9 @@ fn mime(name: &str, bytes: &[u8]) -> &'static str {
         "image/webp"
     } else if bytes.starts_with(b"%PDF-") {
         "application/pdf"
+    } else if looks_like_html(bytes) {
+        // Word's "Web page" .doc files and other HTML saved under another extension.
+        "text/html"
     } else {
         match Path::new(name)
             .extension()
@@ -385,11 +399,20 @@ fn from_bytes(name: String, bytes: Vec<u8>) -> Result<PreparedAttachment> {
             ));
         }
     }
+    let decoded;
     let text = if (mime_type.starts_with("text/")
         || matches!(mime_type.as_str(), "application/json" | "image/svg+xml"))
         && !bytes.contains(&0)
     {
-        std::str::from_utf8(&bytes).ok().unwrap_or("")
+        match std::str::from_utf8(&bytes) {
+            Ok(text) => text,
+            // Older HTML (Word "Web page" files) is often Latin-1; each byte is its code point.
+            Err(_) if mime_type == "text/html" => {
+                decoded = bytes.iter().map(|&byte| byte as char).collect::<String>();
+                decoded.as_str()
+            }
+            Err(_) => "",
+        }
     } else {
         ""
     };
@@ -1091,6 +1114,17 @@ mod thumbnail_tests {
     }
 }
 
+#[cfg(test)]
+mod html_sniff_tests {
+    #[test]
+    fn html_saved_as_word_opens_as_html_with_its_latin1_accents() {
+        let page = b"\r\n<html xmlns:w=\"urn:schemas-microsoft-com:office:word\"><body>Certid\xe3o</body></html>".to_vec();
+        let prepared = super::from_bytes("Certidao.doc".into(), page).unwrap();
+        assert_eq!(prepared.view.mime_type, "text/html");
+        assert!(prepared.view.content.contains("Certidão"));
+        assert!(!super::looks_like_html(b"PK\x03\x04 not html"));
+    }
+}
 #[cfg(test)]
 mod drop_tests {
     #[test]
