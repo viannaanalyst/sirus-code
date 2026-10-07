@@ -299,6 +299,9 @@
 /* iOS zooms into any field under 16px when it gets focus, which shifts the whole page.
    Unlayered so it also covers the shared composer's own sizes. */
 .mobile-app textarea, .mobile-app input:not([type="checkbox"], [type="radio"]), .mobile-app select, .mobile-connect input { font-size: max(16px, 1em) !important; }
+/* The composer draws its coloured tokens (/skills, @files) in a layer behind the textarea; it must match the
+   textarea's size exactly, or the caret drifts away from the text. */
+.mobile-app .composer-highlight { font-size: max(16px, 1em) !important; }
 
 /* The shared composer on a phone: approval shows only its icon (the name stays in its menu), the model
    name truncates and the context meter steps aside. Unlayered to win over the composer's utilities. */
