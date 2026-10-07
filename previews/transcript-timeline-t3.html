@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sirus Code · Transcript no estilo T3</title>
+<style>
+  :root {
+    --page: #1f1f22; --outer: #18181a; --surface: #2a2a2e;
+    --fg: #ececf1; --t2: #a1a1aa; --tm: #71717a;
+    --bd: rgb(255 255 255 / .08); --bd-strong: rgb(255 255 255 / .12);
+    --accent: #8b7cf6; --mention: #6ea8fe; --skill: #e5c07b;
+    --err: #fca5a5; --err-icon: #f08484;
+    --add: #6fcf97; --del: #f08a8a;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--outer); color: var(--fg); font: 13px/1.5 "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; display: block; }
+  code, .mono { font-family: "SF Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace; }
+
+  /* ---------- Page ---------- */
+  .page { max-width: 1040px; margin: 0 auto; padding: 40px 28px 80px; }
+  .intro { max-width: 720px; margin: 0 auto 36px; }
+  .intro h1 { margin: 0 0 6px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+  .intro p { margin: 0; color: var(--t2); font-size: 13.5px; }
+  .scenario { margin-top: 44px; }
+  .scenario-head { max-width: 720px; margin: 0 auto 12px; display: flex; align-items: baseline; gap: 10px; }
+  .scenario-head .num { font: 600 12px/1 "SF Mono", ui-monospace, monospace; color: var(--accent); }
+  .scenario-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .scenario-head p { margin: 0 0 0 auto; color: var(--tm); font-size: 12px; text-align: right; }
+  .pane { background: var(--page); border: 1px solid var(--bd); border-radius: 14px; padding: 28px 24px 30px; }
+  .col { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; }
+  .pane + .pane { margin-top: 12px; }
+
+  /* ---------- User prompt ---------- */
+  .user { align-self: flex-end; max-width: 80%; background: var(--surface); border-radius: 16px; padding: 9px 14px; font-size: 14px; line-height: 1.6; color: var(--fg); margin-bottom: 16px; }
+  .tok { display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; border-radius: 5px; font-weight: 500; line-height: 1.45; vertical-align: baseline; white-space: nowrap; }
+  .tok-skill { color: var(--skill); background: rgb(229 192 123 / .13); }
+  .tok-file { color: var(--mention); background: rgb(110 168 254 / .13); }
+  .tok svg.i { width: 12px; height: 12px; stroke-width: 2.2; position: relative; top: .5px; }
+
+  /* ---------- Assistant text ---------- */
+  .md { font-size: 14px; line-height: 1.65; color: var(--fg); padding: 2px 2px 10px; }
+  .md p { margin: 0; }
+  .md p + p, .md p + ul, .md ul + p { margin-top: 10px; }
+  .md ul { margin: 0; padding-left: 20px; }
+  .md li + li { margin-top: 3px; }
+  .md code { font-size: 12.5px; background: rgb(255 255 255 / .06); border-radius: 4px; padding: 1px 4px; }
+
+  /* ---------- Work log rows (T3 WorkLog geometry) ---------- */
+  .block { padding-bottom: 8px; }                 /* standalone pb-2 */
+  .row { position: relative; display: flex; align-items: center; gap: 6px; min-height: 24px; width: 100%; padding: 2px 2px; border-radius: 6px; font-size: 13px; line-height: 1.625; color: var(--t2); text-align: left; user-select: none; -webkit-user-select: none; }
+  .list .row { padding-top: 0; padding-bottom: 0; } /* grouped rows py-0 */
+  .row[role="button"] { cursor: pointer; }
+  .row[role="button"]:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgb(139 124 246 / .6); }
+  .ico { width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--tm); }
+  .lbl { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--t2); transition: color 120ms; }
+  .lbl code { font-size: 12px; color: var(--t2); }
+  .lbl .sk { color: var(--skill); font-weight: 500; }
+  .ts { flex-shrink: 0; font-size: 12px; color: var(--tm); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 120ms; margin-right: 2px; }
+  .row:hover > .ts, .row:focus-visible > .ts, .fold:hover .ts { opacity: 1; }
+  .chev { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--tm); opacity: .7; }
+  .chev svg.i { width: 12px; height: 12px; transition: transform 200ms var(--ease); }
+  .disc.open > .row .chev svg.i { transform: rotate(90deg); }
+  .chev.none { visibility: hidden; }
+  .row.fail .ico { color: var(--err-icon); }
+  .row.fail .lbl, .row.fail .lbl code { color: #e7a3a3; }
+  .row.fail .chev { color: var(--err-icon); }
+  .row[role="button"]:hover .lbl { color: #c4c4cc; }
+  .row.fail[role="button"]:hover .lbl { color: var(--err); }
+  .col > :last-child { margin-bottom: 0; }
+  .col > .fold-wrap.open:last-child > .body > .inner { margin-bottom: 0; }
+
+  .body { height: 0; opacity: 0; overflow: hidden; }
+  .disc.open > .body { height: auto; opacity: 1; }
+  .list { display: flex; flex-direction: column; padding-bottom: 4px; }
+  .details { margin: 2px 0 6px 32px; }
+  .details pre { margin: 0; max-height: 256px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 11.5px/1.65 "SF Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace; color: var(--t2); user-select: text; -webkit-user-select: text; cursor: text; }
+  .details pre .dim { color: var(--tm); }
+  .details pre .bad { color: var(--err); }
+  .details pre .good { color: var(--t2); }
+
+  /* Live tool shine (T3 index.css: live-tool-shine) */
+  .live .lbl { color: var(--t2); }
+  .shine-wrap { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: top; }
+  @keyframes live-tool-shine {
+    from { background-position: -4.5rem 0, 0 0; }
+    to { background-position: calc(100% + 4.5rem) 0, 0 0; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .shine {
+      color: transparent;
+      background-image: linear-gradient(to right, transparent, var(--fg), transparent), linear-gradient(var(--t2), var(--t2));
+      background-size: 4.5rem 100%, 100% 100%;
+      background-repeat: no-repeat;
+      -webkit-background-clip: text; background-clip: text;
+      animation: live-tool-shine 2.2s steps(30) infinite;
+    }
+    .shine code { color: transparent; }
+  }
+  .live-swap { transition: opacity 150ms; }
+  .live-swap.out { opacity: 0; }
+
+  /* Working header + turn fold */
+  .working { border-bottom: 1px solid rgb(255 255 255 / .07); padding: 4px 0 8px; margin-bottom: 10px; }
+  .working span { display: flex; align-items: baseline; height: 24px; padding: 0 4px; font-size: 13px; line-height: 1.625; color: var(--tm); font-variant-numeric: tabular-nums; }
+  .fold { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid rgb(255 255 255 / .07); padding: 4px 2px 8px 0; }
+  .fold-btn { display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 6px; font-size: 13px; line-height: 1.625; color: var(--tm); font-variant-numeric: tabular-nums; transition: color 120ms; }
+  .fold-btn:hover { color: var(--fg); }
+  .fold-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgb(139 124 246 / .6); }
+  .fold-btn svg.i { width: 14px; height: 14px; transition: transform 150ms var(--ease); }
+  .fold-wrap.open .fold-btn svg.i { transform: rotate(90deg); }
+  .fold .ts { margin-left: auto; }
+  .fold-wrap > .body > .inner { padding-top: 12px; }
+  .fold-wrap { margin-bottom: 14px; }
+  .fold-wrap.open { margin-bottom: 4px; }
+  .fold-wrap.open > .fold { border-bottom-color: transparent; }
+  .fold-wrap.open > .body > .inner { border-bottom: 1px solid rgb(255 255 255 / .07); padding-bottom: 6px; margin-bottom: 12px; }
+
+  /* Changed files card */
+  .files { margin-top: 6px; border: 1px solid var(--bd); border-radius: 10px; background: rgb(42 42 46 / .55); overflow: hidden; font-size: 12.5px; }
+  .files-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--bd); color: var(--t2); }
+  .files-head b { color: var(--fg); font-weight: 500; }
+  .files-head .act { margin-left: auto; color: var(--tm); font-size: 12px; }
+  .files-head .act:hover { color: var(--fg); }
+  .file { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: var(--t2); }
+  .file + .file { border-top: 1px solid rgb(255 255 255 / .04); }
+  .file:hover { background: rgb(255 255 255 / .03); }
+  .file .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .path i { font-style: normal; color: var(--tm); }
+  .stat { font: 11.5px/1 "SF Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .stat .a { color: var(--add); } .stat .d { color: var(--del); margin-left: 6px; }
+  .file svg.i { width: 14px; height: 14px; color: var(--tm); }
+
+  /* Composer mock */
+  .composer { margin-top: 22px; border: 1px solid var(--bd-strong); border-radius: 14px; background: var(--surface); padding: 10px 12px 8px; }
+  .composer .text { font-size: 14px; line-height: 1.6; min-height: 24px; }
+  .composer .caret { display: inline-block; width: 1.5px; height: 17px; background: var(--fg); vertical-align: -3px; margin-left: 1px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .composer .bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; color: var(--tm); font-size: 12px; }
+  .composer .stop { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; background: var(--fg); display: flex; align-items: center; justify-content: center; }
+  .composer .stop i { width: 9px; height: 9px; border-radius: 2px; background: var(--page); }
+
+  /* ---------- 01 · current Sirus mock ---------- */
+  .cur-head { display: flex; align-items: center; gap: 8px; height: 26px; margin-bottom: 6px; font-size: 13px; }
+  .cur-head b { font-weight: 600; color: var(--fg); }
+  .cur-head span { color: var(--tm); font-variant-numeric: tabular-nums; }
+  .cur-head svg.i { width: 14px; height: 14px; color: var(--tm); }
+  .steps { position: relative; padding: 2px 0 6px 20px; margin-bottom: 10px; }
+  .steps::before { content: ""; position: absolute; left: 6px; top: 12px; bottom: 16px; width: 1px; background: rgb(255 255 255 / .12); }
+  .step { position: relative; display: flex; align-items: center; gap: 8px; height: 28px; color: var(--t2); font-size: 13px; }
+  .step::before { content: ""; position: absolute; left: -17px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: #52525b; box-shadow: 0 0 0 3px var(--page); }
+  .step .ok { color: #3dd68c; display: flex; } .step .ok svg.i { width: 14px; height: 14px; }
+  .step .n { color: var(--tm); font-size: 12px; }
+  .step.more { color: var(--tm); font-size: 12.5px; }
+  .step.more::before { background: transparent; border: 1px solid #52525b; }
+  .note { display: inline-block; margin: 0 0 6px; padding: 1px 7px; border-radius: 999px; border: 1px dashed rgb(229 192 123 / .45); color: var(--skill); font-size: 11px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0ms !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="intro">
+    <h1>Transcript no estilo T3</h1>
+    <p>Texto e ferramentas na ordem em que aconteceram. Só chamadas seguidas viram uma linha-resumo; ao terminar, tudo antes da resposta final fica recolhido em “Trabalhou por …”. Clique nas linhas para expandir; passe o mouse para ver o horário.</p>
+  </header>
+
+  <!-- 01 -->
+  <section class="scenario">
+    <div class="scenario-head"><span class="num">01</span><h2>Hoje (Sirus)</h2><p>Passos num bloco com pontos e linha; o texto vem depois</p></div>
+    <div class="pane"><div class="col">
+      <div class="user" data-prompt="main"></div>
+      <div class="cur-head"><b>GPT-6-Luna</b><span>Trabalhando 1m 17s</span><i data-i="chevron-up"></i></div>
+      <div class="steps">
+        <div class="step more">+3 passos anteriores</div>
+        <div class="step">Leituras e buscas <span class="n">4</span><span class="ok"><i data-i="check"></i></span></div>
+        <div class="step">Edição <span class="n">2</span><span class="ok"><i data-i="check"></i></span></div>
+        <div class="step">Comando<span class="ok"><i data-i="check"></i></span></div>
+        <div class="step">Comando<span class="ok"><i data-i="check"></i></span></div>
+      </div>
+      <div class="md">
+        <span class="note">↓ escrito antes das ferramentas, aparece depois delas</span>
+        <p>Vou mapear o módulo com a skill <code>/graphify</code> antes de tocar no layout.</p>
+        <p>O grafo aponta para três arquivos. Vou ler os principais e a referência de arquitetura.</p>
+        <p>Achei a causa: <code>AgentActivity</code> junta todos os passos do turno num bloco só e renderiza o texto depois. Vou trocar por uma lista cronológica que só agrupa chamadas seguidas.</p>
+        <p>Pronto. O transcript agora intercala texto e ferramentas na ordem real.</p>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- 02 -->
+  <section class="scenario">
+    <div class="scenario-head"><span class="num">02</span><h2>T3 — em andamento</h2><p>Cronômetro real; a linha ao vivo troca de ferramenta a cada ~2s</p></div>
+    <div class="pane"><div class="col" id="running">
+      <div class="user" data-prompt="main"></div>
+      <div class="working"><span>Trabalhando há&nbsp;<span id="timer" style="display:inline;padding:0;height:auto">12s</span></span></div>
+      <div id="running-body"></div>
+      <div class="composer">
+        <div class="text">Depois rode <span class="tok tok-skill">/simplify</span> em <span class="tok tok-file"><i data-i="file"></i>@src/lib/transcript-steps.ts</span><span class="caret"></span></div>
+        <div class="bar"><span>GPT-6-Luna</span><span>·</span><span>Alto</span><span class="stop" aria-label="Parar"><i></i></span></div>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- 03 -->
+  <section class="scenario">
+    <div class="scenario-head"><span class="num">03</span><h2>T3 — concluído (recolhido)</h2><p>Uma linha “Trabalhou por …”, a resposta final e os arquivos alterados</p></div>
+    <div class="pane"><div class="col" id="done-collapsed"></div></div>
+  </section>
+
+  <!-- 04 -->
+  <section class="scenario">
+    <div class="scenario-head"><span class="num">04</span><h2>T3 — concluído (expandido)</h2><p>Texto intercalado; um grupo aberto, com um comando aberto</p></div>
+    <div class="pane"><div class="col" id="done-expanded"></div></div>
+  </section>
+
+  <!-- 05 -->
+  <section class="scenario">
+    <div class="scenario-head"><span class="num">05</span><h2>Interrompido / com erro</h2><p>Parada pelo usuário; falhas ficam visíveis fora do recolhido</p></div>
+    <div class="pane"><div class="col" id="stopped"></div></div>
+    <div class="pane"><div class="col" id="failed"></div></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* ---------- Icons (lucide strokes) ---------- */
+  const P = {
+    eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+    pen: '<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>',
+    terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+    brain: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/>',
+    hammer: '<path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-2.26a6 6 0 0 0-4.202-1.756L9 2.96l.92.82A6.18 6.18 0 0 1 12 8.4V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5"/>',
+    sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+    "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+    "chevron-up": '<path d="m18 15-6-6-6 6"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+    diff: '<path d="M12 3v14"/><path d="M5 10h14"/><path d="M5 21h14"/>',
+  };
+  const svg = (name) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[name]}</svg>`;
+  const hydrateIcons = (root) => root.querySelectorAll("i[data-i]").forEach((el) => { el.outerHTML = svg(el.dataset.i); });
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  /* ---------- Prompt with inline tokens ---------- */
+  const PROMPTS = {
+    main: 'Use <span class="tok tok-skill">/graphify</span> para mapear como o transcript agrupa as ferramentas e confira <span class="tok tok-file"><i data-i="file"></i>@docs/architecture.md</span> antes de mudar o layout. Quero texto e ferramentas na ordem em que aconteceram.',
+    stop: 'Separe o estado do transcript em uma fatia própria do <span class="tok tok-file"><i data-i="file"></i>@src/store/app-store.ts</span>.',
+    fail: 'Rode os testes do Rust do módulo de timeline e corrija o que falhar.',
+  };
+  const prompt = (key) => `<div class="user">${PROMPTS[key]}</div>`;
+  document.querySelectorAll("[data-prompt]").forEach((el) => { el.innerHTML = PROMPTS[el.dataset.prompt]; });
+
+  /* ---------- Tool vocabulary (pt-BR, T3 sentence style) ---------- */
+  const KIND = {
+    read:   { icon: "eye",      past: (t) => `Leu ${t.target}`,                    now: (t) => `Lendo ${t.target}` },
+    edit:   { icon: "pen",      past: (t) => `Editou ${t.target}`,                 now: (t) => `Editando ${t.target}` },
+    cmd:    { icon: "terminal", past: (t) => `Rodou <code>${esc(t.target)}</code>`, now: (t) => `Rodando <code>${esc(t.target)}</code>…` },
+    search: { icon: "search",   past: (t) => `Buscou “${t.target}”`,              now: (t) => `Buscando “${t.target}”…` },
+    web:    { icon: "globe",    past: (t) => `Pesquisou “${t.target}”`,           now: (t) => `Pesquisando “${t.target}”…` },
+    think:  { icon: "brain",    past: () => "Pensou",                              now: () => "Pensando…" },
+    skill:  { icon: "sparkles", past: (t) => `Usou a skill <span class="sk">/${t.target}</span>`, now: (t) => `Usando a skill <span class="sk">/${t.target}</span>…` },
+  };
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const CAT = {
+    read:   { prio: 1, label: (n) => `Leu ${plural(n, "arquivo", "arquivos")}` },
+    edit:   { prio: 0, label: (n) => `Alterou ${plural(n, "arquivo", "arquivos")}` },
+    cmd:    { prio: 0, label: (n) => `Rodou ${plural(n, "comando", "comandos")}` },
+    search: { prio: 1, label: (n) => `Buscou no código ${plural(n, "vez", "vezes")}` },
+    web:    { prio: 1, label: (n) => `Pesquisou na web ${plural(n, "vez", "vezes")}` },
+  };
+  const SUMMARY_ICON = { read: "eye", edit: "pen", cmd: "terminal", search: "search", web: "globe", think: "brain", skill: "sparkles" };
+  const joinPt = (parts) => parts.length < 2 ? parts.join("") : `${parts.slice(0, -1).join(", ")} e ${parts.at(-1)}`;
+
+  /* Mirrors T3 summarizeToolGroup: skills are prefixed (like T3 "Used X integration"),
+     then at most two categories, then "mais N ações" for the rest. */
+  function summarize(tools) {
+    const work = tools.filter((t) => t.k !== "think");
+    if (!work.length) return tools.length === 1 ? "Pensou" : `Pensou (×${tools.length})`;
+    const skills = work.filter((t) => t.k === "skill").length;
+    const groups = [];
+    for (const t of work) {
+      if (t.k === "skill") continue;
+      let g = groups.find((x) => x.k === t.k);
+      if (!g) groups.push(g = { k: t.k, n: 0, i: groups.length });
+      g.n++;
+    }
+    const selected = [...groups].sort((a, b) => CAT[a.k].prio - CAT[b.k].prio || a.i - b.i).slice(0, 2).sort((a, b) => a.i - b.i);
+    const labels = selected.map((g) => CAT[g.k].label(g.n));
+    if (skills) labels.unshift(`Usou ${plural(skills, "skill", "skills")}`);
+    const rest = work.length - skills - selected.reduce((s, g) => s + g.n, 0);
+    if (rest > 0) labels.push(`Realizou mais ${plural(rest, "ação", "ações")}`);
+    return joinPt(labels.map((l, i) => (i ? l[0].toLowerCase() + l.slice(1) : l)));
+  }
+  function summaryIcon(tools) {
+    const kinds = new Set(tools.map((t) => t.k));
+    return kinds.size === 1 ? SUMMARY_ICON[[...kinds][0]] : "hammer";
+  }
+
+  /* ---------- Row builders ---------- */
+  const tsSpan = (ts) => ts ? `<span class="ts">${ts}</span>` : "";
+  function toolRow(t, { open = false } = {}) {
+    const k = KIND[t.k];
+    const has = !!t.out;
+    const row = `<div class="row${t.fail ? " fail" : ""}"${has ? ` role="button" tabindex="0" aria-expanded="${open}"` : ""}${t.fail ? ' aria-label="Falhou"' : ""}>
+      <span class="ico">${svg(k.icon)}</span><span class="lbl">${k.past(t)}</span>${tsSpan(t.ts)}
+      <span class="chev${has ? "" : " none"}">${svg("chevron-right")}</span></div>`;
+    if (!has) return row;
+    return `<div class="disc${open ? " open" : ""}">${row}<div class="body"><div class="details"><pre>${t.out}</pre></div></div></div>`;
+  }
+  function groupRow(tools, { open = false, openTool = -1, ts } = {}) {
+    if (tools.length === 1) return `<div class="block">${toolRow(tools[0], { open: openTool === 0 })}</div>`;
+    const label = summarize(tools);
+    return `<div class="block"><div class="disc${open ? " open" : ""}">
+      <div class="row" role="button" tabindex="0" aria-expanded="${open}"><span class="ico">${svg(summaryIcon(tools))}</span><span class="lbl">${label}</span>${tsSpan(ts || tools[0].ts)}</div>
+      <div class="body"><div class="list">${tools.map((t, i) => toolRow(t, { open: i === openTool })).join("")}</div></div>
+    </div></div>`;
+  }
+  const text = (html) => `<div class="md">${html}</div>`;
+  function fold(label, ts, inner, open = false) {
+    return `<div class="disc fold-wrap${open ? " open" : ""}">
+      <div class="fold"><button class="fold-btn" aria-expanded="${open}">${label}${svg("chevron-right")}</button>${tsSpan(ts)}</div>
+      <div class="body"><div class="inner">${inner}</div></div></div>`;
+  }
+
+  /* ---------- Turn data ---------- */
+  const T = {
+    graphify: { k: "skill", target: "graphify", ts: "14:02", out:
+`<span class="dim">Carregou .sirus/skills/graphify/SKILL.md</span>
+graphify query "transcript tool steps"
+  → src/components/AgentActivity.tsx      (renderiza o turno)
+  → src/lib/transcript-steps.ts           (agrupa os passos)
+  → src/store/app-store.ts                (eventos em tempo real)
+<span class="dim">412 nós · 1.380 arestas · graphify-out/graph.json</span>` },
+    readArch: { k: "read", target: "docs/architecture.md", ts: "14:02", out:
+`<span class="dim">docs/architecture.md · linhas 212–236</span>
+## Transcript
+Each assistant turn renders a header, the tool steps block and the
+message text. Steps are grouped by kind ("Read / search", "Command")…` },
+    readActivity: { k: "read", target: "src/components/AgentActivity.tsx", ts: "14:02" },
+    searchGroup: { k: "search", target: "groupToolSteps", ts: "14:02", out:
+`src/lib/transcript-steps.ts:41:export function groupToolSteps(turn: Turn) {
+src/components/AgentActivity.tsx:88:  const steps = groupToolSteps(turn);
+tests/transcript-steps.test.ts:12:describe("groupToolSteps", () => {` },
+    readSteps: { k: "read", target: "src/lib/transcript-steps.ts", ts: "14:02" },
+    simplify: { k: "skill", target: "simplify", ts: "14:03", out: `<span class="dim">Carregou ~/.claude/skills/simplify/SKILL.md</span>\nRevisa a mudança em busca de reuso e simplificação.` },
+    editSteps: { k: "edit", target: "src/lib/transcript-steps.ts", ts: "14:03", out:
+`<span class="dim">@@ -41,18 +41,24 @@</span>
+<span class="bad">-export function groupToolSteps(turn: Turn) {</span>
+<span class="good">+export function buildTimeline(turn: Turn): TimelineItem[] {</span>
+<span class="good">+  // Texto e ferramentas em ordem; só chamadas seguidas se juntam.</span>` },
+    editActivity: { k: "edit", target: "src/components/AgentActivity.tsx", ts: "14:03" },
+    npmTest: { k: "cmd", target: "npm test -- transcript", ts: "14:03", out:
+`<span class="dim">&gt; sirus-code@0.9.0 test</span>
+<span class="dim">&gt; vitest run transcript</span>
+
+ ✓ tests/transcript-steps.test.ts (9 tests) 14ms
+ ✓ tests/transcript-timeline.test.ts (6 tests) 9ms
+
+ Test Files  2 passed (2)
+      Tests  15 passed (15)
+   Duration  412ms` },
+    typecheck: { k: "cmd", target: "npm run typecheck", ts: "14:03", out: `<span class="dim">&gt; tsc --noEmit -p tsconfig.json</span>\n<span class="dim">(sem erros)</span>` },
+  };
+
+  const C1 = text('<p>Vou mapear o módulo com a skill <code>/graphify</code> antes de tocar no layout.</p>');
+  const C2 = text('<p>O grafo aponta para três arquivos. Vou ler os principais e a referência de arquitetura.</p>');
+  const C3 = text('<p>Achei a causa: <code>AgentActivity</code> junta todos os passos do turno num bloco só e renderiza o texto depois. Vou trocar por uma lista cronológica que só agrupa chamadas seguidas.</p>');
+  const FINAL = text(`<p>Pronto. O transcript agora intercala texto e ferramentas na ordem em que aconteceram:</p>
+    <ul><li><code>buildTimeline</code> substitui <code>groupToolSteps</code> e só junta chamadas seguidas.</li>
+    <li>Skills aparecem como passos próprios e entram na contagem dos resumos.</li>
+    <li>Ao terminar, tudo antes da resposta fica em “Trabalhou por …”.</li></ul>
+    <p>Testes e typecheck passaram.</p>`);
+  const FILES = `<div class="files">
+    <div class="files-head">${svg("diff")}<b>3 arquivos alterados</b><span class="stat"><span class="a">+64</span><span class="d">−21</span></span><button class="act">Revisar</button></div>
+    <div class="file">${svg("file")}<span class="path"><i>src/lib/</i>transcript-steps.ts</span><span class="stat"><span class="a">+38</span><span class="d">−17</span></span></div>
+    <div class="file">${svg("file")}<span class="path"><i>src/components/</i>AgentActivity.tsx</span><span class="stat"><span class="a">+19</span><span class="d">−4</span></span></div>
+    <div class="file">${svg("file")}<span class="path"><i>tests/</i>transcript-timeline.test.ts</span><span class="stat"><span class="a">+7</span><span class="d">−0</span></span></div>
+  </div>`;
+
+  const G1 = [T.readArch, T.readActivity, T.searchGroup, T.readSteps];
+  const G2 = [T.simplify, T.editSteps, T.editActivity, T.npmTest, T.typecheck];
+  const work = (opts = {}) =>
+    C1 + groupRow([T.graphify], { openTool: opts.skillOpen ? 0 : -1 }) +
+    C2 + groupRow(G1) +
+    C3 + groupRow(G2, opts.g2 || {});
+
+  /* 03 + 04 */
+  document.getElementById("done-collapsed").innerHTML = prompt("main") + fold("Trabalhou por 1m 17s", "14:03", work()) + FINAL + FILES;
+  document.getElementById("done-expanded").innerHTML = prompt("main") + fold("Trabalhou por 1m 17s", "14:03", work({ g2: { open: true, openTool: 3 } }), true) + FINAL + FILES;
+
+  /* 05 · stopped */
+  const stoppedInner =
+    text("<p>Vou separar o estado do transcript em <code>transcriptSlice</code> e manter os seletores atuais funcionando.</p>") +
+    groupRow([{ k: "read", target: "src/store/app-store.ts", ts: "15:20" }, { k: "search", target: "useAppStore((s) => s.transcript", ts: "15:20" }, { k: "think", ts: "15:20" }]) +
+    text("<p>São 14 pontos de uso. Começo pelo slice e depois troco os seletores um a um.</p>") +
+    groupRow([{ k: "edit", target: "src/store/transcript-slice.ts", ts: "15:21" }]);
+  document.getElementById("stopped").innerHTML = prompt("stop") + fold("Você parou após 42s", "15:21", stoppedInner);
+
+  /* 05 · failed */
+  const failedCmd = { k: "cmd", target: "cargo test timeline", ts: "15:34", fail: true, out:
+`running 6 tests
+test timeline::groups_consecutive_tools ... ok
+test timeline::skill_counts_in_summary ... ok
+test timeline::keeps_text_order ... <span class="bad">FAILED</span>
+
+failures:
+---- timeline::keeps_text_order stdout ----
+<span class="bad">thread 'timeline::keeps_text_order' panicked at src/timeline.rs:88:9:
+assertion \`left == right\` failed
+  left: ["tools", "text"]
+ right: ["text", "tools"]</span>
+
+<span class="bad">test result: FAILED. 5 passed; 1 failed; 0 ignored</span>` };
+  const failedInner =
+    text("<p>Vou rodar só os testes do módulo <code>timeline</code> primeiro.</p>") +
+    groupRow([{ k: "read", target: "src-tauri/src/timeline.rs", ts: "15:34" }, { k: "read", target: "src-tauri/src/models.rs", ts: "15:34" }]);
+  document.getElementById("failed").innerHTML = prompt("fail") + fold("Trabalhou por 38s", "15:34", failedInner) +
+    `<div class="block">${toolRow(failedCmd, { open: true })}</div>` +
+    text("<p>Um teste falhou: <code>keeps_text_order</code> ainda recebe as ferramentas antes do texto. A causa está em <code>timeline.rs:88</code>, que ordena por tipo em vez de por horário. Quer que eu corrija?</p>");
+
+  /* ---------- 02 · running turn ---------- */
+  const LIVE = [T.searchGroup, T.readSteps, T.editSteps, { ...T.npmTest }];
+  const done = [T.readArch, T.readActivity];
+  let liveIndex = 0;
+  const runBody = document.getElementById("running-body");
+  runBody.innerHTML = C1 + groupRow([T.graphify]) + C2 +
+    `<div id="active-group"></div>
+     <div class="block"><div class="row live" role="button" tabindex="0" id="live-row"><span class="ico live-swap" id="live-ico"></span><span class="lbl"><span class="shine-wrap shine live-swap" id="live-lbl"></span></span></div></div>`;
+  const activeGroup = document.getElementById("active-group");
+  const liveIco = document.getElementById("live-ico");
+  const liveLbl = document.getElementById("live-lbl");
+  function renderActive() {
+    const completed = done.concat(LIVE.slice(0, liveIndex));
+    const wasOpen = activeGroup.querySelector(".disc")?.classList.contains("open");
+    activeGroup.innerHTML = groupRow(completed, { open: !!wasOpen }).replace('<div class="block">', '<div class="block" style="padding-bottom:0">');
+    const t = LIVE[liveIndex];
+    liveIco.innerHTML = svg(KIND[t.k].icon);
+    liveLbl.innerHTML = KIND[t.k].now(t);
+  }
+  renderActive();
+  setInterval(() => {
+    const swap = [liveIco, liveLbl];
+    swap.forEach((el) => el.classList.add("out"));
+    setTimeout(() => {
+      liveIndex = (liveIndex + 1) % LIVE.length;
+      renderActive();
+      swap.forEach((el) => el.classList.remove("out"));
+    }, reduced.matches ? 0 : 150);
+  }, 2100);
+
+  /* T3: clicking the live row toggles its group */
+  document.getElementById("live-row").addEventListener("click", () => {
+    const disc = activeGroup.querySelector(".disc");
+    if (disc) setOpen(disc, !disc.classList.contains("open"));
+  });
+
+  const timer = document.getElementById("timer");
+  const t0 = Date.now() - 12000;
+  const fmt = (s) => s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  setInterval(() => { timer.textContent = fmt(Math.floor((Date.now() - t0) / 1000)); }, 250);
+
+  hydrateIcons(document);
+
+  /* ---------- Disclosure (height + opacity, 150ms) ---------- */
+  function setOpen(disc, open) {
+    const body = disc.querySelector(":scope > .body");
+    const trigger = disc.querySelector(":scope > .row, :scope > .fold > .fold-btn");
+    disc.classList.toggle("open", open);
+    trigger?.setAttribute("aria-expanded", String(open));
+    if (reduced.matches) { body.style.height = open ? "auto" : "0px"; body.style.opacity = open ? "1" : "0"; return; }
+    const from = body.getBoundingClientRect().height;
+    body.style.transition = "none";
+    body.style.height = "auto";
+    const to = open ? body.scrollHeight : 0;
+    body.style.height = from + "px";
+    body.style.opacity = open ? "0" : "1";
+    body.offsetHeight;
+    body.style.transition = "height 150ms cubic-bezier(.2,.8,.2,1), opacity 150ms ease";
+    body.style.height = to + "px";
+    body.style.opacity = open ? "1" : "0";
+    const end = (e) => {
+      if (e.target !== body || e.propertyName !== "height") return;
+      body.removeEventListener("transitionend", end);
+      const isOpen = disc.classList.contains("open");
+      body.style.transition = "none";
+      body.style.opacity = isOpen ? "1" : "0";
+      if (isOpen) body.style.height = "auto";
+    };
+    body.addEventListener("transitionend", end);
+    clearTimeout(body._t);
+    body._t = setTimeout(() => end({ target: body, propertyName: "height" }), 220);
+  }
+  function triggerFor(target) {
+    const t = target.closest(".fold-btn, .row[role='button']");
+    if (!t || t.closest(".details")) return null;
+    return t;
+  }
+  document.addEventListener("click", (e) => {
+    const t = triggerFor(e.target);
+    if (!t) return;
+    const disc = t.closest(".disc");
+    if (!disc || (disc.querySelector(":scope > .row") !== t && disc.querySelector(":scope > .fold > .fold-btn") !== t)) return;
+    setOpen(disc, !disc.classList.contains("open"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target.closest?.(".row[role='button']");
+    if (!t || t !== e.target) return;
+    e.preventDefault();
+    t.click();
+  });
+})();
+</script>
+</body>
+</html>
