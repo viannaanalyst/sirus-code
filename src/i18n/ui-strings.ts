@@ -124,6 +124,9 @@ const pairs: Record<string, string> = {
   "Smoked glass": "Vidro fumê",
   "White": "Branco",
   "Choose the icon shown in the Dock.": "Escolha o ícone exibido no Dock.",
+  "Chat background": "Fundo do chat", "Image": "Imagem", "An image behind your chat panes. It stays on this Mac.": "Uma imagem atrás das conversas. Ela fica só neste Mac.",
+  "Choose an image": "Escolher uma imagem", "Change image": "Trocar imagem", "Veil": "Véu",
+  "How much of the theme colour covers the image, so text stays readable.": "Quanto da cor do tema cobre a imagem, para o texto continuar legível.",
   "Uses the installed font, with a system fallback.": "Usa a fonte instalada; se ausente, usa uma fonte do sistema.",
 
   "Ready for review": "Pronta para revisão",

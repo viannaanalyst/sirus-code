@@ -396,6 +396,18 @@ html[data-density="comfortable"] {
   .sidebar-menu-row[aria-current="page"] {
     background-color: var(--navigation-selected);
   }
+
+  /* The chosen chat background (ADR-089), under a veil of the theme colour for legibility. */
+  html[data-chat-background="on"] .session-pane::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent), color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent)),
+      var(--chat-background) center / cover no-repeat;
+  }
 }
 
 /* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */

@@ -8,14 +8,13 @@ import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
-import { ProjectLookEditor } from "@/components/ProjectLookEditor";
+import { ProjectIdentityField } from "@/components/ProjectIdentityField";
 import { ProjectScriptsFields } from "@/components/ProjectScriptsFields";
 import { SessionActions } from "@/components/SessionActions";
 import { SidebarHoverCard } from "@/components/SidebarHoverCard";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
 import { Tooltip } from "@/primitives/Tooltip";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
-import { Input } from "@/components/arc/input/input";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useTranslation } from "@/i18n/use-translation";
 import { beginSplitDrag } from "@/lib/split-drag";
@@ -79,8 +78,7 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
     </SidebarHoverCard>
     <Dialog open={editing} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(460px,calc(100vw-32px))]">
       <form onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void save().then((saved) => { if (saved) setEditing(false); }).finally(() => setBusy(false)); }}>
-        <div className="mt-4"><Input label={t("Project name")} autoFocus required maxLength={200} value={name} onChange={(event) => setName(event.target.value)} disabled={busy} /></div>
-        <ProjectLookEditor projectId={project.id} />
+        <ProjectIdentityField projectId={project.id} name={name} onName={setName} disabled={busy} />
         <ProjectScriptsFields setup={scripts.setup} onFinish={scripts.onFinish} disabled={busy} onChange={setScripts} />
         <div className="mt-5 flex justify-end gap-2"><InteractiveButton variant="ghost" disabled={busy} onClick={() => setEditing(false)}>{t("common.cancel")}</InteractiveButton><InteractiveButton type="submit" loading={busy} disabled={!name.trim()}>{t("common.save")}</InteractiveButton></div>
       </form>

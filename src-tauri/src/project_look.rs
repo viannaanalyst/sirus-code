@@ -16,6 +16,67 @@ use crate::models::{Project, ProjectAstroIcon};
 const PRESETS: [&str; 9] = [
     "blue", "red", "yellow", "green", "pink", "purple", "teal", "orange", "gray",
 ];
+/// Line icons a project can show instead of its folder; the renderer maps each name.
+pub const ICONS: [&str; 58] = [
+    "folder",
+    "code",
+    "terminal",
+    "book-open",
+    "graduation-cap",
+    "pencil-simple",
+    "feather",
+    "briefcase",
+    "music-notes",
+    "chart-bar",
+    "barbell",
+    "scales",
+    "globe",
+    "airplane-tilt",
+    "wrench",
+    "paw-print",
+    "flask",
+    "brain",
+    "heart",
+    "tree",
+    "rocket",
+    "lightbulb",
+    "star",
+    "coffee",
+    "camera",
+    "shopping-cart",
+    "house",
+    "car",
+    "game-controller",
+    "palette",
+    "database",
+    "cloud",
+    "lock",
+    "key",
+    "currency-dollar",
+    "bank",
+    "stethoscope",
+    "chat-circle",
+    "envelope",
+    "device-mobile",
+    "calendar-blank",
+    "robot",
+    "cpu",
+    "bug",
+    "leaf",
+    "sun",
+    "moon",
+    "fire",
+    "lightning",
+    "cube",
+    "puzzle-piece",
+    "trophy",
+    "users",
+    "storefront",
+    "film-slate",
+    "newspaper",
+    "atom",
+    "cat",
+];
 /// The logo is cropped square and scaled to this many pixels per side.
 const LOGO_SIDE: u32 = 96;
 /// Largest picked file that is decoded.
@@ -52,6 +113,11 @@ pub enum Action {
     },
     ClearLogo {
         project_id: String,
+    },
+    /// Shows one of the line icons instead of the folder; `null` removes it.
+    SetIcon {
+        project_id: String,
+        icon: Option<String>,
     },
 }
 
@@ -96,21 +162,35 @@ pub async fn project_look_action(
                 if project.look.emoji.is_some() {
                     project.look.logo = None;
                     project.look.astro = None;
+                    project.look.icon = None;
                 }
             }
             Action::PickLogo { .. } => {
                 project.look.logo = logo;
                 project.look.emoji = None;
                 project.look.astro = None;
+                project.look.icon = None;
             }
             Action::SetAstro { astro, .. } => {
                 project.look.astro = astro.map(valid_astro).transpose()?;
                 if project.look.astro.is_some() {
                     project.look.logo = None;
                     project.look.emoji = None;
+                    project.look.icon = None;
                 }
             }
             Action::ClearLogo { .. } => project.look.logo = None,
+            Action::SetIcon { icon, .. } => {
+                if icon.as_deref().is_some_and(|name| !ICONS.contains(&name)) {
+                    return Err(Error::new("invalid", "Unknown project icon."));
+                }
+                project.look.icon = icon;
+                if project.look.icon.is_some() {
+                    project.look.logo = None;
+                    project.look.emoji = None;
+                    project.look.astro = None;
+                }
+            }
         }
         let saved = project.clone();
         crate::persist::save(&state.data_path, &data)?;
@@ -220,7 +300,8 @@ fn project_id(action: &Action) -> String {
         | Action::SetEmoji { project_id, .. }
         | Action::PickLogo { project_id }
         | Action::SetAstro { project_id, .. }
-        | Action::ClearLogo { project_id } => project_id.clone(),
+        | Action::ClearLogo { project_id }
+        | Action::SetIcon { project_id, .. } => project_id.clone(),
     }
 }
 

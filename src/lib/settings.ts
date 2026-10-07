@@ -30,6 +30,8 @@ export const defaultSettings: AppSettings = {
   defaultAgent: "codex",
   openLastProject: true,
   projectAutoIcons: false,
+  chatBackground: null,
+  chatBackgroundDim: 70,
   worktreeBasePath: null,
   releaseWorktreeOnArchive: false,
   defaultSessionWorkspace: "ask",
@@ -130,6 +132,8 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     disabledModels: value?.disabledModels ?? [],
     computerUseEnabled: value?.computerUseEnabled === true,
     agentsManageSessions: value?.agentsManageSessions === true,
+    chatBackground: typeof value?.chatBackground === "string" && /^chat-[0-9a-f-]{36}\.jpg$/.test(value.chatBackground) ? value.chatBackground : null,
+    chatBackgroundDim: typeof value?.chatBackgroundDim === "number" && Number.isFinite(value.chatBackgroundDim) ? Math.min(90, Math.max(0, Math.round(value.chatBackgroundDim))) : 70,
     disabledSkills: [...new Set((value?.disabledSkills ?? []).filter(name => typeof name === "string" && /^[a-z0-9][a-z0-9_.:-]{0,127}$/.test(name)))].slice(0, 512),
     favoriteModels: value?.favoriteModels ?? [],
     sidebarProjectOrder: sidebarIds(value?.sidebarProjectOrder),
@@ -224,6 +228,7 @@ export function applyAppearance(settings: AppSettings, support?: import("@/clien
   const material = resolveAppearanceMaterial(normalized, support, systemPalette);
   root.dataset.theme = material.palette;
   root.dataset.appearance = normalized.theme;
+  root.style.setProperty("--chat-background-dim", `${normalized.chatBackgroundDim}%`);
   root.dataset.windowGlass = material.windowGlass ? "on" : "off";
   root.dataset.sidebarGlass = material.sidebarGlass ? "on" : "off";
   root.dataset.popupGlass = material.sidebarGlass ? "on" : "off";

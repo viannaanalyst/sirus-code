@@ -104,6 +104,8 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-085: Image links in replies](ADR-085-reply-image-links.md) — links to PNG/JPEG/GIF/WebP files on the Mac open in the image gallery through `reply_image` (byte-checked, 25 MiB cap, read-only).
 - [ADR-086: Phone app features from T3 Code](ADR-086-phone-app-features.md) — failure alerts and alert details, photos and camera, swipe pin/archive/delete with an archived list, an offline message queue, branch and PR, diff comments, provider usage and a read-only file browser on the phone.
 - [ADR-087: Browser keys and waiting for agents](ADR-087-browser-keys-and-wait.md) — `browser_press` (a fixed list of keys) and `browser_wait_for` (text or selector, at most 8 s); tabs start 1280×800 so agent-opened tabs render before the pane is shown.
+- [ADR-088: Astro documents, launched sessions, permissions and the menu bar](ADR-088-astro-documents-sessions-and-menu-bar.md) — Markdown documents as reply cards with a reader, a Sessions control for work started in the turn, a permission mode per Astro (Auto by default), hiding Astro-started sessions from the sidebar, and a menu bar item with a floating always-on-top Astro chat.
+- [ADR-089: Chat background, project icon picker and rail pages](ADR-089-chat-background-and-project-icons.md) — an image behind the chat under a theme veil, a Synara-style icon picker on the project name (Emoji, Icons, Astros), Kanban and Archived as rail pages, and ⇧⇥ to cycle reasoning effort.
 
 ## Template
 

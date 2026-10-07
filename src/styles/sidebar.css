@@ -45,6 +45,30 @@
   /* Project icons (ADR-059): logo, emoji or tinted folder. */
   .project-glyph-logo { display: inline-block; flex-shrink: 0; border-radius: 4px; object-fit: cover; }
   .project-glyph-emoji { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1; }
+  /* Project name with its icon picker (after Synara). */
+  .project-identity { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+  .project-identity-label { color: var(--text-secondary); }
+  .project-identity-field { display: flex; align-items: stretch; overflow: hidden; border: 1px solid var(--border-default); border-radius: 12px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); transition: border-color var(--motion-fast) var(--ease-out); }
+  .project-identity-field:focus-within { border-color: var(--focus-ring); }
+  .project-identity-icon { display: grid; place-items: center; width: 42px; flex-shrink: 0; border-right: 1px solid var(--border-subtle); color: var(--text-secondary); transition: background var(--motion-fast) var(--ease-out); }
+  .project-identity-icon:hover:not(:disabled), .project-identity-icon[aria-expanded="true"] { background: var(--navigation-hover); }
+  .project-identity-input { min-width: 0; flex: 1; height: 40px; padding: 0 12px; background: transparent; color: var(--text-primary); outline: none; }
+  .project-identity-picker { display: flex; width: 340px; flex-direction: column; gap: 10px; padding: 12px; }
+  .project-identity-tabs { display: flex; gap: 4px; }
+  .project-identity-tabs > button { padding: 4px 12px; border-radius: 999px; color: var(--text-muted); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .project-identity-tabs > button:hover { color: var(--text-primary); }
+  .project-identity-tabs > button[aria-selected="true"] { background: var(--navigation-selected); color: var(--text-primary); }
+  .project-identity-search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 9px; color: var(--text-muted); }
+  .project-identity-search input { min-width: 0; flex: 1; background: transparent; color: var(--text-primary); outline: none; }
+  .project-identity-styles { margin: 0 auto; width: fit-content; }
+  .project-identity-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 2px; }
+  .project-identity-grid { display: grid; max-height: 216px; grid-template-columns: repeat(8, 1fr); gap: 2px; overflow-y: auto; }
+  .project-identity-grid > button { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid transparent; border-radius: 8px; transition: background var(--motion-fast) var(--ease-out); }
+  .project-identity-grid > button:hover { background: var(--navigation-hover); }
+  .project-identity-grid > button[aria-checked="true"] { background: var(--navigation-selected); border-color: var(--border-default); }
+  .project-identity-emoji { font-size: 18px; line-height: 1; }
+  .project-identity-empty { grid-column: 1 / -1; padding: 12px; color: var(--text-muted); text-align: center; }
+  .project-identity-footer { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
   .project-look { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
   .project-look-icon { display: flex; align-items: flex-start; gap: 12px; }
   .project-look-logo { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; border: 1px solid var(--border-default); border-radius: 12px; color: var(--text-secondary); background: color-mix(in srgb, var(--text-primary) 3%, transparent); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }

@@ -42,7 +42,7 @@ export interface WorktreeLeftoverScan { leftovers: WorktreeLeftover[]; reclaimab
 export interface WorktreeCleanupResult { removed: number; freedBytes: number; kept: WorktreeLeftover[] }
 export type WorktreeRelease = { outcome: "released"; branch: string } | { outcome: "kept"; reason: WorktreeKeptReason; branch: string } | { outcome: "missing" };
 
-export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null }
+export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null; icon?: string | null }
 /** One of the Astro cosmic icons as a project icon, drawn in the project colour. */
 export interface ProjectAstroIcon { icon: AstroIconId; style: AstroStyle }
 export type ProjectLookAction =
@@ -50,7 +50,8 @@ export type ProjectLookAction =
   | { type: "setEmoji"; projectId: string; emoji: string | null }
   | { type: "pickLogo"; projectId: string }
   | { type: "setAstro"; projectId: string; astro: ProjectAstroIcon | null }
-  | { type: "clearLogo"; projectId: string };
+  | { type: "clearLogo"; projectId: string }
+  | { type: "setIcon"; projectId: string; icon: string | null };
 
 export interface Worktree {
   path: string;
@@ -363,6 +364,10 @@ export interface AppSettings {
   openLastProject: boolean;
   /** Projects without a chosen icon show their own favicon or logo. */
   projectAutoIcons: boolean;
+  /** The chat background image file on this Mac (ADR-089), or null. */
+  chatBackground: string | null;
+  /** How much of the theme colour covers the background image, 0–90 (%). */
+  chatBackgroundDim: number;
   worktreeBasePath: string | null;
   /** Archiving removes the session's clean, merged or pushed isolated worktree (ADR-078). */
   releaseWorktreeOnArchive: boolean;

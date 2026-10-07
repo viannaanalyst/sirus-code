@@ -11,6 +11,7 @@ import { dismissAppSplash } from "@/lib/app-splash";
 import { motionTokens } from "@/lib/motion";
 import { applyAppearance } from "@/lib/settings";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
+import { useChatBackground } from "@/lib/use-chat-background";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 import { useSystemPalette } from "@/lib/use-system-palette";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -49,6 +50,7 @@ export default function AstroFloat({ initialAstroId }: { initialAstroId: string 
   }, [bootstrap]);
   useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
   useEffect(() => { applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette); }, [settings, hostInfo, systemPalette]);
+  useChatBackground(settings.chatBackground);
   useEffect(() => {
     let stop: (() => void) | undefined;
     let cancelled = false;

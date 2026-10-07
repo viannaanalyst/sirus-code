@@ -1,4 +1,6 @@
-import { RotateCcw } from "@/components/icons/phosphor";
+import { ImagePlus, RotateCcw } from "@/components/icons/phosphor";
+import { client } from "@/client";
+import { formatUnknownError } from "@/lib/format-error";
 import { useState } from "react";
 import type { AppSettings, HostInfo } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -28,12 +30,41 @@ export function MonoFontControl({ label, value, onChange }: { label: string; val
   const t = useTranslation();
   return <Select className="general-settings-select" label={label} value={value} onChange={onChange} options={MONO_FONTS.map(font => ({ value: font.id, label: font.label, description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} />;
 }
-function OpacityControl({ label, value, disabled, onCommit }: { label: string; value: number; disabled: boolean; onCommit: (value: number) => void }) {
+function OpacityControl({ label, value, disabled, onCommit, min = 25, max = 100 }: { label: string; value: number; disabled: boolean; onCommit: (value: number) => void; min?: number; max?: number }) {
   const [draft, setDraft] = useState(value);
   const [saved, setSaved] = useState(value);
   if (saved !== value) { setSaved(value); setDraft(value); }
-  return <Slider className="appearance-opacity" label={label} value={draft} min={25} max={100} step={1} format={next => `${next}%`} disabled={disabled} onValueChange={setDraft} onValueCommit={onCommit} />;
+  return <Slider className="appearance-opacity" label={label} value={draft} min={min} max={max} step={1} format={next => `${next}%`} disabled={disabled} onValueChange={setDraft} onValueCommit={onCommit} />;
 }
+/** An image behind the conversation panes (ADR-089), kept on this Mac. */
+function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
+  const t = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (type: "pick" | "clear") => {
+    setBusy(true); setError(null);
+    try {
+      const name = await client.chatBackgroundAction(type);
+      if (type === "clear") onSave({ ...settings, chatBackground: null });
+      else if (name) onSave({ ...settings, chatBackground: name });
+    } catch (reason) { setError(formatUnknownError(reason)); }
+    finally { setBusy(false); }
+  };
+  return <SettingsGroup title={t("Chat background")} card>
+    <SettingsRow title={t("Image")} description={t("An image behind your chat panes. It stays on this Mac.")}>
+      <div className="flex items-center gap-2">
+        {settings.chatBackground ? <InteractiveButton variant="toolbar" className="text-danger" disabled={busy} onClick={() => void run("clear")}>{t("connections.remove")}</InteractiveButton> : null}
+        <InteractiveButton variant="secondary" glow={false} loading={busy} onClick={() => void run("pick")}><ImagePlus size={14} aria-hidden="true" />{t(settings.chatBackground ? "Change image" : "Choose an image")}</InteractiveButton>
+      </div>
+    </SettingsRow>
+    {settings.chatBackground ? <div className="appearance-chat-background" aria-hidden="true" /> : null}
+    {settings.chatBackground ? <SettingsRow title={t("Veil")} description={t("How much of the theme colour covers the image, so text stays readable.")}>
+      <OpacityControl label={t("Veil")} value={settings.chatBackgroundDim} min={0} max={90} disabled={false} onCommit={(value) => onSave({ ...settings, chatBackgroundDim: value })} />
+    </SettingsRow> : null}
+    {error ? <p role="alert" className="px-4 pb-3 ui-caption text-danger">{error}</p> : null}
+  </SettingsGroup>;
+}
+
 export function AppearanceSettings({ settings, host, onSave }: { settings: AppSettings; host: HostInfo | null; onSave: (settings: AppSettings) => void }) {
   const t = useTranslation();
   const systemPalette = useSystemPalette();
@@ -53,6 +84,7 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
       {glass && <SettingsRow title={t("Apply translucency to")}><Select className="general-settings-select" label={t("Apply translucency to")} disabled={!supported} value={settings[windowKey] ? "window" : "sidebar"} onChange={scope => onSave({ ...settings, [windowKey]: scope === "window", [sidebarKey]: scope === "sidebar" })} options={[{ value: "window", label: t("Whole window") }, { value: "sidebar", label: t("Sidebar only") }]} /></SettingsRow>}
       {glass && <SettingsRow title={t(settings[windowKey] ? "Window opacity" : "Sidebar opacity")} description={t(nativeNote)}><OpacityControl label={t(settings[windowKey] ? "Window opacity" : "Sidebar opacity")} value={settings[opacityKey]} disabled={!supported} onCommit={value => onSave({ ...settings, [opacityKey]: value })} /></SettingsRow>}
     </SettingsGroup>
+    <ChatBackgroundGroup settings={settings} onSave={onSave} />
     <SettingsGroup title={t("Interface typography")} card>
       {boolRow("systemUiFont", "Use system UI font", "Keeps your chosen font ready when the system override is off.")}
       <SettingsRow title={t("UI font")} description={settings.systemUiFont ? t("The system font is active; this choice is preserved for later.") : undefined}><Select className="general-settings-select" disabled={settings.systemUiFont} label={t("UI font")} value={settings.uiFont} onChange={uiFont => onSave({ ...settings, uiFont })} options={UI_FONTS.map(font => ({ value: font.id, label: font.label, description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} /></SettingsRow>

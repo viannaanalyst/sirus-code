@@ -15,6 +15,7 @@ mod attachments;
 mod automations;
 mod browser;
 mod browser_mcp;
+mod chat_background;
 mod ci_autofix;
 mod claude;
 mod cli_output;
@@ -229,6 +230,8 @@ pub fn run() {
             astros::astro_action,
             astro_documents::astro_document_action,
             astro_tray::astro_show_in_main,
+            chat_background::chat_background_action,
+            chat_background::chat_background_image,
             window_snap::window_snap_action,
             project_look::project_look_action,
             project_scripts::project_scripts_action,

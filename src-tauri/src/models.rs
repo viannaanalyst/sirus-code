@@ -115,6 +115,9 @@ pub struct ProjectLook {
     /// One of the Astro cosmic icons (ADR-059, ADR-069), drawn in the project colour.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub astro: Option<ProjectAstroIcon>,
+    /// One of the fixed line icons (`project_look::ICONS`), drawn in the project colour.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,7 +129,11 @@ pub struct ProjectAstroIcon {
 
 impl ProjectLook {
     pub fn is_empty(&self) -> bool {
-        self.color.is_none() && self.emoji.is_none() && self.logo.is_none() && self.astro.is_none()
+        self.color.is_none()
+            && self.emoji.is_none()
+            && self.logo.is_none()
+            && self.astro.is_none()
+            && self.icon.is_none()
     }
 }
 
@@ -544,6 +551,10 @@ pub struct AppSettings {
     pub open_last_project: bool,
     /// Projects without a chosen icon show their own favicon or logo (off by default).
     pub project_auto_icons: bool,
+    /// The chat background image saved in `backgrounds/` (ADR-089), if any.
+    pub chat_background: Option<String>,
+    /// How much of the theme colour covers that image, in percent (0–90).
+    pub chat_background_dim: u8,
     pub worktree_base_path: Option<String>,
     /// Archiving a session removes its isolated worktree when it is clean and its
     /// branch is merged or pushed (ADR-078); off by default.
@@ -660,6 +671,8 @@ impl Default for AppSettings {
             default_agent: AgentProviderId::Codex,
             open_last_project: true,
             project_auto_icons: false,
+            chat_background: None,
+            chat_background_dim: 70,
             worktree_base_path: None,
             release_worktree_on_archive: false,
             default_session_workspace: SessionWorkspacePref::Ask,
@@ -762,6 +775,14 @@ impl AppSettings {
                 "invalid_settings",
                 "Invalid usage provider selection.",
             ));
+        }
+        if self
+            .chat_background
+            .as_deref()
+            .is_some_and(|name| !crate::chat_background::valid_name(name))
+            || self.chat_background_dim > 90
+        {
+            return Err(Error::new("invalid_settings", "Invalid chat background."));
         }
         if self.sidebar_usage_providers.len() > 2
             || self

@@ -5,6 +5,7 @@ import { client } from "@/client";
 import { AstroIcon } from "@/components/astros/AstroArt";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/cn";
+import { PROJECT_ICONS } from "@/lib/project-icons";
 
 /** Preset folder colours (ADR-059); custom colours are stored as `#rrggbb`. */
 export const PROJECT_COLORS: Record<string, string> = {
@@ -39,7 +40,9 @@ function useAutoIcon(projectId: string | undefined, wanted: boolean): string | n
 /** A project's sidebar icon: its logo, emoji or Astro icon, else (optionally) its own favicon, else the folder in its colour. */
 export function ProjectGlyph({ project, expanded = false, size = 15, className }: { project: Pick<Project, "look"> & { id?: string }; expanded?: boolean; size?: number; className?: string }) {
   const look = project.look;
-  const auto = useAutoIcon(project.id, !look?.logo && !look?.emoji && !look?.astro);
+  const auto = useAutoIcon(project.id, !look?.logo && !look?.emoji && !look?.astro && !look?.icon);
+  const LineIcon = look?.icon ? PROJECT_ICONS[look.icon]?.Icon : undefined;
+  if (LineIcon) return <LineIcon aria-hidden="true" size={size} weight="regular" className={cn("sidebar-folder-glyph", className)} style={{ color: projectColor(look) ?? "var(--text-secondary)" }} />;
   if (look?.logo) return <img src={look.logo} alt="" draggable={false} aria-hidden="true" className={cn("project-glyph-logo", className)} style={{ width: size, height: size }} />;
   if (look?.emoji) return <span aria-hidden="true" className={cn("project-glyph-emoji", className)} style={{ width: size, height: size, fontSize: Math.round(size * 0.9) }}>{look.emoji}</span>;
   if (look?.astro) {

@@ -462,6 +462,15 @@ export class SirusClient {
     return this.transport.invoke<T>("astro_document_action", { action });
   }
 
+  /** Picks or clears the chat background image (ADR-089); returns the saved file name. */
+  chatBackgroundAction(type: "pick" | "clear") {
+    return this.transport.invoke<string | null>("chat_background_action", { action: { type } });
+  }
+
+  chatBackgroundImage(name: string) {
+    return this.transport.invoke<string | null>("chat_background_image", { name });
+  }
+
   /** From the floating Astro chat: show its conversation in the main window (ADR-088). */
   astroShowInMain(sessionId: string) {
     return this.transport.invoke<void>("astro_show_in_main", { sessionId });

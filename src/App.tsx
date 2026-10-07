@@ -7,6 +7,7 @@ import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { client } from "@/client";
+import { useChatBackground } from "@/lib/use-chat-background";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Archive, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
@@ -159,6 +160,8 @@ export default function App() {
   useEffect(() => {
     applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette);
   }, [settings, hostInfo, systemPalette]);
+
+  useChatBackground(settings.chatBackground);
 
   // "Open in Sirus Code" from the floating Astro chat (ADR-088).
   useEffect(() => {

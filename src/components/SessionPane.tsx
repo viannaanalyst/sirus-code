@@ -135,7 +135,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
   return (
-    <section className={cn("relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
+    <section className={cn("session-pane relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")}>
       {empty && !passive && !astro ? <LandingOrbits /> : null}
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
