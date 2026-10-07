@@ -7,7 +7,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { Check, ChevronDown, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { AgentInstall, AgentProviderId, ExecutionOptions, Session } from "@/client/types";
+import type { AgentInstall, AgentProviderId, ApprovalMode, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerContour } from "@/components/ComposerContour";
 import { ComposerSuggestions } from "@/components/ComposerSuggestions";
@@ -91,7 +91,19 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const astroName = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro)?.name ?? null : null);
   const definition = providerById(agentId);
   const approvalPolicy = definition.approvalPolicy;
-  const selectedApproval = context.approvalByProvider?.[agentId];
+  // Without a choice in this draft, keep the mode last used: this session's own, or for a new
+  // thread the project's most recent session with this provider. Never a global grant.
+  const rememberedApproval = useAppStore((state) => {
+    if (session) return session.agent === agentId ? session.execution?.approval ?? undefined : undefined;
+    let latest: { at: string; approval: ApprovalMode } | null = null;
+    for (const row of state.sessions) {
+      const used = row.execution?.approval;
+      if (row.projectId !== draftProjectId || row.agent !== agentId || !used) continue;
+      if (!latest || row.lastActivityAt > latest.at) latest = { at: row.lastActivityAt, approval: used };
+    }
+    return latest?.approval;
+  });
+  const selectedApproval = context.approvalByProvider?.[agentId] ?? rememberedApproval;
   const requestedApproval = selectedApproval && definition.approvalModes.includes(selectedApproval) ? selectedApproval : definition.approvalModes[0] ?? "ask";
   const approval = context.planning && requestedApproval === "full" ? agentId === "cursor" ? "auto" : "ask" : requestedApproval;
   const approvalLabel = approval === "full" ? "composer.fullAccess" : approval === "auto" ? "composer.autoReview" : approvalPolicy === "vendor" ? "composer.vendorApproval" : "composer.askApproval";

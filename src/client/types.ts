@@ -71,7 +71,10 @@ export interface Message {
   activity?: TurnActivity | null;
   /** Instructions sent into this running reply; `offset` is the reply's length when each arrived (ADR-062). */
   steers?: { text: string; at: string; offset: number }[];
+  /** User messages: what was attached, with a small thumbnail for images. */
+  attachments?: MessageAttachment[];
 }
+export interface MessageAttachment { name: string; kind: "file" | "folder"; mimeType?: string; thumbnail?: string }
 
 export interface NativeThread {
   providerAccountId?: string;

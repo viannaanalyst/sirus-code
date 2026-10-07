@@ -637,6 +637,7 @@ pub(crate) fn record_output(
                 streaming: true,
                 activity: None,
                 steers: Vec::new(),
+                attachments: Vec::new(),
             });
             *message_id = Some(id);
         } else {
@@ -1225,6 +1226,7 @@ mod tests {
             streaming: false,
             activity: None,
             steers: Vec::new(),
+            attachments: Vec::new(),
         };
         let messages = vec![
             message(MessageRole::User, "First request"),

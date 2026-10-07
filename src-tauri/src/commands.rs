@@ -1536,6 +1536,7 @@ pub async fn send_prompt(
             streaming: false,
             activity: None,
             steers: Vec::new(),
+            attachments: attachments.iter().map(|file| file.summary()).collect(),
         };
         session.messages.push(user);
         session.messages.push(Message {
@@ -1547,6 +1548,7 @@ pub async fn send_prompt(
             streaming: true,
             activity: None,
             steers: Vec::new(),
+            attachments: Vec::new(),
         });
         if let Some(message) = session.messages.last_mut() {
             let mut activity =

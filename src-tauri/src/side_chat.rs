@@ -248,6 +248,7 @@ mod tests {
             streaming,
             activity: None,
             steers: Vec::new(),
+            attachments: Vec::new(),
         }
     }
 

@@ -29,6 +29,8 @@ pub struct PromptAttachment {
 pub struct PreparedAttachment {
     pub view: PromptAttachment,
     file: Option<tempfile::NamedTempFile>,
+    /// Made while preparing (off the send path), so sending only copies it.
+    thumbnail: Option<String>,
 }
 impl PreparedAttachment {
     pub fn path(&self) -> Option<&Path> {
@@ -36,6 +38,16 @@ impl PreparedAttachment {
     }
     pub fn image(&self) -> bool {
         self.view.preview_url.is_some()
+    }
+    /// What a sent message keeps of this attachment: its name and, for images, a small JPEG
+    /// thumbnail (360 px on the longer side, at most 96 KiB) for the transcript.
+    pub fn summary(&self) -> crate::models::MessageAttachment {
+        crate::models::MessageAttachment {
+            name: self.view.name.clone(),
+            kind: self.view.kind.clone(),
+            mime_type: Some(self.view.mime_type.clone()).filter(|mime| !mime.is_empty()),
+            thumbnail: self.thumbnail.clone(),
+        }
     }
     pub fn encoded(&self) -> Result<String> {
         self.bytes().map(|bytes| STANDARD.encode(bytes))
@@ -402,6 +414,7 @@ fn from_bytes(name: String, bytes: Vec<u8>) -> Result<PreparedAttachment> {
             preview_url,
         },
         file: Some(file),
+        thumbnail: if image { thumbnail(&bytes) } else { None },
     })
 }
 fn prepare(path: &Path, folder: bool) -> Result<PreparedAttachment> {
@@ -480,6 +493,7 @@ fn prepare(path: &Path, folder: bool) -> Result<PreparedAttachment> {
                 preview_url: None,
             },
             file: None,
+            thumbnail: None,
         });
     }
     let mut options = std::fs::OpenOptions::new();
@@ -994,5 +1008,37 @@ mod tests {
         assert_eq!(file.content.len(), MAX_BYTES - 1);
         assert!(!file.content.contains('�'));
         std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+/// A bounded image decode scaled to fit 360 px, as a JPEG data URL; `None` when it does not fit.
+pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(12_000);
+    limits.max_image_height = Some(12_000);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    reader.limits(limits);
+    let small = reader.decode().ok()?.thumbnail(360, 360).to_rgb8();
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+        .encode_image(&small)
+        .ok()?;
+    (out.len() <= 96 * 1024).then(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)))
+}
+
+#[cfg(test)]
+mod thumbnail_tests {
+    #[test]
+    fn thumbnails_are_small_jpegs() {
+        let mut png = Vec::new();
+        image::DynamicImage::new_rgb8(1600, 900)
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .unwrap();
+        let url = super::thumbnail(&png).unwrap();
+        assert!(url.starts_with("data:image/jpeg;base64,"));
+        assert!(super::thumbnail(b"not an image").is_none());
     }
 }

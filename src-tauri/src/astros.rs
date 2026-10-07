@@ -782,6 +782,7 @@ fn post_report(data: &mut AppData, session_id: &str) -> Option<crate::models::Se
         streaming: false,
         activity: None,
         steers: vec![],
+        attachments: Vec::new(),
     });
     conversation.last_activity_at = now;
     let snapshot = conversation.clone();

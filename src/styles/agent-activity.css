@@ -160,3 +160,5 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 /* Attachments of a sent prompt, shown as chips under its text. */
 .prompt-references { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 .prompt-reference { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 9px 3px 7px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); }
+.prompt-thumbnails { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+.prompt-thumbnail { display: block; height: 72px; max-width: 160px; object-fit: cover; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); }

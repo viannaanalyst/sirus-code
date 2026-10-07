@@ -147,6 +147,22 @@ pub struct Message {
     /// is the reply's UTF-16 length when each arrived, so it renders in place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub steers: Vec<Steer>,
+    /// User messages: what was attached, with a small thumbnail for images (ADR-071).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<MessageAttachment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageAttachment {
+    pub name: String,
+    /// `file` or `folder`.
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// `data:image/jpeg;base64,…`, at most 360 px on its longer side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

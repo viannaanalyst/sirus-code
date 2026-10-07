@@ -253,6 +253,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   }, [message.role, shownContent, message.id, message.steers, session.team?.messageId]);
   // A sent prompt shows what the person wrote; attachments appear as chips, not as the agent's reference block.
   const { request: userRequest, references: userReferences } = useMemo(() => message.role === "user" ? splitPromptContext(message.content) : { request: message.content, references: [] }, [message.role, message.content]);
+  // Images show as thumbnails on top (MonoCode-style); other files and older messages as chips.
+  const userImages = (message.attachments ?? []).filter((file) => file.thumbnail);
+  const userFiles = message.attachments?.length ? message.attachments.filter((file) => !file.thumbnail) : userReferences;
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
   const replySteers = team ? noSteers : message.steers ?? noSteers;
@@ -290,8 +293,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
+          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <img key={index} src={file.thumbnail} alt={file.name} title={file.name} className="prompt-thumbnail" draggable={false} />)}</span> : null}
           {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
-          {userReferences.length ? <span className="prompt-references">{userReferences.map((reference, index) => {
+          {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => {
             const Icon = reference.kind === "folder" ? Folder : /\.(png|jpe?g|gif|webp|heic|tiff?|bmp)$/i.test(reference.name) ? FileImage : FileText;
             return <span key={index} className="prompt-reference ui-caption" title={reference.name}><Icon size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>;
           })}</span> : null}
