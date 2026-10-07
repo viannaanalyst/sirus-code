@@ -8,7 +8,7 @@ The existing skill picker requires opening Add. Typing `/` or `@` should expose 
 
 ## Decision
 
-Standalone slash tokens open the native skill catalog through the existing Client API. Search and disabled filtering reuse the existing skill helpers. Selection produces a leading invocation for ADR-036 admission, including when the token was typed in prose. Unknown commands remain text; the host does not invent vendor commands.
+Standalone slash tokens open the native skill catalog through the existing Client API. Search and disabled filtering reuse the existing skill helpers. Selection completes the token where it was typed (2026-10-06: it used to move to the front); ADR-036 admission now reads a `/skill` token anywhere in the prompt, skipping slash words that are not catalog skills (paths, prose). The composer paints `/skill` tokens amber and `@file` mentions in the info colour through a mirror behind the transparent textarea text (`src/lib/composer-tokens.ts`), changing only colour so wrapping matches exactly. Unknown commands remain text; the host does not invent vendor commands.
 
 The read-only `workspace_files(owner, query)` command accepts saved project/session IDs and a bounded query. Rust derives the project root before the first send or the session's canonical worktree thereafter. A foreign project/session pair, missing owner, changed root or shutdown rejects publication. Client/Transport remains the only frontend native boundary.
 

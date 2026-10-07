@@ -121,3 +121,12 @@
   @keyframes effort-strike { 0% { stroke-dashoffset:600; opacity:1; } 18% { stroke-dashoffset:0; opacity:1; } 30% { opacity:0; } 100% { stroke-dashoffset:0; opacity:0; } }
   @media (prefers-reduced-motion:reduce) { .effort-energy *, .effort-strike path { animation:none!important; } .effort-strike, .effort-embers { display:none; } .effort-fill,.effort-energy { transition:none; } }
 }
+
+/* `/skill` and `@file` highlighting (ADR-037): the mirror paints the text, the textarea keeps caret and selection.
+   Only colour and background change on tokens, never width, so the mirror wraps exactly like the textarea. */
+.agent-composer textarea.composer-input-highlighted { color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text-primary); scrollbar-gutter: stable; }
+.composer-highlight { scrollbar-gutter: stable; overflow-wrap: break-word; }
+.composer-highlight::-webkit-scrollbar-thumb { background: transparent; }
+.composer-token { border-radius: 3px; }
+.composer-token-skill { color: #e8b955; background: color-mix(in srgb, #e8b955 12%, transparent); }
+.composer-token-file { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }

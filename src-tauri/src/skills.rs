@@ -467,13 +467,15 @@ fn instructions(
 ) -> Result<String> {
     let mut out = String::new();
     let mut names = HashSet::new();
+    // A `/skill` token invokes wherever it stands in the prompt, so a skill chosen
+    // mid-sentence stays where it was typed. Other slash words (paths, prose) are ignored.
     for token in prompt.split_whitespace() {
         let Some(name) = token.strip_prefix('/') else {
-            break;
+            continue;
         };
         let name = name.to_lowercase();
         let Some(skill) = catalog.skills.iter().find(|s| s.name == name) else {
-            break;
+            continue;
         };
         if context.disabled.contains(&name) {
             return Err(Error::new(
@@ -605,11 +607,20 @@ mod tests {
         .unwrap();
         assert!(text.contains("NATIVE"));
         assert!(!text.contains("PORTABLE"));
+        // A skill token anywhere in the prompt invokes it, so one chosen mid-sentence stays put.
+        assert!(instructions(
+            &catalog,
+            &[allowed(&portable), allowed(&codex)],
+            &fixture(),
+            "fix the docs with /test please"
+        )
+        .unwrap()
+        .contains("NATIVE"));
         assert!(instructions(
             &catalog,
             &[allowed(&portable)],
             &fixture(),
-            "do not invoke /test"
+            "see /usr/local/bin and /tmp"
         )
         .unwrap()
         .is_empty());
@@ -727,14 +738,16 @@ mod tests {
             )
             .unwrap()
         );
-        assert!(instructions(
-            &catalog,
-            &[allowed(&root)],
-            &fixture(),
-            "/unknown /test request"
-        )
-        .unwrap()
-        .is_empty());
+        assert_eq!(
+            once,
+            instructions(
+                &catalog,
+                &[allowed(&root)],
+                &fixture(),
+                "/unknown /test request"
+            )
+            .unwrap()
+        );
         put(&root, "test", &"x".repeat(MAX_BYTES - 10));
         assert!(instructions(&catalog, &[allowed(&root)], &fixture(), "/test request").is_err());
     }

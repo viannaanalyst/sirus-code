@@ -18,7 +18,8 @@ test("completion preserves the draft suffix and provides a caret without sending
   const trigger = composerTrigger(value, 10)!;
   assert.deepEqual(completeComposerToken(value, trigger, "src/Agent.tsx"), { value: "fix @src/Agent.tsx later", caret: 18 });
   assert.deepEqual(completeComposerToken("/rev later", composerTrigger("/rev later", 4)!, "review"), { value: "/review later", caret: 7 });
-  assert.equal(completeComposerToken("fix /rev", composerTrigger("fix /rev", 8)!, "review").value, "/review fix ");
+  // A skill chosen mid-sentence stays where it was typed; native admission reads it anywhere.
+  assert.equal(completeComposerToken("fix /rev", composerTrigger("fix /rev", 8)!, "review").value, "fix /review ");
   assert.equal(completeComposerToken("/review /lo task", composerTrigger("/review /lo task", 11)!, "local").value, "/review /local task");
 });
 
@@ -39,4 +40,11 @@ test("keyboard navigation wraps and handles an empty result", () => {
   assert.equal(suggestionIndex(0, -1, 3), 2);
   assert.equal(suggestionIndex(2, 1, 3), 0);
   assert.equal(suggestionIndex(0, 1, 0), 0);
+});
+
+test("composer highlights standalone skill invocations and file mentions, not paths", async () => {
+  const { composerSegments, hasComposerTokens } = await import("../src/lib/composer-tokens.ts");
+  assert.deepEqual(composerSegments("fix /graphify with @docs/a.md now").map((s) => [s.kind, s.text]), [["text", "fix "], ["skill", "/graphify"], ["text", " with "], ["file", "@docs/a.md"], ["text", " now"]]);
+  assert.deepEqual(composerSegments('see @"my file.md" and /usr/bin').filter((s) => s.kind !== "text").map((s) => s.text), ['@"my file.md"']);
+  assert.equal(hasComposerTokens("plain text"), false);
 });

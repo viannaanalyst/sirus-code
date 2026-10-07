@@ -12,6 +12,7 @@ import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddM
 import { ComposerContour } from "@/components/ComposerContour";
 import { ComposerSuggestions } from "@/components/ComposerSuggestions";
 import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
+import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
@@ -56,6 +57,9 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const draftKey = session ? `session:${session.id}` : `project:${draftProjectId}`;
   const value = useAppStore((state) => state.composerDrafts[draftKey] ?? "");
   const updateDraft = useAppStore((state) => state.setComposerDraft);
+  // `/skill` and `@file` tokens are painted by a mirror behind the transparent textarea text.
+  const highlighted = hasComposerTokens(value);
+  const mirror = useRef<HTMLDivElement>(null);
   const setValue = (next: string) => updateDraft(draftKey, next);
   const [sending, setSending] = useState(false);
   const [queueSending, setQueueSending] = useState(false);
@@ -230,6 +234,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       {session ? <HandoffCard session={session} /> : null}
       <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} />
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}
+      <div className="composer-editor relative">
+      {highlighted ? <div ref={mirror} aria-hidden="true" className="composer-highlight pointer-events-none absolute inset-0 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary">
+        {composerSegments(value).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)}{"\n"}
+      </div> : null}
       <Textarea
         label={t("session.prompt")}
         hideLabel
@@ -286,8 +294,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
             void send(event.metaKey || event.ctrlKey);
           }
         }}
-        className="selectable scroll-thin max-h-[200px] min-h-[var(--composer-editor-min-height)] w-full resize-none overflow-y-auto bg-transparent pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary placeholder:text-text-muted disabled:opacity-50"
+        className={`selectable scroll-thin max-h-[200px] min-h-[var(--composer-editor-min-height)] w-full resize-none overflow-y-auto bg-transparent pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary placeholder:text-text-muted disabled:opacity-50${highlighted ? " composer-input-highlighted" : ""}`}
+        onScroll={(event) => { if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop; }}
       />
+      </div>
       <div className="composer-footer flex items-center justify-between gap-1.5 pb-[var(--composer-footer-padding)] pl-[var(--composer-footer-padding)] pr-[var(--composer-footer-padding-end)]">
         <div className="composer-footer-context flex min-w-0 items-center gap-1">
           <ComposerAddMenu key={draftKey} boundaryRef={boundary} owner={draftKey} disabled={submitting || pasting || !canType} context={context} onChange={changeContext} planningAvailable={planningAvailable} teamAvailable={teamAvailable} />

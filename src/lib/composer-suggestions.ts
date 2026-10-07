@@ -1,5 +1,3 @@
-import { insertSkillInvocation } from "./skills";
-
 export interface ComposerTrigger { kind: "skill" | "file"; query: string; start: number; end: number }
 
 /** Only standalone tokens at a collapsed caret; URLs, emails and selections
@@ -17,16 +15,6 @@ export function composerTrigger(value: string, start: number, end = start): Comp
 }
 
 export function completeComposerToken(value: string, trigger: ComposerTrigger, selected: string, directory = false): { value: string; caret: number } {
-  if (trigger.kind === "skill") {
-    const before = value.slice(0, trigger.start);
-    const after = value.slice(trigger.end);
-    // Native skill admission consumes leading invocations only. Selecting a
-    // skill in prose moves its invocation to the front and preserves the prose.
-    if (before.trim() && !/^\s*(?:\/[\w-]+\s+)*$/.test(before)) {
-      const next = insertSkillInvocation(before + after, selected);
-      return { value: next, caret: next.length };
-    }
-  }
   const path = directory ? `${selected}/` : selected;
   const quote = trigger.kind === "file" && /[\s"@]/.test(path);
   const token = trigger.kind === "skill" ? `/${selected}` : quote ? `@"${path.replace(/"/g, '\\"')}${directory ? "" : '"'}` : `@${path}`;
