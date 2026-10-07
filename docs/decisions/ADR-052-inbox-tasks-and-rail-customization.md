@@ -1,6 +1,6 @@
 # ADR-052: Inbox, Tasks and a customizable rail
 
-**Status:** Accepted
+**Status:** Accepted. *Amended 2026-10-07:* the Automations rail item and the Activity view were removed.
 
 ## Context
 
@@ -19,7 +19,7 @@ The owner asked for all three.
 **Rail customization.**
 
 - **Settings:** `AppSettings.railItemOrder`, `hiddenRailItems` and `railProjectShortcuts`.
-- **Items:** a closed set: home, inbox, kanban, tasks, archived, pulls, automations. The drafts feather filter was removed later (2026-10-06): saved settings drop the `drafts` ID on load, and the sidebar no longer marks or groups sessions by unsent draft. Composer drafts still persist.
+- **Items:** a closed set: home, inbox, kanban, tasks, archived, pulls. The drafts feather filter was removed later (2026-10-06): saved settings drop the `drafts` ID on load, and the sidebar no longer marks or groups sessions by unsent draft. Composer drafts still persist. The `automations` item went the same way on 2026-10-07, with the Automations page (ADR-051); its engine remains for Astro habits.
 - **Native validation:**
   - order and hidden lists may hold only known IDs, without duplicates;
   - Home cannot be hidden;
@@ -34,7 +34,7 @@ The owner asked for all three.
 **Inbox.**
 
 - **A page derived from existing state; nothing new is stored:**
-  - **Needs you:** sessions waiting for approval or input, plus one row for open PRs that request the viewer's review (from the review inbox list) and one for automations whose last run failed.
+  - **Needs you:** sessions waiting for approval or input, plus one row for open PRs that request the viewer's review (from the review inbox list) and one per Astro habit whose last run needs attention, which opens that Astro's Habits page (before 2026-10-07, one row for failing automations opened the Automations page).
   - **In progress:** running sessions.
   - **Ready for review:** completed sessions the person has not opened (the existing `unseenSessionIds`).
   - **Failed:** failed or stopped sessions not yet opened.

@@ -1,6 +1,6 @@
 # ADR-050: Review inbox for pull requests and issues
 
-**Status:** Accepted
+**Status:** Accepted. *Amended 2026-10-07:* the sidebar Activity view was removed.
 
 ## Context
 
@@ -53,6 +53,8 @@ The same change adds the sidebar **Activity view**, a notebook toggle beside sea
 - **Storage:** `AppSettings.doneSessions` holds the session ID and the time it was marked. It is bounded to 4096 entries and natively pruned with sessions, like archives.
 - **Reopening:** a session leaves Done by itself when its `lastActivityAt` is newer than the mark, which happens after a send, agent output, Stop, rename or model change.
 - **What it does not change:** execution, threads or worktrees.
+
+*Amended 2026-10-07:* **Activity view removed.** The owner removed the notebook toggle and the Activity view; Home always shows the project list. `sidebarActivityView` and `doneSessions` were dropped from `AppSettings`: old `state.json` files still load, and the fields disappear on the next save. "Mark all as read" remains on the Inbox page (ADR-052).
 
 *Amended:* **Fix all failures.** For an open PR with failing checks, the Checks block offers Fix all failures, and the menu keeps Fix findings. Both draft one prompt covering **every** failing check, with no picking. The closed, read-only `failures` action takes only an owned repository and number:
 

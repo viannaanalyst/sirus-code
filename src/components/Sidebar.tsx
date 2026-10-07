@@ -3,8 +3,7 @@ import { SidebarAstros } from "@/components/astros/SidebarAstros";
 import { ProjectGlyph, projectColor } from "@/components/ProjectGlyph";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { PopoverAnchor } from "@radix-ui/react-popover";
-import { NotebookText, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
-import { SidebarActivityView } from "@/components/SidebarActivityView";
+import { PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
 import { SidebarHoverTrack } from "@/components/SidebarHoverTrack";
 import { SidebarProjects } from "@/components/SidebarProjects";
@@ -182,8 +181,6 @@ function SidebarActivity({ archived, floating, onPin }: { archived: boolean; flo
   const settings = useAppStore(state => state.settings);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const mainView = useAppStore(state => state.mainView);
-  const activityView = settings.sidebarActivityView;
-  const unread = useAppStore(state => state.unseenSessionIds.some(id => id !== state.selectedSessionId));
   const groups = useMemo(() => sidebarActivityFeed(projects, sessions, settings, { archived }), [projects, sessions, settings, archived]);
   const total = groups.reduce((sum, group) => sum + group.sessions.length, 0);
   return <>
@@ -191,12 +188,11 @@ function SidebarActivity({ archived, floating, onPin }: { archived: boolean; flo
       {archived ? <h1 className="ui-brand truncate min-w-0 flex-1">{t("Archived sessions")}</h1>
         : <h1 className="sidebar-brand ui-brand min-w-0 flex-1"><img src="/sirus-glyph-small.png" alt="" draggable={false} /><span className="truncate">Sirus Code</span></h1>}
       <IconButton label={t("palette.searchChats")} tooltip={false} onClick={() => useAppStore.getState().setPaletteOpen(true)} className="sidebar-header-action"><Search size={14} /></IconButton>
-      {!archived && <IconButton label={t(activityView ? "activity.showClassic" : "activity.showActivity")} tooltip={false} aria-pressed={activityView} style={activityView ? { background: "color-mix(in srgb, var(--info) 15%, transparent)", color: "var(--info)" } : undefined} onClick={() => { const store = useAppStore.getState(); void store.saveSettings({ ...store.settings, sidebarActivityView: !activityView }); }} className="sidebar-header-action sidebar-activity-toggle"><NotebookText size={14} />{unread && <span className="sidebar-activity-dot" aria-hidden="true" />}</IconButton>}
       {floating && <IconButton label={t("Pin sidebar")} tooltip={false} onClick={onPin} className="sidebar-header-action"><PanelLeft size={13} /></IconButton>}
     </div>
     <SidebarHoverTrack className="flex min-h-0 flex-1 flex-col">
     {!archived && <button data-new-session type="button" className="sidebar-menu-row sidebar-new-thread" onClick={() => useAppStore.getState().requestNewSession()}><SquarePen size={14} /><span>{t("New thread")}</span><kbd>{shortcut}</kbd></button>}
-    {!archived ? (activityView ? <SidebarActivityView floating={floating} /> : <SidebarProjects floating={floating} />) : <div className="scroll-thin sidebar-activity-list">{groups.map(group => group.sessions.length > 0 && <section key={group.label} aria-label={t(group.label)}><p className="sidebar-section-label ui-caption">{t(group.label)}</p>{group.sessions.map(session => <SidebarSessionRow key={session.id} session={session} project={projects.find(project => project.id === session.projectId)} active={mainView === "session" && selectedSessionId === session.id} archived={archived} />)}</section>)}{total === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(archived ? "No archived sessions" : "No sessions in this view")}</p>}</div>}
+    {!archived ? <SidebarProjects floating={floating} /> : <div className="scroll-thin sidebar-activity-list">{groups.map(group => group.sessions.length > 0 && <section key={group.label} aria-label={t(group.label)}><p className="sidebar-section-label ui-caption">{t(group.label)}</p>{group.sessions.map(session => <SidebarSessionRow key={session.id} session={session} project={projects.find(project => project.id === session.projectId)} active={mainView === "session" && selectedSessionId === session.id} archived={archived} />)}</section>)}{total === 0 && <p className="px-2 py-3 ui-caption text-text-muted">{t(archived ? "No archived sessions" : "No sessions in this view")}</p>}</div>}
     </SidebarHoverTrack>
 
   </>;

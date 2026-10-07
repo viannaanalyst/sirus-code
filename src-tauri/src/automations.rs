@@ -3,6 +3,10 @@
 //! as a normal session through the same `send_prompt` admission as the Send
 //! button. Runs use the automation's approval profile (Ask by default, so tool
 //! approvals wait for the person) and an isolated worktree by default.
+//!
+//! The standalone Automations page was removed on 2026-10-07: every automation
+//! is now an Astro habit (ADR-069). Older standalone ones are kept but paused
+//! on load and cannot be resumed, run or created.
 
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -25,6 +29,8 @@ const MAX_AUTOMATIONS: usize = 50;
 const RUNS_PER_AUTOMATION: usize = 50;
 const NAME_LIMIT: usize = 200;
 const PROMPT_LIMIT: usize = 64 * 1024;
+/// Refusal for standalone automations, which no longer have a page.
+const HABITS_ONLY: &str = "Scheduled work now lives in Astro habits.";
 const MIN_INTERVAL_MINUTES: u32 = 15;
 const MAX_INTERVAL_MINUTES: u32 = 7 * 24 * 60;
 /// Runs missed while the app was closed start once if they are this recent.
@@ -234,6 +240,9 @@ fn mutate(state: &AppState, action: Action) -> Result<Snapshot> {
                 .iter_mut()
                 .find(|item| item.id == id)
                 .ok_or_else(|| Error::not_found("automation not found"))?;
+            if enabled && automation.astro_id.is_none() {
+                return Err(Error::new("invalid", HABITS_ONLY));
+            }
             automation.enabled = enabled;
             automation.updated_at = now.to_rfc3339();
             automation.next_run_at = if enabled {
@@ -297,6 +306,9 @@ fn validate_schedule(schedule: &Schedule, now: DateTime<Local>) -> Result<()> {
 }
 
 fn upsert(data: &mut AppData, input: AutomationInput, now: DateTime<Local>) -> Result<()> {
+    if input.astro_id.is_none() {
+        return Err(Error::new("invalid", HABITS_ONLY));
+    }
     let name = printable(&input.name, NAME_LIMIT, "name")?;
     let prompt = input.prompt.trim().to_owned();
     if prompt.is_empty() || prompt.len() > PROMPT_LIMIT || prompt.contains('\0') {
@@ -522,6 +534,9 @@ pub async fn start_run(
             .find(|item| item.id == id)
             .cloned()
             .ok_or_else(|| Error::not_found("automation not found"))?;
+        if automation.astro_id.is_none() {
+            return Err(Error::new("invalid", HABITS_ONLY));
+        }
         let run_id = Uuid::new_v4().to_string();
         let previous_active = data
             .automation_runs
@@ -794,6 +809,23 @@ fn due_is_empty_after_runs(state: &AppState) -> bool {
     })
 }
 
+/// Pauses standalone automations (no `astroId`) left from the removed
+/// Automations page, keeping their definitions and runs. Returns whether
+/// anything changed so the load checkpoints it once.
+pub fn retire_standalone(data: &mut AppData) -> bool {
+    let mut changed = false;
+    for automation in data
+        .automations
+        .iter_mut()
+        .filter(|item| item.astro_id.is_none() && (item.enabled || item.next_run_at.is_some()))
+    {
+        automation.enabled = false;
+        automation.next_run_at = None;
+        changed = true;
+    }
+    changed
+}
+
 /// Drops automations (and their runs) whose project was removed.
 pub fn prune(data: &mut AppData) {
     let projects: std::collections::HashSet<_> = data
@@ -946,6 +978,13 @@ mod tests {
             }))
             .unwrap(),
         );
+        data.astros.push(
+            serde_json::from_value(serde_json::json!({
+                "id": "astro", "name": "Vega", "icon": "estrela", "style": "metal",
+                "color": "#8c9bff", "background": "liso", "projectIds": ["p"], "createdAt": "t"
+            }))
+            .unwrap(),
+        );
         data
     }
 
@@ -965,7 +1004,7 @@ mod tests {
             },
             enabled: true,
             acknowledge_full_access: acknowledge,
-            astro_id: None,
+            astro_id: Some("astro".into()),
         }
     }
 
@@ -985,6 +1024,9 @@ mod tests {
         let mut foreign = input(ApprovalMode::Ask, false);
         foreign.project_id = "missing".into();
         assert!(upsert(&mut data, foreign, now).is_err());
+        let mut standalone = input(ApprovalMode::Ask, false);
+        standalone.astro_id = None;
+        assert!(upsert(&mut data, standalone, now).is_err());
         data.projects.clear();
         prune(&mut data);
         assert!(data.automations.is_empty());
@@ -1015,5 +1057,24 @@ mod tests {
         );
         assert!(failing(&data, "a"));
         assert!(!failing(&data, "b"));
+    }
+
+    #[test]
+    fn standalone_automations_are_paused_on_load_and_kept() {
+        let now = local(2026, 10, 5, 10, 30);
+        let mut data = data_with_project();
+        upsert(&mut data, input(ApprovalMode::Ask, false), now).unwrap();
+        let mut legacy = data.automations[0].clone();
+        legacy.id = "legacy".into();
+        legacy.astro_id = None;
+        data.automations.push(legacy);
+        assert!(retire_standalone(&mut data));
+        assert!(!retire_standalone(&mut data));
+        assert_eq!(data.automations.len(), 2);
+        let habit = &data.automations[0];
+        assert!(habit.enabled && habit.next_run_at.is_some());
+        let paused = &data.automations[1];
+        assert!(!paused.enabled && paused.next_run_at.is_none());
+        assert_eq!(paused.prompt, "Check failing tests");
     }
 }

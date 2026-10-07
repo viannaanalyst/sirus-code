@@ -7,7 +7,7 @@ import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Clock3, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
+import { Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -48,7 +48,6 @@ const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then
 const SessionBoard = lazy(() => import("@/components/SessionBoard").then((module) => ({ default: module.SessionBoard })));
 const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
 const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
-const AutomationsPage = lazy(() => import("@/components/automations/AutomationsPage").then((module) => ({ default: module.AutomationsPage })));
 const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
 /** Header tabs are on screen only with the sidebar collapsed, outside Settings, overlays and Kanban. */
@@ -123,7 +122,6 @@ export default function App() {
         { id: "find-in-conversation", label: t("Find in conversation"), group: actions, icon: <TextSearch />, shortcut: shortcut("find-in-conversation"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
         { id: "kanban", label: t("Kanban"), group: actions, icon: <Columns3 />, run: () => setMainView("kanban") },
         { id: "pull-requests", label: t("pulls.title"), group: actions, icon: <GitPullRequest />, run: () => setMainView("pulls") },
-        { id: "automations", label: t("automations.title"), group: actions, icon: <Clock3 />, run: () => setMainView("automations") },
         { id: "inbox", label: t("inbox.title"), group: actions, icon: <Inbox />, run: () => setMainView("inbox") },
         { id: "tasks", label: t("tasks.title"), group: actions, icon: <ListTodo />, run: () => setMainView("tasks") },
         { id: "open-terminal", label: t("Open Terminal"), group: actions, icon: <SquareTerminal />, shortcut: shortcut("open-terminal"), run: () => useAppStore.getState().openDockPane("terminal") },
@@ -252,8 +250,8 @@ export default function App() {
           >
             {/* With the sidebar collapsed the header carries the project switcher and its session tabs. */}
             {sidebarCollapsed && mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "automations" ? <Clock3 size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "kanban" ? t("Kanban") : mainView === "pulls" ? t("pulls.title") : mainView === "automations" ? t("automations.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : sessionTitle ?? t("session.new")}</span>
+              {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "kanban" ? t("Kanban") : mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               <EnvironmentToggle />
@@ -283,7 +281,6 @@ export default function App() {
             {mainView === "kanban" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><SessionBoard /></Suspense> : null}
             {mainView === "inbox" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><InboxPage /></Suspense> : null}
             {mainView === "tasks" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><TasksPage /></Suspense> : null}
-            {mainView === "automations" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><AutomationsPage /></Suspense> : null}
             {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}
             <EnvironmentPanel />
           </div>

@@ -17,9 +17,9 @@ try {
     for (const collapsed of [false, true]) {
       snapshot.sidebarCollapsed = collapsed;
       const html = renderToString(createElement(TooltipProvider, null, createElement(Sidebar)));
-      // Seven customizable rail items (ADR-052), the "more" menu and Settings.
-      assert.equal((html.match(/data-section=/g) ?? []).length, 9);
-      assert.ok(!html.includes('data-section="drafts"') && html.includes('data-section="more"'));
+      // Six customizable rail items (ADR-052), the "more" menu and Settings.
+      assert.equal((html.match(/data-section=/g) ?? []).length, 8);
+      assert.ok(!html.includes('data-section="drafts"') && !html.includes('data-section="automations"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");
       assert.ok(html.includes('aria-expanded="false"') && !html.includes('data-section="projects"'));
@@ -35,6 +35,7 @@ try {
         assert.ok(!html.includes(locale === "pt-BR" ? "Recolher barra lateral" : "Collapse sidebar"));
         const header = html.slice(html.indexOf("sidebar-panel-header"), html.indexOf("sidebar-new-thread"));
         assert.ok(header.includes("Sirus Code") && !header.includes("Fixture project"), "the header shows the fixed product name, not the selected project");
+        assert.ok(!header.includes("sidebar-activity-toggle") && !html.includes("sidebar-activity-toolbar"), "the Activity view toggle was removed");
       }
     }
   }

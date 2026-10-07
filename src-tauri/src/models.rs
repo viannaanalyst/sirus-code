@@ -491,14 +491,6 @@ pub enum WindowSnapShortcut {
     ControlShiftS,
 }
 
-/// A session marked Done in the Activity view; `at` is the RFC 3339 time it was marked.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct DoneSession {
-    pub id: String,
-    pub at: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -506,8 +498,6 @@ pub struct AppSettings {
     pub usage_providers: Vec<AgentProviderId>,
     /// Providers whose quota ring shows in the sidebar rail (at most two).
     pub sidebar_usage_providers: Vec<AgentProviderId>,
-    /// The sidebar shows the time-grouped Activity view instead of project folders.
-    pub sidebar_activity_view: bool,
     /// Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue.
     pub steer_while_running: bool,
     /// Owner-authorized CI auto-fix: failing PR checks start an automatic fix turn,
@@ -530,8 +520,6 @@ pub struct AppSettings {
     pub confirm_terminal_close: bool,
     /// Chat behavior: open the Simulator pane when an agent starts using a simulator (ADR-066).
     pub auto_open_simulator: bool,
-    /// Sessions marked Done in the Activity view and when; newer activity reopens them.
-    pub done_sessions: Vec<DoneSession>,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
     pub window_snap_enabled: bool,
     pub window_snap_shortcut: WindowSnapShortcut,
@@ -644,7 +632,6 @@ impl Default for AppSettings {
             custom_shortcuts: std::collections::HashMap::new(),
             usage_providers: vec![AgentProviderId::Codex],
             sidebar_usage_providers: Vec::new(),
-            sidebar_activity_view: false,
             steer_while_running: false,
             ci_auto_fix: false,
             pr_watch: true,
@@ -655,7 +642,6 @@ impl Default for AppSettings {
             confirm_archive: false,
             confirm_terminal_close: true,
             auto_open_simulator: true,
-            done_sessions: Vec::new(),
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),
             github_pins: Vec::new(),
@@ -737,15 +723,7 @@ impl Default for AppSettings {
 }
 
 /// Customizable rail items (Settings is fixed at the bottom).
-pub const RAIL_ITEMS: [&str; 7] = [
-    "home",
-    "inbox",
-    "kanban",
-    "tasks",
-    "archived",
-    "pulls",
-    "automations",
-];
+pub const RAIL_ITEMS: [&str; 6] = ["home", "inbox", "kanban", "tasks", "archived", "pulls"];
 
 /// `owner/repo#number`, with the same repository charset as GitHub web URLs.
 fn valid_github_pin(pin: &str) -> bool {

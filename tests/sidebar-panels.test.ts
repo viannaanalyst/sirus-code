@@ -49,24 +49,3 @@ test("sidebar PR chips only use an owned cached snapshot matching actual workspa
   assert.equal(sidebarPullRequest(owner, cache, null), null);
   assert.equal(sidebarPullRequest(owner, { ...cache, loading: true }), null);
 });
-
-test("the Activity view puts each session once: pinned, needs you, working, then by day, then Done", async () => {
-  const { sidebarTimeline } = await import("../src/lib/sidebar-panels.ts");
-  const now = new Date(2026, 9, 4, 15, 0);
-  const at = (days: number) => new Date(2026, 9, 4 - days, 10, 0).toISOString();
-  const row = (id: string, projectId: string, status: Session["status"], days: number): Session => ({ id, projectId, title: id, agent: "codex", status, createdAt: at(days), lastActivityAt: at(days), worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null });
-  const rows = [row("pin", "a", "completed", 3), row("wait", "a", "waiting", 5), row("run", "b", "running", 0), row("draft", "b", "completed", 9), row("today", "a", "completed", 0), row("yesterday", "b", "completed", 1), row("old", "a", "completed", 8)];
-  const settings = { ...mergeSettings({}), pinnedSessionIds: ["pin"] };
-  const sections = sidebarTimeline(projects, rows, settings, now);
-  assert.deepEqual(sections.map(section => [section.key, section.sessions.map(item => item.id)]), [
-    ["pinned", ["pin"]], ["waiting", ["wait"]], ["running", ["run"]], ["today", ["today"]], ["yesterday", ["yesterday"]], ["earlier", ["old", "draft"]],
-  ]);
-  const scoped = sidebarTimeline(projects, rows, settings, now, { scope: "a" });
-  assert.deepEqual(scoped.map(section => section.key), ["pinned", "waiting", "today", "earlier"]);
-  // Done moves a session to the end until it has newer activity than the mark.
-  const marked = { ...settings, doneSessions: [{ id: "today", at: new Date(2026, 9, 4, 12, 0).toISOString() }, { id: "yesterday", at: new Date(2026, 9, 1).toISOString() }] };
-  const withDone = sidebarTimeline(projects, rows, marked, now);
-  assert.deepEqual(withDone.at(-1)!.key, "done");
-  assert.deepEqual(withDone.at(-1)!.sessions.map(item => item.id), ["today"]);
-  assert.ok(withDone.find(section => section.key === "yesterday")!.sessions.some(item => item.id === "yesterday"), "activity after the mark reopens it");
-});

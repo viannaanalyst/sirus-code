@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { relativeFromNow, runState, scheduleLabel, sortedAutomations } from "../src/lib/automations.ts";
+import { runState, scheduleLabel } from "../src/lib/automations.ts";
 import { translate } from "../src/i18n/index.ts";
-import type { Automation, AutomationRun } from "../src/client/types.ts";
+import type { AutomationRun } from "../src/client/types.ts";
 
 const t = (key: string, values?: Record<string, string | number>) => translate("pt-BR", key, values);
 
@@ -21,15 +21,4 @@ test("a started run reports its session's state; skipped and failed runs keep th
   assert.equal(runState(run({}), []), "missing");
   assert.equal(runState(run({ status: "skipped", sessionId: null }), []), "skipped");
   assert.equal(runState(run({ status: "failed", sessionId: null }), []), "failed");
-});
-
-test("relative times and grouping", () => {
-  const now = Date.parse("2026-10-05T10:00:00Z");
-  assert.deepEqual(relativeFromNow("2026-10-05T12:00:00Z", now), { future: true, text: "2 h" });
-  assert.deepEqual(relativeFromNow("2026-10-05T09:30:00Z", now), { future: false, text: "30 min" });
-  assert.equal(relativeFromNow(null, now), null);
-  const item = (name: string, enabled: boolean) => ({ name, enabled }) as Automation;
-  const groups = sortedAutomations([item("b", true), item("a", true), item("c", false)]);
-  assert.deepEqual(groups.active.map((a) => a.name), ["a", "b"]);
-  assert.deepEqual(groups.paused.map((a) => a.name), ["c"]);
 });

@@ -1,9 +1,9 @@
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Archive, ArchiveRestore, CircleCheck, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Undo2, Zap } from "@/components/icons/phosphor";
+import { Archive, ArchiveRestore, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons/phosphor";
 import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
-import type { AppSettings, Project, Session } from "@/client/types";
+import type { Project, Session } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
@@ -20,7 +20,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useTranslation } from "@/i18n/use-translation";
 import { beginSplitDrag } from "@/lib/split-drag";
 import { useAppStore } from "@/store/app-store";
-import { archiveSidebarSession, toggleSessionDone, toggleSidebarId } from "@/lib/sidebar-layout";
+import { archiveSidebarSession, toggleSidebarId } from "@/lib/sidebar-layout";
 import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { modelDisplayName } from "@/lib/model-registry";
 import { relativeTime } from "@/lib/session-board";
@@ -124,45 +124,6 @@ function SessionHoverContent({ session, project }: { session: Session; project?:
     <div className="sidebar-card-line sidebar-card-model ui-control"><ModelIcon modelId={session.model ?? ""} provider={session.agent} size={14} /><span>{modelLabel}</span>{session.execution?.fast && <Zap aria-label={t("composer.fast")} />}{session.execution?.effort && <span className="ui-caption text-text-muted">{t(`effort.${session.execution.effort}`)}</span>}</div>
     {["starting", "running", "waiting", "failed"].includes(session.status) && <div className="sidebar-card-line ui-caption"><StatusIndicator status={session.status} /><span>{t(`status.${session.status}`)}</span></div>}
   </>;
-}
-
-/**
- * Activity view row (Synara layout): model mark and title, then the project
- * folder and branch. Hover offers pin, archive and Done; Done rows are dimmed
- * and offer Undo. Newer activity reopens a Done session on its own.
- */
-export function SidebarActivityRow({ session, project, active, done, unseen = false }: { session: Session; project?: Project; active: boolean; done: boolean; unseen?: boolean }) {
-  const t = useTranslation();
-  const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
-  const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
-  const save = (update: (settings: AppSettings) => AppSettings) => { const state = useAppStore.getState(); void state.saveSettings(update(state.settings)); };
-  const toggleDone = () => {
-    if (!done) useAppStore.setState((state) => ({ unseenSessionIds: state.unseenSessionIds.filter((id) => id !== session.id) }));
-    save((settings) => toggleSessionDone(settings, session.id, done ? null : new Date()));
-  };
-  const live = ["starting", "running", "waiting", "failed"].includes(session.status);
-  return <SidebarHoverCard label={session.title} content={<SessionHoverContent session={session} project={project} />}>
-    <SessionActions session={session}><div className={cn("sidebar-session-row sidebar-activity-row", active && "sidebar-session-selected", done && "sidebar-activity-done")}>
-      <button type="button" className="sidebar-activity-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${project?.name ?? ""} · ${t(`status.${session.status}`)}`}
-        onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
-        <span className="sidebar-activity-line">
-          <span className={cn("sidebar-session-brand", session.handoff && "sidebar-session-handoff")}>{session.handoff && <span className="sidebar-handoff-source"><ProviderIcon id={session.handoff.from} size={8} /></span>}<ModelIcon modelId={session.model ?? ""} provider={session.agent} size={12} /></span>
-          <span className="sidebar-row-title">{session.title}</span>
-          {temporary && <span className="sidebar-session-temporary" role="img" aria-label={t("temporary.badge")} title={t("temporary.badge")}><MessageCircle size={11} /></span>}
-        </span>
-        <span className="sidebar-activity-meta ui-caption">
-          <span className="sidebar-activity-project">{project ? <ProjectGlyph project={project} size={13} /> : <FolderGlyph aria-hidden="true" size={13} />}<span className="truncate">{project?.name ?? ""}</span>{session.worktree.isolated ? <GitCompareArrows aria-hidden="true" size={12} /> : null}</span>
-          {session.worktree.branch && session.worktree.branch !== "unknown" ? <span className="sidebar-activity-branch"><GitBranch aria-hidden="true" size={12} /><span className="truncate">{session.worktree.branch}</span></span> : null}
-        </span>
-      </button>
-      {(live || (unseen && !active)) && <span className="sidebar-activity-status">{live ? <StatusIndicator status={session.status} /> : <span className="sidebar-session-unseen" role="img" aria-label={t("activity.unread")} />}</span>}
-      <span className="sidebar-hover-actions sidebar-activity-actions">
-        <RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={() => save((settings) => ({ ...settings, pinnedSessionIds: toggleSidebarId(settings.pinnedSessionIds, session.id) }))}>{pinned ? <PinOff /> : <Pin />}</RowAction>
-        <RowAction label={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive /></RowAction>
-        <RowAction label={t(done ? "activity.undoDone" : "activity.markDone")} onClick={toggleDone}>{done ? <Undo2 /> : <CircleCheck />}</RowAction>
-      </span>
-    </div></SessionActions>
-  </SidebarHoverCard>;
 }
 
 /** The Chat behavior archive confirmation, mounted once beside the sidebar. */

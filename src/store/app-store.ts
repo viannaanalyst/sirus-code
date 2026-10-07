@@ -99,7 +99,7 @@ function withWorkspace(
 }
 /** Main column: conversation, Kanban board or the review inbox (ADR-050). */
 export type AstroDrawerPage = "main" | "soul" | "habits" | "memory";
-export type MainView = "session" | "kanban" | "pulls" | "automations" | "inbox" | "tasks";
+export type MainView = "session" | "kanban" | "pulls" | "inbox" | "tasks";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
   mainView: MainView;
@@ -296,7 +296,7 @@ interface AppStore {
   tasks: import("@/client/types").Task[] | null;
   /** Closed `task_action`; failures land in `error` and resolve null. */
   taskAction: (action: import("@/client/types").TaskAction) => Promise<import("@/client/types").Task[] | null>;
-  /** Scheduled automations and recent runs (ADR-051); refreshed on `automations-changed`. */
+  /** Scheduled automations (Astro habits, ADR-051/069) and recent runs; refreshed on `automations-changed`. */
   automations: import("@/client/types").AutomationSnapshot | null;
   /** Closed `automation_action`; failures land in `error` and resolve null. */
   automationAction: (action: import("@/client/types").AutomationAction) => Promise<import("@/client/types").AutomationSnapshot | null>;

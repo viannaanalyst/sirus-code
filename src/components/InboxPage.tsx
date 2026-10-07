@@ -12,7 +12,7 @@ import "@/styles/inbox.css";
 
 /**
  * Inbox (ADR-052): one page for what needs attention across projects. It is
- * derived from live session state, PR review requests and automation errors;
+ * derived from live session state, PR review requests and Astro habit errors;
  * nothing new is stored. Opening a session marks it seen.
  */
 export function InboxPage() {
@@ -23,6 +23,7 @@ export function InboxPage() {
   const pulls = useAppStore((state) => state.githubInbox["pullRequest:open"]?.data);
   const automations = useAppStore((state) => state.automations?.automations);
   const projects = useAppStore((state) => state.projects);
+  const astros = useAppStore((state) => state.astros);
   useEffect(() => {
     const store = useAppStore.getState();
     if (!store.automations) void store.automationAction({ type: "list" });
@@ -30,6 +31,8 @@ export function InboxPage() {
   }, []);
   const groups = useMemo(() => inboxGroups(sessions, unseen, archived, pulls, automations), [sessions, unseen, archived, pulls, automations]);
   const empty = needsYouCount(groups) + groups.running.length + groups.review.length + groups.failed.length === 0;
+  // A failing habit opens its Astro's conversation with the Habits page of its drawer.
+  const openHabits = (astroId: string) => { const store = useAppStore.getState(); void store.openAstro(astroId).then(() => store.setAstroDrawer({ astroId, page: "habits" })); };
   const open = (session: Session) => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); };
   const row = (session: Session) => {
     const time = relativeTime(session.lastActivityAt);
@@ -65,9 +68,9 @@ export function InboxPage() {
           groups.reviewRequests ? <button key="pulls" type="button" className="inbox-row" onClick={() => useAppStore.getState().setMainView("pulls")}>
             <GitPullRequest size={16} className="text-text-secondary" /><span className="min-w-0 flex-1 truncate text-left ui-control text-text-primary">{t("inbox.reviewRequests", { count: groups.reviewRequests })}</span>
           </button> : null,
-          groups.automationIssues.length ? <button key="automations" type="button" className="inbox-row" onClick={() => useAppStore.getState().setMainView("automations")}>
-            <Clock3 size={16} className="text-warning" /><span className="min-w-0 flex-1 truncate text-left ui-control text-text-primary">{t("inbox.automationIssues", { count: groups.automationIssues.length })}</span>
-          </button> : null,
+          ...groups.habitIssues.map((habit) => <button key={`habit-${habit.id}`} type="button" className="inbox-row" onClick={() => openHabits(habit.astroId!)}>
+            <Clock3 size={16} className="text-warning" /><span className="min-w-0 flex-1 truncate text-left ui-control text-text-primary">{t("inbox.habitIssue", { astro: astros?.find((astro) => astro.id === habit.astroId)?.name ?? "Astro", name: habit.name })}</span>
+          </button>),
         ], needsYouCount(groups))}
         {section("inbox.running", groups.running.map(row), groups.running.length)}
         {section("inbox.review", groups.review.map(row), groups.review.length)}

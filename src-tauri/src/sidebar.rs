@@ -17,20 +17,6 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
             ));
         }
     }
-    if settings.done_sessions.len() > 4096
-        || settings.done_sessions.iter().any(|row| {
-            row.id.is_empty()
-                || row.id.len() > 64
-                || row.at.is_empty()
-                || row.at.len() > 40
-                || !row
-                    .at
-                    .bytes()
-                    .all(|byte| byte.is_ascii_alphanumeric() || b"-:.+".contains(&byte))
-        })
-    {
-        return Err(Error::new("invalid", "done sessions exceed their bounds"));
-    }
     Ok(())
 }
 
@@ -48,12 +34,8 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
     settings
         .pinned_session_ids
         .retain(|id| !settings.archived_session_ids.contains(id));
-    let mut seen = HashSet::new();
-    settings
-        .done_sessions
-        .retain(|row| session_ids.contains(row.id.as_str()) && seen.insert(row.id.clone()));
-    settings.done_sessions.truncate(4096);
-    // Rail items removed from the closed set (the old drafts filter) drop out of saved settings.
+    // Rail items removed from the closed set (the old drafts filter, the Automations page)
+    // drop out of saved settings.
     let rail: HashSet<&str> = crate::models::RAIL_ITEMS.into_iter().collect();
     retain_unique(&mut settings.rail_item_order, &rail);
     retain_unique(&mut settings.hidden_rail_items, &rail);
@@ -105,16 +87,9 @@ mod tests {
         data.settings.pinned_project_ids = vec!["p".into(), "foreign".into(), "p".into()];
         data.settings.pinned_session_ids = vec!["s".into(), "missing".into()];
         data.settings.archived_session_ids = vec!["s".into(), "missing".into(), "s".into()];
-        data.settings.done_sessions = ["s", "missing", "s"]
-            .map(|id| crate::models::DoneSession {
-                id: id.into(),
-                at: "2026-10-04T12:00:00.000Z".into(),
-            })
-            .to_vec();
         prune(&mut data);
         assert_eq!(data.settings.pinned_project_ids, ["p"]);
         assert_eq!(data.settings.archived_session_ids, ["s"]);
-        assert_eq!(data.settings.done_sessions.len(), 1);
         assert!(data.settings.pinned_session_ids.is_empty());
         assert!(data.sessions[0].status.is_active());
         assert_eq!(data.sessions[0].worktree.path, "/owned");
@@ -127,12 +102,29 @@ mod tests {
     #[test]
     fn removed_rail_items_drop_out_of_saved_settings() {
         let mut data = fixture();
-        data.settings.rail_item_order = vec!["drafts".into(), "inbox".into(), "inbox".into()];
-        data.settings.hidden_rail_items = vec!["drafts".into(), "pulls".into()];
+        data.settings.rail_item_order = vec![
+            "drafts".into(),
+            "automations".into(),
+            "inbox".into(),
+            "inbox".into(),
+        ];
+        data.settings.hidden_rail_items =
+            vec!["drafts".into(), "automations".into(), "pulls".into()];
         prune(&mut data);
         assert_eq!(data.settings.rail_item_order, ["inbox"]);
         assert_eq!(data.settings.hidden_rail_items, ["pulls"]);
         assert!(data.settings.validate_controls().is_ok());
+    }
+
+    #[test]
+    fn retired_activity_view_settings_load_and_are_dropped_on_save() {
+        let legacy: AppSettings = serde_json::from_str(
+            r#"{"sidebarActivityView":true,"doneSessions":[{"id":"s","at":"2026-10-04T12:00:00Z"}]}"#,
+        )
+        .unwrap();
+        let saved = serde_json::to_value(&legacy).unwrap();
+        assert!(saved.get("sidebarActivityView").is_none());
+        assert!(saved.get("doneSessions").is_none());
     }
 
     #[test]

@@ -198,35 +198,6 @@
   }
   .sidebar-panel-header { display: flex; align-items: center; gap: 3px; padding: 0 4px 12px; flex-shrink: 0; }
   .sidebar-brand { display: flex; align-items: center; gap: 8px; }
-  .sidebar-activity-toggle { position: relative; }
-  .sidebar-activity-dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--info); box-shadow: 0 0 0 2px var(--background-1); }
-  .sidebar-activity-toolbar { display: flex; align-items: center; gap: 4px; padding: 0 4px 6px; flex-shrink: 0; }
-  .sidebar-activity-scope { display: inline-flex; min-width: 0; flex: 0 1 auto; margin-right: auto; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border-radius: 6px; color: var(--text-muted); }
-  /* New chat and Add project appear while the header row is hovered or focused. */
-  .sidebar-activity-quick { display: flex; align-items: center; gap: 2px; opacity: 0; pointer-events: none; transition: opacity var(--motion-fast) var(--ease-out); }
-  .sidebar-activity-toolbar:is(:hover, :focus-within) .sidebar-activity-quick { opacity: 1; pointer-events: auto; }
-  .sidebar-activity-section-toggle { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; }
-  .sidebar-activity-section-toggle:hover { color: var(--text-primary); }
-  .sidebar-activity-section-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
-  /* Activity rows: title line, then project folder and branch (Synara layout). */
-  .sidebar-activity-row { border-radius: 8px; }
-  .sidebar-activity-open { display: flex; flex-direction: column; gap: 3px; width: 100%; min-width: 0; padding: 7px 10px; border-radius: inherit; text-align: left; }
-  .sidebar-activity-line { display: flex; align-items: center; gap: 8px; min-width: 0; padding-right: 18px; }
-  .sidebar-activity-meta { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text-muted); white-space: nowrap; }
-  .sidebar-activity-project, .sidebar-activity-branch { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  /* The project name keeps priority; a long worktree branch truncates first. */
-  .sidebar-activity-project { flex: 0 1 auto; max-width: 62%; }
-  .sidebar-activity-branch { flex: 1 1 0; justify-content: flex-end; gap: 4px; margin-left: auto; }
-  .sidebar-activity-meta svg { flex-shrink: 0; }
-  .sidebar-activity-status { position: absolute; top: 10px; right: 10px; display: inline-flex; pointer-events: none; }
-  .sidebar-activity-status > svg { width: 14px; height: 14px; }
-  .sidebar-activity-row:is(:hover, :focus-within) .sidebar-activity-status { display: none; }
-  .sidebar-activity-row .sidebar-activity-actions { top: 5px; transform: none; }
-  .sidebar-activity-row:is(:hover, :focus-within) .sidebar-activity-line { padding-right: 76px; }
-  .sidebar-activity-done .sidebar-activity-open { opacity: 0.55; transition: opacity var(--motion-fast) var(--ease-out); }
-  .sidebar-activity-done:is(:hover, :focus-within) .sidebar-activity-open { opacity: 0.85; }
-  .sidebar-activity-scope:hover, .sidebar-activity-scope[data-state="open"] { color: var(--text-primary); background: var(--background-3); }
-  .sidebar-activity-scope:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   .sidebar-session-project { flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
   .sidebar-session-unseen { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--info); }
   .sidebar-brand > img { width: 20px; height: 20px; flex-shrink: 0; object-fit: contain; }

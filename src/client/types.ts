@@ -322,8 +322,6 @@ export interface AppSettings {
   usageProviders: AgentProviderId[];
   /** Providers whose quota ring shows in the sidebar rail (at most two). */
   sidebarUsageProviders: AgentProviderId[];
-  /** Sidebar shows the time-grouped Activity view instead of project folders. */
-  sidebarActivityView: boolean;
   /** Messages sent while a Codex/Claude reply runs steer it instead of waiting in the queue (ADR-062). */
   steerWhileRunning: boolean;
   /** Owner-authorized CI auto-fix (ADR-064). */
@@ -338,8 +336,6 @@ export interface AppSettings {
   confirmArchive: boolean;
   confirmTerminalClose: boolean;
   autoOpenSimulator: boolean;
-  /** Sessions marked Done in the Activity view and when (RFC 3339); newer activity reopens them. */
-  doneSessions: { id: string; at: string }[];
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */
   windowSnapEnabled: boolean;
   windowSnapShortcut: WindowSnapShortcut;

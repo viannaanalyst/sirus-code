@@ -97,6 +97,7 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
         }
     }
     recovered |= crate::team::recover(&mut data);
+    recovered |= crate::automations::retire_standalone(&mut data);
     if recovered {
         save(path, &data)?;
     }

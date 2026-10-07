@@ -41,7 +41,7 @@ export function archiveSidebarSession(settings: AppSettings, id: string): AppSet
 export function pruneSidebarSettings(settings: AppSettings, projects: readonly Project[], sessions: readonly Session[]): AppSettings {
   const projectIds = new Set(projects.map((row) => row.id));
   const sessionIds = new Set(sessions.filter((row) => projectIds.has(row.projectId)).map((row) => row.id));
-  return { ...settings, sidebarProjectOrder: settings.sidebarProjectOrder.filter((id) => projectIds.has(id)), pinnedProjectIds: settings.pinnedProjectIds.filter((id) => projectIds.has(id)), pinnedSessionIds: settings.pinnedSessionIds.filter((id) => sessionIds.has(id) && !settings.archivedSessionIds.includes(id)), archivedSessionIds: settings.archivedSessionIds.filter((id) => sessionIds.has(id)), doneSessions: settings.doneSessions.filter((row) => sessionIds.has(row.id)) };
+  return { ...settings, sidebarProjectOrder: settings.sidebarProjectOrder.filter((id) => projectIds.has(id)), pinnedProjectIds: settings.pinnedProjectIds.filter((id) => projectIds.has(id)), pinnedSessionIds: settings.pinnedSessionIds.filter((id) => sessionIds.has(id) && !settings.archivedSessionIds.includes(id)), archivedSessionIds: settings.archivedSessionIds.filter((id) => sessionIds.has(id)) };
 }
 
 
@@ -54,10 +54,4 @@ export function moveSidebarProject(projects: readonly Project[], settings: AppSe
   next.splice(next.indexOf(targetId) + (edge === "after" ? 1 : 0), 0, id);
   if (settings.sidebarProjectSortOrder === "manual" && next.every((value, index) => value === ordered[index])) return settings;
   return { ...settings, sidebarProjectSortOrder: "manual", sidebarProjectOrder: next.slice(0, 4096) };
-}
-
-/** Marks a session Done at `at`, or clears the mark when `at` is null (Activity view). */
-export function toggleSessionDone(settings: AppSettings, id: string, at: Date | null): AppSettings {
-  const rest = settings.doneSessions.filter((row) => row.id !== id);
-  return { ...settings, doneSessions: at ? [...rest, { id, at: at.toISOString() }] : rest };
 }

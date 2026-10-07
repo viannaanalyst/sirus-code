@@ -1,6 +1,6 @@
 # ADR-051: Scheduled automations start agent turns
 
-**Status:** Accepted
+**Status:** Accepted. *Amended 2026-10-07:* the Automations page was removed; the engine remains for Astro habits (ADR-069).
 
 ## Context
 
@@ -52,6 +52,8 @@ There is no free-form cron.
   - schedules come from the closed enum.
 - **No new surface:** renderer input never names a path, argv, flag or command. No new process kind, capability or credential access is added. Process spawn stays in the existing provider adapters.
 - **Event:** one payload-free event, `automations-changed`, tells the renderer to refresh. The renderer also adopts native-created sessions it learns about from `session-updated`.
+
+*Amended 2026-10-07:* **Automations page removed; the engine remains for Astro habits.** Once Astros existed (ADR-069), habits covered scheduled work and the standalone page no longer made sense, so the owner removed it: its rail item, ⌘K entry and main view are gone, and saved rail settings drop the `automations` ID on load, like the retired `drafts` ID. The scheduler, `automation_action`, run history, failure pause and run notifications are unchanged, and every automation is now a habit (`astroId`). Standalone automations from before are never deleted: on load they are paused (`enabled: false`, no next run) and kept in `AppData.automations`, and `automation_action` refuses to create one, resume one or Run now one ("Scheduled work now lives in Astro habits."). They stay out of the Inbox, which lists failing habits instead.
 
 ## Consequences
 

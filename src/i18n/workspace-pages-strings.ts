@@ -7,7 +7,7 @@ const strings: Record<string, [string, string]> = {
   "inbox.review": ["Ready for review", "Pronto para revisar"],
   "inbox.failed": ["Failed", "Falhou"],
   "inbox.reviewRequests": ["{count} pull request(s) waiting for your review", "{count} pull request(s) esperando sua revisão"],
-  "inbox.automationIssues": ["{count} automation(s) need attention", "{count} automação(ões) precisam de atenção"],
+  "inbox.habitIssue": ["{astro}: habit “{name}” needs attention", "{astro}: o hábito “{name}” precisa de atenção"],
   "inbox.emptyTitle": ["All caught up", "Tudo em dia"],
   "inbox.emptyHint": ["Approvals, running work and finished runs you haven't opened show up here.", "Aprovações, trabalho em andamento e execuções terminadas que você não abriu aparecem aqui."],
   "tasks.title": ["Tasks", "Tarefas"],
