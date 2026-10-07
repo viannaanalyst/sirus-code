@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { GitFork } from "@/components/icons/phosphor";
+import { ChevronDown, GitFork } from "@/components/icons/phosphor";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -188,9 +188,9 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
           </div>
 
         )}
-        {!empty && !following ? <button type="button" className="absolute bottom-40 left-1/2 z-20 -translate-x-1/2 rounded-[7px] bg-background-2 px-3 py-1 ui-control text-text-secondary hover:bg-background-3" onClick={() => {
+        {!empty && !following ? <button type="button" aria-label={t("session.followLatest")} title={t("session.followLatest")} className="follow-latest" onClick={() => {
           scrolling.current?.follow();
-        }}>{t("session.followLatest")}</button> : null}
+        }}><ChevronDown size={16} aria-hidden="true" /></button> : null}
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-4">

@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { PopoverAnchor } from "@radix-ui/react-popover";
 import { Check, Clock3, Ellipsis, GitPullRequest, GripVertical, Inbox, ListTodo, SlidersHorizontal } from "@/components/icons/phosphor";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
@@ -62,7 +63,7 @@ export function SidebarRailMore({ onOpen }: { onOpen: () => void }) {
         <p className="px-2 py-1 ui-caption text-text-muted">{t("rail.projects")}</p>
         {projects.length === 0 ? <p className="px-2 py-1 ui-caption text-text-muted">{t("rail.noProjects")}</p> : null}
         {projects.map((project) => <DropdownItem key={project.id} onSelect={(event) => { event.preventDefault(); toggleShortcut(project.id); }}>
-          <span className="flex min-w-[190px] items-center gap-2"><span className="min-w-0 flex-1 truncate">{project.name}</span>{settings.railProjectShortcuts.includes(project.id) ? <Check size={13} /> : <span className="w-[13px]" />}</span>
+          <span className="flex min-w-[190px] items-center gap-2"><ProjectGlyph project={project} size={15} /><span className="min-w-0 flex-1 truncate">{project.name}</span>{settings.railProjectShortcuts.includes(project.id) ? <Check size={13} /> : <span className="w-[13px]" />}</span>
         </DropdownItem>)}
         <DropdownSeparator />
         <DropdownItem icon={<SlidersHorizontal size={15} />} onSelect={() => { pendingCustomize.current = true; }}>{t("rail.customize")}</DropdownItem>

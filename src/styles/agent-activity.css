@@ -148,3 +148,11 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 .reply-choice-other { justify-content: flex-start; padding-left: 12px; border-style: dashed; background: transparent; color: var(--text-muted); }
 .reply-choice-other:hover { color: var(--text-primary); }
 @media (prefers-reduced-motion: no-preference) { .reply-choices { animation: tl-open var(--motion-normal, .2s) var(--ease-out) both; } }
+
+/* Jump to the latest output: a raised round arrow over the transcript, like MonoCode's. */
+.follow-latest { position: absolute; bottom: 10rem; left: 50%; z-index: 20; display: grid; place-items: center; width: 32px; height: 32px; translate: -50% 0; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 16%, transparent); background: color-mix(in srgb, var(--background-3) 92%, var(--text-primary)); color: var(--text-primary); box-shadow: 0 6px 18px rgb(0 0 0 / .35), inset 0 1px 0 color-mix(in srgb, var(--text-primary) 10%, transparent); transition: background var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out); }
+.follow-latest:hover { background: color-mix(in srgb, var(--background-3) 80%, var(--text-primary)); }
+.follow-latest:active { transform: scale(.94); }
+.follow-latest:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+@media (prefers-reduced-motion: no-preference) { .follow-latest { animation: follow-latest-in var(--motion-normal, .2s) var(--ease-out) both; } }
+@keyframes follow-latest-in { from { opacity: 0; translate: -50% 6px; } }

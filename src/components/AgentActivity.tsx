@@ -108,9 +108,9 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
   const Icon = categoryIcons[category];
   const sentence = stepSentence(item, t, cwd);
   const output = item.output?.trim() ? item.output : "";
-  // A failed command opens on its output; others open on click, like T3.
-  const [open, setOpen] = useState<boolean | null>(null);
-  const expanded = Boolean(output) && (open ?? item.state === "failed");
+  // Output always starts folded (failed steps stay visible as red rows); a click opens it.
+  const [open, setOpen] = useState(false);
+  const expanded = Boolean(output) && open;
   const body = <>
     <span className="tl-icon"><Icon size={15} aria-hidden="true" /></span>
     <span className={`tl-label${live ? " tl-shine" : ""}`}>
