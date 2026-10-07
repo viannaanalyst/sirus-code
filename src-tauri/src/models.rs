@@ -839,7 +839,7 @@ impl AppSettings {
                 "Invalid provider executable path.",
             ));
         }
-        const BINDINGS: [(&str, &str); 17] = [
+        const BINDINGS: [(&str, &str); 18] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
@@ -857,6 +857,7 @@ impl AppSettings {
             ("search-conversations", "meta+shift+f"),
             ("toggle-side-chat", "meta+alt+s"),
             ("send-new-thread", "meta+alt+enter"),
+            ("cycle-effort", "shift+tab"),
         ];
         for (id, combo) in &self.custom_shortcuts {
             let mut parts = combo.split('+').collect::<Vec<_>>();
@@ -867,15 +868,18 @@ impl AppSettings {
                 .chain([key])
                 .collect::<Vec<_>>()
                 .join("+");
+            // The composer's effort cycle may use Tab with any modifier and no ⌘.
+            let tab = id == "cycle-effort" && key == "tab" && !parts.is_empty();
             if !BINDINGS.iter().any(|(known, _)| known == id)
                 || combo.len() > 40
-                || !parts.contains(&"meta")
+                || (!tab && !parts.contains(&"meta"))
                 || canonical != *combo
                 || parts
                     .iter()
                     .any(|part| !["meta", "alt", "shift"].contains(part))
                 || (key == "enter" && parts.len() == 1)
                 || (key != "enter"
+                    && !tab
                     && (key.len() != 1
                         || !key.chars().all(|c| {
                             c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)

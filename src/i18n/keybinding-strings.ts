@@ -1,4 +1,5 @@
 const descriptions: Record<string, [string, string]> = {
+  "cycle-effort": ["In the composer, step through the reasoning levels the model supports.", "No campo de mensagem, avance pelos níveis de raciocínio que o modelo aceita."],
   "find-in-conversation": ["Find text in the current conversation.", "Busque texto na conversa atual."],
   "search-conversations": ["Find messages across all saved conversations.", "Busque mensagens em todas as conversas salvas."],
   "new-session": ["Start a new draft in the selected project.", "Abra um novo rascunho no projeto selecionado."],
@@ -28,7 +29,7 @@ export const keybindingEnglish: Record<string, string> = {
   "keybindings.count": "{shown} of {total} commands",
 };
 export const keybindingPortuguese: Record<string, string> = {
-  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas", "Toggle side chat": "Abrir ou fechar o chat lateral", "Send and start new thread": "Enviar e começar nova conversa",
+  "Find in conversation": "Buscar nesta conversa", "Search all conversations": "Buscar em todas as conversas", "Toggle side chat": "Abrir ou fechar o chat lateral", "Send and start new thread": "Enviar e começar nova conversa", "Cycle reasoning effort": "Alternar nível de raciocínio",
   ...Object.fromEntries(Object.entries(descriptions).map(([id, text]) => [`keybindings.description.${id}`, text[1]])),
   "Open Files": "Abrir Arquivos", "Open Browser": "Abrir Navegador", "Toggle Environment": "Mostrar/ocultar Ambiente",
   "keybindings.intro": "Personalize os comandos de teclado que você usa no aplicativo.",

@@ -249,6 +249,17 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   // ⌥⌘↩ (customizable): send like Enter, then open a new thread in this project (T3's "send and new").
   const sendNewCombo = effectiveShortcut(settings.customShortcuts, "send-new-thread");
   const sendAndStartNew = async () => { if (await send()) useAppStore.getState().requestNewSession(); };
+  // ⇧⇥ (customizable, after Synara): the next reasoning level the model supports, wrapping around.
+  const effortCombo = effectiveShortcut(settings.customShortcuts, "cycle-effort");
+  const cycleEffort = () => {
+    const levels = execution.selectableLevels;
+    if (!modelId || levels.length < 2 || (agentId === "cursor" && !execution.parameterized)) return false;
+    const next = levels[(levels.indexOf(execution.effort ?? "") + 1) % levels.length];
+    const state = useAppStore.getState();
+    const key = modelKey(agentId, modelId);
+    void state.saveSettings({ ...state.settings, modelExecution: { ...state.settings.modelExecution, [key]: { ...state.settings.modelExecution[key], effort: next } } });
+    return true;
+  };
   // Reply choices under the last answer (ReplyChoices): an option is sent as the reply, unless a
   // draft is already here, which then keeps it below the option for the person to send.
   const [dropping, setDropping] = useState(false);
@@ -455,6 +466,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           if (suggestions.onKeyDown(event)) return;
           if (stashKey(event) || recallPrompt(event)) return;
           if (!event.nativeEvent.isComposing && shortcutMatches(event, sendNewCombo)) { event.preventDefault(); void sendAndStartNew(); return; }
+          if (!event.nativeEvent.isComposing && shortcutMatches(event, effortCombo) && cycleEffort()) { event.preventDefault(); return; }
           if (planPending && event.key === "Enter" && (event.metaKey || event.ctrlKey) && !value.trim()) { event.preventDefault(); implementPlan(); return; }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();

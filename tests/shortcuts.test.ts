@@ -83,3 +83,11 @@ test("send and start new thread binds Enter with modifiers but never plain ⌘�
   assert.equal(shortcutMatches({ ...event, altKey: false }, "meta+alt+enter"), false);
   assert.equal(translate("pt-BR", "Send and start new thread"), "Enviar e começar nova conversa");
 });
+
+test("only the effort cycle may use a modified Tab without Command", () => {
+  assert.equal(normalizeShortcutCombo("shift+tab", "cycle-effort"), "shift+tab");
+  assert.equal(normalizeShortcutCombo("tab", "cycle-effort"), null);
+  assert.equal(normalizeShortcutCombo("shift+tab", "palette"), null);
+  assert.equal(normalizeShortcutCombo("shift+tab"), null);
+  assert.equal(shortcutLabel("shift+tab"), "⇧⇥");
+});

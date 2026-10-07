@@ -16,17 +16,21 @@ export const KEYBINDINGS = [
   { id: "search-conversations", label: "Search all conversations", combo: "meta+shift+f", group: "Session" },
   { id: "toggle-side-chat", label: "Toggle side chat", combo: "meta+alt+s", group: "Session" },
   { id: "send-new-thread", label: "Send and start new thread", combo: "meta+alt+enter", group: "Session" },
+  { id: "cycle-effort", label: "Cycle reasoning effort", combo: "shift+tab", group: "Session" },
 ] as const;
 export type ShortcutId = (typeof KEYBINDINGS)[number]["id"];
 export type CustomShortcuts = Partial<Record<ShortcutId, string>>;
 
 // Command is required so bindings never take over normal terminal/text input.
 const RESERVED = new Set(["q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-"]);
-export function normalizeShortcutCombo(value: unknown): string | null {
+/** The composer's effort cycle (Synara's ⇧⇥) may use Tab with any modifier and no ⌘. */
+const TAB_BINDINGS: readonly string[] = ["cycle-effort"];
+export function normalizeShortcutCombo(value: unknown, id?: string): string | null {
   if (typeof value !== "string" || value.length > 40) return null;
   const parts = value.toLowerCase().split("+").map((part) => part.trim().replace(/^(mod|cmd)$/, "meta"));
   const key = parts.pop();
-  if (!key || !/^([a-z0-9,.;/\\[\]`']|enter)$/.test(key) || !parts.includes("meta")) return null;
+  const tab = key === "tab" && id !== undefined && TAB_BINDINGS.includes(id) && parts.length > 0;
+  if (!key || (!tab && (!/^([a-z0-9,.;/\\[\]`']|enter)$/.test(key) || !parts.includes("meta")))) return null;
   if (new Set(parts).size !== parts.length || parts.some((part) => !["meta", "alt", "shift"].includes(part))) return null;
   // ⌘↩ alone stays the composer's own queue/steer inversion (ADR-062).
   if (RESERVED.has(key) || (key === "enter" && parts.length === 1)) return null;
@@ -37,7 +41,7 @@ export function effectiveShortcut(custom: CustomShortcuts | undefined, id: Short
   return custom?.[id] ?? KEYBINDINGS.find((item) => item.id === id)!.combo;
 }
 export function shortcutLabel(combo: string): string {
-  return combo.replace(/enter$/, "↩").replace("meta+", "⌘").replace("alt+", "⌥").replace("shift+", "⇧")
+  return combo.replace(/enter$/, "↩").replace(/tab$/, "⇥").replace("meta+", "⌘").replace("alt+", "⌥").replace("shift+", "⇧")
     .replace(/^⌘(⌥?)(⇧?)/, "$1$2⌘").toUpperCase();
 }
 
@@ -46,7 +50,7 @@ export function sanitizeShortcuts(value: unknown): CustomShortcuts {
   const result: CustomShortcuts = {};
   if (!value || typeof value !== "object" || Array.isArray(value)) return result;
   for (const entry of KEYBINDINGS) {
-    const normalized = normalizeShortcutCombo((value as Record<string, unknown>)[entry.id]);
+    const normalized = normalizeShortcutCombo((value as Record<string, unknown>)[entry.id], entry.id);
     if (normalized && normalized !== entry.combo) result[entry.id] = normalized;
   }
   for (let pass = 0; pass < KEYBINDINGS.length; pass++) {
@@ -63,14 +67,14 @@ export function sanitizeShortcuts(value: unknown): CustomShortcuts {
 }
 
 export function validateShortcutChange(custom: CustomShortcuts, id: ShortcutId, combo: string): string | null {
-  const normalized = normalizeShortcutCombo(combo);
+  const normalized = normalizeShortcutCombo(combo, id);
   if (!normalized) return "shortcut.unsupported";
   return KEYBINDINGS.some((entry) => entry.id !== id && effectiveShortcut(custom, entry.id) === normalized)
     ? "shortcut.conflict" : null;
 }
 
 export function shortcutConflict(custom: CustomShortcuts, id: ShortcutId, combo: string) {
-  const normalized = normalizeShortcutCombo(combo);
+  const normalized = normalizeShortcutCombo(combo, id);
   return normalized ? KEYBINDINGS.find(entry => entry.id !== id && effectiveShortcut(custom, entry.id) === normalized) : undefined;
 }
 

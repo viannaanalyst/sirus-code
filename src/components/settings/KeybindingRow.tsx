@@ -31,7 +31,8 @@ export function KeybindingRow({ label, id, custom, onChange }: { label: string; 
   };
   const capture = (event: KeyboardEvent<HTMLInputElement>) => {
     // The field owns every key while it is focused, so app shortcuts and Settings' Escape never fire.
-    if (event.key === "Tab") return;
+    // Tab moves focus, except a modified Tab for the composer's effort cycle.
+    if (event.key === "Tab" && !(id === "cycle-effort" && (event.shiftKey || event.altKey || event.metaKey))) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.key === "Escape") { close(); return; }
@@ -40,7 +41,7 @@ export function KeybindingRow({ label, id, custom, onChange }: { label: string; 
     if (event.key === "Backspace") { setCaptured(null); setError(null); return; }
     if (["Meta", "Alt", "Shift", "Control"].includes(event.key)) return;
     const raw = [event.metaKey && "meta", event.altKey && "alt", event.shiftKey && "shift", shortcutEventKey(event)].filter(Boolean).join("+");
-    const combo = normalizeShortcutCombo(raw);
+    const combo = normalizeShortcutCombo(raw, id);
     if (!combo) { setCaptured(null); setError(t("shortcut.unsupported")); return; }
     const conflict = shortcutConflict(custom, id, combo);
     const invalid = validateShortcutChange(custom, id, combo);
