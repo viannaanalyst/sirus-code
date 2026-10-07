@@ -8,7 +8,7 @@ const MODIFIERS: Record<string, string> = { meta: "⌘", alt: "⌥", shift: "⇧
 function keyCaps(combo: string) {
   const parts = combo.split("+");
   const key = parts.pop() ?? "";
-  return [...["alt", "shift", "meta"].filter(part => parts.includes(part)).map(part => MODIFIERS[part]), key.toUpperCase()];
+  return [...["alt", "shift", "meta"].filter(part => parts.includes(part)).map(part => MODIFIERS[part]), key === "enter" ? "↩" : key.toUpperCase()];
 }
 
 export function KeyCaps({ combo, muted = false }: { combo: string; muted?: boolean }) {
@@ -35,7 +35,8 @@ export function KeybindingRow({ label, id, custom, onChange }: { label: string; 
     event.preventDefault();
     event.stopPropagation();
     if (event.key === "Escape") { close(); return; }
-    if (event.key === "Enter" && captured && !error) { commit(captured); return; }
+    // Plain Enter confirms; Enter with modifiers is captured (send and start new thread).
+    if (event.key === "Enter" && !event.metaKey && !event.altKey && !event.shiftKey && captured && !error) { commit(captured); return; }
     if (event.key === "Backspace") { setCaptured(null); setError(null); return; }
     if (["Meta", "Alt", "Shift", "Control"].includes(event.key)) return;
     const raw = [event.metaKey && "meta", event.altKey && "alt", event.shiftKey && "shift", shortcutEventKey(event)].filter(Boolean).join("+");

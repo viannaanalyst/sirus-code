@@ -99,6 +99,9 @@ function ProjectSwitcher() {
       <button type="button" className="header-switcher-footer" onClick={() => { setOpen(false); void useAppStore.getState().addProjectFromPicker(); }}>
         <FolderPlus size={14} aria-hidden="true" />{t("New project")}
       </button>
+      <button type="button" className="header-switcher-footer" onClick={() => { setOpen(false); useAppStore.getState().setCreateProjectOpen(true); }}>
+        <Plus size={14} aria-hidden="true" />{t("newProject.menu")}
+      </button>
     </PopoverContent>
   </Popover>;
 }

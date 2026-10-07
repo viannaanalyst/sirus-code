@@ -816,7 +816,20 @@ impl AppSettings {
                 "Invalid model execution preferences.",
             ));
         }
-        const BINDINGS: [(&str, &str); 16] = [
+        // Provider executable overrides: an absolute path (or a bare command name kept from
+        // older data), never relative segments or control characters.
+        if self.provider_paths.values().any(|path| {
+            path.trim().is_empty()
+                || path.len() > 4096
+                || path.chars().any(char::is_control)
+                || !(std::path::Path::new(path).is_absolute() || !path.contains('/'))
+        }) {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid provider executable path.",
+            ));
+        }
+        const BINDINGS: [(&str, &str); 17] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
@@ -833,6 +846,7 @@ impl AppSettings {
             ("find-in-conversation", "meta+f"),
             ("search-conversations", "meta+shift+f"),
             ("toggle-side-chat", "meta+alt+s"),
+            ("send-new-thread", "meta+alt+enter"),
         ];
         for (id, combo) in &self.custom_shortcuts {
             let mut parts = combo.split('+').collect::<Vec<_>>();
@@ -850,10 +864,12 @@ impl AppSettings {
                 || parts
                     .iter()
                     .any(|part| !["meta", "alt", "shift"].contains(part))
-                || key.len() != 1
-                || !key.chars().all(|c| {
-                    c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
-                })
+                || (key == "enter" && parts.len() == 1)
+                || (key != "enter"
+                    && (key.len() != 1
+                        || !key.chars().all(|c| {
+                            c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
+                        })))
                 || [
                     "q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-",
                 ]
@@ -1051,6 +1067,8 @@ mod settings_tests {
             ("palette", "meta+q"),
             ("palette", "meta+meta+b"),
             ("unknown", "meta+shift+b"),
+            ("send-new-thread", "meta+enter"),
+            ("send-new-thread", "meta+alt+return"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());
@@ -1069,6 +1087,7 @@ mod settings_tests {
             ("find-in-conversation", "meta+alt+f"),
             ("search-conversations", "meta+alt+g"),
             ("toggle-side-chat", "meta+shift+s"),
+            ("send-new-thread", "meta+shift+enter"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());
@@ -1076,6 +1095,24 @@ mod settings_tests {
         }
         settings.ui_font_size = 100;
         assert!(settings.validate_controls().is_err());
+    }
+    #[test]
+    fn provider_paths_must_be_absolute_or_bare_names() {
+        let mut settings = AppSettings::default();
+        for (path, ok) in [
+            ("/opt/homebrew/bin/claude", true),
+            ("claude", true),
+            ("bin/claude", false),
+            ("../claude", false),
+            ("", false),
+            ("/bin/claude\n", false),
+        ] {
+            settings.provider_paths.clear();
+            settings
+                .provider_paths
+                .insert(AgentProviderId::Claude, path.into());
+            assert_eq!(settings.validate_controls().is_ok(), ok, "{path:?}");
+        }
     }
 }
 
@@ -1184,6 +1221,16 @@ pub struct AgentInstall {
     pub binary: String,
     pub installed: bool,
     pub path: Option<String>,
+    pub version: Option<String>,
+    /// Every install found on this machine, for Settings → Providers to choose from.
+    #[serde(default)]
+    pub candidates: Vec<ExecutableCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecutableCandidate {
+    pub path: String,
     pub version: Option<String>,
 }
 

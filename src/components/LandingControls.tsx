@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, ChevronDown, Folder, GitBranch, GitBranchPlus, Laptop, MessageCircle, Plus, Search, X } from "@/components/icons/phosphor";
+import { Check, ChevronDown, Folder, FolderPlus, GitBranch, GitBranchPlus, Laptop, MessageCircle, Plus, Search, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { BranchInfo } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -130,6 +130,17 @@ export function LandingControls() {
             >
               <Plus size={14} aria-hidden="true" />
               {t("New project")}
+            </button>
+            <button
+              type="button"
+              className={menuRow}
+              onClick={() => {
+                setProjectOpen(false);
+                useAppStore.getState().setCreateProjectOpen(true);
+              }}
+            >
+              <FolderPlus size={14} aria-hidden="true" />
+              {t("newProject.menu")}
             </button>
           </div>
         </PopoverContent>

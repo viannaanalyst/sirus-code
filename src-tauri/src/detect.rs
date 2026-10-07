@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use crate::models::{AgentInstall, AgentProviderId};
+use crate::models::{AgentInstall, AgentProviderId, ExecutableCandidate};
 
 struct KnownAgent {
     id: AgentProviderId,
@@ -118,7 +118,72 @@ pub async fn probe_executable(path: &str) -> (bool, Option<String>, String) {
     }
 }
 
+/// Extra user install folders searched only to list alternatives (MonoCode #407).
+const EXTRA_DIRS: &[&str] = &[
+    ".npm-global/bin",
+    ".volta/bin",
+    ".claude/local",
+    ".local/share/pnpm",
+    "Library/pnpm",
+    ".yarn/bin",
+];
+const MAX_CANDIDATES: usize = 8;
+
+/// Every executable of this provider found in the CLI search path and the usual user
+/// install folders, deduplicated by resolved file, first match first.
+fn find_candidates(agent: &KnownAgent) -> Vec<ExecutableCandidate> {
+    let mut dirs: Vec<std::path::PathBuf> = std::env::split_paths(&cli_path()).collect();
+    if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+        if home.is_absolute() {
+            dirs.extend(EXTRA_DIRS.iter().map(|relative| home.join(relative)));
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut found = Vec::new();
+    for dir in dirs {
+        for binary in agent.binaries {
+            let path = dir.join(binary);
+            if !is_executable(&path) || !cursor_agent_allowed(agent, binary, &path) {
+                continue;
+            }
+            let Ok(real) = path.canonicalize() else {
+                continue;
+            };
+            if seen.insert(real) && found.len() < MAX_CANDIDATES {
+                found.push(ExecutableCandidate {
+                    path: path.display().to_string(),
+                    version: None,
+                });
+            }
+        }
+    }
+    found
+}
+
+fn is_executable(path: &Path) -> bool {
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        meta.is_file() && meta.permissions().mode() & 0o111 != 0
+    }
+    #[cfg(not(unix))]
+    {
+        meta.is_file()
+    }
+}
+
+/// Cursor's generic `agent` name only counts when it is Cursor's own launcher.
+fn cursor_agent_allowed(agent: &KnownAgent, binary: &str, path: &Path) -> bool {
+    !(agent.id == AgentProviderId::Cursor
+        && binary == "agent"
+        && !path.to_string_lossy().to_lowercase().contains("cursor"))
+}
+
 fn resolve_known(agent: &KnownAgent, override_path: Option<&str>) -> AgentInstall {
+    let candidates = find_candidates(agent);
     if let Some(path) = override_path {
         let found = which::which(path).ok().and_then(|p| p.canonicalize().ok());
         return AgentInstall {
@@ -132,15 +197,13 @@ fn resolve_known(agent: &KnownAgent, override_path: Option<&str>) -> AgentInstal
                     .unwrap_or_else(|| path.into()),
             ),
             version: None,
+            candidates,
         };
     }
     let found = agent.binaries.iter().find_map(|binary| {
         // Desktop launches need not inherit an interactive shell's install locations.
         let path = which::which_in(binary, Some(cli_path()), std::env::temp_dir()).ok()?;
-        if agent.id == AgentProviderId::Cursor
-            && *binary == "agent"
-            && !path.to_string_lossy().to_lowercase().contains("cursor")
-        {
+        if !cursor_agent_allowed(agent, binary, &path) {
             return None;
         }
         let display = path.display().to_string();
@@ -154,6 +217,7 @@ fn resolve_known(agent: &KnownAgent, override_path: Option<&str>) -> AgentInstal
             installed: true,
             version: None,
             path: Some(path),
+            candidates,
         },
         None => AgentInstall {
             id: agent.id.clone(),
@@ -162,6 +226,7 @@ fn resolve_known(agent: &KnownAgent, override_path: Option<&str>) -> AgentInstal
             installed: false,
             path: None,
             version: None,
+            candidates,
         },
     }
 }
@@ -186,4 +251,47 @@ fn first_line(text: &str) -> Option<String> {
         .map(str::trim)
         .find(|line| !line.is_empty())
         .map(ToOwned::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn candidates_list_executables_once_and_skip_foreign_cursor_agents() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("sirus-detect-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tool = dir.join("agent");
+        std::fs::write(&tool, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let plain = dir.join("plain");
+        std::fs::write(&plain, "x").unwrap();
+        std::fs::set_permissions(&plain, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(is_executable(&tool));
+        assert!(!is_executable(&plain));
+        assert!(!is_executable(&dir));
+        let cursor = KNOWN
+            .iter()
+            .find(|agent| agent.id == AgentProviderId::Cursor)
+            .unwrap();
+        assert!(!cursor_agent_allowed(cursor, "agent", &tool));
+        assert!(cursor_agent_allowed(
+            cursor,
+            "agent",
+            Path::new("/Users/me/.cursor/bin/agent")
+        ));
+        assert!(cursor_agent_allowed(cursor, "cursor-agent", &tool));
+        for agent in KNOWN {
+            let list = find_candidates(agent);
+            assert!(list.len() <= MAX_CANDIDATES);
+            let unique = list
+                .iter()
+                .map(|item| Path::new(&item.path).canonicalize().unwrap())
+                .collect::<std::collections::HashSet<_>>();
+            assert_eq!(unique.len(), list.len());
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

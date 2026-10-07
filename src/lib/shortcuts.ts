@@ -43,7 +43,7 @@ export function escapeStopsAgent(
   return element.closest("[data-draft-owner], .transcript-scroll") !== null;
 }
 
-function matches(event: KeyboardEvent, combo: string) {
+export function shortcutMatches(event: Pick<KeyboardEvent, "code" | "key" | "metaKey" | "shiftKey" | "altKey" | "ctrlKey" | "repeat">, combo: string) {
   const parts = combo.toLowerCase().split("+");
   const key = parts.at(-1);
   const needMeta = parts.includes("meta") || parts.includes("cmd");
@@ -70,7 +70,7 @@ export function createShortcutController(bindings: () => ShortcutBinding[]) {
       target instanceof HTMLInputElement ||
       target?.isContentEditable;
     for (const binding of bindings()) {
-      if (!matches(event, binding.combo)) continue;
+      if (!shortcutMatches(event, binding.combo)) continue;
       if (binding.when && !binding.when()) continue;
       if (typing && !event.metaKey && binding.combo.toLowerCase() !== "escape") {
         continue;
