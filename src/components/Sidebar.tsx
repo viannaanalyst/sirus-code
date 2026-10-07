@@ -189,7 +189,7 @@ function SidebarActivity({ archived, floating, onPin }: { archived: boolean; flo
   return <>
     <div className="sidebar-panel-header">
       {archived ? <h1 className="ui-brand truncate min-w-0 flex-1">{t("Archived sessions")}</h1>
-        : <h1 className="sidebar-brand ui-brand min-w-0 flex-1"><img src="/sirus-glyph.png" alt="" draggable={false} /><span className="truncate">Sirus Code</span></h1>}
+        : <h1 className="sidebar-brand ui-brand min-w-0 flex-1"><img src="/sirus-glyph-small.png" alt="" draggable={false} /><span className="truncate">Sirus Code</span></h1>}
       <IconButton label={t("palette.searchChats")} tooltip={false} onClick={() => useAppStore.getState().setPaletteOpen(true)} className="sidebar-header-action"><Search size={14} /></IconButton>
       {!archived && <IconButton label={t(activityView ? "activity.showClassic" : "activity.showActivity")} tooltip={false} aria-pressed={activityView} style={activityView ? { background: "color-mix(in srgb, var(--info) 15%, transparent)", color: "var(--info)" } : undefined} onClick={() => { const store = useAppStore.getState(); void store.saveSettings({ ...store.settings, sidebarActivityView: !activityView }); }} className="sidebar-header-action sidebar-activity-toggle"><NotebookText size={14} />{unread && <span className="sidebar-activity-dot" aria-hidden="true" />}</IconButton>}
       {floating && <IconButton label={t("Pin sidebar")} tooltip={false} onClick={onPin} className="sidebar-header-action"><PanelLeft size={13} /></IconButton>}

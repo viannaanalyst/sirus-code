@@ -7,10 +7,4 @@ match the corresponding thumbnails here.
 
 ## Sirus Code mark
 
-All three tiles derive from the owner's supplied silver Sirus Code "S" orbit
-artwork (1254 px, black background). Alpha is recovered from brightness, and
-the mark is composited onto a macOS rounded-square tile (824 px tile with a
-100 px margin on a 1024 px canvas): `default.png` on near-black, `smoked-glass.png`
-on translucent graphite with a top sheen, and `white.png` with a darkened mark on
-light grey. The bundle `icon.icns` uses a higher-contrast copy of the mark for
-the 16–64 px sizes, where the hairline orbits would otherwise blur.
+All tiles derive from the owner's flat white "S" orbit artwork (2026-10-07; 1254 px, black background), replacing the earlier silver mark. Alpha is recovered from brightness and the mark is filled flat (white, or near-black on light), then composited onto a macOS rounded-square tile (824 px tile with a 100 px margin on a 1024 px canvas, the mark at 70 % of the tile): `default.png` on near-black, `smoked-glass.png` on translucent graphite and `white.png` with a near-black mark on light grey. The bundle `icon.icns` and the 16–64 px PNGs use a copy of the mark with thickened hairlines so the orbits survive small sizes; `public/sirus-glyph-small.png` is that thicker mark for the 20 px sidebar brand, and `public/sirus-glyph.png` the full mark for the landing and splash. In the light theme the glyphs are drawn near-black.

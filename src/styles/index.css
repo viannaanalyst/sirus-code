@@ -379,6 +379,8 @@ html[data-density="comfortable"] {
 /* Transparent vendor glyphs ship white; colored brand assets keep their colors. */
 @layer components {
   html[data-theme="light"] .brand-mark-monochrome { filter: brightness(0); }
+  /* The Sirus mark is white; on light surfaces it turns near-black. */
+  html[data-theme="light"] :is(.sidebar-brand > img, [data-landing-glyph]) { filter: brightness(0); opacity: .88; }
 
   /* A broad, quiet fill shared by app and settings navigation rows. */
   .sidebar-menu-row {
