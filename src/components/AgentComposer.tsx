@@ -4,7 +4,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { Check, ChevronDown, ClipboardList, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
+import { Check, ChevronDown, ClipboardList, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus, Minimize2 } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -24,6 +24,7 @@ import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { shortcutMatches } from "@/lib/shortcuts";
+import { COMPACTING_PROVIDERS, shouldCompactBeforeSend } from "@/lib/compact-before-send";
 import { HandoffCard } from "@/components/HandoffCard";
 import { QUICK_REPLY_EVENT, type QuickReplyDetail } from "@/components/ReplyChoices";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
@@ -193,8 +194,21 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     };
   }, []);
 
-  /** `invert` (⌘Enter) flips the queue/steer preference for this one message. Resolves whether it went out. */
-  const send = async (invert = false): Promise<boolean> => {
+  // Compact and send (T3 #16631): a heavy context idle past the provider's cache compacts first.
+  const [now, setNow] = useState(() => Date.now());
+  const heavy = Boolean(session?.contextUsage) && COMPACTING_PROVIDERS.has(agentId);
+  useEffect(() => {
+    if (!heavy) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, [heavy, session?.lastActivityAt]);
+  const compactFirst = !queueing && !context.team && shouldCompactBeforeSend(session, now);
+  /**
+   * `invert` (⌘Enter) flips the queue/steer preference for this one message; `skipCompact`
+   * (Shift-click, or the plain send beside it) sends without compacting. Resolves whether it went out.
+   */
+  const send = async (invert = false, skipCompact = false): Promise<boolean> => {
     const guard = queueing ? enqueueRef : sendingRef;
     if (!canSend || guard.current) return false;
     guard.current = true;
@@ -213,7 +227,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       }
     }
     try {
-      const sent = await onSend(composerPrompt(submitted, context), { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning: context.planning, approval: definition.approvalModes.length ? approval : null });
+      const options: ExecutionOptions = { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning: context.planning, approval: definition.approvalModes.length ? approval : null };
+      const sent = session && compactFirst && !skipCompact
+        ? await useAppStore.getState().compactAndSend(composerPrompt(submitted, context), options, session.id)
+        : await onSend(composerPrompt(submitted, context), options);
       // A team request is one-shot: the next message talks to the coordinator normally.
       if (sent && teamOwner) {
         const state = useAppStore.getState();
@@ -493,7 +510,46 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
                 </motion.button>
               </Tooltip>
             ) : null}
-            {!queueing || value.trim().length > 0 ? (
+            {compactFirst ? (
+              <Tooltip key="skip-compact" label={t("composer.sendWithoutCompact")}>
+                <motion.button
+                  key="skip-compact"
+                  type="button"
+                  disabled={!canSend}
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.96, opacity: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : motionTokens.fast }}
+                  aria-label={t("composer.sendWithoutCompact")}
+                  onClick={() => void send(false, true)}
+                  className="composer-control composer-icon-control flex items-center justify-center rounded-full text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50"
+                >
+                  <ArrowUp size={15} aria-hidden="true" />
+                </motion.button>
+              </Tooltip>
+            ) : null}
+            {compactFirst ? (
+              <Tooltip key="compact-send" label={t("composer.compactSendHint")} shortcut="⏎">
+                <motion.button
+                  key="compact-send"
+                  type="button"
+                  disabled={!canSend}
+                  initial={{ scale: 0.96, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.96, opacity: 0 }}
+                  transition={{ duration: reducedMotion ? 0 : motionTokens.fast }}
+                  whileTap={canSend && !reducedMotion ? { scale: pressScale } : undefined}
+                  aria-label={t("composer.compactSend")}
+                  onClick={(event) => void send(false, event.shiftKey)}
+                  className={cn(
+                    "composer-control inline-flex items-center gap-1.5 rounded-full px-3 ui-control transition-colors duration-[var(--motion-fast)]",
+                    canSend ? "bg-text-primary text-background-0" : "bg-background-3 text-text-muted",
+                  )}
+                >
+                  <Minimize2 size={14} aria-hidden="true" />{t("composer.compactSend")}
+                </motion.button>
+              </Tooltip>
+            ) : !queueing || value.trim().length > 0 ? (
               <Tooltip label={t(queueing ? "queue.add" : "Send")} shortcut="⏎" secondary={{ label: t("composer.sendNewThread"), shortcut: shortcutLabel(sendNewCombo) }}>
                 <motion.button
                   key="send"

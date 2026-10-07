@@ -2,12 +2,11 @@ import { useState } from "react";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
+import { COMPACTING_PROVIDERS } from "@/lib/compact-before-send";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 import "@/styles/context-meter.css";
 
-/** Providers whose native adapter compacts on `/compact` (ADR-057). */
-const COMPACTS = new Set(["codex", "claude"]);
 
 export function formatTokens(value: number) {
   if (value < 1000) return String(value);
@@ -28,7 +27,7 @@ export function ContextMeter({ session }: { session: Session | null }) {
   const percent = Math.round(ratio * 100);
   const level = ratio >= 0.9 ? "danger" : ratio >= 0.75 ? "warning" : "normal";
   const active = ["starting", "running", "waiting"].includes(session.status);
-  const canCompact = COMPACTS.has(session.agent) && Boolean(session.nativeThread);
+  const canCompact = COMPACTING_PROVIDERS.has(session.agent) && Boolean(session.nativeThread);
   const radius = 5.5, circumference = 2 * Math.PI * radius;
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>

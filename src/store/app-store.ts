@@ -263,6 +263,8 @@ interface AppStore {
   jumpToMessage: (sessionId: string, messageId: string, searchStart?: number) => Promise<void>;
   /** Sends to the selected session, or to `sessionId` (a side chat) when given. */
   sendPrompt: (prompt: string, execution?: ExecutionOptions, sessionId?: string) => Promise<boolean>;
+  /** Compact and send (T3 #16631): runs `/compact`, then queues the request behind it. */
+  compactAndSend: (prompt: string, execution: ExecutionOptions | undefined, sessionId: string) => Promise<boolean>;
   /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
   githubInbox: Record<string, { data: import("@/client/types").GithubInbox | null; loading: boolean; error: string | null }>;
   loadGithubInbox: (kind: import("@/client/types").GithubItemKind, state: import("@/client/types").GithubItemState) => Promise<void>;
@@ -1536,6 +1538,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  compactAndSend: async (prompt, execution, sessionId) => {
+    const session = get().sessions.find(item => item.id === sessionId);
+    if (!session || activeSession(session)) return get().sendPrompt(prompt, execution, sessionId);
+    const before = lastAssistantId(session);
+    try {
+      // Straight to IPC, so the draft and its attachments stay for the request itself.
+      await client.sendPrompt({ sessionId, prompt: "/compact", attachmentIds: [], attachmentOwner: `session:${sessionId}` });
+    } catch (error) {
+      set({ error: formatUnknownError(error) });
+      return false;
+    }
+    await sessionMoved(sessionId, before);
+    // A running compaction queues the request (sent on its successful settlement); a finished one sends it now.
+    return get().sendPrompt(prompt, execution, sessionId);
+  },
+
   renameSession: async (sessionId, title) => {
     try {
       const updated = await client.renameSession(sessionId, title.trim());
@@ -2261,6 +2279,20 @@ export function observePromptQueue(session: Session) {
   const failed = session.status !== "completed";
   useAppStore.setState(state => ({ promptQueues: { ...state.promptQueues, [session.id]: { ...queue, waitingFor: null, paused: failed || queue.paused, reason: failed ? "queue.failed" : queue.reason } } }));
   void advancePromptQueue(session.id);
+}
+
+/** Resolves once the store has seen the admitted turn start or finish (bounded to 5 s). */
+function sessionMoved(sessionId: string, before: string | null) {
+  const moved = () => {
+    const session = useAppStore.getState().sessions.find(item => item.id === sessionId);
+    return !session || activeSession(session) || lastAssistantId(session) !== before;
+  };
+  return new Promise<void>((resolve) => {
+    if (moved()) { resolve(); return; }
+    const finish = () => { clearTimeout(timer); stop(); resolve(); };
+    const timer = setTimeout(finish, 5000);
+    const stop = useAppStore.subscribe(() => { if (moved()) finish(); });
+  });
 }
 
 async function advancePromptQueue(sessionId: string) {
