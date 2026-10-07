@@ -95,7 +95,7 @@ pub struct Project {
     pub look: ProjectLook,
 }
 
-/// How a project's sidebar icon looks. A logo wins over an emoji; the colour tints the folder.
+/// How a project's sidebar icon looks: one of a logo, an emoji or an Astro icon; the colour tints it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ProjectLook {
@@ -106,11 +106,21 @@ pub struct ProjectLook {
     /// `data:image/png;base64,…` of a 96×96 PNG made natively from a picked image.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo: Option<String>,
+    /// One of the Astro cosmic icons (ADR-059, ADR-069), drawn in the project colour.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub astro: Option<ProjectAstroIcon>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAstroIcon {
+    pub icon: String,
+    pub style: String,
 }
 
 impl ProjectLook {
     pub fn is_empty(&self) -> bool {
-        self.color.is_none() && self.emoji.is_none() && self.logo.is_none()
+        self.color.is_none() && self.emoji.is_none() && self.logo.is_none() && self.astro.is_none()
     }
 }
 

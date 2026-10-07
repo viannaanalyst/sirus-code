@@ -33,7 +33,8 @@ function usePainter(paint: Painter, animate: boolean) {
   }, [paint, animate]);
 }
 
-export function AstroIcon({ icon, style, color, size, className, activity = "idle" }: { icon: AstroIconId; style: AstroStyle; color: string; size: number; className?: string; activity?: AstroActivity }) {
+/** `still` draws one frame and never joins the animation loop (dense lists such as project icons). */
+export function AstroIcon({ icon, style, color, size, className, activity = "idle", still = false }: { icon: AstroIconId; style: AstroStyle; color: string; size: number; className?: string; activity?: AstroActivity; still?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const reduced = useMotionPreferences();
   const paint = useRef<Painter>(() => undefined);
@@ -41,8 +42,8 @@ export function AstroIcon({ icon, style, color, size, className, activity = "idl
     paint.current = (now) => { if (canvas.current) paintAstroIcon(canvas.current, icon, style, color, now, activity); };
   }, [icon, style, color, activity]);
   const stable = useStablePainter(paint);
-  usePainter(stable, !reduced);
-  useEffect(() => { stable(reduced ? STILL : performance.now()); }, [icon, style, color, activity, reduced, stable]);
+  usePainter(stable, !reduced && !still);
+  useEffect(() => { stable(reduced || still ? STILL : performance.now()); }, [icon, style, color, activity, reduced, still, stable]);
   const pixels = Math.round(size * Math.min(2, typeof window === "undefined" ? 1 : window.devicePixelRatio || 1));
   return <canvas ref={canvas} aria-hidden="true" width={pixels} height={pixels} className={className} style={{ width: size, height: size, display: "block" }} />;
 }

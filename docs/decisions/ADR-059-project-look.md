@@ -28,3 +28,7 @@ Every project in the sidebar shows the same folder icon. The owner wanted to kee
 
 - **Generated icons (pixel creatures, shapes, monograms).** Rejected by the owner after previews.
 - **Storing the logo as a file under app data.** Rejected: a small data URL needs no extra file lifecycle or asset protocol scope.
+
+## Astro icons (2026-10-06)
+
+A project can also use one of the sixteen Astro cosmic icons (ADR-069) in the Metal or Neon style, drawn in the project colour (the Astro default violet when the folder has no colour). `look.astro` is `{ icon, style }`, set through `setAstro` and validated against the Astro icon and style lists. Like the emoji and the logo it is one icon at a time: setting any of them clears the other two. Sidebar rows draw it still (`AstroIcon still`), so dense project lists never join the animation loop; the picker in Edit project animates.

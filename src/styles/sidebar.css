@@ -47,6 +47,11 @@
   .project-look-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-secondary); }
   .project-look-chip:hover:not(:disabled) { background: var(--navigation-hover); color: var(--text-primary); }
   .project-look-chip:disabled { opacity: .45; }
+  .project-look-astro-styles { margin: 0 auto 8px; width: fit-content; }
+  .project-look-astros { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+  .project-look-astros > button { display: grid; place-items: center; aspect-ratio: 1; border-radius: 8px; border: 1px solid transparent; transition: background var(--motion-fast) var(--ease-out); }
+  .project-look-astros > button:hover { background: var(--navigation-hover); }
+  .project-look-astros > button[aria-checked="true"] { background: var(--navigation-selected); border-color: var(--border-default); }
   .project-look-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .project-look-swatch { position: relative; width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); transition: transform var(--motion-fast) var(--ease-spring); cursor: pointer; }
   .project-look-swatch:hover { transform: scale(1.1); }

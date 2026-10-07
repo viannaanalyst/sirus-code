@@ -1,22 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, X } from "@/components/icons/phosphor";
-import type { Project } from "@/client/types";
-import { ProjectGlyph, PROJECT_COLORS } from "@/components/ProjectGlyph";
+import type { AstroIconId, AstroStyle, Project } from "@/client/types";
+import { AstroIcon } from "@/components/astros/AstroArt";
+import { ProjectGlyph, PROJECT_COLORS, projectColor } from "@/components/ProjectGlyph";
 import { useTranslation } from "@/i18n/use-translation";
+import { ASTRO_ICONS, ASTRO_STYLES } from "@/lib/astro-art";
 import { cn } from "@/lib/cn";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
+import "@/styles/astros.css";
 
 const EMOJIS = ["🚀", "⚡", "🔥", "✨", "🌱", "🌊", "🎯", "🧠", "💡", "🛠️", "⚙️", "🧪", "📦", "📱", "💻", "🖥️", "🌐", "🔒", "🔑", "💳", "💰", "📊", "📈", "🗂️", "📝", "📚", "🎨", "🎵", "🎮", "🏠", "🏥", "🩺", "⚖️", "🛒", "🍔", "☕", "🚂", "🐙", "🦊", "🐝", "🐳", "🦄", "🌙", "☀️", "⭐", "❤️", "🟢", "🔷"];
 const ORDER = ["blue", "red", "yellow", "green", "pink", "purple", "teal", "orange"];
 
-/** Project logo, emoji and folder colour (ADR-059). Each change applies at once. */
+/** Project logo, emoji or Astro icon, and folder colour (ADR-059). Each change applies at once. */
 export function ProjectLookEditor({ projectId }: { projectId: string }) {
   const t = useTranslation();
   const project = useAppStore((state) => state.projects.find((row) => row.id === projectId));
   const update = useAppStore((state) => state.updateProjectLook);
   const [busy, setBusy] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [astroOpen, setAstroOpen] = useState(false);
+  const [astroStyle, setAstroStyle] = useState<AstroStyle>("metal");
   const [typed, setTyped] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
@@ -25,10 +30,12 @@ export function ProjectLookEditor({ projectId }: { projectId: string }) {
   const run = (action: Parameters<typeof update>[0]) => { setBusy(true); void update(action).finally(() => setBusy(false)); };
   const setEmoji = (emoji: string | null) => { setEmojiOpen(false); setTyped(""); run({ type: "setEmoji", projectId, emoji }); };
   const custom = look.color && !PROJECT_COLORS[look.color] ? look.color : null;
+  const style = look.astro?.style ?? astroStyle;
+  const setAstro = (icon: AstroIconId | null, next: AstroStyle = style) => run({ type: "setAstro", projectId, astro: icon ? { icon, style: next } : null });
   return <div className="project-look">
     <div className="project-look-icon">
       <button type="button" className="project-look-logo" disabled={busy} aria-label={t("projectLook.pickLogo")} onClick={() => run({ type: "pickLogo", projectId })}>
-        {look.logo || look.emoji ? <ProjectGlyph project={project as Project} size={28} /> : <ImagePlus size={22} aria-hidden="true" />}
+        {look.logo || look.emoji || look.astro ? <ProjectGlyph project={project as Project} size={28} /> : <ImagePlus size={22} aria-hidden="true" />}
       </button>
       <div className="min-w-0 flex-1">
         <p className="ui-control text-text-secondary">{t("projectLook.logo")}</p>
@@ -44,6 +51,20 @@ export function ProjectLookEditor({ projectId }: { projectId: string }) {
               </form>
             </PopoverContent>
           </Popover>
+          <Popover open={astroOpen} onOpenChange={setAstroOpen}>
+            <PopoverTrigger asChild><button type="button" className="project-look-chip ui-caption" disabled={busy}>{look.astro ? t("projectLook.changeAstro") : t("projectLook.astro")}</button></PopoverTrigger>
+            <PopoverContent side="bottom" align="start" className="z-[60] w-[300px] p-2.5" aria-label={t("projectLook.astro")}>
+              <div className="astro-segmented project-look-astro-styles" role="group" aria-label={t("astros.style")}>
+                {ASTRO_STYLES.map((option) => <button key={option} type="button" aria-pressed={style === option} onClick={() => { setAstroStyle(option); if (look.astro) setAstro(look.astro.icon, option); }}>{t(`astros.style.${option}`)}</button>)}
+              </div>
+              <div className="project-look-astros" role="radiogroup" aria-label={t("projectLook.astro")}>
+                {ASTRO_ICONS.map((icon) => <button key={icon} type="button" role="radio" aria-checked={look.astro?.icon === icon} title={t(`astros.icon.${icon}`)} aria-label={t(`astros.icon.${icon}`)} onClick={() => { setAstroOpen(false); setAstro(icon); }}>
+                  <AstroIcon icon={icon} style={style} color={projectColor(look) ?? "#8c9bff"} size={26} />
+                </button>)}
+              </div>
+            </PopoverContent>
+          </Popover>
+          {look.astro ? <button type="button" className="project-look-chip ui-caption" disabled={busy} onClick={() => setAstro(null)}><X size={11} aria-hidden="true" />{t("projectLook.removeAstro")}</button> : null}
           {look.logo ? <button type="button" className="project-look-chip ui-caption" disabled={busy} onClick={() => run({ type: "clearLogo", projectId })}><X size={11} aria-hidden="true" />{t("projectLook.removeLogo")}</button> : null}
           {look.emoji ? <button type="button" className="project-look-chip ui-caption" disabled={busy} onClick={() => setEmoji(null)}><X size={11} aria-hidden="true" />{t("projectLook.removeEmoji")}</button> : null}
         </div>

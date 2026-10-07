@@ -10,7 +10,7 @@ use tauri::{AppHandle, State};
 
 use crate::commands::AppState;
 use crate::error::{Error, Result};
-use crate::models::Project;
+use crate::models::{Project, ProjectAstroIcon};
 
 /// Preset colours the renderer maps to tokens; anything else must be `#rrggbb`.
 const PRESETS: [&str; 9] = [
@@ -44,6 +44,11 @@ pub enum Action {
     /// Opens the native image picker; the chosen image becomes the logo.
     PickLogo {
         project_id: String,
+    },
+    /// Shows one of the Astro icons instead of the folder; `null` removes it.
+    SetAstro {
+        project_id: String,
+        astro: Option<ProjectAstroIcon>,
     },
     ClearLogo {
         project_id: String,
@@ -87,14 +92,23 @@ pub async fn project_look_action(
             }
             Action::SetEmoji { emoji, .. } => {
                 project.look.emoji = emoji.map(|value| valid_emoji(&value)).transpose()?;
-                // One icon at a time: an emoji replaces a logo.
+                // One icon at a time: an emoji replaces a logo or an Astro icon.
                 if project.look.emoji.is_some() {
                     project.look.logo = None;
+                    project.look.astro = None;
                 }
             }
             Action::PickLogo { .. } => {
                 project.look.logo = logo;
                 project.look.emoji = None;
+                project.look.astro = None;
+            }
+            Action::SetAstro { astro, .. } => {
+                project.look.astro = astro.map(valid_astro).transpose()?;
+                if project.look.astro.is_some() {
+                    project.look.logo = None;
+                    project.look.emoji = None;
+                }
             }
             Action::ClearLogo { .. } => project.look.logo = None,
         }
@@ -110,6 +124,7 @@ fn project_id(action: &Action) -> String {
         Action::SetColor { project_id, .. }
         | Action::SetEmoji { project_id, .. }
         | Action::PickLogo { project_id }
+        | Action::SetAstro { project_id, .. }
         | Action::ClearLogo { project_id } => project_id.clone(),
     }
 }
@@ -140,6 +155,16 @@ fn valid_color(value: &str) -> Result<String> {
             "invalid",
             "Choose one of the colours or a #rrggbb value.",
         ))
+    }
+}
+
+fn valid_astro(astro: ProjectAstroIcon) -> Result<ProjectAstroIcon> {
+    if crate::astros::ICONS.contains(&astro.icon.as_str())
+        && crate::astros::STYLES.contains(&astro.style.as_str())
+    {
+        Ok(astro)
+    } else {
+        Err(Error::new("invalid", "Unknown Astro icon or style."))
     }
 }
 
@@ -247,6 +272,17 @@ mod tests {
                 && valid_emoji("").is_err()
                 && valid_emoji(&"x".repeat(40)).is_err()
         );
+    }
+
+    #[test]
+    fn astro_icons_are_known_icons_and_styles() {
+        let icon = |icon: &str, style: &str| ProjectAstroIcon {
+            icon: icon.into(),
+            style: style.into(),
+        };
+        assert!(valid_astro(icon("foguete", "neon")).is_ok());
+        assert!(valid_astro(icon("../x", "metal")).is_err());
+        assert!(valid_astro(icon("foguete", "pixel")).is_err());
     }
 
     #[test]

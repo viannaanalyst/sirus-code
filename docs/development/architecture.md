@@ -55,7 +55,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 | `diagnostics.rs` | opt-in bounded lifecycle counts; no content, paths or credentials |
 | `close.rs` | native close/Quit authorization and one pending running-agent dialog |
 | `sidebar.rs` | bounded owner-validated sidebar pins/archives and project display-name edits |
-| `project_look.rs` | Project folder colour, emoji or logo (ADR-059): closed `project_look_action`, native image picker, bounded decode into a 96 px PNG data URL |
+| `project_look.rs` | Project folder colour, emoji, logo or Astro icon (ADR-059): closed `project_look_action`, native image picker, bounded decode into a 96 px PNG data URL |
 | `drafts.rs` | owner-validated unsent drafts; event-driven native persistence |
 | `context_text.rs` | bounded owner-validated session notes and project instructions; local reference metadata |
 | `pull_requests.rs` | session-owned read-only GitHub origin PR/check snapshots through bounded fixed gh GET probes |
@@ -126,7 +126,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 
 ## Domain (as implemented)
 
-- **Project** — user-added folder. `remove_project` drops metadata and sessions, **not** files on disk. Optional `look` (colour, emoji or logo; ADR-059) changes only its sidebar icon.
+- **Project** — user-added folder. `remove_project` drops metadata and sessions, **not** files on disk. Optional `look` (colour, emoji, logo or Astro icon; ADR-059) changes only its sidebar icon.
 - **Session** — `idle | starting | running | waiting | completed | failed | stopped`. Owns `agent` (provider), optional `model` (CLI model id), `worktree`, `messages`, `lastError`, and last-admitted `execution` preferences (effort/Fast/planning/approval). Codex, Claude and OpenCode persist an exact `nativeThread` bound to session/project/canonical cwd/model; `pendingRequests` are live-generation-only and are never restored from disk. A coordinator may own a `team` (plan, tasks, merge state) and its helper sessions carry `teamWorker`. A side chat carries `sideChat.parentSessionId`.
 
 **Team** (ADR-043) is a one-shot `+` → Equipe composer mode. The coordinator runs a read-only planning turn and returns at most 3 validated tasks, each with an assignee, planned paths and an optional earlier dependency. Nothing runs before the person confirms; edits are limited to titles, assignees and removing tasks. Each task becomes a normal session in its own isolated worktree. The worktree starts from a private snapshot commit of the coordinator checkout as it is now (uncommitted and untracked non-ignored files included; the person's index and files untouched), and each task runs using the person's Ask/Auto policy (never Full). Approvals stay with the person. A dependent starts only after its prerequisite succeeds. "Merge all" is explicit:

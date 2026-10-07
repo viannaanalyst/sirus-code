@@ -24,11 +24,14 @@ export interface Project {
   look?: ProjectLook;
 }
 
-export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null }
+export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null }
+/** One of the Astro cosmic icons as a project icon, drawn in the project colour. */
+export interface ProjectAstroIcon { icon: AstroIconId; style: AstroStyle }
 export type ProjectLookAction =
   | { type: "setColor"; projectId: string; color: string | null }
   | { type: "setEmoji"; projectId: string; emoji: string | null }
   | { type: "pickLogo"; projectId: string }
+  | { type: "setAstro"; projectId: string; astro: ProjectAstroIcon | null }
   | { type: "clearLogo"; projectId: string };
 
 export interface Worktree {
