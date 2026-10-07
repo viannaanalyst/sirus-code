@@ -7,6 +7,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { Check, ChevronDown, ClipboardList, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import type { AgentInstall, AgentProviderId, ApprovalMode, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerContour } from "@/components/ComposerContour";
@@ -227,17 +228,27 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   // Finder files and folders dropped on the composer become attachments (ADR-073): the native
   // window drop reports where it is; on a drop inside this composer its paths are attached.
   const dropAllowed = canType && !submitting;
+  const primary = useAppStore((state) => session ? state.selectedSessionId === session.id : true);
+  const primaryRef = useRef(primary);
+  primaryRef.current = primary;
   useEffect(() => {
     let alive = true;
     const inside = (x?: number, y?: number) => {
       const rect = boundary.current?.getBoundingClientRect();
       return Boolean(rect && x !== undefined && y !== undefined && x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
     };
+    // Like T3 Code, a drop anywhere on the window lands in the active conversation's composer;
+    // dropping on a particular composer (split view) picks that one.
+    const overAnyComposer = (x?: number, y?: number) => x !== undefined && y !== undefined && [...document.querySelectorAll(".agent-composer")].some((node) => {
+      const rect = node.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    });
+    const isTarget = (x?: number, y?: number) => inside(x, y) || (!overAnyComposer(x, y) && primaryRef.current);
     const unlisten = client.onFileDrop((event) => {
       if (!alive) return;
-      if (event.kind !== "drop") { setDropping(event.kind === "over" && dropAllowed && inside(event.x, event.y)); return; }
+      if (event.kind !== "drop") { setDropping(event.kind === "over" && dropAllowed && isTarget(event.x, event.y)); return; }
       setDropping(false);
-      if (!dropAllowed || !inside(event.x, event.y)) return;
+      if (!dropAllowed || !isTarget(event.x, event.y)) return;
       const owner = draftKey;
       setAttachmentError(null);
       void client.dropPromptAttachments(owner).then(async (attachments) => {
@@ -349,6 +360,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       {/* One animated rim at a time: the side chat's composer keeps a still border. */}
       {session?.sideChat ? null : <ComposerContour speed={settings.composerLineSpeed} reducedMotion={reducedMotion || dictating} />}
       {dropping ? <div className="composer-drop" aria-hidden="true">{t("composer.dropHere")}</div> : null}
+      {dropping && primary ? createPortal(<div className="window-drop" aria-hidden="true"><span>{t("composer.dropHere")}</span></div>, document.body) : null}
       {session ? <HandoffCard session={session} /> : null}
       {planPending ? <div className="plan-banner"><ClipboardList size={14} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{t("plan.ready")}</span><button type="button" className="plan-banner-action" onClick={implementPlan}>{t("plan.implement")}<kbd>⌘↩</kbd></button></div> : null}
       <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} />

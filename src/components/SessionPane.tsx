@@ -9,7 +9,7 @@ import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
-import { createTranscriptScroll } from "@/lib/transcript-scroll";
+import { createTranscriptScroll, scrollWithin } from "@/lib/transcript-scroll";
 import { parseTranscript } from "@/lib/transcript";
 import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
@@ -109,7 +109,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
     const node = messageNodes.current.get(messageId);
     if (!node) return;
     scrolling.current?.detach();
-    node.scrollIntoView({ block: "start", behavior: "instant" });
+    if (transcript.current) scrollWithin(transcript.current, node, "start");
     node.focus({ preventScroll: true });
   }, []);
   useLayoutEffect(() => {
@@ -127,7 +127,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
     if (!node) return;
     scrolling.current?.detach();
     const hit = jump.searchStart === undefined ? null : node.querySelector<HTMLElement>(`[data-search-start="${jump.searchStart}"]`);
-    (hit ?? node).scrollIntoView({ block: "center", behavior: "instant" });
+    if (transcript.current) scrollWithin(transcript.current, hit ?? node, "center");
     node.focus({ preventScroll: true });
   }, [jump, session?.id]);
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");

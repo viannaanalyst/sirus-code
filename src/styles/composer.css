@@ -146,3 +146,6 @@
 /* Finder files and folders dragged over the composer. */
 .agent-composer[data-dropping] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .composer-drop { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--accent) 12%, var(--background-2)); color: color-mix(in srgb, var(--accent) 60%, var(--text-primary)); font-size: var(--text-ui-13); pointer-events: none; animation: tl-open var(--motion-fast) var(--ease-out) both; }
+/* A Finder drag anywhere on the window (T3-style): the whole window says where it will land. */
+.window-drop { position: fixed; inset: 10px; z-index: 200; display: grid; place-items: center; border: 2px dashed color-mix(in srgb, var(--accent) 65%, transparent); border-radius: 16px; background: color-mix(in srgb, var(--accent) 8%, rgb(0 0 0 / .35)); pointer-events: none; animation: tl-open var(--motion-fast) var(--ease-out) both; }
+.window-drop span { padding: 10px 16px; border-radius: 12px; background: var(--background-2); color: var(--text-primary); font-size: var(--text-ui-13); box-shadow: 0 10px 30px rgb(0 0 0 / .35); }

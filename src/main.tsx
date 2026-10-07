@@ -35,6 +35,14 @@ window.addEventListener("unhandledrejection", (event) => {
   useAppStore.setState({ error: formatUnknownError(event.reason) });
 });
 
+// The app frame never scrolls: a stray scrollIntoView elsewhere would push the whole window
+// up under the titlebar (sidebar cut at the bottom). Any such shift is undone at once.
+window.addEventListener("scroll", (event) => {
+  const target = event.target;
+  const frame = target === document ? document.scrollingElement : target instanceof HTMLElement && (target === document.body || target.id === "root") ? target : null;
+  if (frame && (frame.scrollTop || frame.scrollLeft)) { frame.scrollTop = 0; frame.scrollLeft = 0; }
+}, true);
+
 // Finder drops arrive natively (`dragDropEnabled`, the `file-drop` event; ADR-073). Should
 // a file drag still reach the webview, it must never navigate the window to the file.
 for (const type of ["dragover", "drop"] as const) {

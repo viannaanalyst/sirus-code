@@ -31,3 +31,13 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
     dispose() { observer.disconnect(); cancelAnimationFrame(frame); },
   };
 }
+
+/**
+ * Brings `target` into view by scrolling only `viewport` (never the window or other ancestors,
+ * which `scrollIntoView` would also move, shifting the whole app up under the titlebar).
+ */
+export function scrollWithin(viewport: HTMLElement, target: HTMLElement, block: "start" | "center" = "start") {
+  const top = target.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+  const offset = block === "center" ? (viewport.clientHeight - target.getBoundingClientRect().height) / 2 : 0;
+  viewport.scrollTop = Math.max(0, top - offset);
+}
