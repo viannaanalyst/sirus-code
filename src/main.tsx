@@ -1,5 +1,5 @@
 import "./styles/index.css";
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { formatUnknownError, isResizeObserverDeliveryWarning } from "./lib/format-error";
@@ -7,6 +7,10 @@ import { useAppStore } from "./store/app-store";
 import { configureDynamicStyleNonce } from "./lib/editor-nonce";
 import { isRemoteUi, onRemoteConnection } from "./client";
 import { REMOTE_TOKEN_KEY, deviceName, pairingCode, redeemPairing } from "./client/remote-pairing";
+import { MobileConnect } from "./components/mobile/MobileConnect";
+import { translate } from "./i18n";
+import { dismissAppSplash } from "./lib/app-splash";
+import { MOBILE_QUERY } from "./lib/mobile";
 
 configureDynamicStyleNonce(document);
 
@@ -53,41 +57,46 @@ for (const type of ["dragover", "drop"] as const) {
   });
 }
 
-const portuguese = navigator.language.toLowerCase().startsWith("pt");
+const MobileApp = lazy(() => import("./components/mobile/MobileApp"));
+let root: ReactDOM.Root | null = null;
 
-/** A plain notice for a device that cannot use the Mac yet (remote access, ADR-080). */
-function showRemoteNotice(text: string) {
-  const root = document.getElementById("root");
-  if (!root) return;
-  const panel = document.createElement("div");
-  panel.className = "flex h-screen flex-col items-center justify-center gap-3 bg-background-0 px-8 text-center text-text-primary";
-  const title = document.createElement("p");
-  title.className = "ui-title";
-  title.textContent = "Sirus Code";
-  const message = document.createElement("p");
-  message.className = "text-text-secondary";
-  message.textContent = text;
-  panel.append(title, message);
-  root.replaceChildren(panel);
+function mount(node: React.ReactNode) {
+  try {
+    root ??= ReactDOM.createRoot(document.getElementById("root") as HTMLElement, { onUncaughtError: (error) => showFatal(error) });
+    root.render(<React.StrictMode>{node}</React.StrictMode>);
+  } catch {
+    showFatal();
+  }
 }
 
-/** Pairs this device from the QR link, or explains how to; `true` when the app can start. */
-async function prepareRemote(): Promise<boolean> {
+/** Exchanges a pairing code and starts over paired; returns the Mac's refusal otherwise. */
+async function pair(code: string): Promise<string | null> {
+  try {
+    window.localStorage.setItem(REMOTE_TOKEN_KEY, await redeemPairing(code, deviceName(navigator.userAgent)));
+    window.location.replace("/");
+    return null;
+  } catch (error) {
+    return formatUnknownError(error);
+  }
+}
+
+function showConnect(notice?: string | null) {
+  dismissAppSplash();
+  mount(<MobileConnect notice={notice} onCode={pair} />);
+}
+
+/** The UI served to another device (ADR-080/081): pair first, then the phone app or the full app. */
+async function startRemote() {
   const code = pairingCode(window.location.search);
   if (code) {
     window.history.replaceState(null, "", window.location.pathname);
-    try {
-      window.localStorage.setItem(REMOTE_TOKEN_KEY, await redeemPairing(code, deviceName(navigator.userAgent)));
-    } catch (error) {
-      showRemoteNotice(formatUnknownError(error));
-      return false;
-    }
+    const refusal = await pair(code);
+    if (refusal) showConnect(refusal);
+    return;
   }
   if (!window.localStorage.getItem(REMOTE_TOKEN_KEY)) {
-    showRemoteNotice(portuguese
-      ? "Este aparelho ainda não está conectado. No Mac, abra Configurações → Conexões e leia o QR code."
-      : "This device is not connected yet. On the Mac, open Settings → Connections and scan the QR code.");
-    return false;
+    showConnect();
+    return;
   }
   let lost = false;
   onRemoteConnection((state) => {
@@ -96,23 +105,11 @@ async function prepareRemote(): Promise<boolean> {
     if (state === "open" && lost) window.location.reload();
     if (state === "unauthorized") {
       window.localStorage.removeItem(REMOTE_TOKEN_KEY);
-      showRemoteNotice(portuguese
-        ? "O acesso deste aparelho foi removido no Mac. Leia um novo QR code para conectar de novo."
-        : "This device's access was removed on the Mac. Scan a new QR code to connect again.");
+      showConnect(translate(navigator.language.toLowerCase().startsWith("pt") ? "pt-BR" : "en", "mobile.connect.revoked"));
     }
   });
-  return true;
+  mount(window.matchMedia(MOBILE_QUERY).matches ? <Suspense fallback={null}><MobileApp /></Suspense> : <App />);
 }
 
-function render() {
-  try {
-    ReactDOM.createRoot(document.getElementById("root") as HTMLElement, { onUncaughtError: (error) => showFatal(error) }).render(
-      <React.StrictMode><App /></React.StrictMode>,
-    );
-  } catch {
-    showFatal();
-  }
-}
-
-if (isRemoteUi) void prepareRemote().then((ready) => { if (ready) render(); });
-else render();
+if (isRemoteUi) void startRemote();
+else mount(<App />);

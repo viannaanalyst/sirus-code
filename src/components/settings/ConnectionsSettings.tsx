@@ -100,6 +100,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
           </ol>
           {pairing ? <div className="connections-qr" data-expired={countdown ? undefined : ""}>
             <img src={svgDataUrl(pairing.qrSvg)} alt={t("connections.qrLabel")} width={168} height={168} />
+            <p className="connections-code" aria-label={t("connections.codeLabel", { code: pairing.code })}>{pairing.code.slice(0, 3)} {pairing.code.slice(3)}</p>
             <p className="ui-caption text-text-muted" aria-live="polite">{countdown ? t("connections.expiresIn", { time: countdown }) : t("connections.expired")}</p>
             <div className="flex gap-2">
               <InteractiveButton variant="toolbar" disabled={busy} onClick={() => void showCode()}><RefreshCw size={14} aria-hidden="true" />{t("connections.newCode")}</InteractiveButton>

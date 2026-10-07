@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { RemoteTransport, reconnectDelay, type RemoteConnection, type RemoteSocket } from "../src/client/remote-transport.ts";
-import { deviceName, pairingCode, redeemPairing, socketUrl } from "../src/client/remote-pairing.ts";
+import { deviceName, normalizePairingCode, pairingCode, redeemPairing, socketUrl } from "../src/client/remote-pairing.ts";
 
 class FakeSocket implements RemoteSocket {
   readyState = 0;
@@ -105,9 +105,11 @@ test("reconnect waits grow and stay capped", () => {
 });
 
 test("pairing reads the QR link and names the device", async () => {
-  assert.equal(pairingCode("?pair=Ab12_cd-34EF5678"), "Ab12_cd-34EF5678");
-  assert.equal(pairingCode("?pair=short"), null);
-  assert.equal(pairingCode("?pair=bad%20code%20here"), null);
+  assert.equal(pairingCode("?pair=482913"), "482913");
+  assert.equal(pairingCode("?pair=482-913"), "482913");
+  assert.equal(pairingCode("?pair=48291"), null);
+  assert.equal(pairingCode("?pair=abcdef"), null);
+  assert.equal(normalizePairingCode(" 482 913 "), "482913");
   assert.equal(pairingCode(""), null);
   assert.equal(deviceName("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1"), "iPhone · Safari");
   assert.equal(deviceName("Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36"), "Android · Chrome");

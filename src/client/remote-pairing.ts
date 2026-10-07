@@ -6,8 +6,13 @@
 export const REMOTE_TOKEN_KEY = "sirus.remote.token";
 
 export function pairingCode(search: string): string | null {
-  const code = new URLSearchParams(search).get("pair")?.trim();
-  return code && /^[A-Za-z0-9_-]{8,128}$/.test(code) ? code : null;
+  return normalizePairingCode(new URLSearchParams(search).get("pair") ?? "");
+}
+
+/** Six digits from the Mac, typed or scanned ("482 913", "482-913"). */
+export function normalizePairingCode(value: string): string | null {
+  const digits = value.replace(/[\s-]/g, "");
+  return /^\d{6}$/.test(digits) ? digits : null;
 }
 
 /** A readable name for the device list on the Mac: "iPhone · Safari". */

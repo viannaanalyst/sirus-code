@@ -394,5 +394,6 @@ export const PowerIcon = adapt(PhPower, "PowerIcon");
 export const Unlink = adapt(PhLinkBreak, "Unlink");
 export const CameraShot = adapt(PhCameraIcon, "CameraShot");
 export const HomeButton = adapt(PhHouseIcon, "HomeButton");
+export const House = adapt(PhHouseIcon, "House");
 export const RotateView = adapt(PhDeviceRotate, "RotateView");
 export const ScreenDashed = adapt(PhRectangleDashed, "ScreenDashed");

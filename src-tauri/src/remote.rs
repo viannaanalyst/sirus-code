@@ -241,7 +241,7 @@ pub async fn remote_pair() -> Result<Pairing> {
             "Tailscale is not connected on this Mac. Open Tailscale and sign in, then try again.",
         ));
     }
-    let code = random_token(16);
+    let code = pairing_code();
     *remote.pairing.lock() = Some(PairCode {
         hash: hash(&code),
         expires: Instant::now() + PAIR_TTL,
@@ -526,7 +526,11 @@ fn redeem(
             *pairing = None;
             return Err("This code has expired. Show a new QR code on the Mac.");
         }
-        if current.hash != hash(code) {
+        let code: String = code
+            .chars()
+            .filter(|character| !matches!(character, ' ' | '-'))
+            .collect();
+        if current.hash != hash(&code) {
             current.failures += 1;
             if current.failures >= PAIR_FAILURES {
                 *pairing = None;
@@ -791,6 +795,14 @@ fn result_message(id: u64, result: std::result::Result<Reply, Value>) -> String 
     }
 }
 
+/// Six digits, so a home-screen app (which does not share Safari's storage) can type it.
+/// Five minutes, single use and five wrong guesses make guessing impractical.
+fn pairing_code() -> String {
+    let bytes = uuid::Uuid::new_v4().into_bytes();
+    let value = u64::from_le_bytes(bytes[..8].try_into().unwrap_or_default());
+    format!("{:06}", value % 1_000_000)
+}
+
 fn random_token(bytes: usize) -> String {
     let mut buffer = Vec::with_capacity(bytes + 16);
     while buffer.len() < bytes {
@@ -912,9 +924,12 @@ mod tests {
     fn pairing_codes_are_single_use_and_tokens_authenticate() {
         let dir = tempfile::tempdir().unwrap();
         let remote = remote(dir.path());
-        offer(&remote, "code-1", PAIR_TTL);
-        let (id, token) = redeem(&remote, "code-1", " iPhone\n").unwrap();
-        assert!(redeem(&remote, "code-1", "again").is_err());
+        offer(&remote, "482913", PAIR_TTL);
+        let (id, token) = redeem(&remote, "482913", " iPhone\n").unwrap();
+        assert!(redeem(&remote, "482913", "again").is_err());
+        // A typed code may carry the space or dash shown on the Mac.
+        offer(&remote, "123456", PAIR_TTL);
+        assert!(redeem(&remote, "123 456", "Typed").is_ok());
         assert_eq!(authenticate(&remote, &token), Some(id.clone()));
         assert_eq!(authenticate(&remote, "wrong"), None);
         let saved: Config =
@@ -1007,5 +1022,8 @@ mod tests {
             .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')));
         assert_ne!(first, random_token(32));
         assert_eq!(device_name("   "), "Device");
+        let code = pairing_code();
+        assert_eq!(code.len(), 6);
+        assert!(code.chars().all(|character| character.is_ascii_digit()));
     }
 }
