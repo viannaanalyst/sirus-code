@@ -208,7 +208,8 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
     : activity.status === "stopped" ? t("timeline.stoppedAfter", { duration })
     : activity.status === "failed" ? t("timeline.failedAfter", { duration })
     : t("timeline.workedFor", { duration });
-  const parts = useMemo(() => timelineParts(renderText ? content : "", activity.items, renderText ? steers : []), [activity.items, content, steers, renderText]);
+  // While the reply is revealed at a steady pace, work that came after the text shown so far waits for it.
+  const parts = useMemo(() => timelineParts(renderText ? content : "", renderText && active ? activity.items.filter(item => (item.offset ?? 0) <= content.length) : activity.items, renderText ? steers : []), [activity.items, content, steers, renderText, active]);
   const boundary = foldBoundary(parts);
   const folded = !active && !view.expanded;
   const foldable = !active && boundary > 0;

@@ -3,6 +3,7 @@ const strings: Record<string, [string, string]> = {
   "sideChat.title": ["Side chat", "Chat lateral"],
   "sideChat.open": ["Open side chat", "Abrir chat lateral"],
   "sideChat.ask": ["Ask in side chat", "Perguntar na lateral"],
+  "replyChoices.other": ["Other…", "Outro…"],
   "sideChat.delete": ["Delete side chat", "Apagar chat lateral"],
   "sideChat.transcript": ["Side chat conversation", "Conversa do chat lateral"],
   "sideChat.emptyTitle": ["Ask without interrupting", "Pergunte sem interromper"],

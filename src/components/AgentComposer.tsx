@@ -22,6 +22,7 @@ import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/l
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
 import { HandoffCard } from "@/components/HandoffCard";
+import { QUICK_REPLY_EVENT, type QuickReplyDetail } from "@/components/ReplyChoices";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
 import { ModelSelector } from "@/components/ModelSelector";
 import { modelKey, parseModelKey } from "@/lib/settings";
@@ -205,6 +206,25 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       if (queueing) setQueueSending(false); else setSending(false);
     }
   };
+  // Reply choices under the last answer (ReplyChoices): an option is sent as the reply, unless a
+  // draft is already here, which then keeps it below the option for the person to send.
+  const quickReply = useRef<string | null>(null);
+  const sessionId = session?.id ?? null;
+  useEffect(() => {
+    const onQuickReply = (event: Event) => {
+      const { sessionId: target, text } = (event as CustomEvent<QuickReplyDetail>).detail;
+      if (!sessionId || target !== sessionId) return;
+      const draft = useAppStore.getState().composerDrafts[draftKey] ?? "";
+      if (text !== null && !draft.trim()) { quickReply.current = text; updateDraft(draftKey, text); return; }
+      if (text !== null) updateDraft(draftKey, `${text}\n\n${draft}`);
+      requestAnimationFrame(() => area.current?.focus());
+    };
+    window.addEventListener(QUICK_REPLY_EVENT, onQuickReply);
+    return () => window.removeEventListener(QUICK_REPLY_EVENT, onQuickReply);
+  }, [sessionId, draftKey, updateDraft]);
+  useEffect(() => {
+    if (quickReply.current !== null && value === quickReply.current) { quickReply.current = null; void send(); }
+  });
 
   const appendDictation = useCallback((text: string, sendAfter: boolean) => {
     const current = useAppStore.getState().composerDrafts[draftKey] ?? "";

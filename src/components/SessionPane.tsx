@@ -23,6 +23,8 @@ import { TurnChangeSummary } from "@/components/TurnChangeSummary";
 import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
+import { useSmoothText } from "@/lib/use-smooth-text";
+import { ReplyChoices } from "@/components/ReplyChoices";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
@@ -175,6 +177,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
                       <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
+                      {message === messages[messages.length - 1] && !passive ? <ReplyChoices session={session} message={message} /> : null}
                     </Fragment>;
                   })}
                   </div>)}
@@ -228,10 +231,12 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     if (node) nodes.current.set(message.id, node); else nodes.current.delete(message.id);
   }, [nodes, message.id]);
   // A reply is cut where the person steered it, so each instruction shows where it arrived.
+  // A streaming reply comes out at a steady pace rather than in the provider's bursts.
+  const shownContent = useSmoothText(message.content, message.role === "agent" && message.streaming);
   const segments = useMemo(() => {
-    if (message.role !== "agent" || !message.content) return null;
+    if (message.role !== "agent" || !shownContent) return null;
     const team = session.team?.messageId === message.id;
-    const content = team ? stripTeamPlan(message.content) : message.content;
+    const content = team ? stripTeamPlan(shownContent) : shownContent;
     const steers = team ? [] : message.steers ?? [];
     const parts: { start: number; blocks: ReturnType<typeof parseTranscript>; steer?: string }[] = [];
     let start = 0;
@@ -244,9 +249,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     }
     parts.push({ start, blocks: start < content.length ? parseTranscript(content.slice(start)) : [] });
     return parts;
-  }, [message.role, message.content, message.id, message.steers, session.team?.messageId]);
+  }, [message.role, shownContent, message.id, message.steers, session.team?.messageId]);
   const team = session.team?.messageId === message.id;
-  const replyContent = message.role === "agent" ? (team ? stripTeamPlan(message.content) : message.content) : "";
+  const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
   const replySteers = team ? noSteers : message.steers ?? noSteers;
   /** Reply blocks from `base` in the reply, so search highlights keep their offsets. */
   const renderBlocks = (blocks: ReturnType<typeof parseTranscript>, base: number) => {
