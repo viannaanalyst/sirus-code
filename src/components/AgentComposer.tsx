@@ -534,8 +534,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           <ComposerDictationButton key={draftKey} onText={appendDictation} onActiveChange={setDictating} disabled={!canType || submitting || pasting} />
           <div className="composer-idle-control flex items-center gap-2">
           <AnimatePresence initial={false}>
+            {/* Every child of AnimatePresence needs its own key, or an exiting Stop and an
+                entering one share "" and both stay on screen. */}
             {running ? (
-              <Tooltip label={t("Stop agent")}>
+              <Tooltip key="stop" label={t("Stop agent")}>
                 <motion.button
                   key="stop"
                   type="button"
@@ -592,7 +594,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
                 </motion.button>
               </Tooltip>
             ) : !queueing || value.trim().length > 0 ? (
-              <Tooltip label={t(queueing ? "queue.add" : "Send")} shortcut="⏎" secondary={{ label: t("composer.sendNewThread"), shortcut: shortcutLabel(sendNewCombo) }}>
+              <Tooltip key="send" label={t(queueing ? "queue.add" : "Send")} shortcut="⏎" secondary={{ label: t("composer.sendNewThread"), shortcut: shortcutLabel(sendNewCombo) }}>
                 <motion.button
                   key="send"
                   type="button"

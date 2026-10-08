@@ -39,10 +39,16 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
     };
     const up = () => { if (dragging) { dragging = false; schedule(); } };
     const cancel = () => { dragging = false; dismiss(); };
-    const moved = () => {
+    // Scrolling (also the transcript following a streaming reply) or resizing re-reads the
+    // selection, so the popup moves with it and only closes once it leaves the view.
+    const moved = () => schedule();
+    // A double or triple click selects a word or line; read it once the click settles.
+    const clicked = (event: MouseEvent) => {
+      if (event.detail < 2 || !root.contains(event.target as Node)) return;
+      dragging = false;
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
-      dismiss();
+      schedule();
     };
     const tab = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.isComposing || !popup.current) return;
@@ -54,7 +60,7 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
     document.addEventListener("pointerdown", down);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
-    // The popup's anchor is a snapshot. Scrolling/resizing dismisses it.
+    document.addEventListener("click", clicked);
     document.addEventListener("scroll", moved, true);
     window.addEventListener("resize", moved);
     return () => {
@@ -64,6 +70,7 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
       document.removeEventListener("pointerdown", down);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", cancel);
+      document.removeEventListener("click", clicked);
       document.removeEventListener("scroll", moved, true);
       window.removeEventListener("resize", moved);
     };
