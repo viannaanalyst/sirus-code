@@ -5,7 +5,7 @@ import type { Project, Session } from "@/client/types";
 import { ProjectActions } from "@/components/ProjectActions";
 import { ProjectEditDialog } from "@/components/SidebarRows";
 import { relativeTime } from "@/lib/session-board";
-import { sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
+import { moveSidebarProject, sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -61,6 +61,15 @@ function ProjectSwitcher() {
   const [focus, setFocus] = useState<string | null>(null);
   const [editing, setEditing] = useState<Project | null>(null);
   const list = useRef<HTMLDivElement>(null);
+  // Projects reorder by dragging, as they did in the sidebar (pinned and unpinned apart).
+  const reorder = usePointerReorder({
+    canDrop: (source, target) => settings.pinnedProjectIds.includes(source) === settings.pinnedProjectIds.includes(target),
+    onDrop: (source, target, edge) => {
+      const state = useAppStore.getState();
+      const next = moveSidebarProject(state.projects, state.settings, source, target, edge, state.sessions);
+      if (next !== state.settings) void state.saveSettings(next);
+    },
+  });
   const needle = query.trim().toLocaleLowerCase();
   const groups = useMemo(() => sidebarGroups(projects, sessions, settings), [projects, sessions, settings]);
   const ordered = useMemo(() => [...groups.pinned, ...groups.nested], [groups]);
@@ -105,12 +114,14 @@ function ProjectSwitcher() {
           <Search size={13} aria-hidden="true" />
           <input value={query} placeholder={t("tabs.searchAll")} aria-label={t("tabs.searchAll")} onChange={event => { setQuery(event.target.value); setCursor(0); setFocus(null); }} onKeyDown={navigate} />
         </label>
-        <div ref={list} className="header-switcher-list" role="listbox" aria-label={t("tabs.projects")}>
+        <div ref={list} className="header-switcher-list" role="listbox" aria-label={t("tabs.projects")} data-reorder-scope="">
           {rows.map((row, index) => {
             const status = projectStatus(row.id, sessions, unseen, computer);
             const diff = diffs[row.id];
             return <ProjectActions key={row.id} project={row} onEdit={() => { close(); setEditing(row); }}>
               <button type="button" role="option" data-index={index} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
+                data-reorder-id={row.id} data-dragging={reorder.dragging === row.id || undefined} data-drop-edge={reorder.over?.id === row.id ? reorder.over.edge : undefined}
+                {...(needle || rows.length < 2 ? {} : reorder.bind(row.id))}
                 className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); }} onFocus={() => setFocus(row.id)} onClick={() => choose(row.id)}>
                 <ProjectGlyph project={row} size={15} />
                 <span className="min-w-0 flex-1 truncate">{row.name}</span>

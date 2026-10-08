@@ -23,6 +23,6 @@ The owner chose the switcher.
 
 ## Consequences
 
-- Reordering project folders by dragging now has no surface. The saved order still applies to the switcher.
+- Projects reorder by dragging in the switcher's left column, as they did in the sidebar; pinned and unpinned projects stay apart, and dragging is off while searching.
 - Pinned sessions appear first within their own project, not in a global group.
 - `SidebarProjects` and the panel rows are no longer mounted. `SidebarRows` still provides `ArchiveConfirm` and `ProjectEditDialog`.

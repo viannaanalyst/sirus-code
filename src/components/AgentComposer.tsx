@@ -100,21 +100,13 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const astroApproval = useAppStore((state) => session?.astro ? state.astros?.find((item) => item.id === session.astro)?.approval : undefined);
   const definition = providerById(agentId);
   const approvalPolicy = definition.approvalPolicy;
-  // Without a choice in this draft, keep the mode last used: this session's own, or for a new
-  // thread the project's most recent session with this provider. Never a global grant.
-  const rememberedApproval = useAppStore((state) => {
-    // An Astro's conversation follows the mode saved on the Astro (ADR-088).
-    if (session) return session.agent === agentId ? astroApproval ?? session.execution?.approval ?? undefined : undefined;
-    let latest: { at: string; approval: ApprovalMode } | null = null;
-    for (const row of state.sessions) {
-      const used = row.execution?.approval;
-      if (row.projectId !== draftProjectId || row.agent !== agentId || !used) continue;
-      if (!latest || row.lastActivityAt > latest.at) latest = { at: row.lastActivityAt, approval: used };
-    }
-    return latest?.approval;
-  });
+  // A session keeps the mode it last used (an Astro's, its own saved one); anything new
+  // starts on Full access, the owner's chosen default.
+  // An Astro's conversation follows the mode saved on the Astro (ADR-088).
+  const rememberedApproval = session && session.agent === agentId ? astroApproval ?? session.execution?.approval ?? undefined : undefined;
   const selectedApproval = context.approvalByProvider?.[agentId] ?? rememberedApproval;
-  const requestedApproval = selectedApproval && definition.approvalModes.includes(selectedApproval) ? selectedApproval : definition.approvalModes[0] ?? "ask";
+  const defaultApproval: ApprovalMode = definition.approvalModes.includes("full") ? "full" : definition.approvalModes[0] ?? "ask";
+  const requestedApproval = selectedApproval && definition.approvalModes.includes(selectedApproval) ? selectedApproval : defaultApproval;
   const approval = context.planning && requestedApproval === "full" ? agentId === "cursor" ? "auto" : "ask" : requestedApproval;
   const approvalLabel = approval === "full" ? "composer.fullAccess" : approval === "auto" ? "composer.autoReview" : approvalPolicy === "vendor" ? "composer.vendorApproval" : "composer.askApproval";
   const fullAccess = approval === "full" && !context.planning;

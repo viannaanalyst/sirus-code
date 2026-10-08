@@ -78,6 +78,7 @@
   .header-switcher-row { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 9px; border-radius: var(--radius-md); color: var(--text-secondary); text-align: left; }
   .header-switcher-row[aria-selected="true"] { background: var(--navigation-hover); color: var(--text-primary); }
   .header-switcher-row[data-current] { color: var(--text-primary); font-weight: 500; }
+  .header-switcher-row[data-dragging] { position: relative; z-index: 1; background: var(--navigation-selected); cursor: grabbing; }
   .header-switcher-count { flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-12); }
   .header-switcher-empty { margin: 0; padding: 12px 10px; color: var(--text-muted); }
   .header-switcher-footer { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; margin-top: 4px; padding: 0 9px; border-top: 1px solid var(--border-subtle); border-radius: 0 0 var(--radius-md) var(--radius-md); color: var(--text-secondary); }

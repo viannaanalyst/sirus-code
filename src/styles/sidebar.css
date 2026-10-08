@@ -53,7 +53,7 @@
   .project-identity-icon { display: grid; place-items: center; width: 42px; flex-shrink: 0; border-right: 1px solid var(--border-subtle); color: var(--text-secondary); transition: background var(--motion-fast) var(--ease-out); }
   .project-identity-icon:hover:not(:disabled), .project-identity-icon[aria-expanded="true"] { background: var(--navigation-hover); }
   .project-identity-input { min-width: 0; flex: 1; height: 40px; padding: 0 12px; background: transparent; color: var(--text-primary); outline: none; }
-  .project-identity-picker { display: flex; width: 340px; flex-direction: column; gap: 10px; padding: 12px; }
+  .project-identity-picker { display: flex; width: 404px; max-width: calc(100vw - 24px); flex-direction: column; gap: 10px; padding: 12px; }
   .project-identity-tabs { display: flex; gap: 4px; }
   .project-identity-tabs > button { padding: 4px 12px; border-radius: 999px; color: var(--text-muted); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .project-identity-tabs > button:hover { color: var(--text-primary); }
@@ -61,8 +61,8 @@
   .project-identity-search { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 9px; color: var(--text-muted); }
   .project-identity-search input { min-width: 0; flex: 1; background: transparent; color: var(--text-primary); outline: none; }
   .project-identity-styles { margin: 0 auto; width: fit-content; }
-  .project-identity-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 2px; }
-  .project-identity-grid { display: grid; max-height: 216px; grid-template-columns: repeat(8, 1fr); gap: 2px; overflow-y: auto; }
+  .project-identity-colors { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: 6px; padding: 2px 4px; }
+  .project-identity-grid { display: grid; max-height: 232px; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 2px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
   .project-identity-grid > button { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid transparent; border-radius: 8px; transition: background var(--motion-fast) var(--ease-out); }
   .project-identity-grid > button:hover { background: var(--navigation-hover); }
   .project-identity-grid > button[aria-checked="true"] { background: var(--navigation-selected); border-color: var(--border-default); }
