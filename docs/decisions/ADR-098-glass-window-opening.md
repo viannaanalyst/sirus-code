@@ -32,3 +32,7 @@ The main window was created visible and opaque (`#0c0c0c`). The native glass (`a
 - **Keeping the logo splash over the glass:** rejected by the owner; a splash that waits reads as a loading screen. The logo stays only as part of the reveal.
 - **A native fade or zoom of the NSWindow:** it would fight the web reveal, and AppKit's window animations do not compose with a clip-path wipe.
 - **Showing the window from `DOMContentLoaded`:** too early. The UI is still empty and its appearance is not yet known.
+
+## 2026-10-08: show at launch
+
+On the owner's Mac the first ready paint took longer than the 2.5 s fallback. The window then appeared through the fallback with the page's opaque `#0c0c0c` body over the glass, and it looked like a black window. Now the main window shows at launch (`window_reveal::show_at_launch`), right after its glass is applied. `index.html` keeps the page transparent, and the Sirus logo sits on the glass from the click (`data-opening="pending"`). When the app is ready, the content wipes in from left to right and the logo fades. The fallback timer is gone, because the window no longer waits.

@@ -236,8 +236,8 @@ pub fn run() {
                 app.state::<Arc<AppState>>().inner().clone(),
             );
             astro_tray::setup(app.handle());
-            // The main window starts hidden; the front end shows it on its first ready paint.
-            window_reveal::arm_fallback(app.handle());
+            // The main window starts hidden and shows at launch with its glass; the content reveals on the first ready paint.
+            window_reveal::show_at_launch(app.handle());
             #[cfg(debug_assertions)]
             if std::env::var("SIRUS_DEVTOOLS").as_deref() == Ok("1") {
                 if let Some(window) = app.get_webview_window("main") {

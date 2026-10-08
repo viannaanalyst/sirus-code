@@ -4,9 +4,9 @@
     <meta charset="UTF-8" />
     <!-- Shared and lazy Arc CSS chunks must follow the same cascade order. -->
     <style>@layer theme, base, components, utilities;</style>
-    <!-- Until the stylesheet loads, the theme background (the stylesheet turns it transparent when
-         the window glass is on). The main window stays hidden until its first ready paint (ADR-098). -->
-    <style>@layer base { body { margin: 0; background: #0c0c0c; } @media (prefers-color-scheme: light) { body { background: #f4f4f5; } } }</style>
+    <!-- Transparent until the app's stylesheet decides: the native window already has its glass
+         (or its solid theme colour when glass is off), so the launch never paints opaque black. -->
+    <style>@layer base { html, body { margin: 0; background: transparent; } }</style>
     <link rel="icon" type="image/svg+xml" href="/sirus.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <!-- Home-screen app when the Mac serves this page to a phone (ADR-081). -->

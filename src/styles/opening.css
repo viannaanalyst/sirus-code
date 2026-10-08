@@ -14,14 +14,14 @@ html[data-opening="play"] [data-opening-part] { animation: opening-slide 450ms v
 html[data-opening="play"] [data-opening-part="header"] { animation-delay: 60ms; }
 html[data-opening="play"] [data-opening-part="main"] { animation-delay: 140ms; }
 
-/* The Sirus logo leads the reveal: on the glass as the window appears, then it grows a little
-   and fades while the wipe crosses the middle, all inside the reveal's own time. */
-html:is([data-opening="showing"], [data-opening="play"]) body::after {
+/* The Sirus logo sits on the glass from the click (the window shows at launch), then grows a
+   little and fades while the wipe crosses the middle. */
+html[data-opening] body::after {
   content: ""; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none;
   background: url("/sirus-glyph.png") center / 56px no-repeat;
 }
-html:not(.dark):is([data-opening="showing"], [data-opening="play"]) body::after { filter: invert(1); }
-html[data-opening="showing"] body::after { animation: opening-logo-in 120ms var(--ease-out) both; }
+html:not(.dark)[data-opening] body::after { filter: invert(1); }
+html[data-opening="pending"] body::after, html[data-opening="showing"] body::after { animation: opening-logo-in 160ms var(--ease-out) both; }
 html[data-opening="play"] body::after { animation: opening-logo-out 480ms var(--ease-out) both; }
 
 @keyframes opening-hold { from, to { visibility: hidden; } }

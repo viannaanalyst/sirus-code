@@ -1,10 +1,9 @@
-//! The main window opens hidden, already in its final appearance, and appears once the
-//! front end has its first ready paint (ADR-098). A native fallback shows it anyway, so
+//! The main window opens hidden, gets its final appearance, and appears at launch;
+//! the front end then reveals its content on the first ready paint (ADR-098). A native fallback shows it anyway, so
 //! a broken bundle never leaves an invisible app. Other windows are not involved.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
 
@@ -12,8 +11,6 @@ use crate::commands::AppState;
 use crate::error::Result;
 
 const MAIN: &str = "main";
-/// How long after setup the window is shown even if the front end never signals.
-pub const FALLBACK_AFTER: Duration = Duration::from_millis(2500);
 
 /// The first of the ready signal and the fallback wins; the other only waits.
 #[derive(Default)]
@@ -32,20 +29,12 @@ impl RevealOnce {
 
 static REVEAL: RevealOnce = RevealOnce::new();
 
-/// Shows the main window anyway after [`FALLBACK_AFTER`].
-pub fn arm_fallback(app: &AppHandle) {
-    let handle = app.clone();
-    let spawned = std::thread::Builder::new()
-        .name("window-reveal-fallback".into())
-        .spawn(move || {
-            std::thread::sleep(FALLBACK_AFTER);
-            if REVEAL.claim() {
-                tracing::info!("showing the main window before the front end signalled ready");
-                show_main(&handle, None);
-            }
-        });
-    // Without the timer, show at once rather than risk an invisible app.
-    if spawned.is_err() && REVEAL.claim() {
+/// Shows the main window as soon as the app starts, already in its glass look (applied
+/// in `show_main` before the first frame), so a click opens a translucent window with the
+/// logo at once; the content then reveals on the first ready paint (2026-10-08: waiting
+/// for that paint, a slow start left the window hidden and then opaque black).
+pub fn show_at_launch(app: &AppHandle) {
+    if REVEAL.claim() {
         show_main(app, None);
     }
 }
@@ -112,11 +101,5 @@ mod tests {
         assert!(once.claim());
         assert!(!once.claim());
         assert!(!once.claim());
-    }
-
-    #[test]
-    fn fallback_is_short_enough_to_never_strand_the_app() {
-        assert!(FALLBACK_AFTER >= Duration::from_secs(1));
-        assert!(FALLBACK_AFTER <= Duration::from_secs(3));
     }
 }
