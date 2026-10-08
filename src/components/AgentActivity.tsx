@@ -17,14 +17,10 @@ import { backgroundStateLabel, backgroundTone, interruptedBackground, resumeBack
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
 
-/**
- * The turn's model as a small planet: its own logo, with a satellite that orbits while the
- * turn works (slowly, amber, while it waits for you) and rests green, red or grey when it ends.
- */
-function ModelOrbit({ provider, model, status, moving }: { provider: AgentProviderId; model: string | null; status: TurnActivity["status"]; moving: boolean }) {
-  return <span className="tl-model-orbit" data-status={status} data-moving={moving || undefined} aria-hidden="true">
-    {model ? <ModelIcon modelId={model} provider={provider} size={14} /> : <ProviderIcon id={provider} size={14} className="bg-transparent" />}
-    <i className="tl-satellite" />
+/** The turn's model: just its logo (the state reads in the header text beside it). */
+function ModelOrbit({ provider, model, status }: { provider: AgentProviderId; model: string | null; status: TurnActivity["status"]; moving?: boolean }) {
+  return <span className="tl-model-orbit" data-status={status} aria-hidden="true">
+    {model ? <ModelIcon modelId={model} provider={provider} size={16} /> : <ProviderIcon id={provider} size={16} className="bg-transparent" />}
   </span>;
 }
 
