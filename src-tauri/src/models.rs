@@ -1271,6 +1271,31 @@ pub struct FileEntry {
     pub is_dir: bool,
 }
 
+/// One matching line from the Files pane text search (ADR-095). `line` and
+/// `column` are 1-based (column in characters); `text` is a trimmed excerpt.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TextSearchMatch {
+    pub line: u32,
+    pub column: u32,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextSearchFile {
+    /// Relative to the workspace root, `/`-separated.
+    pub path: String,
+    pub matches: Vec<TextSearchMatch>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextSearchResult {
+    pub files: Vec<TextSearchFile>,
+    pub truncated: bool,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WorkspaceEntryKind {

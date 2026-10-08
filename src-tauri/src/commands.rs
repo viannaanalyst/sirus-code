@@ -750,6 +750,28 @@ pub async fn list_dir(
     .await
 }
 
+/// Read-only text search in the session's workspace for the Files pane (ADR-095).
+#[tauri::command]
+pub async fn search_workspace_text(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    query: String,
+    case_sensitive: Option<bool>,
+) -> Result<crate::models::TextSearchResult> {
+    let state = state.inner().clone();
+    native_task(move || {
+        state.ensure_running()?;
+        let root = session_path(&state, &session_id)?;
+        let result = crate::text_search::search(&root, &query, case_sensitive.unwrap_or(false))?;
+        state.ensure_running()?;
+        if session_path(&state, &session_id)? != root {
+            return Err(Error::invalid_path("workspace changed during text search"));
+        }
+        Ok(result)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn create_workspace_entry(
     state: State<'_, Arc<AppState>>,

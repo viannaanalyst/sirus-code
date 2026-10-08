@@ -72,6 +72,7 @@ mod sirus_tools;
 mod skills;
 mod tasks;
 mod team;
+mod text_search;
 mod thumbnails;
 mod transcript;
 mod transcript_view;
@@ -332,6 +333,7 @@ pub fn run() {
             commands::list_dir,
             commands::create_workspace_entry,
             commands::workspace_files,
+            commands::search_workspace_text,
             commands::detect_agents,
             commands::create_session,
             commands::fork_session,

@@ -8,7 +8,7 @@ import { editorKey } from "@/lib/editor-state";
 import { useAppStore } from "@/store/app-store";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
-import { CodeEditor, languageForPath } from "@/components/editor/CodeEditor";
+import { CodeEditor, languageForPath, type EditorReveal } from "@/components/editor/CodeEditor";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 
@@ -30,7 +30,7 @@ function EditorMark({ id, png }: { id: EditorId; png?: string }) {
 /** Mounted views per buffer: a clean buffer is released when its last view closes. */
 const openViews = new Map<string, number>();
 
-export function EditorPane({ sessionId, path, onClose }: { sessionId: string; path: string; onClose?: () => void }) {
+export function EditorPane({ sessionId, path, reveal, onClose }: { sessionId: string; path: string; reveal?: EditorReveal; onClose?: () => void }) {
   const t = useTranslation();
   const key = editorKey(sessionId, path);
   const buffer = useAppStore((state) => state.editorBuffers[key]);
@@ -185,7 +185,7 @@ export function EditorPane({ sessionId, path, onClose }: { sessionId: string; pa
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {isMarkdown && view === "preview"
           ? <MarkdownPreview source={content} />
-          : <CodeEditor key={key} label={path} value={content} language={languageForPath(path)} onChange={(value) => setEditorBuffer(key, value)} onSave={() => void persist()} />}
+          : <CodeEditor key={key} label={path} value={content} language={languageForPath(path)} onChange={(value) => setEditorBuffer(key, value)} onSave={() => void persist()} reveal={reveal} />}
       </div>
       {onClose && <ConfirmDialog open={confirmClose} onOpenChange={setConfirmClose} title={t("Discard changes?")} description={t("This file has unsaved changes. Closing the tab will discard them.")} cancelLabel={t("Keep editing")} confirmLabel={t("Discard changes")} disabled={saving} onConfirm={() => { if (useAppStore.getState().editorSaving[key]) return false; useAppStore.getState().discardEditorBuffer(key); onClose(); }} />}
     </div>

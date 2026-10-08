@@ -571,6 +571,12 @@ export interface GitStatus {
 
 export type WorkspaceEntryKind = "file" | "directory";
 
+/** Files pane text search (ADR-095): 1-based line and character column; `text` is a trimmed excerpt. */
+export interface TextSearchMatch { line: number; column: number; text: string }
+/** `path` is relative to the workspace root, `/`-separated. */
+export interface TextSearchFile { path: string; matches: TextSearchMatch[] }
+export interface TextSearchResult { files: TextSearchFile[]; truncated: boolean }
+
 export interface FileEntry {
   name: string;
   path: string;

@@ -347,6 +347,11 @@ export class SirusClient {
     return this.transport.invoke<FileEntry[]>("list_dir", { sessionId, path });
   }
 
+  /** Literal text search in the session's workspace, bounded on the native side (ADR-095). */
+  searchWorkspaceText(sessionId: string, query: string, caseSensitive = false) {
+    return this.transport.invoke<import("./types").TextSearchResult>("search_workspace_text", { sessionId, query, caseSensitive });
+  }
+
   /** Moves one session-owned entry to the system Trash (recoverable). */
   trashWorkspaceEntry(sessionId: string, path: string): Promise<void> {
     return this.transport.invoke<void>("trash_workspace_entry", { sessionId, path });

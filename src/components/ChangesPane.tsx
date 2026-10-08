@@ -10,6 +10,7 @@ import { IconButton } from "@/primitives/IconButton";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { fileIconFor } from "@/lib/file-icons";
+import { changeRowLabel } from "@/lib/change-row-label";
 import { DiffViewer } from "./DiffViewer";
 import type { DiffComment } from "@/lib/diff-comment";
 import { GitHistory } from "./GitHistory";
@@ -221,16 +222,18 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
           const slash = entry.path.lastIndexOf("/");
           const name = entry.path.slice(slash + 1), dir = slash >= 0 ? entry.path.slice(0, slash) : "";
           const icon = fileIconFor(name);
+          const kindLabel = t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`);
           return <div key={entry.path}>
             <div className="changes-row" data-open={open || undefined}>
               <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
-                className="changes-row-main" title={entry.actionable ? entry.path : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
+                aria-label={changeRowLabel({ path: entry.path, kind: kindLabel, status: entry.actionable ? undefined : t("workspaceGit.unavailable") })}
+                className="changes-row-main" title={entry.actionable ? `${entry.path} · ${kindLabel}` : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
                 <icon.Icon size={13} style={{ color: icon.color }} className="shrink-0" aria-hidden="true" />
                 <span className="truncate ui-control text-text-primary">{name}</span>
                 {dir ? <span className="min-w-0 truncate ui-micro text-text-muted">{dir}</span> : null}
               </button>
               <IconButton label={t(group.staged ? "workspaceGit.unprepare" : "workspaceGit.prepare", { path: entry.path })} disabled={blocked || !entry.actionable} onClick={() => void run(group.staged ? "unstage" : "stage", [entry.path])} className="changes-row-action size-6 min-h-0">{group.staged ? <Minus size={13} /> : <Plus size={13} />}</IconButton>
-              <span className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind} title={t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`)}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
+              <span aria-hidden="true" className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
             </div>
             {open && selected ? <div className="changes-diff">
               {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} onComment={onComment && diff ? onComment : undefined} />}

@@ -25,6 +25,7 @@ import { FileTree } from "@/components/FileTree";
 import { ChangesPane } from "@/components/ChangesPane";
 import { SideChatPane } from "@/components/SideChatPane";
 import { editorKey } from "@/lib/editor-state";
+import type { EditorReveal } from "@/components/editor/CodeEditor";
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
@@ -244,17 +245,20 @@ function FilesPane({ sessionId, rootLabel }: { sessionId: string; rootLabel: str
   const t = useTranslation();
   const setSelectedFile = useAppStore((state) => state.setSelectedFile);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  // A search result opens the file at its line; a new object reveals again in the same file.
+  const [reveal, setReveal] = useState<EditorReveal | undefined>(undefined);
   return <div className="flex h-full min-h-0">
     <div className="min-h-0 w-[220px] shrink-0 overflow-hidden border-r border-border-subtle">
-      <FileTree key={sessionId} sessionId={sessionId} rootLabel={rootLabel} onOpenFile={(path) => {
+      <FileTree key={sessionId} sessionId={sessionId} rootLabel={rootLabel} onOpenFile={(path, line, column) => {
         setSelectedPath(path);
+        setReveal(line ? { line, column } : undefined);
         setSelectedFile(sessionId, path);
       }} />
     </div>
     <div className="min-w-0 flex-1">
       {selectedPath
         ? <Suspense fallback={<p className="px-3 py-6 ui-control text-text-muted">{t("common.loading")}</p>}>
-            <EditorPane key={editorKey(sessionId, selectedPath)} sessionId={sessionId} path={selectedPath} onClose={() => setSelectedPath(null)} />
+            <EditorPane key={editorKey(sessionId, selectedPath)} sessionId={sessionId} path={selectedPath} reveal={reveal} onClose={() => setSelectedPath(null)} />
           </Suspense>
         : <p className="flex h-full items-center justify-center px-4 text-center ui-control text-text-muted">{t("Select a file to edit")}</p>}
     </div>

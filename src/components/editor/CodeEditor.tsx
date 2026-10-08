@@ -129,18 +129,23 @@ export function editorExtensions({ language, nonce, onChange, onSave }: { langua
   ];
 }
 
+/** Moves the cursor to a 1-based line (and character column) once; a new object reveals again. */
+export interface EditorReveal { line: number; column?: number }
+
 export function CodeEditor({
   value,
   label = "Code editor",
   language,
   onChange,
   onSave,
+  reveal,
 }: {
   value: string;
   label?: string;
   language: EditorLanguage | null;
   onChange: (value: string) => void;
   onSave: () => void;
+  reveal?: EditorReveal;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -194,6 +199,16 @@ export function CodeEditor({
     if (current === value) return;
     instance.dispatch({ changes: { from: 0, to: current.length, insert: value } });
   }, [value]);
+
+  useEffect(() => {
+    const instance = view.current;
+    if (!instance || !reveal) return;
+    const doc = instance.state.doc;
+    const line = doc.line(Math.max(1, Math.min(doc.lines, Math.floor(reveal.line))));
+    const anchor = Math.min(line.to, line.from + Math.max(0, Math.floor(reveal.column ?? 1) - 1));
+    instance.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+    instance.focus();
+  }, [reveal, language, label]);
 
   return <div ref={host} className="code-editor-host h-full min-h-0 min-w-0 overflow-hidden" />;
 }

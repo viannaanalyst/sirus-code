@@ -6,6 +6,7 @@ import { reviewDiffLines, type DiffComment } from "@/lib/diff-comment";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { IconButton } from "@/primitives/IconButton";
 import { cn } from "@/lib/cn";
+import { changeRowLabel } from "@/lib/change-row-label";
 import { useAppStore } from "@/store/app-store";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
@@ -31,7 +32,7 @@ export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage
   if (!changes.length) return <EmptyState icon={<FileDiff size={22} />} title={t("No changes")} description={t("Nenhuma alteração detectada neste worktree.")} className="p-4" />;
   return <div className="flex h-full min-h-0 flex-col">
     {!hideFileList && <div className="scroll-thin max-h-[35%] shrink-0 overflow-auto border-b border-border-subtle" aria-label={t("Changes")}>
-      {changes.map((change) => <button key={change.path} type="button" aria-pressed={selected?.path === change.path} onClick={() => onSelect(change)} className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left ui-control hover:bg-background-3", selected?.path === change.path ? "bg-background-3 text-text-primary" : "text-text-secondary")}>
+      {changes.map((change) => <button key={change.path} type="button" aria-pressed={selected?.path === change.path} aria-label={changeRowLabel({ path: change.path, kind: t(`change.${change.kind}`), additions: change.additions, deletions: change.deletions })} onClick={() => onSelect(change)} className={cn("flex w-full items-center justify-between gap-2 px-3 py-2 text-left ui-control hover:bg-background-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent", selected?.path === change.path ? "bg-background-3 text-text-primary" : "text-text-secondary")}>
         <span className="min-w-0 truncate" title={change.path}>{change.path}<span className="ml-2 ui-micro text-text-muted">{t(`change.${change.kind}`)}</span></span>
         <span className="shrink-0 font-mono ui-micro"><span className="text-success">+{change.additions}</span>{" "}<span className="text-danger">−{change.deletions}</span></span>
       </button>)}

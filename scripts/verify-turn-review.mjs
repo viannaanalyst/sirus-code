@@ -61,6 +61,10 @@ try {
     const expired = renderToString(createElement(TurnChangeSummary, { sessionId: "s", messageId: "m", review: { ...review, expired: true } }));
     assert.ok(!expired.includes(locale === "pt-BR" ? ">Desfazer" : ">Undo"));
     assert.ok(!html.includes("<script>"), "file names are escaped");
+    // Each file row is one full-width button whose name carries path, kind and +/− counts.
+    const kind = locale === "pt-BR" ? "modificado" : "modified";
+    assert.ok(html.includes(`aria-label="${locale === "pt-BR" ? "Revisar" : "Review"} fourth.ts, ${kind}, +2 −1"`), "turn file rows name path, kind and counts");
+    assert.ok(html.includes(locale === "pt-BR" ? "Revisar binary.bin, modificado, Binário" : "Review binary.bin, modified, Binary"), "binary rows say so instead of counts");
     const kept = renderToString(createElement(TurnChangeSummary, { sessionId: "s", messageId: "m", review: { ...review, keptAt: "accepted" } }));
     assert.ok(kept.includes(locale === "pt-BR" ? "Mantidas" : "Kept"));
     assert.ok(kept.includes('disabled=""'));
@@ -68,6 +72,7 @@ try {
     assert.ok(historical.includes(locale === "pt-BR" ? "Diff histórico" : "Historical diff"));
     assert.ok(historical.includes("&lt;script&gt;unsafe&lt;/script&gt;") && !historical.includes("<script>unsafe"));
     assert.ok(historical.includes(locale === "pt-BR" ? "Workspace compartilhado" : "Shared workspace"));
+    assert.ok(historical.includes(`aria-label="third.ts, ${kind}, +2 −1"`) && historical.includes("focus-visible:outline-2"), "review list rows are labelled full-width buttons");
     const binary = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m", path: "binary.bin" }));
     assert.ok(binary.includes(locale === "pt-BR" ? "Arquivo binário" : "Binary file"));
   }

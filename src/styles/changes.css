@@ -18,8 +18,11 @@
   .changes-row { position: relative; display: flex; align-items: center; gap: 4px; height: 28px; margin: 0 4px; padding-right: 6px; border-radius: var(--radius-sm); }
   .changes-row:hover, .changes-row[data-open] { background: var(--navigation-hover); }
   .changes-row-main { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; height: 100%; padding: 0 0 0 8px; text-align: left; border-radius: var(--radius-sm); }
-  .changes-row-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .changes-row-action { opacity: 0; color: var(--text-muted); }
+  /* The file button stretches over the whole row (MonoCode 0.4): kind badge, gaps and padding open the diff too; row actions sit above it. */
+  .changes-row-main::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-sm); }
+  .changes-row-main:focus-visible { outline: none; }
+  .changes-row-main:focus-visible::after { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .changes-row-action { position: relative; z-index: 1; opacity: 0; color: var(--text-muted); }
   .changes-row:hover .changes-row-action, .changes-row:focus-within .changes-row-action { opacity: 1; }
   .changes-kind { width: 14px; flex-shrink: 0; text-align: center; font-weight: 600; color: var(--text-muted); }
   .changes-kind[data-kind="modified"] { color: var(--warning); }

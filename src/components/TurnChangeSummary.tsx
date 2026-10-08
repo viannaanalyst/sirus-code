@@ -7,6 +7,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
 import { remember } from "@/lib/bounded-map";
+import { changeRowLabel } from "@/lib/change-row-label";
 
 export function ChangeTally({ additions, deletions }: { additions: number; deletions: number }) {
   return <span className="inline-flex shrink-0 gap-2 font-mono ui-micro tabular-nums"><span className="text-success">+{additions}</span><span className="text-danger">−{deletions}</span></span>;
@@ -54,11 +55,13 @@ export function TurnChangeSummary({ sessionId, messageId, review }: { sessionId:
     }
     const file = byPath.get(node.path);
     const { Icon, color } = fileIconFor(node.name);
-    return <button type="button" key={`f:${node.path}`} aria-label={t("review.file", { path: node.path })} title={node.path} className="changed-files-row group" style={indent} onClick={() => openReview(sessionId, messageId, node.path)}>
+    // The whole row is the control: its name carries the path, kind and +/− counts.
+    const label = changeRowLabel({ action: t("review.file", { path: node.path }), path: node.path, kind: file ? t(`change.${file.kind}`) : undefined,
+      additions: node.stat?.additions, deletions: node.stat?.deletions, status: file?.undoneAt ? t("undo.done") : file?.binary ? t("review.binary") : undefined });
+    return <button type="button" key={`f:${node.path}`} aria-label={label} title={node.path} className="changed-files-row group" style={indent} onClick={() => openReview(sessionId, messageId, node.path)}>
       {hasFolders || depth > 0 ? <span aria-hidden="true" className="w-[13px] shrink-0" /> : null}
       <Icon size={14} color={color} aria-hidden="true" className="shrink-0" />
       <span className="changed-files-name text-text-secondary group-hover:text-text-primary">{node.name}</span>
-      {file ? <span className="sr-only">{t(`change.${file.kind}`)}</span> : null}
       <span className="ml-auto shrink-0">{file?.undoneAt ? <span className="ui-micro text-text-muted">{t("undo.done")}</span> : file?.binary ? <span className="ui-micro text-text-muted">{t("review.binary")}</span> : node.stat ? <ChangeTally {...node.stat} /> : null}</span>
     </button>;
   };

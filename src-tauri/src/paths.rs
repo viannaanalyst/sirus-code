@@ -145,6 +145,11 @@ pub fn is_ignored_dir(name: &str) -> bool {
     IGNORED_DIR_NAMES.contains(&name)
 }
 
+/// Heavy or generated folder names every workspace walk skips.
+pub fn ignored_dir_names() -> &'static [&'static str] {
+    IGNORED_DIR_NAMES
+}
+
 pub fn display_path(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
