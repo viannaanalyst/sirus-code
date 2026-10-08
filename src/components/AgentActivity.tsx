@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Eye, FilePenLine, Globe, Hammer, Lock, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
+import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lock, RotateCcw, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -12,6 +12,7 @@ import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
 import { foldBoundary, liveFoldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
+import { backgroundStateLabel, backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
@@ -49,6 +50,19 @@ export function childTint(name: string): string {
 }
 const liveStepLabels: Record<ActivityKind, string> = { read: "Reading or searching…", edit: "Editing files…", command: "Running a command…", tool: "Using a tool…", agent: "Delegating a task…", skill: "Using a tool…" };
 
+const backgroundIcons: Record<Exclude<BackgroundTone, "running">, typeof Check> = { completed: Check, failed: X, interrupted: Square, timedOut: Clock3 };
+
+/** A background child's state, in words and colour: "Running for 2m", "Finished in 3m 10s", "Failed", "Interrupted" (ADR-097). */
+function BackgroundState({ item, now }: { item: ActivityItem; now: number }) {
+  const t = useTranslation();
+  const tone = backgroundTone(item);
+  const Icon = tone === "running" ? null : backgroundIcons[tone];
+  return <span className="background-state" data-tone={tone}>
+    {Icon ? <Icon size={11} aria-hidden="true" /> : <span className="activity-step-pulse" aria-hidden="true" />}
+    <span>{backgroundStateLabel(item, now, t)}</span>
+  </span>;
+}
+
 function ChildRow({ item, name, modelLabel, now, moving }: { item: ActivityItem; name: string; modelLabel: (id: string) => string; now: number; moving: boolean }) {
   const t = useTranslation();
   const stepsId = useId();
@@ -60,15 +74,17 @@ function ChildRow({ item, name, modelLabel, now, moving }: { item: ActivityItem;
   const running = item.state === "running";
   const current = [...steps].reverse().find(step => step.state === "running");
   const duration = item.startedAt ? formatActivityDuration(Math.floor(((item.endedAt ?? now) - item.startedAt) / 1000)) : null;
-  return <li className="activity-step activity-child" data-state={item.state} data-kind="agent" style={{ "--child-tint": childTint(name) } as CSSProperties}>
+  return <li className="activity-step activity-child" data-state={item.state} data-kind="agent" data-background={item.background || undefined} data-tone={item.background ? backgroundTone(item) : undefined} style={{ "--child-tint": childTint(name) } as CSSProperties}>
     <button type="button" className="activity-child-head" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setOpen(!expanded)}>
       <ChildOrbit moving={running && moving} />
       <span className="activity-child-name">{name}</span>
       {item.model ? <span className="activity-child-model ui-micro">{modelLabel(item.model)}</span> : <span className="sr-only">{t("subagent")}</span>}
       <span className="activity-child-meta ui-micro">
         {count ? <span>{t(count === 1 ? "{count} step" : "{count} steps", { count })}</span> : null}
-        {duration ? <span className="activity-duration">{duration}</span> : null}
-        <StepStatus item={item} />
+        {item.background ? <BackgroundState item={item} now={now} /> : <>
+          {duration ? <span className="activity-duration">{duration}</span> : null}
+          <StepStatus item={item} />
+        </>}
         <ChevronDown size={12} className={expanded ? "activity-chevron expanded" : "activity-chevron"} aria-hidden="true" />
       </span>
     </button>
@@ -164,9 +180,11 @@ function WorkGroup({ items, cwd, live, modelLabel, now, moving }: { items: Activ
  * steps fold into one sentence; a finished turn folds everything before its final answer behind
  * "Worked for …". Without `renderText` (side chat) only the work shows, under the header.
  */
-export function AgentActivity({ activity, content = "", steers = [], renderText, renderSteer, cwd }: {
+export function AgentActivity({ activity, content = "", steers = [], renderText, renderSteer, cwd, onResume }: {
   activity: TurnActivity; content?: string; steers?: readonly { offset: number; text: string }[];
   renderText?: (start: number, end: number) => ReactNode; renderSteer?: (text: string) => ReactNode; cwd?: string;
+  /** The latest reply only: sends a follow-up through the composer (Retomar, ADR-097). */
+  onResume?: (prompt: string) => void;
 }) {
   const t = useTranslation();
   const reduced = useArcReducedMotion();
@@ -225,17 +243,26 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   const folded = !active && !view.expanded;
   const foldable = !active && boundary > 0;
   const lastWork = parts.reduce((last, part, index) => part.kind === "work" ? index : last, -1);
+  // Background subagents (ADR-097): counted while they run, and offered again once interrupted.
+  const backgroundRunning = active ? runningBackground(activity).length : 0;
+  const interrupted = active ? [] : interruptedBackground(activity);
   const chrome = <>
     <ModelOrbit provider={activity.provider} model={activity.model} status={activity.status} moving={live || waitingMotion} />
     <span className="activity-model">{modelName}</span>
     <span className="activity-state">{label}</span>
     {waiting ? <span className="ui-micro text-text-muted">· {t("Paused")}</span> : null}
+    {backgroundRunning ? <span className="background-pill" data-tone="running"><span className="background-pill-dot" aria-hidden="true" />{t("background.running", { count: backgroundRunning })}</span> : null}
+    {interrupted.length ? <span className="background-pill" data-tone="interrupted"><Square size={9} aria-hidden="true" />{t(interrupted.length === 1 ? "background.interrupted.one" : "background.interrupted", { count: interrupted.length })}</span> : null}
     {foldable ? <ChevronRight size={14} className={view.expanded ? "activity-chevron tl-fold-open" : "activity-chevron"} aria-hidden="true" /> : null}
   </>;
+  const header = foldable
+    ? <button type="button" className="activity-line tl-header ui-control" aria-expanded={view.expanded} aria-controls={bodyId} onClick={() => setView(current => ({ ...current, expanded: !current.expanded }))}>{chrome}</button>
+    : <div className="activity-line tl-header ui-control">{chrome}</div>;
+  const resume = interrupted.length && onResume
+    ? <button type="button" className="background-resume ui-control" title={t("background.resumeHint")} onClick={() => onResume(resumeBackgroundPrompt(interrupted, t))}><RotateCcw size={12} aria-hidden="true" />{t("background.resume")}</button>
+    : null;
   return <div ref={node} className="agent-activity tl-turn" data-status={activity.status} data-live={live || undefined} data-active={active || undefined} data-resting={(waiting && !waitingMotion) || undefined}>
-    {foldable
-      ? <button type="button" className="activity-line tl-header ui-control" aria-expanded={view.expanded} aria-controls={bodyId} onClick={() => setView(current => ({ ...current, expanded: !current.expanded }))}>{chrome}</button>
-      : <div className="activity-line tl-header ui-control">{chrome}</div>}
+    {resume ? <div className="tl-header-row">{header}{resume}</div> : header}
     <div id={bodyId} className="tl-body">
       {liveBoundary > 0 ? <button type="button" className="tl-line tl-toggle tl-live-fold" aria-expanded={liveOpen} onClick={() => setLiveOpen(value => !value)}>
         <span className="tl-icon"><ChevronRight size={14} className={liveOpen ? "tl-fold-open" : undefined} aria-hidden="true" /></span>

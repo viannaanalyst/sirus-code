@@ -426,6 +426,11 @@ export class SirusClient {
     return this.transport.invoke<void>("steer_turn", { sessionId, text });
   }
 
+  /** Stops one background subagent of the session's running Claude reply (ADR-097). */
+  stopBackgroundTask(sessionId: string, taskId: string) {
+    return this.transport.invoke<void>("stop_background_task", { sessionId, taskId });
+  }
+
   /** Reverses a settled turn's retained diffs, file by file, after a check (ADR-061). */
   undoTurnChanges(sessionId: string, messageId: string, paths?: string[]) {
     return this.transport.invoke<import("./types").UndoTurnOutcome>("undo_turn_changes", { request: { sessionId, messageId, paths, confirm: true } });

@@ -318,11 +318,139 @@ impl Text {
     }
 }
 
+/// Longest a turn keeps its process for background subagents after its own answer (ADR-097).
+pub(crate) const BACKGROUND_LIMIT: Duration = Duration::from_secs(30 * 60);
+/// How long the CLI may take to start the follow-up turn it runs when a background task settles.
+const FOLLOW_UP_GRACE: Duration = Duration::from_secs(20);
+
+#[derive(Clone, Copy)]
+struct Limits {
+    background: Duration,
+    grace: Duration,
+}
+
+/// Subagents this turn launched with `run_in_background` (ADR-097). Claude runs them inside
+/// the turn's own `claude` process, so the turn keeps that process until none remains.
+#[derive(Default)]
+struct Background {
+    /// Task ids the CLI still reports as running.
+    running: std::collections::BTreeSet<String>,
+    /// Any background subagent was seen this turn.
+    seen: bool,
+    /// When our prompt's answer arrived while background work remained.
+    since: Option<tokio::time::Instant>,
+    /// A follow-up turn is expected (a task settled between turns, the CLI queued one, or an
+    /// instruction was sent): since when, and whether it began.
+    follow_up: Option<(tokio::time::Instant, bool)>,
+}
+impl Background {
+    /// Reads task lifecycle frames; true when a tracked task settled.
+    fn observe(&mut self, value: &Value) -> bool {
+        if value["type"] != "system" || !value["parent_tool_use_id"].is_null() {
+            return false;
+        }
+        let settled = match value["subtype"].as_str() {
+            Some("task_started") if crate::activity::is_background_task(value) => {
+                if let Some(id) = value["task_id"].as_str() {
+                    self.running.insert(id.to_owned());
+                    self.seen = true;
+                }
+                false
+            }
+            Some("task_notification" | "task_updated") => {
+                let status = value
+                    .get("status")
+                    .unwrap_or(&value["patch"]["status"])
+                    .as_str()
+                    .unwrap_or("");
+                let done = !matches!(status, "" | "running" | "pending" | "in_progress");
+                done && value["task_id"]
+                    .as_str()
+                    .is_some_and(|id| self.running.remove(id))
+            }
+            // The CLI's own list of what still runs is authoritative.
+            Some("background_tasks_changed") => {
+                let Some(tasks) = value["tasks"].as_array() else {
+                    return false;
+                };
+                let listed: std::collections::HashSet<&str> = tasks
+                    .iter()
+                    .filter_map(|task| task["task_id"].as_str())
+                    .collect();
+                let before = self.running.len();
+                self.running.retain(|id| listed.contains(id.as_str()));
+                self.running.len() < before
+            }
+            _ => false,
+        };
+        if settled && self.since.is_some() {
+            self.expect_follow_up();
+        }
+        settled
+    }
+    fn expect_follow_up(&mut self) {
+        self.follow_up = Some((tokio::time::Instant::now(), false));
+    }
+    /// The CLI began a turn of its own (its `init`, or main-agent output).
+    fn turn_began(&mut self, value: &Value) {
+        let began = (value["type"] == "system" && value["subtype"] == "init")
+            || (value["parent_tool_use_id"].is_null()
+                && matches!(value["type"].as_str(), Some("assistant" | "stream_event")));
+        if let Some((_, started)) = self.follow_up.as_mut() {
+            *started |= began;
+        }
+    }
+    /// A follow-up turn ended; the CLI may still have others queued.
+    fn turn_ended(&mut self, value: &Value) {
+        if value["queued_turn_count"].as_u64().unwrap_or(0) > 0 {
+            self.expect_follow_up();
+        } else {
+            self.follow_up = None;
+        }
+    }
+    fn waiting(&self) -> bool {
+        !self.running.is_empty() || self.follow_up.is_some()
+    }
+    /// The next moment the turn must act without a frame: the background limit, or a follow-up
+    /// turn that never began.
+    fn wake(&self, limits: Limits) -> Option<tokio::time::Instant> {
+        let limit = self.since.map(|since| since + limits.background);
+        let grace = self
+            .follow_up
+            .filter(|(_, started)| !started)
+            .map(|(at, _)| at + limits.grace);
+        match (limit, grace) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+    }
+}
+
 pub(crate) async fn execute(
     wire: &mut Wire,
     run: &mut Run,
     cancel: &mut watch::Receiver<bool>,
     emit: &mut impl FnMut(Event) -> Result<()>,
+) -> Result<bool> {
+    run_turn(
+        wire,
+        run,
+        cancel,
+        emit,
+        Limits {
+            background: BACKGROUND_LIMIT,
+            grace: FOLLOW_UP_GRACE,
+        },
+    )
+    .await
+}
+
+async fn run_turn(
+    wire: &mut Wire,
+    run: &mut Run,
+    cancel: &mut watch::Receiver<bool>,
+    emit: &mut impl FnMut(Event) -> Result<()>,
+    limits: Limits,
 ) -> Result<bool> {
     wire.send(json!({"type":"control_request","request_id":"sy_init","request":{"subtype":"initialize","hooks":null}})).await?;
     tokio::time::timeout(Duration::from_secs(30),async {
@@ -378,8 +506,25 @@ pub(crate) async fn execute(
     let mut deadline = None;
     // Instructions steered into this turn that Claude has not echoed back yet.
     let mut unread_steers: Vec<String> = vec![];
+    let mut background = Background::default();
+    // A continuation after our answer starts on its own paragraph.
+    let mut separate = false;
     loop {
+        let wake = background.wake(limits);
         let value = tokio::select! {
+            _=async {if let Some(wake)=wake {tokio::time::sleep_until(wake).await;}else{std::future::pending::<()>().await;}},if !interrupted && wake.is_some()=>{
+                if background.since.is_some_and(|since| since + limits.background <= tokio::time::Instant::now()) {
+                    // The limit stops what still runs; the turn ends as answered (ADR-097).
+                    let _=wire.send(json!({"type":"control_request","request_id":"sy_background_limit","request":{"subtype":"interrupt"}})).await;
+                    let items: Vec<_>=background.running.iter().map(|id| crate::activity::background_timed_out(id)).collect();
+                    if !items.is_empty() {emit(Event::Activity(items))?;}
+                    return Ok(false);
+                }
+                // The CLI did not start the follow-up turn it was expected to run.
+                background.follow_up=None;
+                if background.since.is_some() && !background.waiting() && unread_steers.is_empty() {return Ok(false);}
+                continue;
+            },
             value=wire.read()=>value?,
             _=cancel.changed(),if !interrupted=>{
                 interrupted=true;pending.clear();
@@ -393,7 +538,19 @@ pub(crate) async fn execute(
                     crate::codex::Inbound::Steer{text,result}=>{
                         // Claude reads input sent during a turn at its next step, in the same turn.
                         let sent=wire.send(json!({"type":"user","message":{"role":"user","content":[{"type":"text","text":text}]},"parent_tool_use_id":null,"session_id":native,"uuid":uuid::Uuid::new_v4().to_string()})).await;
-                        if sent.is_ok() {unread_steers.push(text);}
+                        if sent.is_ok() {
+                            unread_steers.push(text);
+                            // After our answer, an instruction runs as a turn of its own.
+                            if background.since.is_some() {background.expect_follow_up();}
+                        }
+                        let _=result.send(sent);
+                        continue;
+                    }
+                    crate::codex::Inbound::StopTask{task_id,result}=>{
+                        // The CLI stops one background task; its notification settles the row.
+                        let sent=if background.running.contains(&task_id) {
+                            wire.send(json!({"type":"control_request","request_id":format!("sy_stop_{}",uuid::Uuid::new_v4()),"request":{"subtype":"stop_task","task_id":task_id}})).await
+                        } else {Err(Error::agent("This background task is not running."))};
                         let _=result.send(sent);
                         continue;
                     }
@@ -459,6 +616,8 @@ pub(crate) async fn execute(
         if !items.is_empty() {
             emit(Event::Activity(items))?;
         }
+        background.observe(&value);
+        background.turn_began(&value);
         // A manual compaction's result reports the summarizer call, not the rebuilt context.
         if !(value["type"] == "result" && crate::codex::is_compact(&run.prompt)) {
             if let Some(usage) = context_usage(&value) {
@@ -555,6 +714,16 @@ pub(crate) async fn execute(
                     }
                 }
             }
+            // After our answer, results close the CLI's own follow-up turns (task notifications,
+            // instructions); the turn ends when no background work or follow-up remains.
+            Some("result") if !interrupted && background.since.is_some() => {
+                foreign_prompt = false;
+                separate = true;
+                background.turn_ended(&value);
+                if !background.waiting() && unread_steers.is_empty() {
+                    return Ok(false);
+                }
+            }
             // Another prompt's result is not this turn's end: keep reading until ours answers.
             Some("result")
                 if !interrupted && answers_other_prompt(&value, &turn, foreign_prompt) =>
@@ -578,10 +747,24 @@ pub(crate) async fn execute(
                     }
                     return Err(Error::agent("Claude turn failed; see CLI diagnostics"));
                 }
-                return Ok(false);
+                // Background subagents still run in this process: keep it, and read the
+                // follow-up turns the CLI runs as they report (ADR-097).
+                if background.seen && value["queued_turn_count"].as_u64().unwrap_or(0) > 0 {
+                    background.expect_follow_up();
+                }
+                if !background.waiting() {
+                    return Ok(false);
+                }
+                background.since = Some(tokio::time::Instant::now());
+                separate = true;
             }
             _ => {
                 if let Some(chunk) = text.parse(&value)? {
+                    let chunk = if std::mem::take(&mut separate) {
+                        format!("\n\n{chunk}")
+                    } else {
+                        chunk
+                    };
                     emit(Event::Delta(chunk))?;
                 }
             }
@@ -603,7 +786,11 @@ fn answers_other_prompt(value: &Value, turn: &str, foreign_prompt: bool) -> bool
     if named.peek().is_some() {
         return !named.any(|uuid| uuid == turn);
     }
+    // A turn the CLI started itself names its origin (`task-notification`, …).
     foreign_prompt
+        || value["origin"]["kind"]
+            .as_str()
+            .is_some_and(|kind| !matches!(kind, "human" | "user"))
 }
 
 /// Claude also ends a limited turn with the limit as its error text.
@@ -711,6 +898,9 @@ mod tests {
         let ours =
             json!({"type":"result","user_message_uuid":"ours","user_message_uuids":["x","ours"]});
         assert!(!answers_other_prompt(&ours, "ours", true));
+        // The 2.1.294 CLI names a notification turn's origin instead of echoing its prompt.
+        let notification = json!({"type":"result","origin":{"kind":"task-notification"}});
+        assert!(answers_other_prompt(&notification, "ours", false));
     }
 
     #[test]
@@ -1006,6 +1196,257 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
         assert!(acknowledgement.unwrap().await.unwrap().is_err());
         assert!(child.wait().await.unwrap().success());
     }
+    /// Fixture prelude: initialize, read our prompt, report the session and launch one
+    /// background subagent (frames as the 2.1.294 CLI sends them).
+    const BACKGROUND_PRELUDE: &str = r#"import sys,json,select,time
+read=lambda:json.loads(sys.stdin.readline())
+send=lambda value:print(json.dumps(value),flush=True)
+read();send({'type':'control_response','response':{'subtype':'success','request_id':'sy_init','response':{}}})
+prompt=read();ours=prompt['uuid']
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'system','subtype':'background_tasks_changed','tasks':[{'task_id':'bg1','task_type':'local_agent','description':'Audit queries'}],'session_id':'native'})
+send({'type':'system','subtype':'task_started','task_id':'bg1','tool_use_id':'tool1','description':'Audit queries','subagent_type':'Explore','is_backgrounded':True,'task_type':'local_agent','session_id':'native'})
+send({'type':'assistant','parent_tool_use_id':None,'session_id':'native','message':{'content':[{'type':'text','text':'Launched.'}]}})
+send({'type':'result','subtype':'success','is_error':False,'session_id':'native','user_message_uuids':[ours],'queued_turn_count':0})
+"#;
+
+    async fn background_turn(
+        body: &str,
+        limits: Limits,
+        cancel_after: Option<Duration>,
+        stop_task: Option<&str>,
+    ) -> (Result<bool>, Vec<Event>) {
+        let script = format!("{BACKGROUND_PRELUDE}{body}");
+        let mut child = Command::new("python3")
+            .args(["-u", "-c", &script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let (sender, replies) = mpsc::channel(16);
+        let (cancel_sender, mut cancel) = watch::channel(false);
+        let mut run = Run {
+            session: session("/fixture"),
+            cwd: "/fixture".into(),
+            prompt: "fixture".into(),
+            attachments: Vec::new(),
+            generation: "g".into(),
+            replies,
+        };
+        let mut wire = Wire::new(child.stdin.take().unwrap(), child.stdout.take().unwrap());
+        let mut events = Vec::new();
+        let mut stop_result = None;
+        let outcome = {
+            let mut callback = |event: Event| {
+                // Once the background child shows, the person may stop it alone.
+                if let (Event::Activity(items), Some(task)) = (&event, stop_task) {
+                    if stop_result.is_none() && items.iter().any(|item| item.background) {
+                        let (result, receiver) = tokio::sync::oneshot::channel();
+                        sender
+                            .try_send(crate::codex::Inbound::StopTask {
+                                task_id: task.into(),
+                                result,
+                            })
+                            .unwrap();
+                        stop_result = Some(receiver);
+                    }
+                }
+                events.push(event);
+                Ok(())
+            };
+            let turn = run_turn(&mut wire, &mut run, &mut cancel, &mut callback, limits);
+            match cancel_after {
+                Some(after) => {
+                    tokio::pin!(turn);
+                    tokio::select! {
+                        outcome = &mut turn => outcome,
+                        _ = tokio::time::sleep(after) => {
+                            cancel_sender.send(true).unwrap();
+                            turn.await
+                        }
+                    }
+                }
+                None => turn.await,
+            }
+        };
+        if let Some(receiver) = stop_result {
+            assert!(receiver.await.unwrap().is_ok(), "stop_task is delivered");
+        }
+        drop(wire);
+        let _ = tokio::time::timeout(Duration::from_secs(3), child.wait()).await;
+        (outcome, events)
+    }
+
+    fn quick() -> Limits {
+        Limits {
+            background: Duration::from_secs(20),
+            grace: Duration::from_secs(5),
+        }
+    }
+
+    fn reply(events: &[Event]) -> String {
+        events
+            .iter()
+            .filter_map(|event| match event {
+                Event::Delta(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn turn_activity(events: Vec<Event>) -> crate::activity::TurnActivity {
+        let mut activity = crate::activity::TurnActivity::new(AgentProviderId::Claude, None);
+        for event in events {
+            if let Event::Activity(items) = event {
+                for item in items {
+                    activity.observe(item);
+                }
+            }
+        }
+        activity
+    }
+
+    #[tokio::test]
+    async fn background_subagents_keep_the_turn_until_their_follow_up_answers() {
+        // Our answer arrives while the child runs; the CLI later runs a notification turn
+        // of its own, whose text continues the same reply, and only then the turn ends.
+        let body = r#"assert not select.select([sys.stdin],[],[],.3)[0], 'the turn stays open without input'
+send({'type':'system','subtype':'task_progress','task_id':'bg1','tool_use_id':'tool1','description':'Running npm test','session_id':'native'})
+send({'type':'system','subtype':'task_updated','task_id':'bg1','patch':{'status':'completed'},'session_id':'native'})
+send({'type':'system','subtype':'task_notification','task_id':'bg1','tool_use_id':'tool1','status':'completed','summary':'done','session_id':'native'})
+send({'type':'system','subtype':'background_tasks_changed','tasks':[],'session_id':'native'})
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'assistant','parent_tool_use_id':None,'session_id':'native','message':{'content':[{'type':'text','text':'All three audits are in.'}]}})
+send({'type':'result','subtype':'success','is_error':False,'session_id':'native','origin':{'kind':'task-notification'},'queued_turn_count':0})
+assert sys.stdin.read()==''
+"#;
+        let (outcome, events) = background_turn(body, quick(), None, None).await;
+        assert!(!outcome.unwrap(), "the turn completes, not interrupted");
+        assert_eq!(reply(&events), "Launched.\n\nAll three audits are in.");
+        let activity = turn_activity(events);
+        let child = activity
+            .items
+            .iter()
+            .find(|item| item.id == "agent:bg1")
+            .unwrap();
+        assert!(child.background);
+        assert_eq!(child.label, "Audit queries");
+        assert_eq!(child.detail, "Running npm test");
+        assert_eq!(child.state, crate::activity::ItemState::Completed);
+    }
+
+    #[tokio::test]
+    async fn a_queued_follow_up_keeps_the_turn_until_the_last_answer() {
+        // Two notification turns: the first reports another one queued.
+        let body = r#"send({'type':'system','subtype':'task_notification','task_id':'bg1','status':'completed','session_id':'native'})
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'assistant','parent_tool_use_id':None,'session_id':'native','message':{'content':[{'type':'text','text':'One.'}]}})
+send({'type':'result','subtype':'success','is_error':False,'session_id':'native','origin':{'kind':'task-notification'},'queued_turn_count':1})
+time.sleep(.3)
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'assistant','parent_tool_use_id':None,'session_id':'native','message':{'content':[{'type':'text','text':'Two.'}]}})
+send({'type':'result','subtype':'success','is_error':False,'session_id':'native','origin':{'kind':'task-notification'},'queued_turn_count':0})
+assert sys.stdin.read()==''
+"#;
+        let (outcome, events) = background_turn(body, quick(), None, None).await;
+        assert!(!outcome.unwrap());
+        assert_eq!(reply(&events), "Launched.\n\nOne.\n\nTwo.");
+    }
+
+    #[tokio::test]
+    async fn stopping_a_background_turn_interrupts_and_leaves_children_interrupted() {
+        let body = r#"request=read()
+assert request['request']['subtype']=='interrupt', request
+send({'type':'control_response','response':{'subtype':'success','request_id':request['request_id'],'response':{}}})
+assert sys.stdin.read()==''
+"#;
+        let (outcome, events) =
+            background_turn(body, quick(), Some(Duration::from_millis(400)), None).await;
+        assert!(outcome.unwrap(), "a stop reports the turn as interrupted");
+        let mut activity = turn_activity(events);
+        activity.sync_at(SessionStatus::Stopped, i64::MAX);
+        assert_eq!(activity.items[0].state, crate::activity::ItemState::Stopped);
+        // A turn that ends any other way while a background child runs also interrupted it.
+        let mut activity = crate::activity::TurnActivity::new(AgentProviderId::Claude, None);
+        activity.observe(
+            crate::activity::claude(&json!({"type":"system","subtype":"task_started","task_id":"bg1","description":"Audit","is_backgrounded":true,"task_type":"local_agent"}))
+                .remove(0),
+        );
+        activity.sync_at(SessionStatus::Failed, i64::MAX);
+        assert_eq!(activity.items[0].state, crate::activity::ItemState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn one_background_task_stops_alone_through_the_cli() {
+        let body = r#"request=read()
+assert request['request']=={'subtype':'stop_task','task_id':'bg1'}, request
+send({'type':'control_response','response':{'subtype':'success','request_id':request['request_id'],'response':{}}})
+send({'type':'system','subtype':'task_notification','task_id':'bg1','status':'stopped','session_id':'native'})
+send({'type':'system','subtype':'background_tasks_changed','tasks':[],'session_id':'native'})
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'result','subtype':'success','is_error':False,'session_id':'native','origin':{'kind':'task-notification'},'queued_turn_count':0})
+assert sys.stdin.read()==''
+"#;
+        let (outcome, events) = background_turn(body, quick(), None, Some("bg1")).await;
+        assert!(!outcome.unwrap());
+        let activity = turn_activity(events);
+        assert_eq!(activity.items[0].state, crate::activity::ItemState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn background_work_is_bounded_by_its_limit() {
+        let body = r#"request=read()
+assert request['request']['subtype']=='interrupt', request
+assert sys.stdin.read()==''
+"#;
+        let limits = Limits {
+            background: Duration::from_millis(400),
+            grace: Duration::from_secs(5),
+        };
+        let (outcome, events) = background_turn(body, limits, None, None).await;
+        assert!(!outcome.unwrap(), "the limit ends the turn as answered");
+        let activity = turn_activity(events);
+        assert_eq!(activity.items[0].state, crate::activity::ItemState::Stopped);
+        assert!(activity.items[0].timed_out);
+    }
+
+    #[tokio::test]
+    async fn a_follow_up_that_never_starts_ends_the_turn_after_its_grace() {
+        let body = r#"send({'type':'system','subtype':'task_notification','task_id':'bg1','status':'failed','session_id':'native'})
+assert sys.stdin.read()==''
+"#;
+        let limits = Limits {
+            background: Duration::from_secs(20),
+            grace: Duration::from_millis(300),
+        };
+        let (outcome, events) = background_turn(body, limits, None, None).await;
+        assert!(!outcome.unwrap());
+        assert_eq!(
+            turn_activity(events).items[0].state,
+            crate::activity::ItemState::Failed
+        );
+    }
+
+    #[test]
+    fn only_main_agent_background_subagents_hold_the_turn() {
+        let mut background = Background::default();
+        // A shell task, a foreground child and a subagent's own task do not hold the turn.
+        for frame in [
+            json!({"type":"system","subtype":"task_started","task_id":"b","task_type":"local_bash","is_backgrounded":true}),
+            json!({"type":"system","subtype":"task_started","task_id":"f","task_type":"local_agent","is_backgrounded":false}),
+            json!({"type":"system","subtype":"task_started","task_id":"n","task_type":"local_agent","is_backgrounded":true,"parent_task_id":"x"}),
+        ] {
+            background.observe(&frame);
+        }
+        assert!(!background.waiting());
+        background.observe(&json!({"type":"system","subtype":"task_started","task_id":"a","task_type":"local_agent","is_backgrounded":true}));
+        assert!(background.waiting());
+        // The CLI's list of running tasks settles a child whose notification never came.
+        assert!(background
+            .observe(&json!({"type":"system","subtype":"background_tasks_changed","tasks":[]})));
+        assert!(!background.waiting());
+    }
+
     async fn live_turn(
         session: &Session,
         prompt: &str,

@@ -59,6 +59,13 @@ pub struct ActivityItem {
     pub steps: Vec<ActivityStep>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub hidden_steps: u32,
+    /// Child rows only: a Claude subagent launched with `run_in_background` (ADR-097). The turn
+    /// keeps its process while it runs; one still running when the turn ends is `stopped`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub background: bool,
+    /// Background child stopped because it outlived the turn's background limit (ADR-097).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub timed_out: bool,
     /// Live routing only: the native delegation call that owns this child (Claude tool use).
     #[serde(skip)]
     pub source: Option<String>,
@@ -146,7 +153,8 @@ impl TurnActivity {
             let stopped = status == SessionStatus::Stopped;
             for item in &mut self.items {
                 if item.state == ItemState::Running {
-                    item.state = if stopped {
+                    // A background child dies with the turn's process: it was interrupted (ADR-097).
+                    item.state = if stopped || item.background {
                         ItemState::Stopped
                     } else {
                         ItemState::Unknown
@@ -154,7 +162,7 @@ impl TurnActivity {
                 }
                 if item.kind == ItemKind::Agent {
                     item.ended_at.get_or_insert(at);
-                    close_steps(&mut item.steps, stopped);
+                    close_steps(&mut item.steps, stopped || item.background);
                 }
             }
             self.pending.clear();
@@ -226,6 +234,8 @@ impl TurnActivity {
             }
             item.steps.clone_from(&old.steps);
             item.hidden_steps = old.hidden_steps;
+            item.background |= old.background;
+            item.timed_out |= old.timed_out;
             item.started_at = old.started_at;
             if item.kind == ItemKind::Agent {
                 // Children can work again; only a settled native state closes the window.
@@ -443,6 +453,8 @@ fn item(
         ended_at: None,
         steps: vec![],
         hidden_steps: 0,
+        background: false,
+        timed_out: false,
         source: None,
         parent: None,
     }
@@ -452,7 +464,7 @@ fn native_state(v: &Value) -> ItemState {
         Some("running" | "inProgress" | "in_progress" | "pending") => ItemState::Running,
         Some("completed" | "succeeded") => ItemState::Completed,
         Some("failed" | "errored" | "error") => ItemState::Failed,
-        Some("interrupted" | "cancelled" | "killed" | "shutdown") => ItemState::Stopped,
+        Some("interrupted" | "cancelled" | "killed" | "stopped" | "shutdown") => ItemState::Stopped,
         _ => ItemState::Unknown,
     }
 }
@@ -663,7 +675,7 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
         && v["type"] == "system"
         && matches!(
             v["subtype"].as_str(),
-            Some("task_started" | "task_notification" | "task_updated")
+            Some("task_started" | "task_notification" | "task_updated" | "task_progress")
         )
     {
         let Some(id) = identifier(&v["task_id"]) else {
@@ -674,6 +686,8 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
         }
         let state = if v["subtype"] == "task_started" {
             ItemState::Running
+        } else if v["subtype"] == "task_progress" {
+            ItemState::Unknown
         } else {
             native_state(v.get("status").unwrap_or(&v["patch"]["status"]))
         };
@@ -689,6 +703,13 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
             None,
         );
         child.source = identifier(&v["tool_use_id"]);
+        // A subagent launched with `run_in_background` by the main agent (ADR-097); a task owned
+        // by another subagent ends with its owner.
+        child.background = v["subtype"] == "task_started" && is_background_task(v);
+        // Progress names what the child is doing now ("Running npm test").
+        if v["subtype"] == "task_progress" {
+            child.detail = v["description"].as_str().unwrap_or("").to_owned();
+        }
         return vec![child];
     }
     let content = if parent.is_none()
@@ -768,6 +789,27 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
             Some(observed)
         })
         .collect()
+}
+/// A `task_started` frame for a subagent the main agent launched with `run_in_background`.
+pub(crate) fn is_background_task(v: &Value) -> bool {
+    v["subtype"] == "task_started"
+        && v["task_type"] == "local_agent"
+        && v["is_backgrounded"] == true
+        && v["parent_task_id"].is_null()
+        && v["parent_tool_use_id"].is_null()
+        && identifier(&v["task_id"]).is_some()
+}
+/// A background child the turn stopped at its limit: interrupted, and marked as timed out.
+pub fn background_timed_out(task_id: &str) -> ActivityItem {
+    let mut row = item(
+        format!("agent:{}", short(task_id, 192)),
+        ItemKind::Agent,
+        "",
+        ItemState::Stopped,
+        None,
+    );
+    row.timed_out = true;
+    row
 }
 /// Items from a child thread the turn spawned become that child's steps; nested children stay inside it.
 pub fn codex_child(v: &Value, started: bool, thread: &str) -> Vec<ActivityItem> {

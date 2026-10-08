@@ -125,6 +125,11 @@ pub enum Inbound {
         text: String,
         result: oneshot::Sender<Result<()>>,
     },
+    /// Stop one background task of the running turn (Claude's `stop_task`, ADR-097).
+    StopTask {
+        task_id: String,
+        result: oneshot::Sender<Result<()>>,
+    },
 }
 pub struct Run {
     pub session: Session,
@@ -518,6 +523,10 @@ async fn execute(
                             let params = json!({"threadId":thread_id,"input":crate::attachments::codex_input(&text, &[]),"expectedTurnId":turn_id});
                             let delivered = wire.request("turn/steer", params, &mut cancel.clone()).await.map(|_| ()).map_err(|_| Error::agent("Codex did not accept the instruction for this turn"));
                             let _ = result.send(delivered);
+                            continue;
+                        }
+                        Inbound::StopTask { result, .. } => {
+                            let _ = result.send(Err(Error::agent("Codex has no background tasks to stop")));
                             continue;
                         }
                     };

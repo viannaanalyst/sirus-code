@@ -2102,6 +2102,45 @@ pub async fn steer_turn(
     crate::persist::save(&state.data_path, &data)
 }
 
+/// Stops one background subagent of the session's running Claude turn (ADR-097). The CLI's
+/// own notification settles its row; the rest of the turn keeps running.
+#[tauri::command]
+pub async fn stop_background_task(
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+    task_id: String,
+) -> Result<()> {
+    if task_id.is_empty() || task_id.len() > 192 || task_id.chars().any(char::is_control) {
+        return Err(Error::new("invalid", "Unknown background task."));
+    }
+    let receiver = {
+        let data = state.data.lock();
+        state.ensure_running()?;
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        if session.agent != AgentProviderId::Claude || !session.status.is_active() {
+            return Err(Error::agent("This background task is not running."));
+        }
+        let agents = state.agents.lock();
+        let sender = agents
+            .get(&session_id)
+            .and_then(|process| process.replies.clone())
+            .ok_or_else(|| Error::agent("This background task is not running."))?;
+        let (result, receiver) = tokio::sync::oneshot::channel();
+        sender
+            .try_send(crate::codex::Inbound::StopTask { task_id, result })
+            .map_err(|_| Error::agent("This background task is not running."))?;
+        receiver
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(15), receiver)
+        .await
+        .map_err(|_| Error::agent("Claude did not stop the task in time."))?
+        .map_err(|_| Error::agent("The reply ended before stopping the task."))?
+}
+
 #[tauri::command]
 pub async fn stop_agent(
     app: AppHandle,

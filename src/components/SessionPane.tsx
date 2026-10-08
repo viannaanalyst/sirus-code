@@ -28,7 +28,8 @@ import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { smallThumbnailUrl, thumbnailUrl } from "@/lib/thumbnail-url";
-import { PlanActions, ReplyChoices } from "@/components/ReplyChoices";
+import { PlanActions, QUICK_REPLY_EVENT, ReplyChoices, type QuickReplyDetail } from "@/components/ReplyChoices";
+import { BackgroundTasks } from "@/components/BackgroundTasks";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { AstroReplyExtras } from "@/components/astros/AstroReplyExtras";
 import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";
@@ -226,6 +227,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-4">
           {passive || !session ? null : <ReplyChoices session={session} message={messages[messages.length - 1]} />}
+          {passive || !session ? null : <BackgroundTasks session={session} message={messages[messages.length - 1]} />}
           {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
           {/* The Working panel floats at the bottom-left, in the room beside the composer; it never moves it (ADR-094). */}
           {passive ? null : <WorkingDock />}
@@ -345,6 +347,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
         }`}
       >
         {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
+          onResume={session.messages.at(-1)?.id === message.id ? (text) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } })) : undefined}
           renderText={(start, end) => renderBlocks(parseCached(replyContent.slice(start, end)), start)}
           renderSteer={(text) => <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
         : message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {

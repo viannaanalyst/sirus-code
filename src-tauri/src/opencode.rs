@@ -619,6 +619,7 @@ pub(crate) async fn execute(
                 let reply=match inbound {
                     crate::codex::Inbound::Answer(reply)=>reply,
                     crate::codex::Inbound::Steer{result,..}=>{let _=result.send(Err(Error::agent("OpenCode does not accept instructions during a turn")));continue;}
+                    crate::codex::Inbound::StopTask{result,..}=>{let _=result.send(Err(Error::agent("OpenCode has no background tasks to stop")));continue;}
                 };
                 let r=&reply.request;
                 let mut delivery_failed=false;

@@ -15,6 +15,7 @@ import { teamEnglish, teamPortuguese } from "./team-strings";
 import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
 import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
 import { activityEnglish, activityPortuguese } from "./activity-strings";
+import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
 import { reviewInboxEnglish, reviewInboxPortuguese } from "./review-inbox-strings";
 import { automationsEnglish, automationsPortuguese } from "./automations-strings";
 import { workspacePagesEnglish, workspacePagesPortuguese } from "./workspace-pages-strings";
@@ -48,6 +49,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...sidebarUsagePortuguese,
     ...sideChatPortuguese,
     ...activityPortuguese,
+    ...backgroundPortuguese,
     ...reviewInboxPortuguese,
     ...automationsPortuguese,
     ...workspacePagesPortuguese,
@@ -116,6 +118,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...sidebarUsageEnglish,
     ...sideChatEnglish,
     ...activityEnglish,
+    ...backgroundEnglish,
     ...reviewInboxEnglish,
     ...automationsEnglish,
     ...workspacePagesEnglish,

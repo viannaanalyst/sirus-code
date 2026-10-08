@@ -347,6 +347,7 @@ pub fn run() {
             commands::stop_agent,
             commands::respond_agent_request,
             commands::steer_turn,
+            commands::stop_background_task,
             commands::start_terminal,
             commands::write_terminal,
             commands::resize_terminal,
