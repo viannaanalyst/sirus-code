@@ -151,13 +151,15 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
     }}>
       <PopoverTrigger asChild>
         <button type="button" disabled={disabled} aria-label={`${t("models.models")} · ${currentLabel} · ${providerById(currentProvider).name}`}
-          className={cn("composer-model-trigger titlebar-no-drag inline-flex max-w-[260px] min-w-0 items-center gap-2 rounded-full bg-transparent px-2 ui-control text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-[var(--accent-muted)] hover:text-text-primary disabled:opacity-40", executionControls ? "composer-control" : "h-8")}>
+          className={cn("composer-model-trigger titlebar-no-drag inline-flex max-w-[300px] min-w-0 items-center gap-2 rounded-full bg-transparent px-2 ui-control text-text-secondary transition-colors duration-[var(--motion-fast)] hover:bg-[var(--accent-muted)] hover:text-text-primary disabled:opacity-40", executionControls ? "composer-control" : "h-8")}>
           <span className="relative inline-flex shrink-0">
             <span className={cn("inline-flex", orbit && "opacity-0")}>{currentModel ? <ModelIcon modelId={currentModel} provider={currentProvider} size={executionControls ? 16 : 20} /> : <ProviderIcon id={currentProvider} size={executionControls ? 16 : 20} />}</span>
             {orbit ? <ProviderOrbitSwap key={orbit.key} from={orbit.from} to={orbit.to} size={executionControls ? 16 : 20} onDone={() => setOrbit(null)} /> : null}
           </span>
           <span className="truncate">{currentLabel}</span>
-          {executionControls && execution.fast ? <Zap size={12} fill="currentColor" aria-label={t("composer.fast")} /> : null}
+          {/* The chosen reasoning effort, muted beside the model, and a yellow bolt for Fast (after MonoCode). */}
+          {executionControls && execution.effort ? <span className="composer-model-effort shrink-0 text-text-muted">{t(`effort.${execution.effort}`)}</span> : null}
+          {executionControls && execution.fast ? <Zap size={12} fill="currentColor" aria-label={t("composer.fast")} className="shrink-0 text-[#f0c43a]" /> : null}
           <ChevronDown size={12} aria-hidden="true" className="shrink-0 text-text-muted" />
         </button>
       </PopoverTrigger>
