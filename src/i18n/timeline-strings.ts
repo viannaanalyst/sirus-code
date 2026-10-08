@@ -2,6 +2,8 @@
 const strings: Record<string, [string, string]> = {
   "timeline.workingFor": ["Working for {duration}", "Trabalhando há {duration}"],
   "timeline.workedFor": ["Worked for {duration}", "Trabalhou por {duration}"],
+  "timeline.earlier": ["{count} earlier messages", "{count} mensagens anteriores"],
+  "timeline.earlierOne": ["1 earlier message", "1 mensagem anterior"],
   "timeline.worked": ["Worked", "Trabalhou"],
   "timeline.stoppedAfter": ["You stopped after {duration}", "Você parou após {duration}"],
   "timeline.failedAfter": ["Failed after {duration}", "Falhou após {duration}"],

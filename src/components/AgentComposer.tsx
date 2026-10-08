@@ -4,7 +4,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { Textarea } from "@/components/arc/textarea/textarea";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { Check, ChevronDown, ClipboardList, Hand, Shield, ShieldAlert, Square, ArrowUp, ListPlus, Minimize2 } from "@/components/icons/phosphor";
+import { Bot, Check, ChevronDown, ClipboardList, Hand, Square, ArrowUp, ListPlus, Minimize2, Zap } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -485,13 +485,13 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           <Dropdown onOpenChange={(open) => { if (open) setApprovalLayout(composerPopoverLayout(approvalTrigger.current, boundary.current)); }}>
             <DropdownTrigger asChild>
               <button ref={approvalTrigger} type="button" disabled={submitting} aria-label={`${t("composer.approvals")} · ${approvalLabel}`} className={`composer-approval-trigger composer-control titlebar-no-drag inline-flex items-center gap-1.5 rounded-full px-2 ui-control transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50 ${fullAccess ? "text-[var(--brand-claude)]" : "text-text-secondary"}`}>
-                {fullAccess ? <ShieldAlert size={16} /> : approval === "auto" ? <Shield size={16} /> : <Hand size={16} />}{t(approvalLabel)}<ChevronDown size={11} />
+                {fullAccess ? <Zap size={16} /> : approval === "auto" ? <Bot size={16} /> : <Hand size={16} />}{t(approvalLabel)}<ChevronDown size={11} />
               </button>
             </DropdownTrigger>
             <DropdownContent side="top" sideOffset={approvalLayout.sideOffset} alignOffset={approvalLayout.alignOffset} align="start" style={{ width: approvalLayout.width, maxWidth: "calc(100vw - 20px)" }} className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-auto p-2">
               <p className="px-2 pb-1 pt-1 ui-caption text-text-muted">{t("composer.approvalHint")}</p>
               {(["ask", "auto", "full"] as const).map((mode) => {
-                const Icon = mode === "ask" ? Hand : mode === "auto" ? Shield : ShieldAlert;
+                const Icon = mode === "ask" ? Hand : mode === "auto" ? Bot : Zap;
                 const label = mode === "ask" ? "composer.askApproval" : mode === "auto" ? "composer.autoReview" : "composer.fullAccess";
                 const supported = definition.approvalModes.includes(mode);
                 const description = !supported ? "composer.approvalUnsupported" : mode === "ask" ? "composer.askApprovalDescription" : mode === "auto" && agentId === "opencode" ? "composer.autoEditsDescription" : mode === "auto" ? "composer.autoReviewDescription" : "composer.fullAccessDescription";

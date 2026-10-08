@@ -1,4 +1,23 @@
 @layer components {
+  /* Settings search (ADR-093): a soft field under "Back to app" and results in the page's place. */
+  .settings-search { position: relative; display: flex; align-items: center; gap: 8px; height: 34px; margin: -4px 0 10px; padding: 0 10px; border: 1px solid var(--border-subtle); border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); color: var(--text-muted); transition: border-color var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+  .settings-search:hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent); }
+  .settings-search:focus-within { border-color: color-mix(in srgb, #8c9bff 55%, transparent); background: color-mix(in srgb, var(--text-primary) 6%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, #8c9bff 16%, transparent); color: var(--text-secondary); }
+  .settings-search input { min-width: 0; flex: 1; background: transparent; color: var(--text-primary); font-size: 13px; outline: none; }
+  .settings-search input::placeholder { color: var(--text-muted); }
+  .settings-search button { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; color: var(--text-muted); }
+  .settings-search button:hover { background: var(--navigation-hover); color: var(--text-primary); }
+  .settings-nav [data-dim] { opacity: .38; }
+  .settings-search-results { display: flex; flex-direction: column; margin-top: 16px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+  .settings-search-result { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px; border-top: 1px solid var(--border-subtle); text-align: left; transition: background var(--motion-fast) var(--ease-out); }
+  .settings-search-result:first-child { border-top: 0; }
+  .settings-search-result:hover, .settings-search-result:focus-visible { background: var(--navigation-hover); }
+  .settings-search-path { color: var(--text-muted); font-size: 11.5px; }
+  .settings-search-title { color: var(--text-primary); font-size: 13.5px; font-weight: 500; }
+  .settings-search-description { color: var(--text-muted); font-size: 12.5px; }
+  .settings-search-result mark { border-radius: 3px; background: color-mix(in srgb, #8c9bff 28%, transparent); color: var(--text-primary); }
+  @keyframes settings-row-found { 0%, 35% { background: color-mix(in srgb, #8c9bff 16%, transparent); } 100% { background: transparent; } }
+  .settings-row-found { border-radius: 8px; animation: settings-row-found 1.8s var(--ease-out); }
   /* Chat background (ADR-089): the picker when empty, else a preview of an empty chat. */
   .appearance-chat-pick { display: flex; width: calc(100% - 32px); flex-direction: column; align-items: center; gap: 6px; margin: 16px; padding: 40px 16px; border: 1px dashed var(--border-default); border-radius: 12px; color: var(--text-secondary); transition: background var(--motion-fast) var(--ease-out); }
   .appearance-chat-pick:hover:not(:disabled) { background: var(--navigation-hover); }

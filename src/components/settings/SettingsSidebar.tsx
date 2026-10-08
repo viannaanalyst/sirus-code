@@ -17,12 +17,15 @@ import {
   SlidersHorizontal,
   Smartphone,
   TerminalSquare,
+  Search,
+  X,
 } from "@/components/icons/phosphor";
 import { isRemoteUi } from "@/client";
 import { cn } from "@/lib/cn";
 import type { SettingsSectionId } from "@/lib/settings";
+import "@/styles/general-settings.css";
 
-const GROUPS: { label: string; items: { id: SettingsSectionId; label: string; icon: typeof Settings2 }[] }[] = [
+export const SETTINGS_GROUPS: { label: string; items: { id: SettingsSectionId; label: string; icon: typeof Settings2 }[] }[] = [
   {
     label: "Personal",
     items: [
@@ -59,10 +62,17 @@ export function SettingsSidebar({
   section,
   onSection,
   onBack,
+  query,
+  onQuery,
+  matched,
 }: {
   section: SettingsSectionId;
   onSection: (id: SettingsSectionId) => void;
   onBack: () => void;
+  query: string;
+  onQuery: (query: string) => void;
+  /** Pages with search results; others dim while searching. */
+  matched: ReadonlySet<SettingsSectionId> | null;
 }) {
   const t = useTranslation();
   const list = useRef<HTMLDivElement>(null);
@@ -102,7 +112,13 @@ export function SettingsSidebar({
           <ArrowLeft size={16} aria-hidden="true" className="shrink-0 text-text-secondary" />
           <span className="truncate">{t("Back to app")}</span>
         </button>
-        {GROUPS.map((group, index) => (
+        <label className="settings-search">
+          <Search size={14} aria-hidden="true" />
+          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder={t("settingsSearch.placeholder")} aria-label={t("settingsSearch.placeholder")}
+            onKeyDown={(event) => { if (event.key === "Escape" && query) { event.preventDefault(); event.stopPropagation(); onQuery(""); } }} />
+          {query ? <button type="button" aria-label={t("settingsSearch.clear")} onClick={() => onQuery("")}><X size={12} aria-hidden="true" /></button> : null}
+        </label>
+        {SETTINGS_GROUPS.map((group, index) => (
           <div key={group.label}>
             <p className={cn("mb-1 px-2.5 ui-caption text-text-muted", index === 0 ? "mt-1" : "mt-4")}>{t(group.label)}</p>
             {group.items.filter((item) => !(isRemoteUi && item.id === "connections")).map((item) => {
@@ -112,7 +128,8 @@ export function SettingsSidebar({
                 <button
                   key={item.id}
                   type="button"
-                  aria-current={active ? "page" : undefined}
+                  aria-current={active && !matched ? "page" : undefined}
+                  data-dim={matched && !matched.has(item.id) ? "" : undefined}
                   onClick={() => onSection(item.id)}
                   className={cn(
                     "sidebar-menu-row mb-0.5 flex w-full items-center gap-2.5 px-2.5 ui-control",

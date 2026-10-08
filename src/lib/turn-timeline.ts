@@ -47,6 +47,15 @@ export function timelineParts(content: string, items: readonly ActivityItem[], s
 }
 
 /** The parts a finished turn folds away: everything before its final answer (the text after the last work). */
+/**
+ * While a turn runs (after MonoCode): everything before its newest paragraph folds away, so
+ * only that paragraph and the work after it stay in view. 0 when there is nothing to fold.
+ */
+export function liveFoldBoundary(parts: readonly TimelinePart[]): number {
+  for (let index = parts.length - 1; index > 0; index -= 1) if (parts[index].kind === "text") return index;
+  return 0;
+}
+
 export function foldBoundary(parts: readonly TimelinePart[]): number {
   let index = parts.length;
   while (index > 0 && parts[index - 1].kind === "text") index -= 1;

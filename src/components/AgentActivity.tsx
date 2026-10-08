@@ -10,7 +10,7 @@ import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { foldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { foldBoundary, liveFoldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
@@ -213,6 +213,13 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   // While the reply is revealed at a steady pace, work that came after the text shown so far waits for it.
   const parts = useMemo(() => timelineParts(renderText ? content : "", renderText && active ? activity.items.filter(item => (item.offset ?? 0) <= content.length) : activity.items, renderText ? steers : []), [activity.items, content, steers, renderText, active]);
   const boundary = foldBoundary(parts);
+  // A running turn folds its earlier paragraphs and steps behind one line (unless kept open).
+  const liveBoundary = active && renderText && !keepOpen ? liveFoldBoundary(parts) : 0;
+  const [liveOpen, setLiveOpen] = useState(false);
+  const liveFolded = liveBoundary > 0 && !liveOpen;
+  const earlier = liveBoundary > 0 ? parts.slice(0, liveBoundary) : [];
+  const earlierItems = earlier.flatMap(part => part.kind === "work" ? part.items : []);
+  const earlierTexts = earlier.filter(part => part.kind === "text").length;
   const folded = !active && !view.expanded;
   const foldable = !active && boundary > 0;
   const lastWork = parts.reduce((last, part, index) => part.kind === "work" ? index : last, -1);
@@ -228,8 +235,12 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
       ? <button type="button" className="activity-line tl-header ui-control" aria-expanded={view.expanded} aria-controls={bodyId} onClick={() => setView(current => ({ ...current, expanded: !current.expanded }))}>{chrome}</button>
       : <div className="activity-line tl-header ui-control">{chrome}</div>}
     <div id={bodyId} className="tl-body">
+      {liveBoundary > 0 ? <button type="button" className="tl-line tl-toggle tl-live-fold" aria-expanded={liveOpen} onClick={() => setLiveOpen(value => !value)}>
+        <span className="tl-icon"><ChevronRight size={14} className={liveOpen ? "tl-fold-open" : undefined} aria-hidden="true" /></span>
+        <span className="tl-label">{[t(earlierTexts === 1 ? "timeline.earlierOne" : "timeline.earlier", { count: earlierTexts }), earlierItems.length ? groupSentence(earlierItems, t) : null].filter(Boolean).join(" · ")}</span>
+      </button> : null}
       {parts.map((part, index) => {
-        const hidden = folded && index < boundary;
+        const hidden = (folded && index < boundary) || (liveFolded && index < liveBoundary);
         if (part.kind === "text") return hidden ? null : <Fragment key={`t${part.start}`}>{renderText?.(part.start, part.end)}</Fragment>;
         if (part.kind === "steer") return hidden ? null : <Fragment key={`s${index}`}>{renderSteer?.(part.text)}</Fragment>;
         // A folded turn still shows the steps that failed.

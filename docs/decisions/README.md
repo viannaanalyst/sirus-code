@@ -109,6 +109,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-090: Press ⌘Q twice to quit](ADR-090-press-command-q-twice.md) — without running agents, the first ⌘Q shows "Press ⌘Q again to quit" for two seconds and a second press quits; with agents running the existing dialog asks.
 - [ADR-091: Commit graph like MonoCode's](ADR-091-commit-graph-like-monocode.md) — the Changes history adapts MonoCode's VS Code–derived graph (22 px rows, a lane colour per branch, arcs at merges, ringed HEAD, ref pills) in Sirus's lilac and Astro colours.
 - [ADR-092: The sidebar is the icon rail; sessions live in the project switcher](ADR-092-rail-only-sidebar.md) — the sidebar panel is gone; the toggle shows or hides the icon rail, and the header switcher lists projects and every session of the hovered one with New session, pin, archive and project actions.
+- [ADR-093: Settings search, ⌘J quick switch and live folding](ADR-093-settings-search-quick-switch-live-fold.md) — a generated index makes every Settings row searchable from the Settings menu; ⌘J lists conversations by Needs you / Working / Recent with what each is doing; a running turn folds its earlier commentary behind one line; Auto and Full approval get robot and lightning icons.
 
 ## Template
 
