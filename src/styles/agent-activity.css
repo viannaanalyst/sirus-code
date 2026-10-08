@@ -146,16 +146,18 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .agent-activity .a
 @keyframes tl-orbit { from { transform: rotate(0deg) translateX(11px); } to { transform: rotate(360deg) translateX(11px); } }
 
 /* Reply choices: a prose question's options as buttons under the last answer, plus "Other…". */
-.reply-choices { display: flex; flex-direction: column; gap: 6px; margin-top: -4px; }
-.reply-choices-question { color: var(--text-muted); }
-.reply-choices-options { display: flex; flex-direction: column; gap: 4px; max-width: 520px; }
+.reply-choices-dock { max-width: var(--chat-column-width); margin: 0 auto; padding: 0 14px; }
+/* A tab attached to the composer's top edge (it sits on the composer, which keeps its place). */
+.reply-choices { display: flex; flex-direction: column; gap: 2px; margin-bottom: -1px; padding: 12px 12px 10px; border: 1px solid color-mix(in oklab, var(--text-primary) 10%, transparent); border-bottom: 0; border-radius: var(--composer-radius) var(--composer-radius) 0 0; background: var(--background-2); }
+.reply-choices-label { color: var(--text-muted); }
+.reply-choices-question { margin-bottom: 6px; color: var(--text-primary); font-size: var(--text-ui-13, 13px); }
+.reply-choices-options { display: flex; flex-direction: column; gap: 4px; }
 .reply-choice { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 6px 12px 6px 8px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); border-radius: 10px; background: color-mix(in srgb, var(--text-primary) 3%, transparent); color: var(--text-primary); text-align: left; transition: background var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
 .reply-choice:hover { background: color-mix(in srgb, var(--text-primary) 7%, transparent); border-color: color-mix(in srgb, var(--text-primary) 18%, transparent); }
 .reply-choice:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .reply-choice-key { display: inline-grid; place-items: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 6px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
 .reply-choice-other { justify-content: flex-start; padding-left: 12px; border-style: dashed; background: transparent; color: var(--text-muted); }
 .reply-choice-other:hover { color: var(--text-primary); }
-@media (prefers-reduced-motion: no-preference) { .reply-choices { animation: tl-open var(--motion-normal, .2s) var(--ease-out) both; } }
 
 /* Jump to the latest output: a small round arrow just above the composer, like MonoCode's. */
 .follow-latest-anchor { position: relative; z-index: 20; height: 0; }

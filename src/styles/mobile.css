@@ -328,3 +328,6 @@
 .mobile-chat .changed-files-header > :first-child { flex-basis: 100%; }
 .mobile-chat .changed-files-header > :first-child > span:first-child { white-space: nowrap; }
 .mobile-chat .changed-files-header > :last-child { margin-left: -6px; }
+
+/* The phone keeps the two-line composer; the desktop is roomier (three lines). */
+.mobile-chat { --composer-editor-min-height: calc(2lh * var(--composer-density)); }

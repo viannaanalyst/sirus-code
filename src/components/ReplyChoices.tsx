@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import type { Message, Session } from "@/client/types";
 import { ClipboardList } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
@@ -11,22 +12,28 @@ export type QuickReplyDetail = { sessionId: string; text: string | null; plannin
 
 /**
  * When a finished reply ends by asking the person to choose (in prose, not through the
- * provider's question tool), its options become buttons plus "Other…".
+ * provider's question tool), its options become buttons plus "Other…", in a tab attached
+ * to the top of the composer, where the provider's own questions appear too.
  */
-export function ReplyChoices({ session, message }: { session: Pick<Session, "id" | "status">; message: Message }) {
+export function ReplyChoices({ session, message }: { session: Pick<Session, "id" | "status">; message: Message | undefined }) {
   const t = useTranslation();
-  const choices = useMemo(() => message.role === "agent" && !message.streaming ? replyChoices(message.content) : null, [message.role, message.streaming, message.content]);
-  if (!choices || ["starting", "running", "waiting"].includes(session.status)) return null;
+  const choices = useMemo(() => message?.role === "agent" && !message.streaming ? replyChoices(message.content) : null, [message?.role, message?.streaming, message?.content]);
+  const shown = choices && !["starting", "running", "waiting"].includes(session.status) ? choices : null;
   const answer = (text: string | null) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } }));
-  return <div className="reply-choices" role="group" aria-label={choices.question}>
-    <p className="reply-choices-question ui-caption">{choices.question}</p>
-    <div className="reply-choices-options">
-      {choices.options.map((option, index) => <button key={option} type="button" className="reply-choice ui-control" onClick={() => answer(option)}>
-        <span className="reply-choice-key">{index + 1}</span><span className="min-w-0 truncate">{option}</span>
-      </button>)}
-      <button type="button" className="reply-choice reply-choice-other ui-control" onClick={() => answer(null)}>{t("replyChoices.other")}</button>
-    </div>
-  </div>;
+  return <AnimatePresence initial={false}>
+    {shown && message ? <motion.div key={message.id} className="reply-choices-dock" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}>
+      <div className="reply-choices" role="group" aria-label={shown.question}>
+        <p className="reply-choices-label ui-micro">{t("replyChoices.label")}</p>
+        <p className="reply-choices-question">{shown.question}</p>
+        <div className="reply-choices-options">
+          {shown.options.map((option, index) => <button key={option} type="button" className="reply-choice ui-control" onClick={() => answer(option)}>
+            <span className="reply-choice-key">{index + 1}</span><span className="min-w-0 truncate">{option}</span>
+          </button>)}
+          <button type="button" className="reply-choice reply-choice-other ui-control" onClick={() => answer(null)}>{t("replyChoices.other")}</button>
+        </div>
+      </div>
+    </motion.div> : null}
+  </AnimatePresence>;
 }
 
 /**

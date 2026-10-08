@@ -205,7 +205,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
                       <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
-                      {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} /><ReplyChoices session={session} message={message} />{emptyReply(message, session) ? <EmptyReplyNotice sessionId={session.id} /> : null}</> : null}
+                      {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} />{emptyReply(message, session) ? <EmptyReplyNotice sessionId={session.id} /> : null}</> : null}
                     </Fragment>;
                   })}
                   </div>)}
@@ -225,6 +225,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         <div className="relative z-10 px-6 pb-4">
+          {passive || !session ? null : <ReplyChoices session={session} message={messages[messages.length - 1]} />}
           {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
           {/* The Working panel floats at the bottom-left, in the room beside the composer; it never moves it (ADR-094). */}
           {passive ? null : <WorkingDock />}

@@ -78,13 +78,14 @@
   --chat-column-width: 736px;
   /* Synara-style composer density: compact 0.85, comfortable 1, spacious 1.15. */
   --composer-density: 1;
-  --composer-editor-padding-top: calc(0.75rem * var(--composer-density));
-  --composer-editor-padding-bottom: calc(0.5rem * var(--composer-density));
-  --composer-editor-padding-x: calc(0.75rem * var(--composer-density));
-  --composer-editor-padding-x-end: calc(0.875rem * var(--composer-density));
-  --composer-editor-min-height: calc(2lh * var(--composer-density));
-  --composer-footer-padding: calc(0.375rem * var(--composer-density));
-  --composer-footer-padding-end: calc(0.5rem * var(--composer-density));
+  /* Roomy like T3 Code: three lines to write in and more breathing room at the edges. */
+  --composer-editor-padding-top: calc(1rem * var(--composer-density));
+  --composer-editor-padding-bottom: calc(0.625rem * var(--composer-density));
+  --composer-editor-padding-x: calc(1.125rem * var(--composer-density));
+  --composer-editor-padding-x-end: calc(1.125rem * var(--composer-density));
+  --composer-editor-min-height: calc(3lh * var(--composer-density));
+  --composer-footer-padding: calc(0.5rem * var(--composer-density));
+  --composer-footer-padding-end: calc(0.875rem * var(--composer-density));
   --switch-track-off: rgb(255 255 255 / 0.1);
   --switch-track-on: color-mix(in srgb, var(--accent) 38%, var(--background-2));
   --switch-thumb-on: var(--text-primary);

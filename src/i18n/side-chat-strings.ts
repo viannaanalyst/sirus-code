@@ -4,6 +4,7 @@ const strings: Record<string, [string, string]> = {
   "sideChat.open": ["Open side chat", "Abrir chat lateral"],
   "sideChat.ask": ["Ask in side chat", "Perguntar na lateral"],
   "replyChoices.other": ["Other…", "Outro…"],
+  "replyChoices.label": ["The AI asks", "A IA pergunta"],
   "htmlPreview.view": ["HTML view", "Visualização do HTML"],
   "htmlPreview.page": ["Page", "Página"],
   "htmlPreview.code": ["Code", "Código"],
