@@ -43,6 +43,7 @@ impl PreparedAttachment {
     /// (1280 px on the longer side, at most 640 KiB): small in the bubble, sharp when opened.
     pub fn summary(&self) -> crate::models::MessageAttachment {
         crate::models::MessageAttachment {
+            id: Some(self.view.id.clone()),
             name: self.view.name.clone(),
             kind: self.view.kind.clone(),
             mime_type: Some(self.view.mime_type.clone()).filter(|mime| !mime.is_empty()),
@@ -437,7 +438,16 @@ fn from_bytes(name: String, bytes: Vec<u8>) -> Result<PreparedAttachment> {
     let mut permissions = file.as_file().metadata()?.permissions();
     permissions.set_readonly(true);
     file.as_file().set_permissions(permissions)?;
-    let preview_url = image.then(|| format!("data:{mime_type};base64,{}", STANDARD.encode(&bytes)));
+    // One decode makes both copies: the sent message's 1280 px JPEG and the composer chip's
+    // small one. The full image is read only when the viewer opens (`attachment_image`).
+    let (thumbnail, chip) = if image {
+        image_copies(&bytes)
+    } else {
+        (None, None)
+    };
+    let preview_url = image.then(|| {
+        chip.unwrap_or_else(|| format!("data:{mime_type};base64,{}", STANDARD.encode(&bytes)))
+    });
     Ok(PreparedAttachment {
         view: PromptAttachment {
             id: uuid::Uuid::new_v4().to_string(),
@@ -451,7 +461,7 @@ fn from_bytes(name: String, bytes: Vec<u8>) -> Result<PreparedAttachment> {
             preview_url,
         },
         file: Some(file),
-        thumbnail: if image { thumbnail(&bytes) } else { None },
+        thumbnail,
     })
 }
 fn prepare(path: &Path, folder: bool) -> Result<PreparedAttachment> {
@@ -966,7 +976,7 @@ mod tests {
             .preview_url
             .as_ref()
             .unwrap()
-            .starts_with("data:image/png;base64,"));
+            .starts_with("data:image/"));
         assert!(file.view.content.is_empty());
         let files = vec![file.clone()];
         let codex = codex_input("Look", &files);
@@ -1076,8 +1086,38 @@ mod tests {
     }
 }
 
-/// A bounded image decode scaled to fit 1280 px, as a JPEG data URL; `None` when it does not fit.
-pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
+/// The sent message's copy (fits 1280 px, at most 640 KiB) and the composer chip's (fits
+/// 240 px), both JPEG data URLs from a single bounded decode.
+fn image_copies(bytes: &[u8]) -> (Option<String>, Option<String>) {
+    let Some(image) = bounded_decode(bytes) else {
+        return (None, None);
+    };
+    let encode = |image: &image::DynamicImage, quality: u8| {
+        let mut out = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality)
+            .encode_image(&image.to_rgb8())
+            .ok()?;
+        Some(out)
+    };
+    let large = if image.width() > 1280 || image.height() > 1280 {
+        image.resize(1280, 1280, image::imageops::FilterType::Triangle)
+    } else {
+        image
+    };
+    let chip = if large.width() > 240 || large.height() > 240 {
+        large.resize(240, 240, image::imageops::FilterType::Triangle)
+    } else {
+        large.clone()
+    };
+    let thumbnail = encode(&large, 80)
+        .filter(|out| out.len() <= 640 * 1024)
+        .map(|out| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)));
+    let chip =
+        encode(&chip, 78).map(|out| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)));
+    (thumbnail, chip)
+}
+
+fn bounded_decode(bytes: &[u8]) -> Option<image::DynamicImage> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
         .ok()?;
@@ -1086,19 +1126,31 @@ pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
     limits.max_image_height = Some(12_000);
     limits.max_alloc = Some(512 * 1024 * 1024);
     reader.limits(limits);
-    let image = reader.decode().ok()?;
-    // Small images keep their size; larger ones scale down to fit.
-    let small = if image.width() > 1280 || image.height() > 1280 {
-        image.resize(1280, 1280, image::imageops::FilterType::Triangle)
-    } else {
-        image
+    reader.decode().ok()
+}
+
+/// The full image of a composer attachment, for the viewer and the annotator.
+#[tauri::command]
+pub async fn attachment_image(
+    state: tauri::State<'_, Arc<crate::commands::AppState>>,
+    owner: String,
+    id: String,
+) -> Result<String> {
+    let snapshot = state.attachments.preview_snapshot(&owner, &id)?;
+    if !snapshot.image() {
+        return Err(Error::new("attachment", "This attachment is not an image."));
     }
-    .to_rgb8();
-    let mut out = Vec::new();
-    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
-        .encode_image(&small)
-        .ok()?;
-    (out.len() <= 640 * 1024).then(|| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)))
+    let mime = snapshot.view.mime_type.clone();
+    tokio::task::spawn_blocking(move || snapshot.bytes())
+        .await
+        .map_err(|_| Error::new("attachment", "Cannot read the attachment."))?
+        .map(|bytes| format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+}
+
+/// The sent message's copy alone (tests and callers without a chip).
+#[cfg(test)]
+pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
+    image_copies(bytes).0
 }
 
 #[cfg(test)]

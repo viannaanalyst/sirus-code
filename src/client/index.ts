@@ -145,6 +145,11 @@ export class SirusClient {
   capturePromptWindow(owner: string) {
     return this.transport.invoke<import("./types").PromptAttachment[]>("capture_prompt_window", { owner });
   }
+  /** A composer image at full size, for the viewer and the annotator (the chip shows a small copy). */
+  attachmentImage(owner: string, id: string) {
+    return this.transport.invoke<string>("attachment_image", { owner, id });
+  }
+
   attachmentPreview(owner: string, id: string) {
     return this.transport.invoke<import("./types").DocumentPreview>("attachment_preview", { owner, id });
   }
@@ -460,6 +465,11 @@ export class SirusClient {
   /** Reads or deletes a document an Astro saved (ADR-088). */
   astroDocument<T = unknown>(action: import("./types").AstroDocumentAction) {
     return this.transport.invoke<T>("astro_document_action", { action });
+  }
+
+  /** Sends the conversation's last message again, with its attachments while the app keeps them. */
+  retryLastTurn(sessionId: string) {
+    return this.transport.invoke<unknown>("retry_last_turn", { sessionId });
   }
 
   /** Picks or clears the chat background image (ADR-089); returns the saved file name. */

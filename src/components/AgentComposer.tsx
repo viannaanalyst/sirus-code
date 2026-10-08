@@ -380,8 +380,15 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
 
   return (
     <>
-    {commandPanel === "usage" ? <ComposerUsageCard onClose={() => { setCommandPanel(null); area.current?.focus(); }} /> : null}
-    {session && commandPanel === "status" ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus(); }} /> : null}
+    {/* Command cards fold in and out with their height, so the composer glides instead of jumping. */}
+    <AnimatePresence initial={false}>
+      {commandPanel === "usage" || (session && commandPanel === "status") ? <motion.div key={commandPanel} className="overflow-hidden"
+        initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: reducedMotion ? 0 : motionTokens.fast, ease: motionTokens.ease }}>
+        {commandPanel === "usage" ? <ComposerUsageCard onClose={() => { setCommandPanel(null); area.current?.focus({ preventScroll: true }); }} />
+          : session ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus({ preventScroll: true }); }} /> : null}
+      </motion.div> : null}
+    </AnimatePresence>
     <AnimatePresence initial={false}>
       {session && commandPanel === "mcp" ? <motion.div key="mcp" initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }} transition={{ duration: reducedMotion ? 0 : motionTokens.fast }}>
         <ComposerMcpCard session={session} onClose={() => { setCommandPanel(null); area.current?.focus(); }} />

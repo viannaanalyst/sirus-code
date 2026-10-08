@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, ChevronDown, FolderPlus, GitCompareArrows, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
+import { Archive, ChevronDown, FolderPlus, GitCompareArrows, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
 import type { Project, Session } from "@/client/types";
 import { ProjectActions } from "@/components/ProjectActions";
+import { SessionActionDialog } from "@/components/SessionActions";
 import { ProjectEditDialog } from "@/components/SidebarRows";
 import { relativeTime } from "@/lib/session-board";
 import { moveSidebarProject, sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
@@ -61,6 +62,7 @@ function ProjectSwitcher() {
   const [cursor, setCursor] = useState(0);
   const [focus, setFocus] = useState<string | null>(null);
   const [editing, setEditing] = useState<Project | null>(null);
+  const [sessionAction, setSessionAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
   const list = useRef<HTMLDivElement>(null);
   // Projects reorder by dragging, as they did in the sidebar (pinned and unpinned apart).
   const reorder = usePointerReorder({
@@ -158,7 +160,13 @@ function ProjectSwitcher() {
             const status = tabStatus(session, unseen, computer);
             const time = relativeTime(session.lastActivityAt);
             const isPinned = pinned.has(session.id);
-            return <div key={session.id} className="header-switcher-session" data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
+            const active = ["starting", "running", "waiting"].includes(session.status);
+            return <ContextMenu key={session.id} activation="context-only" label={t("session.actions")} items={[
+              { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, onSelect: () => { close(); setSessionAction({ session, kind: "rename" }); } },
+              { id: "pin", label: t(isPinned ? "Unpin session" : "Pin session"), icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onSelect: () => togglePin(session.id) },
+              { id: "archive", label: t("Archive session"), icon: <Archive size={15} />, onSelect: () => { close(); useAppStore.getState().requestArchive(session.id); } },
+              { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: active, onSelect: () => { close(); setSessionAction({ session, kind: "delete" }); } },
+            ]}><div className="header-switcher-session" data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
               <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
                 <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
                 <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
@@ -172,7 +180,7 @@ function ProjectSwitcher() {
                   <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive size={13} /></button>
                 </span>
               </span>
-            </div>;
+            </div></ContextMenu>;
           })}
           {!shown.length && <p className="header-switcher-empty">{t(needle ? "tabs.noSessionsMatch" : "Sessions you start will show up here")}</p>}
         </div>
@@ -180,6 +188,7 @@ function ProjectSwitcher() {
     </PopoverContent>
   </Popover>
   {editing ? <ProjectEditDialog project={editing} open onOpenChange={value => { if (!value) setEditing(null); }} /> : null}
+  {sessionAction ? <SessionActionDialog session={sessionAction.session} action={sessionAction.kind} onClose={() => setSessionAction(null)} /> : null}
   </>;
 }
 
@@ -228,6 +237,8 @@ export function HeaderTabs() {
   const reorder = usePointerReorder({ axis: "x", onDrop: (source, target, edge) => { if (project) useAppStore.getState().moveHeaderTab(project.id, source, target, edge); } });
   const [leaving, setLeaving] = useState<string | null>(null);
   const [menuTab, setMenuTab] = useState<string | null>(null);
+  const [tabAction, setTabAction] = useState<{ id: string; kind: "rename" | "delete" } | null>(null);
+  const tabActionSession = tabAction ? sessions.find(session => session.id === tabAction.id) ?? null : null;
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
@@ -279,6 +290,8 @@ export function HeaderTabs() {
         { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
         { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
         { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
+        { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "session", onSelect: () => setTabAction({ id: menuTab, kind: "rename" }) },
+        { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "session", destructive: true, disabled: ["starting", "running", "waiting"].includes(tabs.find(tab => tab.id === menuTab)?.status ?? ""), onSelect: () => setTabAction({ id: menuTab, kind: "delete" }) },
       ] : []}>
       <div ref={list} className="header-tabs-list" data-reorder-scope="" role="tablist" aria-label={t("tabs.label")}
         onContextMenuCapture={event => setMenuTab((event.target as HTMLElement).closest<HTMLElement>("[data-tab]")?.dataset.tab ?? null)}>
@@ -328,5 +341,6 @@ export function HeaderTabs() {
       <span>{t("tabs.closedToast", { title: toastTitle })}</span>
       <button type="button" onClick={() => { setToast(null); store().reopenHeaderTab(); }}>{t("tabs.undo")}</button>
     </motion.div>}</AnimatePresence>
+    {tabActionSession ? <SessionActionDialog session={tabActionSession} action={tabAction?.kind ?? null} onClose={() => setTabAction(null)} /> : null}
   </div>;
 }

@@ -62,6 +62,20 @@ objc2-screen-capture-kit = { version = "0.3.2", default-features = false, featur
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# The debug app decodes and encodes pasted screenshots: keep the image codecs fast there too.
+[profile.dev.package.image]
+opt-level = 3
+[profile.dev.package.png]
+opt-level = 3
+[profile.dev.package.fdeflate]
+opt-level = 3
+[profile.dev.package.zune-jpeg]
+opt-level = 3
+[profile.dev.package.zune-core]
+opt-level = 3
+[profile.dev.package.base64]
+opt-level = 3
+
 [profile.release]
 codegen-units = 1
 lto = true

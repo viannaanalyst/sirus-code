@@ -73,10 +73,13 @@ function ComposerImageViewer({ attachment, owner, disabled, open, onReplace, onC
     setPending(false);
     setReady(false);
     const image = new Image();
-    image.onload = () => { sourceRef.current = image; setReady(true); repaint(); };
-    image.src = attachment.previewUrl;
-    return () => { image.onload = null; };
-  }, [open, attachment.previewUrl, repaint]);
+    let cancelled = false;
+    image.onload = () => { if (!cancelled) { sourceRef.current = image; setReady(true); repaint(); } };
+    // The chip holds a small copy; the viewer reads the full image only now.
+    const fallback = attachment.previewUrl;
+    void client.attachmentImage(owner, attachment.id).then((url) => url, () => fallback).then((url) => { if (!cancelled) image.src = url; });
+    return () => { cancelled = true; image.onload = null; };
+  }, [open, attachment.previewUrl, owner, attachment.id, repaint]);
 
   useEffect(() => { repaint(); }, [repaint, strokes]);
 
@@ -216,7 +219,7 @@ export function ComposerImageAttachment({ attachment, owner, disabled, onRemove,
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button type="button" className="block size-9 cursor-zoom-in rounded-lg" title={attachment.name} aria-label={`${t("composer.previewAttachment")} · ${attachment.name}`}>
-          <img src={attachment.previewUrl!} alt="" draggable={false} className="size-9 rounded-lg object-cover" />
+          <img src={attachment.previewUrl!} alt="" draggable={false} decoding="async" className="size-9 rounded-lg object-cover" />
         </button>
       </DialogTrigger>
       <ComposerImageViewer attachment={attachment} owner={owner} disabled={disabled} open={open} onReplace={onReplace} onClose={() => setOpen(false)} />

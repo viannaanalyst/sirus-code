@@ -34,6 +34,9 @@ pub fn validate_response(pending: &PendingRequest, response: &AgentResponse) -> 
         (
             PendingRequestKind::Tool { .. },
             AgentResponse::Approval { .. }
+        ) | (
+            PendingRequestKind::UserInput { .. },
+            AgentResponse::UserInput { .. } | AgentResponse::Approval { .. }
         )
     ) {
         return Err(Error::agent(
@@ -158,9 +161,86 @@ fn deny(vendor_id: &str, message: &str, interrupt: bool) -> Value {
 fn unsupported(vendor_id: &str) -> Value {
     json!({"type":"control_response","response":{"subtype":"error","request_id":vendor_id,"error":"Unsupported native control request"}})
 }
+/// The text of an echoed user message: its string content or first text block.
+fn echoed_text(value: &Value) -> Option<&str> {
+    let content = &value["message"]["content"];
+    content.as_str().or_else(|| {
+        content
+            .as_array()?
+            .iter()
+            .find(|block| block["type"] == "text")?["text"]
+            .as_str()
+    })
+}
+
+/// Claude's AskUserQuestion becomes the app's question card: at most 16 questions, each
+/// with its options and a free answer.
+fn question_kind(request: &Value) -> Option<PendingRequestKind> {
+    if request["subtype"] != "can_use_tool"
+        || request["tool_name"] != "AskUserQuestion"
+        || request["input"].to_string().len() > 128 * 1024
+    {
+        return None;
+    }
+    let items = request["input"]["questions"].as_array()?;
+    if items.is_empty() || items.len() > 16 {
+        return None;
+    }
+    let questions = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let question = item["question"].as_str()?.trim();
+            if question.is_empty() {
+                return None;
+            }
+            let options = item["options"].as_array().map(|options| {
+                options
+                    .iter()
+                    .filter_map(|option| {
+                        Some(crate::models::InputOption {
+                            label: option["label"].as_str()?.to_owned(),
+                            description: option["description"].as_str().unwrap_or("").to_owned(),
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            });
+            Some(crate::models::InputQuestion {
+                id: format!("q{index}"),
+                header: item["header"].as_str().unwrap_or("").to_owned(),
+                question: question.to_owned(),
+                is_other: true,
+                is_secret: false,
+                options: options.filter(|options| !options.is_empty()),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(PendingRequestKind::UserInput { questions })
+}
+
+/// The answers Claude expects back: each question's text with the chosen labels.
+fn question_answers(
+    questions: &[crate::models::InputQuestion],
+    answers: &std::collections::BTreeMap<String, Vec<String>>,
+) -> Value {
+    let mut map = serde_json::Map::new();
+    for question in questions {
+        if let Some(chosen) = answers
+            .get(&question.id)
+            .filter(|chosen| !chosen.is_empty())
+        {
+            map.insert(question.question.clone(), json!(chosen.join(", ")));
+        }
+    }
+    Value::Object(map)
+}
+
 fn tool_kind(request: &Value) -> Option<PendingRequestKind> {
+    if request["tool_name"] == "AskUserQuestion" {
+        return question_kind(request);
+    }
     let name = request["tool_name"].as_str()?;
-    // Built-in reviewable tools only. Questions, secrets, grants, auth, config and MCP callbacks are unsupported.
+    // Built-in reviewable tools and questions only. Secrets, grants, auth, config and MCP callbacks are unsupported.
     if request["subtype"] != "can_use_tool"
         || !matches!(
             name,
@@ -284,6 +364,11 @@ pub(crate) async fn execute(
         .unwrap_or("default");
     wire.send(json!({"type":"user","message":{"role":"user","content":crate::attachments::claude_input(&run.prompt, &run.attachments)?},"parent_tool_use_id":null,"session_id":native,"uuid":turn,"client_composed":true})).await?;
     let mut pending: HashMap<String, (String, PendingRequest)> = HashMap::new();
+    // Whether the CLI echoed this turn's prompt, and whether it ran a prompt of its own first.
+    let mut prompt_seen = false;
+    let mut foreign_prompt = false;
+    // AskUserQuestion's own question list, echoed back with the answers.
+    let mut questions_input: HashMap<String, Value> = HashMap::new();
     let mut seen = std::collections::HashSet::new();
     let mut identity = None;
     let mut text = Text::default();
@@ -322,6 +407,10 @@ pub(crate) async fn execute(
                         Ok(())=>{
                             let payload=match (&entry.kind,&request.response) {
                                 (PendingRequestKind::Tool{input,..},AgentResponse::Approval{decision:ApprovalDecision::Accept})=>response(vendor_id,json!({"behavior":"allow","updatedInput":input})),
+                                (PendingRequestKind::UserInput{questions},AgentResponse::UserInput{answers})=>{
+                                    let original=questions_input.get(&request.request_id).cloned().unwrap_or(Value::Null);
+                                    response(vendor_id,json!({"behavior":"allow","updatedInput":{"questions":original,"answers":question_answers(questions,answers)}}))
+                                },
                                 (_,AgentResponse::Approval{decision})=>deny(vendor_id,"User declined",matches!(decision,ApprovalDecision::Cancel)),
                                 _=>unreachable!(),
                             };
@@ -421,6 +510,12 @@ pub(crate) async fn execute(
                         .into(),
                     kind,
                 };
+                if matches!(request.kind, PendingRequestKind::UserInput { .. }) {
+                    questions_input.insert(
+                        opaque.clone(),
+                        value["request"]["input"]["questions"].clone(),
+                    );
+                }
                 pending.insert(opaque, (vendor_id, request.clone()));
                 emit(Event::Pending(request))?;
             }
@@ -441,15 +536,24 @@ pub(crate) async fn execute(
                     .then(|| epoch_ms(&info["resetsAt"]));
             }
             Some("user") if value["parent_tool_use_id"].is_null() => {
-                if let Some(echoed) = value["message"]["content"]
-                    .as_array()
-                    .and_then(|blocks| blocks.iter().find(|block| block["type"] == "text"))
-                    .and_then(|block| block["text"].as_str())
+                let echoed = echoed_text(&value);
+                if value["uuid"].as_str() == Some(turn.as_str())
+                    || echoed.is_some_and(|text| text.trim() == run.prompt.trim())
                 {
+                    prompt_seen = true;
+                } else if let Some(echoed) = echoed {
                     if let Some(index) = unread_steers.iter().position(|steer| steer == echoed) {
                         unread_steers.remove(index);
+                    } else if !prompt_seen && echoed.trim_start().starts_with('<') {
+                        // The CLI's own queued prompt (a `<task-notification>` about a background
+                        // task the last turn left) runs before this turn's prompt.
+                        foreign_prompt = true;
                     }
                 }
+            }
+            // That prompt's result is not this turn's end: keep reading until ours answers.
+            Some("result") if foreign_prompt && !prompt_seen && !interrupted => {
+                foreign_prompt = false;
             }
             // An instruction that arrived as the turn ended runs as its continuation.
             Some("result")
@@ -599,8 +703,30 @@ mod tests {
         );
     }
     #[test]
+    fn ask_user_question_becomes_a_question_card_and_answers_by_text() {
+        let request = json!({"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[
+            {"question":"Which database?","header":"DB","multiSelect":false,"options":[{"label":"Postgres","description":"relational"},{"label":"SQLite","description":""}]},
+            {"question":"Name it?","header":"Name","options":[]}
+        ]}});
+        let Some(PendingRequestKind::UserInput { questions }) = tool_kind(&request) else {
+            panic!("expected a question card");
+        };
+        assert_eq!(questions.len(), 2);
+        assert_eq!(questions[0].options.as_ref().map(Vec::len), Some(2));
+        assert!(questions[1].options.is_none() && questions[1].is_other);
+        let answers = std::collections::BTreeMap::from([
+            ("q0".to_string(), vec!["SQLite".to_string()]),
+            ("q1".to_string(), vec!["notes".to_string()]),
+        ]);
+        assert_eq!(
+            question_answers(&questions, &answers),
+            json!({"Which database?":"SQLite","Name it?":"notes"})
+        );
+        assert!(tool_kind(&json!({"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[]}})).is_none());
+    }
+    #[test]
     fn rejects_secret_questions_and_permission_mutation_tools() {
-        for name in ["AskUserQuestion", "ExitPlanMode", "mcp__auth", "unknown"] {
+        for name in ["ExitPlanMode", "mcp__auth", "unknown"] {
             assert!(
                 tool_kind(&json!({"subtype":"can_use_tool","tool_name":name,"input":{}})).is_none()
             );

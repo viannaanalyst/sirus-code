@@ -1435,6 +1435,50 @@ pub(crate) fn delete_session_native(
     killed
 }
 
+/// "Send again" (a turn that ended without a reply): the conversation's last message
+/// goes out once more with the same execution options and, while the app still holds
+/// them, the same attachments.
+#[tauri::command]
+pub async fn retry_last_turn(
+    app: tauri::AppHandle,
+    state: State<'_, Arc<AppState>>,
+    session_id: String,
+) -> Result<serde_json::Value> {
+    let request = {
+        let data = state.data.lock();
+        let session = data
+            .sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        if session.status.is_active() || session.status == SessionStatus::Waiting {
+            return Err(Error::new("busy", "The conversation is still working."));
+        }
+        let message = session
+            .messages
+            .iter()
+            .rev()
+            .find(|message| message.role == MessageRole::User)
+            .ok_or_else(|| Error::new("invalid", "There is no message to send again."))?;
+        SendPromptRequest {
+            queued_after: None,
+            debugging: false,
+            goal: None,
+            session_id: session.id.clone(),
+            attachment_ids: message
+                .attachments
+                .iter()
+                .filter_map(|attachment| attachment.id.clone())
+                .collect(),
+            attachment_owner: format!("session:{}", session.id),
+            prompt: message.content.clone(),
+            execution: session.execution.clone(),
+            team: false,
+        }
+    };
+    send_prompt(app, state, request).await
+}
+
 #[tauri::command]
 pub async fn send_prompt(
     app: AppHandle,

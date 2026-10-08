@@ -97,7 +97,7 @@ export interface Message {
   /** Astro replies: documents written or revised during the turn (ADR-088). */
   documents?: string[];
 }
-export interface MessageAttachment { name: string; kind: "file" | "folder"; mimeType?: string; size?: number; thumbnail?: string }
+export interface MessageAttachment { id?: string; name: string; kind: "file" | "folder"; mimeType?: string; size?: number; thumbnail?: string }
 
 export interface NativeThread {
   providerAccountId?: string;

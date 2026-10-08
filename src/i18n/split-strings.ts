@@ -78,6 +78,8 @@ const strings: Record<string, [string, string]> = {
   "commands.side": ["Open the side chat", "Abrir o chat lateral"],
   "commands.new": ["Start a new conversation in this project", "Começar uma nova conversa neste projeto"],
   "commands.status.title": ["Conversation status", "Status da conversa"],
+  "session.emptyReply": ["The agent stopped without replying.", "A IA parou sem responder."],
+  "session.sendAgain": ["Send again", "Enviar de novo"],
   "commands.usage": ["Show each provider's usage and when it resets", "Mostrar o uso de cada provedor e quando reseta"],
   "commands.usage.title": ["Provider usage", "Uso dos provedores"],
   "commands.usage.close": ["Close usage", "Fechar uso"],

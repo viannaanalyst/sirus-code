@@ -174,6 +174,9 @@ pub struct Message {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageAttachment {
+    /// The sent snapshot, so "Send again" can resend it while the app keeps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     pub name: String,
     /// `file` or `folder`.
     pub kind: String,

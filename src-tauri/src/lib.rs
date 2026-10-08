@@ -230,6 +230,8 @@ pub fn run() {
             astros::astro_action,
             astro_documents::astro_document_action,
             astro_tray::astro_show_in_main,
+            commands::retry_last_turn,
+            attachments::attachment_image,
             chat_background::chat_background_action,
             chat_background::chat_background_image,
             window_snap::window_snap_action,

@@ -4,7 +4,9 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { ChevronDown, GitFork, TerminalSquare } from "@/components/icons/phosphor";
+import { ChevronDown, GitFork, RotateCcw, TerminalSquare } from "@/components/icons/phosphor";
+import { formatUnknownError } from "@/lib/format-error";
+import "@/styles/context-meter.css";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -44,6 +46,7 @@ import { AstroIcon } from "@/components/astros/AstroArt";
 import { AstroHeader } from "@/components/astros/AstroHeader";
 import { AstroCards } from "@/components/astros/AstroCard";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
+import { client } from "@/client";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
 
@@ -188,7 +191,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
                       <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
-                      {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} /><ReplyChoices session={session} message={message} /></> : null}
+                      {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} /><ReplyChoices session={session} message={message} />{emptyReply(message, session) ? <EmptyReplyNotice sessionId={session.id} /> : null}</> : null}
                     </Fragment>;
                   })}
                   </div>)}
@@ -343,4 +346,23 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
 function LinkedText({ text }: { text: string }) {
   return <>{splitLinks(text).map((segment, index) => segment.kind === "text" ? segment.text
     : <a key={index} href={segment.url} className="chat-link break-all" onClick={(event) => { event.preventDefault(); openLink(segment.url, event.metaKey); }}>{segment.text}</a>)}</>;
+}
+
+/** The conversation's last reply finished with no text and no activity. */
+function emptyReply(message: Message, session: Session): boolean {
+  return message.role === "agent" && !message.streaming && !message.content.trim() && !(message.activity?.items.length)
+    && message.activity?.status !== "stopped" && !["starting", "running", "waiting"].includes(session.status);
+}
+
+/** The agent stopped without answering: say so and offer to send the message again. */
+function EmptyReplyNotice({ sessionId }: { sessionId: string }) {
+  const t = useTranslation();
+  const [busy, setBusy] = useState(false);
+  return <div className="empty-reply" role="status">
+    <span className="ui-caption text-text-muted">{t("session.emptyReply")}</span>
+    <InteractiveButton variant="toolbar" loading={busy} onClick={() => {
+      setBusy(true);
+      void client.retryLastTurn(sessionId).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })).finally(() => setBusy(false));
+    }}><RotateCcw size={13} aria-hidden="true" />{t("session.sendAgain")}</InteractiveButton>
+  </div>;
 }

@@ -65,3 +65,36 @@ export function SessionActions({ session, children }: { session: Session; childr
     </DialogContent>
   </Dialog>;
 }
+
+/**
+ * Rename or delete a session from menus that close before a dialog could live in them
+ * (the header switcher, tab menus): the caller keeps `action` and renders this outside.
+ */
+export function SessionActionDialog({ session, action, onClose }: { session: Session; action: "rename" | "delete" | null; onClose: () => void }) {
+  const t = useTranslation();
+  const [title, setTitle] = useState(session.title);
+  const [removeWorktree, setRemoveWorktree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(action);
+  if (shown !== action) { setShown(action); if (action) { setTitle(session.title); setRemoveWorktree(false); } }
+  const submit = async () => {
+    if (busy || !action) return;
+    setBusy(true);
+    try {
+      const store = useAppStore.getState();
+      const done = action === "rename" ? await store.renameSession(session.id, title) : await store.deleteSession(session.id, removeWorktree);
+      if (done) onClose();
+    } finally { setBusy(false); }
+  };
+  return <Dialog open={action !== null} onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+    <DialogContent title={t(action === "rename" ? "session.rename" : "session.delete")} description={t(action === "rename" ? "session.renameHelp" : "session.deleteHelp")} variant={action === "delete" ? "confirm" : "default"} className="w-[min(420px,calc(100vw-32px))]">
+      <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        {action === "rename" ? <div className="mt-4"><Input label={t("session.titleOptional")} autoFocus required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy} /></div> : session.worktree.isolated ? <div><Checkbox label={t("session.removeWorktree")} checked={removeWorktree} onCheckedChange={(value) => setRemoveWorktree(value === true)} disabled={busy} /></div> : null}
+        <div className={`${action === "delete" ? (session.worktree.isolated ? "mt-4" : "") : "mt-5"} flex justify-end gap-2`}>
+          <InteractiveButton variant="ghost" disabled={busy} onClick={onClose}>{t("common.cancel")}</InteractiveButton>
+          <InteractiveButton type="submit" variant={action === "delete" ? "danger" : "secondary"} glow={action !== "delete"} loading={busy} disabled={action === "rename" && !title.trim()}>{t(action === "rename" ? "common.save" : "session.delete")}</InteractiveButton>
+        </div>
+      </form>
+    </DialogContent>
+  </Dialog>;
+}
