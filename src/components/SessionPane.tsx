@@ -38,7 +38,7 @@ import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
 import { ChatMarkdown, openLink } from "@/components/ChatMarkdown";
-import { WorkingPanel } from "@/components/WorkingPanel";
+import { WORKING_PANEL_MIN_WIDTH, WORKING_PANEL_WIDTH, WorkingPanel } from "@/components/WorkingPanel";
 import { splitLinks } from "@/lib/link-text";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
@@ -224,17 +224,36 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         </div>
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
-        {/* The Working panel sits at the bottom-left, beside the composer, from the wide layouts up (ADR-094). */}
-        <div className="relative z-10 flex items-end gap-3 px-6 pb-4">
-          {passive ? null : <div className="hidden shrink-0 min-[900px]:block"><WorkingPanel /></div>}
-          <div className="min-w-0 flex-1">
-            {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
-          </div>
+        <div className="relative z-10 px-6 pb-4">
+          {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
+          {/* The Working panel floats at the bottom-left, in the room beside the composer; it never moves it (ADR-094). */}
+          {passive ? null : <WorkingDock />}
         </div>
         {landing ? <div className="flex-[1.15]" aria-hidden="true" /> : null}
       </div>
     </section>
   );
+}
+
+/** Places the Working panel in the free space left of the centred composer, and hides it when that space is too narrow. */
+function WorkingDock() {
+  const node = useRef<HTMLDivElement>(null);
+  const [room, setRoom] = useState(0);
+  useLayoutEffect(() => {
+    const dock = node.current;
+    const row = dock?.parentElement;
+    const composer = row?.querySelector<HTMLElement>(".agent-composer");
+    if (!row || !composer) return;
+    // Space between the row's padding edge and the composer, less a gap.
+    const measure = () => setRoom(Math.floor(composer.getBoundingClientRect().left - row.getBoundingClientRect().left - 24 - 16));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, []);
+  const fits = room >= WORKING_PANEL_MIN_WIDTH;
+  return <div ref={node} className="absolute bottom-4 left-6" style={fits ? { width: Math.min(room, WORKING_PANEL_WIDTH) } : { display: "none" }}><WorkingPanel /></div>;
 }
 
 /** Stands in for the composer of an inactive pane; using it activates the pane (see SplitWorkspace). */

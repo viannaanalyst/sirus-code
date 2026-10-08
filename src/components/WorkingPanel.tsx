@@ -11,6 +11,9 @@ import "@/styles/working-panel.css";
 
 /** Sessions with an agent in flight or waiting for you: the panel opens at two or more (ADR-094). */
 export const WORKING_MIN = 2;
+/** Its width beside the composer, and the narrowest room it still opens in. */
+export const WORKING_PANEL_WIDTH = 280;
+export const WORKING_PANEL_MIN_WIDTH = 220;
 /** Rows shown before "+N more" (MonoCode's live agents cap). */
 export const WORKING_CAP = 4;
 

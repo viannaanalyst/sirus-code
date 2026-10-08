@@ -1,6 +1,6 @@
 @layer components {
   /* "Working" beside the composer (ADR-094): a floating card at the bottom-left of the conversation. */
-  .working-panel { width: 280px; flex-shrink: 0; overflow: hidden; border: 1px solid var(--border-default); border-radius: 14px; background: color-mix(in srgb, var(--background-2) 96%, transparent); box-shadow: 0 16px 44px rgb(0 0 0 / .35); }
+  .working-panel { width: 100%; overflow: hidden; border: 1px solid var(--border-default); border-radius: 14px; background: color-mix(in srgb, var(--background-2) 96%, transparent); box-shadow: 0 16px 44px rgb(0 0 0 / .35); }
   .working-panel-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px 6px; color: var(--text-muted); font-size: 12px; }
   .working-panel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent, #8c9bff); box-shadow: 0 0 8px var(--accent, #8c9bff); animation: working-panel-pulse 1.6s ease-in-out infinite; }
   .working-panel-title { color: var(--text-primary); font-weight: 500; }
