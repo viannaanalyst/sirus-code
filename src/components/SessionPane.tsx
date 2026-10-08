@@ -37,7 +37,6 @@ import { AgentComposer } from "@/components/AgentComposer";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
-import { LandingOrbits } from "@/components/LandingOrbits";
 import { HandoffMarker } from "@/components/HandoffMarker";
 import { ProviderSwitchScene } from "@/components/ProviderSwitchScene";
 import { AstroIcon } from "@/components/astros/AstroArt";
@@ -134,16 +133,22 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   }, [jump, session?.id]);
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
+  const landing = empty && !passive && !astro;
   return (
     <section className={cn("session-pane relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")} data-empty={!isConversationStarted(session) || undefined}>
-      {empty && !passive && !astro ? <LandingOrbits /> : null}
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         {astro && !passive ? <AstroHeader astro={astro} /> : null}
         {passive ? null : <TranscriptSearchBar sessionId={session?.id} />}
         {session?.lastError && !session.usageLimit ? <p role="alert" className="px-6 pt-3 ui-control text-danger">{t(session.lastError)}</p> : null}
         {session?.forkOrigin ? <div className="mx-auto flex w-full max-w-[var(--chat-column-width)] items-center gap-2 px-3 pt-2 ui-caption text-text-muted"><GitFork aria-hidden="true" size={13} /><span>{t("Fork of {title}", { title: session.forkOrigin.sourceTitle })}</span>{source ? <InteractiveButton variant="toolbar" className="ml-auto shrink-0" onClick={() => jumpToMessage(source.id, session.forkOrigin!.sourceMessageId)}>{t("View original")}</InteractiveButton> : <span>{t("Original session removed")}</span>}</div> : null}
-        {empty ? (
+        {/* A new thread, after MonoCode: the question sits left-aligned over the composer, both a little above the middle. */}
+        {landing ? <div className="flex min-h-0 flex-1 flex-col justify-end">
+          <div className="px-6 pb-3"><div className="mx-auto w-full max-w-[var(--chat-column-width)] pl-3">
+            <h2 className="ui-title text-left text-text-primary">{title}</h2>
+            {!project ? <button type="button" onClick={() => void openProject()} className="mt-2 ui-body text-accent">{t("project.open")}</button> : null}
+          </div></div>
+        </div> : empty ? (
           <div className="relative flex min-h-0 flex-1 flex-col items-center overflow-hidden px-8">
             <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
               {astro ? <>
@@ -204,6 +209,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         <div className="relative z-10 px-6 pb-4">
           {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
         </div>
+        {landing ? <div className="flex-[1.15]" aria-hidden="true" /> : null}
       </div>
     </section>
   );

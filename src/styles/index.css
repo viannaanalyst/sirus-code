@@ -236,11 +236,6 @@
   background-color: var(--background-0);
 }
 
-.landing-orbits { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
-.landing-orbits canvas { display:block; width:100%; height:100%; transition:opacity var(--motion-slow) var(--ease-out); }
-.landing-orbits[data-editing="true"] canvas { opacity:.55; }
-.landing-orbits-shade { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 39%,color-mix(in srgb,var(--background-0) 70%,transparent),transparent 44%); }
-@media(prefers-reduced-motion:reduce) { .landing-orbits canvas { transition:none; } }
 
 .interactive-glow {
   --mouse-x: 50%;

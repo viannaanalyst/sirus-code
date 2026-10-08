@@ -51,7 +51,7 @@ Not measured yet:
 
 | Screen | Task time | rAF/s | Sources |
 | --- | --- | --- | --- |
-| Landing (new thread) | 20 % of a core | 120 | `landing-orbit-motion.ts` tick, composer shader (`@paper-design/shaders`) |
+| Landing (new thread) | 20 % of a core | 120 | composer shader (`@paper-design/shaders`); the orbit loop was removed 2026-10-07 |
 | Session view | 16 % | 60 | composer shader |
 | Session view, composer focused | **0.4 %** | 0 | none |
 | Settings open over the landing | 6 % | 120 | both loops keep running behind Settings |
@@ -74,7 +74,7 @@ Severity: **H** high, **M** medium, **L** low. File references are from the audi
 ### Idle work
 
 - **H** The composer's WebGL liquid-metal rim (`ComposerContour` / `composer-metal.ts`) renders on every animation frame whenever its textarea is not focused. That means while reading a transcript, with the dock open, behind Settings, and on window blur. Measured as the main idle cost.
-- **M** The landing orbit loop (`landing-orbit-motion.ts`) runs at display rate on the landing. It does not stop on window blur or while Settings covers it.
+- ~~**M** The landing orbit loop runs at display rate on the landing.~~ Removed with the orbit background (2026-10-07).
 - **L** The waiting-state activity orbit (SMIL `animateMotion` plus CSS beat) has no offscreen or hidden gate. A pending approval can wait for hours.
 - OK: the activity clock interval, the dictation interval and the global listeners all clean up. There is no frontend polling.
 

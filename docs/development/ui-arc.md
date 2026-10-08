@@ -51,11 +51,9 @@ Assistant prose renders through `ChatMarkdown` (`src/lib/chat-markdown.ts`, text
 - **File links:** workspace files referenced in inline code or link targets become blue links with their file-type icon, like Synara. They are anchors so punctuation stays on the same line. A path becomes a link only after `workspace_files` finds it in the session workspace; otherwise it stays code.
 - **Undo:** "Undo" is plain text, and an undone turn shows a muted "Undone".
 
-## New thread orbit background
+## New thread layout
 
-The empty landing mounts `LandingOrbits.tsx` behind its existing content; sending the first message removes the background. The shared Canvas 2D drawing in `src/lib/landing-orbits.ts` is the same geometry used by the approved Órbitas preview, fixed at 100% intensity and its Fast (1×) speed. The center remains clear, controls retain pointer/focus behavior, and a token-based shade protects the welcome text. Light mode uses the existing text color token.
-
-`src/lib/landing-orbit-motion.ts` owns a 900,000-pixel render cap and approximately 30 fps, with size measured only by ResizeObserver. Local composer focus stops time and dims the background; blur resumes from the same frame. Hidden documents, offscreen surfaces and the existing OS/app motion preferences suspend the loop. Reduced motion retains a static frame. Unmount disconnects all resize, intersection and theme observers, removes owned focus/visibility listeners and cancels the frame request. No per-frame React state, polling, dependencies, settings fields or IPC are introduced.
+A new thread has no logo or orbit background (removed 2026-10-07, after MonoCode): the question sits left-aligned at the composer's width, just above the landing controls and the composer, and the group rests a little above the middle of the pane. An Astro conversation keeps its centred icon and title.
 
 ## Composer metal surface
 
