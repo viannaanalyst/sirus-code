@@ -1,11 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, ChevronDown, FolderPlus, Pin, PinOff, Plus, Search, SquarePen, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
+import { Archive, ChevronDown, FolderPlus, GitCompareArrows, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
 import type { Project, Session } from "@/client/types";
 import { ProjectActions } from "@/components/ProjectActions";
 import { ProjectEditDialog } from "@/components/SidebarRows";
 import { relativeTime } from "@/lib/session-board";
 import { moveSidebarProject, sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
+import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -124,9 +125,17 @@ function ProjectSwitcher() {
                 {...(needle || rows.length < 2 ? {} : reorder.bind(row.id))}
                 className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); }} onFocus={() => setFocus(row.id)} onClick={() => choose(row.id)}>
                 <ProjectGlyph project={row} size={15} />
-                <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{row.name}</span></span>
                 <StatusDot status={status} label={t(`tabs.status.${status}`)} />
-                {diff && (diff.additions || diff.deletions) ? <span className="header-switcher-diff"><span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span></span> : null}
+                <span className="header-switcher-trail">
+                  {diff && (diff.additions || diff.deletions) ? <span className="header-switcher-diff"><span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span></span> : null}
+                  <span className="header-switcher-actions">
+                    {([["review", "Review changes", GitCompareArrows], ["terminal", "New terminal session", SquareTerminal], ["new", "New thread", SquarePen]] as const).map(([kind, label, Icon]) =>
+                      <span key={kind} role="button" tabIndex={-1} aria-label={t(label)} title={t(label)} data-no-reorder=""
+                        onPointerDown={event => event.stopPropagation()}
+                        onClick={event => { event.stopPropagation(); close(); void sidebarProjectAction(row.id, kind); }}><Icon size={13} /></span>)}
+                  </span>
+                </span>
               </button>
             </ProjectActions>;
           })}
@@ -152,14 +161,16 @@ function ProjectSwitcher() {
             return <div key={session.id} className="header-switcher-session" data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
               <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
                 <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
-                <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
                 {isPinned ? <Pin size={11} aria-label={t("Pinned")} className="shrink-0 text-text-muted" /> : null}
                 <StatusDot status={status} label={t(`tabs.status.${status}`)} />
-                <span className="header-switcher-time">{time === "now" ? t("Now") : time}</span>
               </button>
-              <span className="header-switcher-actions">
-                <button type="button" aria-label={t(isPinned ? "Unpin session" : "Pin session")} title={t(isPinned ? "Unpin session" : "Pin session")} onClick={() => togglePin(session.id)}>{isPinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
-                <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive size={13} /></button>
+              <span className="header-switcher-trail">
+                <span className="header-switcher-time">{time === "now" ? t("Now") : time}</span>
+                <span className="header-switcher-actions">
+                  <button type="button" aria-label={t(isPinned ? "Unpin session" : "Pin session")} title={t(isPinned ? "Unpin session" : "Pin session")} onClick={() => togglePin(session.id)}>{isPinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
+                  <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive size={13} /></button>
+                </span>
               </span>
             </div>;
           })}
