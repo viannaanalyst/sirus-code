@@ -11,7 +11,7 @@ import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
-import { createTranscriptScroll, scrollWithin } from "@/lib/transcript-scroll";
+import { createTranscriptScroll, messageSizeStyle, scrollWithin } from "@/lib/transcript-scroll";
 import { parseTranscript } from "@/lib/transcript";
 import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
@@ -27,6 +27,7 @@ import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
 import { splitPromptContext } from "@/lib/prompt-context";
+import { thumbnailUrl } from "@/lib/thumbnail-url";
 import { PlanActions, ReplyChoices } from "@/components/ReplyChoices";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { AstroReplyExtras } from "@/components/astros/AstroReplyExtras";
@@ -288,12 +289,12 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   // A sent prompt shows what the person wrote; attachments appear as chips, not as the agent's reference block.
   const { request: userRequest, references: userReferences } = useMemo(() => message.role === "user" ? splitPromptContext(message.content) : { request: message.content, references: [] }, [message.role, message.content]);
   // Images show as thumbnails on top (MonoCode-style); other files and older messages as chips.
-  const userImages = (message.attachments ?? []).filter((file) => file.thumbnail);
-  const [openImage, setOpenImage] = useState<number | null>(null);
   // One stable list, so the lightbox keeps its place while moving between the message's photos.
-  const gallery = useMemo(() => (message.attachments ?? []).filter((file) => file.thumbnail).map((file) => ({ src: file.thumbnail!, name: file.name })), [message.attachments]);
+  const gallery = useMemo(() => (message.attachments ?? []).flatMap((file) => { const src = thumbnailUrl(file); return src ? [{ src, name: file.name }] : []; }), [message.attachments]);
+  const userImages = gallery;
+  const [openImage, setOpenImage] = useState<number | null>(null);
   const userFiles: { name: string; kind: "file" | "folder" | "terminal"; mimeType?: string; size?: number }[] = message.attachments?.length
-    ? [...message.attachments.filter((file) => !file.thumbnail), ...userReferences.filter((reference) => reference.kind === "terminal")]
+    ? [...message.attachments.filter((file) => !thumbnailUrl(file)), ...userReferences.filter((reference) => reference.kind === "terminal")]
     : userReferences;
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
@@ -313,7 +314,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     });
   };
   return (
-    <article data-message-id={message.id} ref={register} tabIndex={-1} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
+    <article data-message-id={message.id} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
@@ -333,7 +334,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
-          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.thumbnail} alt="" decoding="async" loading="lazy" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
+          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.src} alt="" decoding="async" loading="lazy" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {searchQuery.trim() ? <SearchText text={userRequest} query={searchQuery} />
             : hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? <LinkedText key={index} text={segment.text} /> : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)
             : <LinkedText text={userRequest} />}

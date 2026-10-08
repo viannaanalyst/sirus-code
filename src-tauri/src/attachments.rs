@@ -29,8 +29,9 @@ pub struct PromptAttachment {
 pub struct PreparedAttachment {
     pub view: PromptAttachment,
     file: Option<tempfile::NamedTempFile>,
-    /// Made while preparing (off the send path), so sending only copies it.
-    thumbnail: Option<String>,
+    /// The sent message's JPEG, made while preparing (off the send path), so sending
+    /// only writes it to `thumbnails/<id>.jpg`.
+    thumbnail: Option<Vec<u8>>,
 }
 impl PreparedAttachment {
     pub fn path(&self) -> Option<&Path> {
@@ -41,14 +42,23 @@ impl PreparedAttachment {
     }
     /// What a sent message keeps of this attachment: its name and, for images, a JPEG copy
     /// (1280 px on the longer side, at most 640 KiB): small in the bubble, sharp when opened.
-    pub fn summary(&self) -> crate::models::MessageAttachment {
+    /// The copy is a file next to `state.json`; if it cannot be written the message embeds it.
+    pub fn summary(&self, data_path: &Path) -> crate::models::MessageAttachment {
+        let stored = self.thumbnail.as_deref().map(|jpeg| {
+            crate::thumbnails::store(data_path, &self.view.id, jpeg)
+                .inspect_err(|error| tracing::warn!(%error, "cannot write a thumbnail file"))
+                .map_err(|_| crate::thumbnails::data_url(jpeg))
+        });
         crate::models::MessageAttachment {
             id: Some(self.view.id.clone()),
             name: self.view.name.clone(),
             kind: self.view.kind.clone(),
             mime_type: Some(self.view.mime_type.clone()).filter(|mime| !mime.is_empty()),
             size: (self.view.kind == "file").then_some(self.view.size as u64),
-            thumbnail: self.thumbnail.clone(),
+            thumbnail: stored
+                .as_ref()
+                .and_then(|stored| stored.as_ref().err().cloned()),
+            has_thumbnail: matches!(stored, Some(Ok(()))),
         }
     }
     pub fn encoded(&self) -> Result<String> {
@@ -1090,9 +1100,9 @@ mod tests {
     }
 }
 
-/// The sent message's copy (fits 1280 px, at most 640 KiB) and the composer chip's (fits
-/// 240 px), both JPEG data URLs from a single bounded decode.
-fn image_copies(bytes: &[u8]) -> (Option<String>, Option<String>) {
+/// The sent message's copy (fits 1280 px, at most 640 KiB, JPEG bytes) and the composer
+/// chip's (fits 240 px, a JPEG data URL), from a single bounded decode.
+fn image_copies(bytes: &[u8]) -> (Option<Vec<u8>>, Option<String>) {
     let Some(image) = bounded_decode(bytes) else {
         return (None, None);
     };
@@ -1113,9 +1123,7 @@ fn image_copies(bytes: &[u8]) -> (Option<String>, Option<String>) {
     } else {
         large.clone()
     };
-    let thumbnail = encode(&large, 80)
-        .filter(|out| out.len() <= 640 * 1024)
-        .map(|out| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)));
+    let thumbnail = encode(&large, 80).filter(|out| out.len() <= 640 * 1024);
     let chip =
         encode(&chip, 78).map(|out| format!("data:image/jpeg;base64,{}", STANDARD.encode(out)));
     (thumbnail, chip)
@@ -1153,7 +1161,7 @@ pub async fn attachment_image(
 
 /// The sent message's copy alone (tests and callers without a chip).
 #[cfg(test)]
-pub(crate) fn thumbnail(bytes: &[u8]) -> Option<String> {
+pub(crate) fn thumbnail(bytes: &[u8]) -> Option<Vec<u8>> {
     image_copies(bytes).0
 }
 
@@ -1165,8 +1173,8 @@ mod thumbnail_tests {
         image::DynamicImage::new_rgb8(1600, 900)
             .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
             .unwrap();
-        let url = super::thumbnail(&png).unwrap();
-        assert!(url.starts_with("data:image/jpeg;base64,"));
+        let jpeg = super::thumbnail(&png).unwrap();
+        assert!(jpeg.starts_with(&[0xFF, 0xD8]));
         assert!(super::thumbnail(b"not an image").is_none());
     }
 }

@@ -54,14 +54,21 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
         .map_err(|err| Error::new("persist", format!("invalid state: {err}")))?;
     let dir = sessions_dir(path);
     let mut on_disk = HashMap::new();
+    // A transcript set aside as unreadable may still name thumbnail files.
+    let mut set_aside = false;
     for session in &mut data.sessions {
         if inline.contains(&session.id) {
             continue;
         }
         let name = transcript_name(&session.id);
-        if let Some((messages, hash)) = read_transcript(&dir.join(&name), &session.id)? {
-            session.messages = messages;
-            on_disk.insert(name, hash);
+        let file = dir.join(&name);
+        let existed = file.exists();
+        match read_transcript(&file, &session.id)? {
+            Some((messages, hash)) => {
+                session.messages = messages;
+                on_disk.insert(name, hash);
+            }
+            None => set_aside |= existed,
         }
     }
     remove_orphans(&dir, &data);
@@ -89,6 +96,8 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
         }
         crate::activity::recover(session);
         recovered |= crate::project_scripts::recover(session);
+        // Older transcripts embedded image thumbnails; they move to files once.
+        recovered |= crate::thumbnails::migrate(path, &mut session.messages);
         for message in &mut session.messages {
             if message.streaming {
                 message.streaming = false;
@@ -100,6 +109,9 @@ pub fn load_or_create(path: &Path) -> Result<AppData> {
     recovered |= crate::automations::retire_standalone(&mut data);
     if recovered {
         save(path, &data)?;
+    }
+    if !set_aside {
+        crate::thumbnails::remove_orphans(path, &data);
     }
     crate::diagnostics::observe(path, &data);
     Ok(data)
@@ -494,6 +506,31 @@ mod tests {
             })
             .expect("damaged transcript is kept aside");
         assert_eq!(fs::read(aside.path()).unwrap(), b"{not json");
+    }
+    #[test]
+    fn embedded_thumbnails_move_to_files_on_load_and_orphans_go() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let id = uuid::Uuid::new_v4().to_string();
+        let orphan = uuid::Uuid::new_v4().to_string();
+        let mut data = AppData {
+            sessions: vec![session("s", &[])],
+            ..AppData::default()
+        };
+        data.sessions[0].messages = vec![serde_json::from_value(serde_json::json!({
+            "id":"m","sessionId":"s","role":"user","content":"look","createdAt":"t","streaming":false,
+            "attachments":[{"id":id,"name":"a.png","kind":"file","thumbnail":crate::thumbnails::data_url(b"jpeg")}]
+        }))
+        .unwrap()];
+        save(&path, &data).unwrap();
+        crate::thumbnails::store(&path, &orphan, b"old").unwrap();
+        let loaded = load_or_create(&path).unwrap();
+        let attachment = &loaded.sessions[0].messages[0].attachments[0];
+        assert!(attachment.has_thumbnail && attachment.thumbnail.is_none());
+        assert_eq!(crate::thumbnails::read(&path, &id).unwrap(), b"jpeg");
+        assert!(crate::thumbnails::read(&path, &orphan).is_none());
+        let saved = fs::read_to_string(temp.0.join("sessions/s.json")).unwrap();
+        assert!(!saved.contains("base64") && saved.contains("\"hasThumbnail\":true"));
     }
     #[test]
     fn general_preferences_survive_native_save_and_reload() {

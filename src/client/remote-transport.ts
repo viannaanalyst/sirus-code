@@ -100,6 +100,12 @@ export class RemoteTransport implements Transport {
     };
   }
 
+  /** An `<img>` cannot send a header: the device token travels in the query of a same-origin URL. */
+  thumbnailUrl(id: string): string | undefined {
+    const token = this.options.token();
+    return token ? `/api/thumbnail/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}` : undefined;
+  }
+
   /**
    * The page came back to the front (an iPhone app resumed): reconnect now instead of
    * waiting for the backoff timer.

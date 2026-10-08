@@ -90,14 +90,24 @@ export interface Message {
   activity?: TurnActivity | null;
   /** Instructions sent into this running reply; `offset` is the reply's length when each arrived (ADR-062). */
   steers?: { text: string; at: string; offset: number }[];
-  /** User messages: what was attached, with a small thumbnail for images. */
+  /** User messages: what was attached; images keep a thumbnail (see `thumbnailUrl`). */
   attachments?: MessageAttachment[];
   /** Astro replies: sessions started during the turn (ADR-088). */
   launched?: string[];
   /** Astro replies: documents written or revised during the turn (ADR-088). */
   documents?: string[];
 }
-export interface MessageAttachment { id?: string; name: string; kind: "file" | "folder"; mimeType?: string; size?: number; thumbnail?: string }
+export interface MessageAttachment {
+  id?: string;
+  name: string;
+  kind: "file" | "folder";
+  mimeType?: string;
+  size?: number;
+  /** Legacy or fallback only: an embedded `data:image/jpeg;base64,…` copy. */
+  thumbnail?: string;
+  /** The image's JPEG copy is a file on the Mac, loaded by id (`thumbnailUrl`). */
+  hasThumbnail?: boolean;
+}
 
 export interface NativeThread {
   providerAccountId?: string;

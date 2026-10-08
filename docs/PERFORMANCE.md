@@ -325,6 +325,7 @@ From code reading after reports of scroll jank and paste hitches:
   - live `session-updated` events send the turn's user message (and its thumbnails) once per turn;
   - `sameMessage` compares fields instead of stringifying messages;
   - `serde_json` is optimized in debug builds.
+  - sent image thumbnails are files (`thumbnails/<id>.jpg`) loaded through `sirus-thumb://`, so transcripts, checkpoints, `session-updated` events and cached transcripts in JS carry only `hasThumbnail` instead of up to ~640 KB of base64 per image; older sessions migrate on load.
 
 ## Remaining risks and unknowns
 
@@ -334,4 +335,4 @@ From code reading after reports of scroll jank and paste hitches:
 - Several findings (lock contention, PTY deadlock) come from code reading and were not reproduced.
 - Native `session-updated` still serializes the whole session (all messages) on each published activity change, under the lock. The renderer now absorbs it cheaply, but the native cost grows with transcript length. Stage 4b (renderer transcripts on demand) is the place to change the event shape.
 - Synchronous saves (settings, drafts, metadata, final states) still encode and fsync under the state lock. Only streaming checkpoints moved out.
-- `content-visibility` relies on remembered sizes; a never-rendered old message uses a 160 px placeholder until it is first shown, so a jump far up a never-viewed history can land slightly off before settling.
+- `content-visibility` relies on remembered sizes. A never-rendered old message uses an estimate from its length until it is first shown, and the transcript anchors the reading position by hand, because WebKit has no scroll anchoring. Not yet checked against trackpad momentum in WKWebView.

@@ -6,6 +6,7 @@ import { AstroIcon } from "@/components/astros/AstroArt";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/cn";
 import { PROJECT_ICONS } from "@/lib/project-icons";
+import { remember } from "@/lib/bounded-map";
 
 /** Preset folder colours (ADR-059); custom colours are stored as `#rrggbb`. */
 export const PROJECT_COLORS: Record<string, string> = {
@@ -30,7 +31,7 @@ function useAutoIcon(projectId: string | undefined, wanted: boolean): string | n
     if (!active || !projectId) return;
     let alive = true;
     let lookup = autoIcons.get(projectId);
-    if (!lookup) { lookup = client.projectAutoIcon(projectId).catch(() => null); autoIcons.set(projectId, lookup); }
+    if (!lookup) { lookup = client.projectAutoIcon(projectId).catch(() => null); remember(autoIcons, projectId, lookup, 64); }
     void lookup.then((url) => { if (alive) setIcon({ id: projectId, url }); });
     return () => { alive = false; };
   }, [active, projectId]);

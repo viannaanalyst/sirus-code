@@ -58,7 +58,14 @@ export function resolveMessageTrailPosition(anchors: readonly MessageTrailAnchor
   return { currentId, visibleIds };
 }
 
-/** Cache geometry on resize; scrolling only searches offsets and updates the rail. */
+/** Content resizes (a streaming reply grows many times a second) remeasure at most this often. */
+export const MESSAGE_TRAIL_REMEASURE_MS = 250;
+
+/**
+ * Cache geometry on resize; scrolling only searches offsets and updates the rail.
+ * A viewport resize remeasures on the next frame; content resizes are throttled, since
+ * streaming only moves the end of the last reply. A new set of messages re-creates the observer.
+ */
 export function observeMessageTrail(
   viewport: HTMLElement,
   content: HTMLElement,
@@ -70,6 +77,8 @@ export function observeMessageTrail(
   let geometryDirty = true;
   let readingInset = 0;
   let frame = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let measuredAt = -Infinity;
   let last: MessageTrailPosition = { currentId: null, visibleIds: [] };
   const measure = () => {
     frame = 0;
@@ -85,6 +94,7 @@ export function observeMessageTrail(
         return [{ id, top: box.top - origin, bottom: box.bottom - origin }];
       });
       geometryDirty = false;
+      measuredAt = performance.now();
     }
     const next = resolveMessageTrailPosition(anchors, viewport.scrollTop, viewport.scrollTop + viewport.clientHeight, readingInset);
     if (next.currentId !== last.currentId || next.visibleIds.length !== last.visibleIds.length || next.visibleIds.some((id, index) => id !== last.visibleIds[index])) {
@@ -93,7 +103,13 @@ export function observeMessageTrail(
     }
   };
   const schedule = () => { if (!frame) frame = requestAnimationFrame(measure); };
-  const observer = new ResizeObserver(() => { geometryDirty = true; schedule(); });
+  const remeasure = () => { timer = undefined; geometryDirty = true; schedule(); };
+  const observer = new ResizeObserver(entries => {
+    if (timer !== undefined) clearTimeout(timer);
+    const wait = MESSAGE_TRAIL_REMEASURE_MS - (performance.now() - measuredAt);
+    if (entries.some(entry => entry.target === viewport) || wait <= 0) remeasure();
+    else timer = setTimeout(remeasure, wait);
+  });
   observer.observe(viewport);
   observer.observe(content);
   viewport.addEventListener("scroll", schedule, { passive: true });
@@ -102,5 +118,6 @@ export function observeMessageTrail(
     viewport.removeEventListener("scroll", schedule);
     observer.disconnect();
     cancelAnimationFrame(frame);
+    if (timer !== undefined) clearTimeout(timer);
   };
 }

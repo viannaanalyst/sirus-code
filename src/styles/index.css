@@ -300,8 +300,9 @@
 .transcript-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .transcript-shell { container: transcript / inline-size; }
 /* Earlier turns skip layout and paint while offscreen (long transcripts stay cheap while
-   streaming). `auto` keeps each message's last measured height for scroll positions. */
-.transcript-scroll [data-message-id] { content-visibility: auto; contain-intrinsic-size: auto 160px; }
+   streaming). `auto` keeps each message's last measured height for scroll positions; before
+   that, `--row-estimate` guesses it from the text length (transcript-scroll.ts). */
+.transcript-scroll [data-message-id] { content-visibility: auto; contain-intrinsic-size: auto var(--row-estimate, 160px); }
 .transcript-scroll [data-latest-turn] [data-message-id] { content-visibility: visible; }
 .message-trail { display: none; }
 @container transcript (min-width: 600px) {

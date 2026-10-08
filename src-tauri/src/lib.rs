@@ -72,6 +72,7 @@ mod sirus_tools;
 mod skills;
 mod tasks;
 mod team;
+mod thumbnails;
 mod transcript;
 mod transcript_view;
 mod turn_review;
@@ -112,6 +113,16 @@ pub fn run() {
                 &ctx.app_handle().state::<html_preview::HtmlPreviews>(),
                 &request,
             )
+        })
+        // Sent image thumbnails, read from files instead of travelling in transcripts.
+        .register_asynchronous_uri_scheme_protocol(thumbnails::SCHEME, |ctx, request, responder| {
+            let data_path = ctx
+                .app_handle()
+                .try_state::<Arc<AppState>>()
+                .map(|state| state.data_path.clone());
+            tauri::async_runtime::spawn_blocking(move || {
+                responder.respond(thumbnails::serve(data_path.as_deref(), &request));
+            });
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

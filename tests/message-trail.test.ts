@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Message } from "../src/client/types.ts";
-import { deriveMessageTrail, observeMessageTrail, resolveMessageTrailPosition } from "../src/lib/message-trail.ts";
+import { deriveMessageTrail, MESSAGE_TRAIL_REMEASURE_MS, observeMessageTrail, resolveMessageTrailPosition } from "../src/lib/message-trail.ts";
 
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, role, content, sessionId: "s", createdAt: "time", streaming: false });
 
@@ -46,12 +46,12 @@ test("the latest reserved turn is current while its request sits at viewport top
   assert.deepEqual(resolveMessageTrailPosition([{ id: "previous", top: 900, bottom: 990 }, anchors[1]], 976, 1476, 24), { currentId: "latest", visibleIds: ["previous", "latest"] });
 });
 
-test("scroll observation coalesces frames, caches geometry, responds to resize and cleans up", () => {
+test("scroll observation coalesces frames, caches geometry, throttles content resizes and cleans up", async () => {
   const original = { resize: globalThis.ResizeObserver, request: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame, style: globalThis.getComputedStyle };
-  let resized = () => {}, scheduled: FrameRequestCallback | undefined, disconnected = false, canceled = false;
+  let resized: (entries: { target: unknown }[]) => void = () => {}, scheduled: FrameRequestCallback | undefined, disconnected = false, canceled = false;
   const observed: Element[] = [];
   class Observer {
-    constructor(callback: () => void) { resized = callback; }
+    constructor(callback: (entries: { target: unknown }[]) => void) { resized = callback; }
     observe(node: Element) { observed.push(node); }
     disconnect() { disconnected = true; }
   }
@@ -76,9 +76,17 @@ test("scroll observation coalesces frames, caches geometry, responds to resize a
     assert.deepEqual(updates, ["first", "second"]);
     assert.equal(reads, 2, "scrolling uses cached offsets instead of rereading every article");
     secondTop = 2000;
-    resized(); flush();
+    // A streaming reply resizes the content constantly: the rail remeasures a few times a second at most.
+    resized([{ target: content }]);
+    assert.equal(scheduled, undefined, "a content resize right after measuring waits");
+    await new Promise(resolve => setTimeout(resolve, MESSAGE_TRAIL_REMEASURE_MS + 20));
+    flush();
     assert.equal(reads, 4);
     assert.deepEqual(updates, ["first", "second", "first"]);
+    // A viewport resize remeasures on the next frame.
+    resized([{ target: viewport }]); flush();
+    assert.equal(reads, 6);
+    resized([{ target: content }]);
     dispose();
     assert.ok(disconnected && canceled);
     viewport.dispatchEvent(new Event("scroll"));

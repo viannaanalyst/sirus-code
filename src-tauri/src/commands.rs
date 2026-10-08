@@ -330,8 +330,10 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
             .collect::<Vec<_>>()
     };
     data.projects.retain(|project| project.id != project_id);
-    data.sessions
-        .retain(|session| session.project_id != project_id);
+    let (removed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut data.sessions)
+        .into_iter()
+        .partition(|session| session.project_id == project_id);
+    data.sessions = kept;
     crate::automations::prune(&mut data);
     crate::tasks::prune(&mut data);
     crate::astros::prune(&mut data);
@@ -344,6 +346,7 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     // Shell cleanup scans processes and waits; keep it outside the data lock.
     let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
+    crate::thumbnails::release(&state.data_path, &removed, &state.data.lock());
     killed
 }
 
@@ -1419,8 +1422,10 @@ pub(crate) fn delete_session_native(
             .filter_map(|terminal_id| ptys.remove(&terminal_id))
             .collect::<Vec<_>>()
     };
-    data.sessions
-        .retain(|item| item.id != session_id && !side_chats.contains(&item.id));
+    let (removed, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut data.sessions)
+        .into_iter()
+        .partition(|item| item.id == session_id || side_chats.contains(&item.id));
+    data.sessions = kept;
     crate::tasks::prune(&mut data);
     crate::astros::prune(&mut data);
     crate::pr_watch::prune(&mut data);
@@ -1432,6 +1437,7 @@ pub(crate) fn delete_session_native(
     // Shell cleanup scans processes and waits; keep it outside the data lock.
     let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
+    crate::thumbnails::release(&state.data_path, &removed, &state.data.lock());
     killed
 }
 
@@ -1678,7 +1684,10 @@ pub async fn send_prompt(
             streaming: false,
             activity: None,
             steers: Vec::new(),
-            attachments: attachments.iter().map(|file| file.summary()).collect(),
+            attachments: attachments
+                .iter()
+                .map(|file| file.summary(&state.data_path))
+                .collect(),
             launched: vec![],
             documents: vec![],
         };

@@ -88,8 +88,8 @@ pub fn session_event(session: &Session, from: usize) -> Result<Value> {
 /// Per session, a fingerprint of the current turn's user message as last published.
 static SENT_TURNS: LazyLock<Mutex<HashMap<String, u64>>> = LazyLock::new(Default::default);
 
-/// Everything a renderer shows of a user message. Image thumbnails make it up to
-/// megabytes, so it is hashed field by field instead of serialized.
+/// Everything a renderer shows of a user message. Older embedded thumbnails could make
+/// it megabytes, so it is hashed field by field instead of serialized.
 fn fingerprint(message: &Message) -> u64 {
     let mut hasher = DefaultHasher::new();
     if let Ok(bytes) = serde_json::to_vec(&(
@@ -112,6 +112,7 @@ fn fingerprint(message: &Message) -> u64 {
         attachment.mime_type.hash(&mut hasher);
         attachment.size.hash(&mut hasher);
         attachment.thumbnail.hash(&mut hasher);
+        attachment.has_thumbnail.hash(&mut hasher);
     }
     message.attachments.len().hash(&mut hasher);
     hasher.finish()

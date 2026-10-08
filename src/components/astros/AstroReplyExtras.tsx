@@ -13,6 +13,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
+import { remember } from "@/lib/bounded-map";
 
 /**
  * What an Astro reply produced besides its text (ADR-088): the documents it wrote or
@@ -40,8 +41,8 @@ const notify = () => { version += 1; for (const listener of listeners) listener(
 
 function load(id: string) {
   void client.astroDocument<AstroDocument>({ type: "read", id }).then(
-    (document) => { cache.set(id, document); notify(); },
-    () => { cache.set(id, "missing"); notify(); },
+    (document) => { remember(cache, id, document, 64); notify(); },
+    () => { remember(cache, id, "missing", 64); notify(); },
   );
 }
 
@@ -89,7 +90,7 @@ function DocumentReader({ document, open, onClose }: { document: AstroDocument; 
         title={t("astros.document.deleteTitle", { title: document.title })} description={t("astros.document.deleteBody")}
         confirmLabel={t("astros.document.delete")} cancelLabel={t("common.cancel")}
         onConfirm={async () => {
-          try { await client.astroDocument({ type: "delete", id: document.id, confirm: true }); cache.set(document.id, "missing"); notify(); onClose(); }
+          try { await client.astroDocument({ type: "delete", id: document.id, confirm: true }); remember(cache, document.id, "missing", 64); notify(); onClose(); }
           catch (reason) { useAppStore.setState({ error: formatUnknownError(reason) }); }
           setConfirm(false);
         }} />

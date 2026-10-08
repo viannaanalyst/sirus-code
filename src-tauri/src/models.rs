@@ -160,7 +160,7 @@ pub struct Message {
     /// is the reply's UTF-16 length when each arrived, so it renders in place.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub steers: Vec<Steer>,
-    /// User messages: what was attached, with a small thumbnail for images (ADR-071).
+    /// User messages: what was attached; images keep a thumbnail file (ADR-071).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<MessageAttachment>,
     /// Astro replies: sessions started during the turn (ADR-088).
@@ -185,9 +185,13 @@ pub struct MessageAttachment {
     /// File size in bytes (files only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
-    /// `data:image/jpeg;base64,…`, at most 1280 px on its longer side (opens full screen).
+    /// Legacy or fallback only: `data:image/jpeg;base64,…`, at most 1280 px on its longer
+    /// side. Sent images keep it as a file instead (`has_thumbnail`, `thumbnails.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail: Option<String>,
+    /// The JPEG copy (at most 1280 px) is `thumbnails/<id>.jpg` in the app data folder.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_thumbnail: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

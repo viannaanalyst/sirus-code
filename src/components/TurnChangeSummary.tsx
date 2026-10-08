@@ -6,6 +6,7 @@ import { fileIconFor } from "@/lib/file-icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
+import { remember } from "@/lib/bounded-map";
 
 export function ChangeTally({ additions, deletions }: { additions: number; deletions: number }) {
   return <span className="inline-flex shrink-0 gap-2 font-mono ui-micro tabular-nums"><span className="text-success">+{additions}</span><span className="text-danger">−{deletions}</span></span>;
@@ -30,7 +31,7 @@ export function TurnChangeSummary({ sessionId, messageId, review }: { sessionId:
   if (!review.files.length) return null;
   const total = diffTotals(review.files);
   const hasFolders = tree.some((node) => node.kind === "directory");
-  const saveFolders = (next: typeof folders) => { expandedByTurn.set(messageId, next); setFolders(next); };
+  const saveFolders = (next: typeof folders) => { remember(expandedByTurn, messageId, next, 64); setFolders(next); };
   const keepChanges = async () => {
     if (pending || review.keptAt) return;
     setPending(true); setError(false);

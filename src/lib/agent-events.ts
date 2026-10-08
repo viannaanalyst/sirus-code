@@ -65,7 +65,7 @@ function sameList(same: Same): Same {
 
 const flat: Same = (a, b) => sameFields(a, b);
 const nullish = (same: Same): Same => (a, b) => (a ?? null) === (b ?? null) || same(a, b);
-/** A thumbnail never changes for the same attachment id: its length stands in for the base64. */
+/** An embedded (legacy) thumbnail never changes for the same attachment id: its length stands in for the base64. */
 const sameAttachment: Same = (a, b) => sameFields(a, b, { thumbnail: (x, y) => (x as string | undefined)?.length === (y as string | undefined)?.length });
 const sameItem: Same = (a, b) => sameFields(a, b, { steps: sameList(flat) });
 const sameReview: Same = nullish((a, b) => sameFields(a, b, { files: sameList(flat) }));

@@ -106,6 +106,7 @@ Trust boundary: the webview is untrusted. Rust validates every path and every pr
 | `provider_accounts.rs` | private Codex/Claude profiles, fixed vendor login/cancel, metadata and new-session defaults |
 | `execution.rs` | catalog-validated effort/Fast/planning, typed per-turn approval profiles and Codex preferences |
 | `attachments.rs` | owner-bound IDs, bounded file snapshots, typed image/file input blocks and cache lifetime |
+| `thumbnails.rs` | sent image thumbnails (1280 px JPEG) as `thumbnails/<attachment id>.jpg` next to `state.json` (canonical UUID names only); messages keep `hasThumbnail`, not base64. Served on the `sirus-thumb://` scheme (immutable cache) and, for paired devices, `/api/thumbnail/<id>?token=` in `remote.rs`; `src/lib/thumbnail-url.ts` picks the URL per transport. Embedded thumbnails move to files when transcripts load (stripped only after the write succeeds); files are removed with their sessions or as orphans at load |
 | `window_attachment.rs` | explicit macOS 14+ native single-window selection, bounded JPEG capture and generation-bound picker cleanup; no renderer window identities or control |
 | `goals.rs` | bounded persisted Session objectives quoted into user-requested process prompts; no automatic continuation |
 | `document_preview.rs` | owner/ID-bound read-only PDF bytes and bounded DOCX/XLSX/CSV content; no extraction, external resources or formula execution |
@@ -407,7 +408,7 @@ cd src-tauri && cargo check
 graphify update .
 ```
 
-Persistence: `~/Library/Application Support/com.siruscode.app/state.json` (metadata) and `sessions/<id>.json` (transcripts) on macOS. See [ADR-047](../decisions/ADR-047-per-session-transcript-files.md).
+Persistence: `~/Library/Application Support/com.siruscode.app/state.json` (metadata), `sessions/<id>.json` (transcripts) and `thumbnails/<id>.jpg` (sent image thumbnails) on macOS. See [ADR-047](../decisions/ADR-047-per-session-transcript-files.md).
 
 Settings persistence runs on native workers. macOS uses a custom native Quit menu item so Command+Q enters the native exit guard rather than predefined NSApp termination. Closing/Quit with native agent handles or Starting admission can require one native confirmation; decline preserves execution. Session reopening controls automatic selection only, preserving all saved sessions/drafts and never starting processes. Developer diagnostics contains fixed aggregate lifecycle counts only, rotating two private 256 KiB files under app data.
 

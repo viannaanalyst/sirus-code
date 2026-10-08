@@ -150,6 +150,11 @@ export class SirusClient {
     return this.transport.invoke<string>("attachment_image", { owner, id });
   }
 
+  /** Where a sent image's thumbnail loads from, by attachment id (no base64 over IPC). */
+  thumbnailUrl(id: string): string | undefined {
+    return this.transport.thumbnailUrl?.(id);
+  }
+
   attachmentPreview(owner: string, id: string) {
     return this.transport.invoke<import("./types").DocumentPreview>("attachment_preview", { owner, id });
   }

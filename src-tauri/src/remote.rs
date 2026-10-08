@@ -560,6 +560,7 @@ async fn start(app: AppHandle, remote: Arc<Remote>) {
             get(push_key).put(push_subscribe).delete(push_unsubscribe),
         )
         .route("/api/socket", get(socket))
+        .route("/api/thumbnail/{id}", get(thumbnail))
         .fallback(get(asset))
         // The bundle is several megabytes of text; compressed it is about a quarter (gzip/brotli).
         .layer(tower_http::compression::CompressionLayer::new())
@@ -879,6 +880,52 @@ pub fn notify(title: &str, body: &str, session_id: &str) {
     }
     let payload = push::payload(title, body, session_id);
     tauri::async_runtime::spawn(async move { push::send_all(&remote, payload).await });
+}
+
+#[derive(Deserialize)]
+struct ThumbnailQuery {
+    #[serde(default)]
+    token: String,
+}
+
+/// A sent image's thumbnail for a paired device. `<img>` cannot send a header, so the
+/// device token comes in the query; it is checked without noting the device as seen
+/// (a transcript loads many thumbnails, and the socket already does that).
+async fn thumbnail(
+    AxumState(shared): AxumState<Shared>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Query(query): axum::extract::Query<ThumbnailQuery>,
+) -> Response {
+    if !paired(&shared.remote, &query.token) {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+    let Some(data_path) = shared
+        .app
+        .try_state::<Arc<crate::commands::AppState>>()
+        .map(|state| state.data_path.clone())
+    else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let bytes = tokio::task::spawn_blocking(move || crate::thumbnails::read(&data_path, &id))
+        .await
+        .ok()
+        .flatten();
+    let (parts, body) = crate::thumbnails::response(bytes).into_parts();
+    (parts.status, parts.headers, body).into_response()
+}
+
+/// Whether a token belongs to a paired device (no side effects).
+fn paired(remote: &Remote, token: &str) -> bool {
+    if token.is_empty() || token.len() > 256 {
+        return false;
+    }
+    let hashed = hash(token);
+    remote
+        .config
+        .lock()
+        .devices
+        .iter()
+        .any(|device| device.token_hash == hashed)
 }
 
 /// The device a token belongs to, noting when it was last seen.
@@ -1261,6 +1308,8 @@ mod tests {
         assert!(redeem(&remote, "123 456", "Typed").is_ok());
         assert_eq!(authenticate(&remote, &token), Some(id.clone()));
         assert_eq!(authenticate(&remote, "wrong"), None);
+        assert!(paired(&remote, &token));
+        assert!(!paired(&remote, "wrong") && !paired(&remote, ""));
         let saved: Config =
             serde_json::from_slice(&std::fs::read(dir.path().join("remote.json")).unwrap())
                 .unwrap();
