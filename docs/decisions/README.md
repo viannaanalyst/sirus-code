@@ -107,6 +107,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-088: Astro documents, launched sessions, permissions and the menu bar](ADR-088-astro-documents-sessions-and-menu-bar.md) — Markdown documents as reply cards with a reader, a Sessions control for work started in the turn, a permission mode per Astro (Auto by default), hiding Astro-started sessions from the sidebar, and a menu bar item with a floating always-on-top Astro chat.
 - [ADR-089: Chat background, project icon picker and rail pages](ADR-089-chat-background-and-project-icons.md) — an image behind the chat under a theme veil, a Synara-style icon picker on the project name (Emoji, Icons, Astros), Kanban and Archived as rail pages, and ⇧⇥ to cycle reasoning effort.
 - [ADR-090: Press ⌘Q twice to quit](ADR-090-press-command-q-twice.md) — without running agents, the first ⌘Q shows "Press ⌘Q again to quit" for two seconds and a second press quits; with agents running the existing dialog asks.
+- [ADR-091: Commit graph like MonoCode's](ADR-091-commit-graph-like-monocode.md) — the Changes history adapts MonoCode's VS Code–derived graph (22 px rows, a lane colour per branch, arcs at merges, ringed HEAD, ref pills) in Sirus's lilac and Astro colours.
 
 ## Template
 
