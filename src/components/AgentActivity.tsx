@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lock, RotateCcw, Search, Square, Terminal, Wrench, X } from "@/components/icons/phosphor";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -12,7 +12,8 @@ import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
 import { foldBoundary, liveFoldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
-import { backgroundStateLabel, backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
+import { cascadeIndex } from "@/lib/cascade";
+import { backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
@@ -24,67 +25,67 @@ function ModelOrbit({ provider, model, status }: { provider: AgentProviderId; mo
   </span>;
 }
 
-/** A child's own small world, tinted per name while it works. */
-function ChildOrbit({ moving }: { moving: boolean }) {
-  return <svg className="activity-child-orbit" viewBox="0 0 24 24" aria-hidden="true">
-    <g transform="rotate(-28 12 12)"><ellipse fill="none" stroke="currentColor" strokeWidth="1.6" cx="12" cy="12" rx="10.5" ry="4.4" /></g>
-    <circle fill="currentColor" cx="12" cy="12" r="3.6" />
-    <g transform="rotate(-28 12 12)">
-      {moving
-        ? <circle fill="currentColor" r="2"><animateMotion dur="1.6s" repeatCount="indefinite" path="M1.5,12 a10.5,4.4 0 1,1 21,0 a10.5,4.4 0 1,1 -21,0" /></circle>
-        : null}
-    </g>
-  </svg>;
-}
-
-/** Stable tint per child name from existing palette tokens, so a helper keeps its color across turns. */
-const childTints = ["var(--brand-openai)", "var(--brand-cursor)", "var(--brand-nebula)", "var(--brand-gemini)", "var(--success)", "var(--brand-claude)"];
-export function childTint(name: string): string {
-  let hash = 7;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return childTints[hash % childTints.length];
-}
 const liveStepLabels: Record<ActivityKind, string> = { read: "Reading or searching…", edit: "Editing files…", command: "Running a command…", tool: "Using a tool…", agent: "Delegating a task…", skill: "Using a tool…" };
 
-const backgroundIcons: Record<Exclude<BackgroundTone, "running">, typeof Check> = { completed: Check, failed: X, interrupted: Square, timedOut: Clock3 };
+/** A subagent card's state: the background tones (ADR-097), plus a provider that never reported one. */
+type ChildTone = BackgroundTone | "unknown";
+const childTone = (item: ActivityItem): ChildTone => item.state === "unknown" ? "unknown" : backgroundTone(item);
+const toneLabels: Record<ChildTone, string> = { running: "subagent.state.running", completed: "subagent.state.completed", failed: "subagent.state.failed", interrupted: "subagent.state.interrupted", timedOut: "subagent.state.timedOut", unknown: "Not reported" };
+const toneIcons: Record<Exclude<ChildTone, "running">, typeof Check> = { completed: Check, failed: X, interrupted: Square, timedOut: Clock3, unknown: CircleHelp };
 
-/** A background child's state, in words and colour: "Running for 2m", "Finished in 3m 10s", "Failed", "Interrupted" (ADR-097). */
-function BackgroundState({ item, now }: { item: ActivityItem; now: number }) {
-  const t = useTranslation();
-  const tone = backgroundTone(item);
-  const Icon = tone === "running" ? null : backgroundIcons[tone];
-  return <span className="background-state" data-tone={tone}>
-    {Icon ? <Icon size={11} aria-hidden="true" /> : <span className="activity-step-pulse" aria-hidden="true" />}
-    <span>{backgroundStateLabel(item, now, t)}</span>
-  </span>;
+/** Subagents already shown while the app runs: a card cascades in only the first time it appears (ADR-096). */
+const seenChildren = new Set<string>();
+
+/** "Subagente · Haiku 4.5 · Editando arquivos…", or once done what it left: "Subagente · 4 edições". */
+function childDescription(item: ActivityItem, model: string | null, t: ReturnType<typeof useTranslation>): string {
+  const steps = item.steps ?? [];
+  let note: string | null = null;
+  if (item.state === "running") {
+    const current = [...steps].reverse().find(step => step.state === "running");
+    note = item.detail?.trim() || t(current ? liveStepLabels[current.kind] : steps.length ? "Thinking…" : "Starting");
+  } else if (item.state === "completed") {
+    const edits = steps.filter(step => step.kind === "edit" && step.state === "completed").length;
+    note = edits ? t(edits === 1 ? "subagent.edits.one" : "subagent.edits", { count: edits }) : null;
+  } else if (item.state === "failed") {
+    const failed = [...steps].reverse().find(step => step.state === "failed");
+    note = failed ? t(failed.label || "Tool call") : null;
+  }
+  return [t(item.background ? "subagent.role.background" : "subagent.role"), model, note].filter(Boolean).join(" · ");
 }
 
-function ChildRow({ item, name, modelLabel, now, moving }: { item: ActivityItem; name: string; modelLabel: (id: string) => string; now: number; moving: boolean }) {
+/** A subagent as a card (T3 Code): icon, title, a muted line with its role and current step or result, and a state pill. */
+function ChildRow({ item, name, modelLabel, now, index, entering }: { item: ActivityItem; name: string; modelLabel: (id: string) => string; now: number; index: number; entering: boolean }) {
   const t = useTranslation();
   const stepsId = useId();
   // A failed child opens itself so the failing step is visible without a click.
   const [open, setOpen] = useState<boolean | null>(null);
+  // Decided once per mount, so a re-render never cuts the entrance short.
+  const [cascade] = useState(() => entering && !seenChildren.has(item.id) ? cascadeIndex(index) : null);
+  useEffect(() => { seenChildren.add(item.id); }, [item.id]);
   const expanded = open ?? item.state === "failed";
   const steps = item.steps ?? [];
   const count = steps.length + (item.hiddenSteps ?? 0);
-  const running = item.state === "running";
-  const current = [...steps].reverse().find(step => step.state === "running");
-  const duration = item.startedAt ? formatActivityDuration(Math.floor(((item.endedAt ?? now) - item.startedAt) / 1000)) : null;
-  return <li className="activity-step activity-child" data-state={item.state} data-kind="agent" data-background={item.background || undefined} data-tone={item.background ? backgroundTone(item) : undefined} style={{ "--child-tint": childTint(name) } as CSSProperties}>
-    <button type="button" className="activity-child-head" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setOpen(!expanded)}>
-      <ChildOrbit moving={running && moving} />
-      <span className="activity-child-name">{name}</span>
-      {item.model ? <span className="activity-child-model ui-micro">{modelLabel(item.model)}</span> : <span className="sr-only">{t("subagent")}</span>}
-      <span className="activity-child-meta ui-micro">
-        {count ? <span>{t(count === 1 ? "{count} step" : "{count} steps", { count })}</span> : null}
-        {item.background ? <BackgroundState item={item} now={now} /> : <>
-          {duration ? <span className="activity-duration">{duration}</span> : null}
-          <StepStatus item={item} />
-        </>}
-        <ChevronDown size={12} className={expanded ? "activity-chevron expanded" : "activity-chevron"} aria-hidden="true" />
+  const tone = childTone(item);
+  const ToneIcon = tone === "running" ? null : toneIcons[tone];
+  const Icon = item.background ? Zap : Bot;
+  const duration = item.startedAt ? formatActivityDuration(Math.max(0, Math.floor(((item.endedAt ?? now) - item.startedAt) / 1000))) : null;
+  return <li className="subagent-card" data-state={item.state} data-tone={tone} data-background={item.background || undefined} data-cascade-item={cascade ? "" : undefined} style={cascade ?? undefined}>
+    <button type="button" className="subagent-card-head" aria-expanded={expanded} aria-controls={stepsId} onClick={() => setOpen(!expanded)}>
+      <span className="subagent-card-icon" aria-hidden="true"><Icon size={15} /></span>
+      <span className="subagent-card-text">
+        <span className="subagent-card-title">{name}</span>
+        <span className="subagent-card-desc">{childDescription(item, item.model ? modelLabel(item.model) : null, t)}</span>
       </span>
+      <span className="subagent-card-meta">
+        {count ? <span>{t(count === 1 ? "{count} step" : "{count} steps", { count })}</span> : null}
+        {duration ? <span className="activity-duration">{duration}</span> : null}
+      </span>
+      <span className="subagent-pill" data-tone={tone}>
+        {ToneIcon ? <ToneIcon size={10} aria-hidden="true" /> : <span className="subagent-pill-dot" aria-hidden="true" />}
+        {t(toneLabels[tone])}
+      </span>
+      <ChevronDown size={12} className={expanded ? "activity-chevron expanded" : "activity-chevron"} aria-hidden="true" />
     </button>
-    {running && !expanded ? <span className="activity-child-now">{t(current ? liveStepLabels[current.kind] : steps.length ? "Thinking…" : "Starting")}</span> : null}
     {expanded ? <ol id={stepsId} className="activity-child-steps">
       {item.hiddenSteps ? <li className="activity-child-folded ui-micro">{t("+{count} earlier steps", { count: item.hiddenSteps })}</li> : null}
       {steps.map(step => <ChildStepRow key={step.id} step={step} />)}
@@ -141,11 +142,13 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
 }
 
 /** Back-to-back steps: one sentence that opens into its rows; the step still running stays on its own live row. */
-function WorkGroup({ items, cwd, live, modelLabel, now, moving }: { items: ActivityItem[]; cwd?: string; live: boolean; modelLabel: (id: string) => string; now: number; moving: boolean }) {
+function WorkGroup({ items, cwd, live, active, modelLabel, now, moving }: { items: ActivityItem[]; cwd?: string; live: boolean; active: boolean; modelLabel: (id: string) => string; now: number; moving: boolean }) {
   const t = useTranslation();
   const [open, setOpen] = useState(false);
   const listId = useId();
   const children = items.filter(item => item.kind === "agent");
+  // Cards that appear together cascade from the first new one; the ones already shown stay put.
+  const firstNew = Math.max(0, children.findIndex(item => !seenChildren.has(item.id)));
   const steps = items.filter(item => item.kind !== "agent");
   // While the turn runs, its newest running step is the live row under the group.
   const current = live ? [...steps].reverse().find(item => item.state === "running") : undefined;
@@ -165,8 +168,8 @@ function WorkGroup({ items, cwd, live, modelLabel, now, moving }: { items: Activ
       {failed.map(item => <StepLine key={item.id} item={item} cwd={cwd} />)}
     </> : null}
     {current ? <StepLine item={current} cwd={cwd} live={moving} /> : null}
-    {children.length ? <ol className="activity-steps tl-children">
-      {children.map((item, index) => <ChildRow key={item.id} item={item} modelLabel={modelLabel} name={item.label || t("Subagent {number}", { number: index + 1 })} now={now} moving={moving} />)}
+    {children.length ? <ol className="subagent-cards" data-cascade>
+      {children.map((item, index) => <ChildRow key={item.id} item={item} modelLabel={modelLabel} name={item.label || t("Subagent {number}", { number: index + 1 })} now={now} index={index - firstNew} entering={active} />)}
     </ol> : null}
   </div>;
 }
@@ -270,7 +273,7 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
         if (part.kind === "steer") return hidden ? null : <Fragment key={`s${index}`}>{renderSteer?.(part.text)}</Fragment>;
         // A folded turn still shows the steps that failed.
         const items = hidden ? part.items.filter(item => item.state === "failed") : part.items;
-        return items.length ? <WorkGroup key={`w${index}`} items={items} cwd={cwd} live={active && index === lastWork} modelLabel={modelLabel} now={clock.now} moving={live} /> : null;
+        return items.length ? <WorkGroup key={`w${index}`} items={items} cwd={cwd} live={active && index === lastWork} active={active} modelLabel={modelLabel} now={clock.now} moving={live} /> : null;
       })}
       {activity.truncated && !folded ? <p className="ui-micro text-text-muted">{t("Showing the first 128 activity items. Later updates to these items are retained.")}</p> : null}
     </div>

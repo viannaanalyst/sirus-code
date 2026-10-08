@@ -20,6 +20,7 @@ The protocol was recorded with Claude Code 2.1.294 (`-p --input-format stream-js
 - **Stop:** the Stop button interrupts as before and the process group is stopped. Each row in the strip can stop its task alone through `stop_background_task` (Claude's `stop_task`).
 - **Rows:** child rows carry `background: true`; `task_progress` sets their `detail`. A background child still running when its turn ends for any reason (stop, failure, app quit, restart recovery) becomes `stopped`. `timedOut` marks the limit. Both fields are optional in JSON, so older sessions load.
 - **UI:** an "In the background" strip on the composer's top edge (like reply choices) lists the running ones with a pulsing dot, name, current step, time (its own one-second clock while shown) and a stop per task. Timeline rows say "Running for 2m", "Finished in 3m 10s", "Failed", "Interrupted" or "Stopped at the time limit" with an icon and colour. The reply header shows "2 in the background" while they run, and "2 interrupted" afterwards; on the latest reply, Resume sends a follow-up asking Claude to run them again.
+- **Cards (2026-10-08):** in the timeline a background subagent uses the same card as any subagent (ADR-070): a lightning icon, the title, "Subagente em segundo plano · <current step>", time and steps, and a pill "Em execução", "Concluído", "Falhou", "Interrompido" or "Interrompido no limite de tempo". The elapsed time moved out of the state words ("Em execução há 2m") into the muted text beside the pill; the strip above the composer is unchanged.
 
 ## Consequences
 

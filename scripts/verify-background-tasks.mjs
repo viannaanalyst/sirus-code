@@ -39,14 +39,15 @@ try {
     assert.equal(backgroundStateLabel(child("x", "x", "stopped"), now, t), t("background.state.interrupted"));
     assert.equal(backgroundStateLabel(child("x", "x", "stopped", { timedOut: true }), now, t), t("background.state.timedOut"));
     const live = renderToString(createElement(AgentActivity, { activity: activity("running", running) }));
-    assert.ok(live.includes('data-tone="running"') && live.includes(t("background.state.running", { duration: "2m 0s" })), "running state in the timeline");
+    assert.ok(live.includes('class="subagent-pill" data-tone="running"') && live.includes(t("subagent.state.running")) && live.includes("2m 0s"), "running pill and elapsed time on the card");
+    assert.ok(live.includes(`${t("subagent.role.background")} · Running npm test`), "the card names its role and current step");
     // C: the header pill while they run, and the reply is not presented as finished.
     assert.ok(live.includes(t("background.running", { count: 2 })), "header pill counts running background tasks");
     assert.ok(!live.includes(t("timeline.workedFor", { duration: "" }).trim()), "a reply with background work still running is not finished");
     const finished = [child("b1", "Audit queries", "completed"), child("b2", "Audit cache", "failed"), child("b3", "Audit bundle", "stopped"), child("b4", "Audit RSC", "stopped", { timedOut: true })];
     let resumed = null;
     const ended = renderToString(createElement(AgentActivity, { activity: activity("stopped", finished), onResume: (text) => { resumed = text; } }));
-    for (const tone of ["completed", "failed", "interrupted", "timedOut"]) assert.ok(ended.includes(`data-tone="${tone}"`), `${tone} tone`);
+    for (const tone of ["completed", "failed", "interrupted", "timedOut"]) assert.ok(ended.includes(`class="subagent-pill" data-tone="${tone}"`) && ended.includes(t(`subagent.state.${tone}`)), `${tone} pill`);
     assert.ok(ended.includes(t("background.interrupted", { count: 2 })), "interrupted pill");
     assert.ok(ended.includes(t("background.resume")), "Retomar offered on the latest reply");
     assert.ok(!ended.includes(t("background.running", { count: 0 })), "no running pill after the turn");
@@ -58,5 +59,5 @@ try {
     assert.ok(one.includes(t("background.interrupted.one")), "singular pill");
   }
   assert.equal(translate("pt-BR", "background.resumePrompt", { names: "A" }), "Retome as tarefas em segundo plano que foram interrompidas: A");
-  console.log("Background tasks: strip with running rows, stop per task and time; timeline running/completed/failed/interrupted/timed-out states; header pill and Retomar in both locales");
+  console.log("Background tasks: strip with running rows, stop per task and time; timeline cards with running/completed/failed/interrupted/timed-out pills; header pill and Retomar in both locales");
 } finally { await server.close(); }

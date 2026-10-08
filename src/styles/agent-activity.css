@@ -36,26 +36,32 @@ button.activity-line { cursor: pointer; }
 .activity-step-pulse { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
 /* The running ring: a disc scaled and faded on the compositor (was an animated box-shadow, repainted every frame). */
 .activity-step-pulse::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--text-secondary) 50%, transparent); opacity: 0; pointer-events: none; }
-/* S1: a subagent is a trail row with its own tint; its steps open as a branch under it. */
-.activity-child { display: block; min-height: 0; }
-.activity-child::before { top: 13px; margin-top: -3.5px; }
-.activity-child[data-state="running"]::before { border-color: var(--child-tint); background: var(--child-tint); }
-.activity-child-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 26px; padding: 0; text-align: left; color: var(--text-secondary); border-radius: var(--radius-sm); cursor: pointer; }
-.activity-child-head:hover .activity-child-name { text-decoration: underline; text-decoration-color: var(--border-default); text-underline-offset: 3px; }
-.activity-child-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.activity-child-orbit { width: 14px; height: 14px; flex-shrink: 0; overflow: visible; color: var(--text-muted); }
-.activity-child[data-state="running"] .activity-child-orbit { color: var(--child-tint); }
-.activity-child[data-state="completed"] .activity-child-orbit { color: var(--success); }
-.activity-child[data-state="failed"] .activity-child-orbit { color: var(--danger); }
-.activity-child-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-weight: 500; }
-.activity-child[data-state="failed"] .activity-child-name { color: var(--danger); }
-.activity-child-model { flex-shrink: 0; padding: 1px 6px; border-radius: var(--radius-sm); background: var(--navigation-hover); color: var(--text-muted); white-space: nowrap; }
-.activity-child-meta { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.activity-child-meta .activity-step-status { margin-left: 0; }
-.activity-child-now { display: block; margin: -2px 0 4px 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+/* A subagent is a card (T3 Code): icon, title, a muted line with its role and step or result,
+   step count and time, and a state pill. Its own steps open inside the card. */
+.subagent-cards { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 4px 0 0; padding: 0; }
+.subagent-card { min-width: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: color-mix(in srgb, var(--text-primary) 3%, transparent); transition: border-color var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out); }
+.subagent-card:has(> .subagent-card-head:hover) { border-color: var(--border-default); background: color-mix(in srgb, var(--text-primary) 5%, transparent); }
+.subagent-card-head { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 7px 10px; text-align: left; color: var(--text-secondary); border-radius: inherit; cursor: pointer; }
+.subagent-card-head:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.subagent-card-icon { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: var(--radius-sm); background: var(--navigation-hover); color: var(--text-secondary); }
+.subagent-card[data-tone="running"] .subagent-card-icon { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.subagent-card[data-tone="failed"] .subagent-card-icon { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+.subagent-card-text { display: flex; flex: 1; flex-direction: column; gap: 1px; min-width: 0; }
+.subagent-card-title, .subagent-card-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; }
+.subagent-card-title { color: var(--text-primary); font-size: var(--text-ui-13); font-weight: 500; }
+.subagent-card-desc { color: var(--text-muted); font-size: var(--text-ui-12); }
+.subagent-card[data-tone="failed"] .subagent-card-desc { color: color-mix(in srgb, var(--danger) 80%, var(--text-muted)); }
+.subagent-card-meta { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.subagent-pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; flex-shrink: 0; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-primary) 7%, transparent); color: var(--text-secondary); font-size: var(--text-ui-11); white-space: nowrap; }
+.subagent-pill[data-tone="running"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.subagent-pill[data-tone="completed"] { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+.subagent-pill[data-tone="failed"] { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.subagent-pill:is([data-tone="interrupted"], [data-tone="timedOut"]) { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
+.subagent-pill-dot { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
+.subagent-card .activity-child-steps { margin: 0 10px 8px 23px; }
 .activity-child-steps { position: relative; display: flex; flex-direction: column; list-style: none; margin: 2px 0 6px 6px; padding: 0 0 0 16px; }
-.activity-child-steps::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--child-tint) 55%, transparent); }
-.activity-child[data-state="failed"] .activity-child-steps::before { background: color-mix(in srgb, var(--danger) 55%, transparent); }
+.activity-child-steps::before { content: ""; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; border-radius: 2px; background: var(--border-default); }
+.subagent-card[data-state="failed"] .activity-child-steps::before { background: color-mix(in srgb, var(--danger) 55%, transparent); }
 .activity-child-step { display: flex; align-items: center; gap: 8px; min-height: 23px; color: var(--text-secondary); }
 .activity-child-step[data-state="failed"] .activity-step-label { color: var(--danger); }
 .activity-child-folded { min-height: 22px; display: flex; align-items: center; color: var(--text-muted); }
@@ -83,7 +89,8 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
   /* Steps enter only while the turn is live; history renders still. */
   .agent-activity[data-active] .activity-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
   .agent-activity[data-live] .activity-step-pulse::after { animation: activity-step-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
-  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; }
+  /* A running subagent's pill breathes; it rests with the other status pulses (below). */
+  .subagent-pill-dot { animation: background-task-pulse calc(var(--motion-slow) * 5) ease-in-out infinite; }
   .agent-activity[data-active] .activity-child-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
 }
 @keyframes activity-orbit-beat { 50% { transform: scale(1.35); } }
@@ -94,7 +101,7 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 /* Text sweeps cannot move on the compositor (the gradient is clipped to the glyphs), so they
    step at ~15 fps on their own small layers and rest, like the status pulses, while the
    window is unfocused or hidden (src/lib/ambient-motion.ts). */
-html[data-ambient="off"] :is(.agent-activity .activity-state, .agent-activity .activity-child-now, .tl-shine), html[data-ambient="off"] .agent-activity .activity-step-pulse::after { animation-play-state: paused; }
+html[data-ambient="off"] :is(.agent-activity .activity-state, .tl-shine), html[data-ambient="off"] .agent-activity .activity-step-pulse::after, html[data-ambient="off"] .subagent-pill-dot { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .activity-chevron { transition: none; } }
 }
 
@@ -115,12 +122,10 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .agent-activity .a
 .tl-line[data-state="failed"], .tl-line[data-state="failed"] .tl-icon { color: var(--danger); }
 .tl-failed { flex-shrink: 0; color: var(--danger); }
 .tl-stopped { flex-shrink: 0; color: var(--text-muted); }
-.tl-children { padding-left: 30px; }
 .tl-detail-chevron { flex-shrink: 0; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
 /* Output aligns with the label (past the 24px icon slot) and scrolls past a few lines. */
 .tl-output { margin: 2px 0 6px 30px; max-height: 240px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); color: var(--text-secondary); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .tl-line[data-state="failed"] + .tl-output { background: color-mix(in srgb, var(--danger) 8%, transparent); }
-.tl-children .activity-step::before, .tl-children.activity-steps::before { display: none; }
 @media (prefers-reduced-motion: no-preference) {
   .tl-rows { animation: tl-open var(--motion-fast) var(--ease-out) both; }
   /* The step running now: a highlight sweeps across its words. */
@@ -172,19 +177,13 @@ html[data-animations="off"] .background-task-dot, html[data-reduce-motion="on"] 
 /* Rests with the other status pulses while the window is unfocused or hidden (src/lib/ambient-motion.ts). */
 html[data-ambient="off"] .background-task-dot { animation-play-state: paused; }
 
-/* A background child's state in the timeline, and the header pill while they run or after they were interrupted. */
-.background-state { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.background-state[data-tone="running"] { color: var(--accent); }
-.background-state[data-tone="completed"] { color: var(--success); }
-.background-state[data-tone="failed"] { color: var(--danger); }
-.background-state[data-tone="interrupted"], .background-state[data-tone="timedOut"] { color: var(--warning); }
-.activity-child[data-tone="interrupted"] .activity-child-orbit, .activity-child[data-tone="timedOut"] .activity-child-orbit { color: var(--warning); }
+/* The reply header pill while background subagents run or after they were interrupted. */
 .tl-header-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; }
 .tl-header-row > .tl-header { margin-bottom: 0; }
 .background-pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: var(--text-ui-11, 11px); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .background-pill[data-tone="interrupted"] { background: color-mix(in srgb, var(--warning) 14%, transparent); color: var(--warning); }
 .background-pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: background-task-pulse 1.6s ease-in-out infinite; }
-html[data-animations="off"] .background-pill-dot, html[data-reduce-motion="on"] .background-pill-dot { animation: none; }
+html[data-animations="off"] :is(.background-pill-dot, .subagent-pill-dot), html[data-reduce-motion="on"] :is(.background-pill-dot, .subagent-pill-dot) { animation: none; }
 @media (prefers-reduced-motion: reduce) { .background-pill-dot { animation: none; } }
 html[data-ambient="off"] .background-pill-dot { animation-play-state: paused; }
 .background-resume { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--text-primary) 12%, transparent); border-radius: 7px; color: var(--text-secondary); font-size: var(--text-ui-12, 12px); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }

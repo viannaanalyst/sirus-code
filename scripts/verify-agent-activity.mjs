@@ -18,6 +18,22 @@ try {
     assert.ok(html.includes("1m 8s")); assert.ok(html.includes("&lt;native-model&gt;"));
     assert.ok(html.includes(translate(locale, "Not reported"))); assert.ok(html.includes('aria-expanded="true"'));
     assert.ok(!html.includes("Stop agent"), "child rows never acquire control authority");
+    // A subagent is a card (T3 Code): one button with the title, its role and model, and a state pill.
+    assert.match(html, /<li class="subagent-card" data-state="unknown" data-tone="unknown"/, "the subagent renders as a card");
+    assert.match(html, /<button type="button" class="subagent-card-head" aria-expanded="false"/, "the whole card is the disclosure");
+    assert.ok(html.includes("Review &lt;child&gt;") && html.includes(`${translate(locale, "subagent.role")} · child-model`), "title, role and model");
+    assert.ok(!/uppercase/.test(html), "labels are never forced into capitals");
+    const steps = [{ id: "e1", kind: "edit", label: "Edit", state: "completed" }, { id: "e2", kind: "edit", label: "Edit", state: "completed" }, { id: "c", kind: "command", label: "Command", state: "running" }];
+    const child = { id: "agent:k", kind: "agent", label: "Server-side optimizations batch", model: null, startedAt: 1000, endedAt: null, steps };
+    const working = renderToString(createElement(AgentActivity, { activity: { ...activity, status: "running", endedAt: null, items: [{ ...child, state: "running" }] } }));
+    assert.ok(working.includes(`data-tone="running"`) && working.includes(translate(locale, "subagent.state.running")), "running pill");
+    assert.ok(working.includes(`${translate(locale, "subagent.role")} · ${translate(locale, "Running a command…")}`), "running: role and current step");
+    assert.ok(working.includes(translate(locale, "{count} steps", { count: 3 })) && working.includes("subagent-pill-dot"), "step count and live dot");
+    const done = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [{ ...child, state: "completed", endedAt: 235000, steps: steps.map((step) => ({ ...step, state: "completed" })) }] } }));
+    assert.ok(done.includes(translate(locale, "subagent.state.completed")) && done.includes("3m 54s"), "done pill and elapsed time");
+    assert.ok(done.includes(`${translate(locale, "subagent.role")} · ${translate(locale, "subagent.edits", { count: 2 })}`), "done: what it left");
+    const failed = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [{ ...child, state: "failed", endedAt: 5000, steps: [{ id: "x", kind: "command", label: "Command", state: "failed" }] }] } }));
+    assert.ok(failed.includes(translate(locale, "subagent.state.failed")) && /class="subagent-card-head" aria-expanded="true"/.test(failed) && failed.includes('class="activity-child-steps"'), "a failed card opens its trail");
     assert.ok(html.includes(translate(locale, "timeline.workedFor", { duration: "1m 8s" })), "a finished turn reads Worked for …");
     // A folded turn hides its work behind the header; the T3 timeline interleaves text and work in order.
     // Server rendering reads the initial store snapshot.
@@ -45,5 +61,5 @@ try {
     for (const key of ["Allow once", "Decline", "Cancel turn"]) assert.ok(permission.includes(translate(locale, key)));
     assert.ok(permission.includes("npm test"));
   }
-  console.log("Activity SSR: both locales and three themes, T3 timeline order/fold, relative paths, native labels/status, escaped metadata, question progress and explicit approval actions passed");
+  console.log("Activity SSR: both locales and three themes, subagent cards (role, step, result, state pill), T3 timeline order/fold, relative paths, native labels/status, escaped metadata, question progress and explicit approval actions passed");
 } finally { await server.close(); }

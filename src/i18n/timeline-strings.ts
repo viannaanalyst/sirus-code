@@ -58,6 +58,15 @@ const strings: Record<string, [string, string]> = {
   "timeline.plainLive.tool": ["Using a tool…", "Usando uma ferramenta…"],
   "timeline.failed": ["Failed", "Falhou"],
   "timeline.stopped": ["Stopped", "Parado"],
+  "subagent.role": ["Subagent", "Subagente"],
+  "subagent.role.background": ["Background subagent", "Subagente em segundo plano"],
+  "subagent.state.running": ["Running", "Em execução"],
+  "subagent.state.completed": ["Done", "Concluído"],
+  "subagent.state.failed": ["Failed", "Falhou"],
+  "subagent.state.interrupted": ["Interrupted", "Interrompido"],
+  "subagent.state.timedOut": ["Stopped at the time limit", "Interrompido no limite de tempo"],
+  "subagent.edits.one": ["1 file edit", "1 edição de arquivo"],
+  "subagent.edits": ["{count} file edits", "{count} edições de arquivo"],
 };
 export const timelineEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const timelinePortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));
