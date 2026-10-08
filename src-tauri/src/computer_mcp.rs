@@ -826,6 +826,7 @@ pub fn run_stdio() -> i32 {
         token_env: TOKEN_ENV,
         tools: tool_definitions,
         failure: "the computer action failed",
+        instructions: None,
     })
 }
 

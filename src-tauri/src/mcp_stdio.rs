@@ -10,6 +10,8 @@ pub struct Server {
     pub token_env: &'static str,
     pub tools: fn() -> Vec<Value>,
     pub failure: &'static str,
+    /// Guidance the agent's CLI adds to its system prompt (MCP `instructions`).
+    pub instructions: Option<&'static str>,
 }
 
 fn text(value: &Value) -> String {
@@ -94,11 +96,15 @@ pub fn run(server: &Server) -> i32 {
                         .and_then(Value::as_str)
                         .unwrap_or("2025-06-18")
                         .to_string();
-                    if let Some(payload) = respond(json!({
+                    let mut result = json!({
                         "protocolVersion": requested,
                         "capabilities": { "tools": {} },
                         "serverInfo": { "name": server.name, "version": "0.1.0" }
-                    })) {
+                    });
+                    if let Some(instructions) = server.instructions {
+                        result["instructions"] = json!(instructions);
+                    }
+                    if let Some(payload) = respond(result) {
                         emit(payload, &mut stdout);
                     }
                 }

@@ -522,6 +522,10 @@ fn use_secret(app: &AppHandle, session_id: &str, args: &Value) -> Result<Value, 
     }
 }
 
+/// Sent as the session server's MCP `instructions`, which the agent CLIs put in their
+/// system prompt: credentials are asked for through the private card, never in chat.
+pub const INSTRUCTIONS: &str = "Sirus Code session tools. Credentials: whenever a task needs an API key, token, password or other secret you do not have, call `request_secret` (label, why, and the `envName` and/or workspace `path` it belongs in) and then `use_secret` with the returned secretRef. The person types it in a private card in the app; you never see the value. Do this instead of asking for the secret in chat, telling the person to paste it, or ending your reply with \"credentials are missing\". Only skip it when the person said they will configure it themselves.";
+
 /// Bridge entry for `request_secret` and `use_secret`; blocks while the card waits.
 pub fn execute(
     app: &AppHandle,
@@ -538,7 +542,7 @@ pub fn execute(
 
 pub fn tool_definitions() -> Vec<Value> {
     vec![
-        json!({ "name": "request_secret", "description": "Ask the person privately for a credential (API key, token, password). They type it in a private card; you never see the value and get a one-use secretRef instead. Name `path` (a workspace file such as .env.local) and/or `envName`. Never ask for secrets in chat.", "inputSchema": { "type": "object", "properties": { "label": { "type": "string", "description": "Short name, e.g. \"Stripe test key\"." }, "description": { "type": "string", "description": "Why it is needed and where to find it." }, "envName": { "type": "string", "description": "Variable name, e.g. STRIPE_SECRET_KEY." }, "path": { "type": "string", "description": "Workspace-relative file to write it to (shown to the person)." } }, "required": ["label"] } }),
+        json!({ "name": "request_secret", "description": "Ask the person privately for a credential (API key, token, password) whenever a task needs one you do not have. They type it in a private card; you never see the value and get a one-use secretRef instead. Name `path` (a workspace file such as .env.local) and/or `envName`. Never ask for secrets in chat or stop at \"credentials are missing\"; call this instead.", "inputSchema": { "type": "object", "properties": { "label": { "type": "string", "description": "Short name, e.g. \"Stripe test key\"." }, "description": { "type": "string", "description": "Why it is needed and where to find it." }, "envName": { "type": "string", "description": "Variable name, e.g. STRIPE_SECRET_KEY." }, "path": { "type": "string", "description": "Workspace-relative file to write it to (shown to the person)." } }, "required": ["label"] } }),
         json!({ "name": "use_secret", "description": "Spend a secretRef once. target \"file\": write it to the path the person approved (as envName=value when envName was given, otherwise the whole file). target \"env\": get a private env file exporting envName to source for one command; it is deleted when the turn ends.", "inputSchema": { "type": "object", "properties": { "secretRef": { "type": "string" }, "target": { "type": "string", "enum": ["file", "env"] } }, "required": ["secretRef", "target"] } }),
     ]
 }
