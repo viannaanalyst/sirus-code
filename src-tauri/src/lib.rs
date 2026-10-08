@@ -143,6 +143,17 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        // The main window reopens where and how big it was left, as in MonoCode. Visibility
+        // stays ours: the window shows only after its glass is applied (ADR-098).
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::all()
+                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                )
+                .with_denylist(&[astro_tray::FLOAT])
+                .build(),
+        )
         .menu(native_menu)
         .on_menu_event(|app, event| {
             // Custom native Quit goes through RunEvent::ExitRequested. macOS
