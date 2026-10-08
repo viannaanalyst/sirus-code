@@ -2263,7 +2263,8 @@ useAppStore.subscribe((state, previous) => {
   let tabs = state.openTabsByProject, drafts = state.draftTabByProject, active = state.lastActiveTabByProject;
   if (known && !tabs[projectId!]) {
     const groups = sidebarGroups(state.projects, state.sessions, state.settings);
-    tabs = { ...tabs, [projectId!]: [...groups.pinned, ...groups.nested].filter(session => session.projectId === projectId).map(session => session.id).slice(0, TAB_LIMIT) };
+    // Oldest on the left, so every new thread is born last, at the right end.
+    tabs = { ...tabs, [projectId!]: [...groups.pinned, ...groups.nested].filter(session => session.projectId === projectId).map(session => session.id).slice(0, TAB_LIMIT).reverse() };
   }
   if (selected) {
     const current = tabs[selected.projectId] ?? [];

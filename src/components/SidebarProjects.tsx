@@ -2,7 +2,7 @@ import { nestTeamSessions } from "@/lib/team";
 import "@/styles/team.css";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { SidebarHoverCards } from "@/components/SidebarHoverCard";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FolderHero } from "@/components/FolderHero";
 import { NewSessionButton } from "@/components/NewSessionButton";
 import { SidebarProjectRow, SidebarSessionRow } from "@/components/SidebarRows";
@@ -43,6 +43,8 @@ export function SidebarProjects({ floating = false, query = "" }: { floating?: b
     onDrop: persistMove,
   });
   const dragging = reorder.dragging;
+  // A folder being dragged closes its sessions, so only the folder row moves.
+  useEffect(() => { if (dragging) setExpanded((state) => state[dragging] === false ? state : { ...state, [dragging]: false }); }, [dragging]);
   // Dragging a conversation toward the panes keeps a peeked panel open and hides hover cards.
   const splitDragging = useAppStore((state) => state.splitDrag !== null);
   useSidebarPanelHold(dragging !== null || splitDragging);

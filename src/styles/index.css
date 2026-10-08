@@ -392,6 +392,19 @@ html[data-density="comfortable"] {
     background-color: var(--navigation-selected);
   }
 
+  /* The new thread's project, workspace and branch row sits on a glass tray that tucks
+     under the composer, a little narrower than it (after ChatGPT). */
+  .landing-tray {
+    margin: 0 22px -18px;
+    padding: 6px 10px 24px;
+    border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  }
+
   /* The chosen chat background (ADR-089, after MonoCode): the image at its visibility
      behind the conversation. */
   html[data-chat-background="on"] .session-pane::before {

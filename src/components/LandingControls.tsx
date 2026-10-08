@@ -89,7 +89,9 @@ export function LandingControls() {
   const filteredBranches = (branches ?? []).filter((item) => item.name.toLowerCase().includes(branchQuery.trim().toLowerCase()));
 
   return (
-    <div className="relative z-10 mx-auto flex w-full max-w-[var(--chat-column-width)] flex-wrap items-center gap-1 px-2 pb-1.5">
+    // A glass tray that tucks under the composer (after ChatGPT's); the row itself does not move.
+    <div className="relative z-[5] px-6"><div className="mx-auto w-full max-w-[var(--chat-column-width)]">
+    <div className="landing-tray flex flex-wrap items-center gap-1">
       <Popover open={projectOpen} onOpenChange={(open) => { setProjectOpen(open); if (open) setProjectQuery(""); }}>
         <PopoverTrigger asChild>
           <button type="button" className={chip} aria-label={t("Project")} title={t("Work in")}>
@@ -269,5 +271,6 @@ export function LandingControls() {
         <span>{t("temporary.label")}</span>
       </button>
     </div>
+    </div></div>
   );
 }
