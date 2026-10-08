@@ -107,7 +107,7 @@ function FileReference({ owner, path, line, children, fallback }: { owner: Owner
 }
 
 /** GitHub PR/issue links open the Pull requests page when Chat behavior asks for it (⌘-click: browser). */
-function openLink(url: string, external: boolean) {
+export function openLink(url: string, external: boolean) {
   const store = useAppStore.getState();
   const match = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/i.exec(url);
   if (match && !external && store.settings.githubLinksInApp) {

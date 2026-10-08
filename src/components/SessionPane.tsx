@@ -34,7 +34,8 @@ import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
-import { ChatMarkdown } from "@/components/ChatMarkdown";
+import { ChatMarkdown, openLink } from "@/components/ChatMarkdown";
+import { splitLinks } from "@/lib/link-text";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
 import { HandoffMarker } from "@/components/HandoffMarker";
@@ -313,7 +314,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           </Fragment>;
         }) : <>
           {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
-          {!searchQuery.trim() && hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>) : <SearchText text={userRequest} query={searchQuery} />}
+          {searchQuery.trim() ? <SearchText text={userRequest} query={searchQuery} />
+            : hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? <LinkedText key={index} text={segment.text} /> : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)
+            : <LinkedText text={userRequest} />}
           {userFiles.length ? <span className="prompt-references">{userFiles.map((reference, index) => reference.kind === "terminal"
             ? <span key={index} className="prompt-reference ui-caption"><TerminalSquare size={13} aria-hidden="true" /><span className="truncate">{reference.name}</span></span>
             : <span key={index} className="attachment-chip attachment-chip-static" title={reference.name}><span className="attachment-chip-open">
@@ -335,3 +338,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     </article>
   );
 }, (previous, next) => previous.message === next.message && previous.compacted === next.compacted && previous.searchQuery === next.searchQuery && previous.nodes === next.nodes && sameRowSession(previous.session, next.session));
+
+/** The person's own text with its http(s) addresses as links, opened like those in replies. */
+function LinkedText({ text }: { text: string }) {
+  return <>{splitLinks(text).map((segment, index) => segment.kind === "text" ? segment.text
+    : <a key={index} href={segment.url} className="chat-link break-all" onClick={(event) => { event.preventDefault(); openLink(segment.url, event.metaKey); }}>{segment.text}</a>)}</>;
+}
