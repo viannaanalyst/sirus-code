@@ -327,6 +327,25 @@ From code reading after reports of scroll jank and paste hitches:
   - `serde_json` is optimized in debug builds.
   - sent image thumbnails are files (`thumbnails/<id>.jpg`) loaded through `sirus-thumb://`, so transcripts, checkpoints, `session-updated` events and cached transcripts in JS carry only `hasThumbnail` instead of up to ~640 KB of base64 per image; older sessions migrate on load.
 
+## Graphics memory (2026-10-08)
+
+In the owner's running app, WebContent swung between ~475 MB and ~1.7 GB. Almost all of it was graphics memory, while the WebKit heap stayed at ~220 MB. An isolated copy of their data ran at their 5K window size, where one full-window layer is ~58 MB. Measured in that copy:
+
+| Scenario | Graphics steady | Graphics peak | WebKit Malloc |
+|---|---|---|---|
+| Owner's settings, no background | ~185 MB | 314 MB on a session switch | ~155 MB |
+| Background image shown in sessions (effect none) | 400–434 MB | 672 MB | ~159 MB |
+| Scrolling a 62-image session top to bottom | ~185 MB | 592 MB | 155 → 264 MB |
+| Scrolling a text-heavy session | ~186 MB | 477 MB | 98 → 141 MB |
+
+Fixes:
+- **Background layer:** `.session-pane::before` no longer forces its own layer. The image is static, and the transcript already scrolls on its own layer.
+- **Running-turn shimmers:** they no longer carry `will-change`. Their animation moves `background-position`, which is never composited, so the extra layer inside the scroller cost memory for nothing.
+- **Bubble thumbnails:** a sent image's bubble loads a 192 px copy (`?size=small`, made once beside the thumbnail). Before, the bubble decoded the 1280 px thumbnail, ~3 MB per image; the viewer still opens the full one.
+- **Effect canvases:** freed as soon as they are exported.
+
+**Not done:** the transcript scroller spans the whole pane width (about 4600 px at 5K), so scroll tiles cover empty margins. Narrowing it would cut the scroll peak, but wheel scrolling in the margins would then need forwarding.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.

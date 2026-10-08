@@ -417,9 +417,7 @@ html[data-density="comfortable"] {
     pointer-events: none;
     background: var(--chat-background) center / cover no-repeat;
     opacity: var(--chat-background-session-opacity, .24);
-    /* Its own compositing layer: painted once, not with every transcript repaint. */
-    transform: translateZ(0);
-    will-change: transform;
+    /* No forced layer: a window-sized layer per pane cost ~58 MB at 5K for a static image. */
   }
   /* A new thread shows it only down to the composer, as MonoCode does; below stays plain. */
   html[data-chat-background="on"] .session-pane[data-empty]::before {

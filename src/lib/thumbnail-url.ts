@@ -14,3 +14,13 @@ export function thumbnailUrl(
   if (attachment.thumbnail) return attachment.thumbnail;
   return attachment.hasThumbnail && attachment.id ? resolve(attachment.id) : undefined;
 }
+
+/** The small copy a message bubble shows (about 192 px); the viewer keeps `thumbnailUrl`. */
+export function smallThumbnailUrl(
+  attachment: MessageAttachment,
+  resolve: (id: string) => string | undefined = (id) => client.thumbnailUrl(id),
+): string | undefined {
+  const url = thumbnailUrl(attachment, resolve);
+  if (!url || url.startsWith("data:")) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}size=small`;
+}

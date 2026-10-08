@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { thumbnailUrl } from "../src/lib/thumbnail-url.ts";
+import { smallThumbnailUrl, thumbnailUrl } from "../src/lib/thumbnail-url.ts";
 import { LocalTransport } from "../src/client/local-transport.ts";
 import { RemoteTransport } from "../src/client/remote-transport.ts";
 
@@ -19,4 +19,10 @@ test("each transport names its own thumbnail address", () => {
   const remote = (token: string | null) => new RemoteTransport({ url: "ws://mac/api/socket", token: () => token });
   assert.equal(remote("a b").thumbnailUrl(id), `/api/thumbnail/${id}?token=a%20b`);
   assert.equal(remote(null).thumbnailUrl(id), undefined);
+});
+
+test("message bubbles ask for the small copy; embedded images stay as they are", () => {
+  assert.equal(smallThumbnailUrl({ id, name: "a.png", kind: "file", hasThumbnail: true }, (value) => `sirus-thumb://localhost/${value}`), `sirus-thumb://localhost/${id}?size=small`);
+  assert.equal(smallThumbnailUrl({ id, name: "a.png", kind: "file", hasThumbnail: true }, (value) => `/api/thumbnail/${value}?token=t`), `/api/thumbnail/${id}?token=t&size=small`);
+  assert.equal(smallThumbnailUrl({ id, name: "a.png", kind: "file", thumbnail: "data:image/jpeg;base64,AA" }), "data:image/jpeg;base64,AA");
 });

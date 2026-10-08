@@ -886,6 +886,8 @@ pub fn notify(title: &str, body: &str, session_id: &str) {
 struct ThumbnailQuery {
     #[serde(default)]
     token: String,
+    #[serde(default)]
+    size: String,
 }
 
 /// A sent image's thumbnail for a paired device. `<img>` cannot send a header, so the
@@ -906,10 +908,17 @@ async fn thumbnail(
     else {
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
-    let bytes = tokio::task::spawn_blocking(move || crate::thumbnails::read(&data_path, &id))
-        .await
-        .ok()
-        .flatten();
+    let small = query.size == "small";
+    let bytes = tokio::task::spawn_blocking(move || {
+        if small {
+            crate::thumbnails::read_small(&data_path, &id)
+        } else {
+            crate::thumbnails::read(&data_path, &id)
+        }
+    })
+    .await
+    .ok()
+    .flatten();
     let (parts, body) = crate::thumbnails::response(bytes).into_parts();
     (parts.status, parts.headers, body).into_response()
 }

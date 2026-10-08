@@ -56,6 +56,58 @@ pub fn read(data_path: &Path, id: &str) -> Option<Vec<u8>> {
     fs::read(file(data_path, id)?).ok()
 }
 
+/// Longest side of the copy a message bubble shows (56 px tall, up to 3x density).
+const SMALL_SIDE: u32 = 192;
+
+fn small_file(data_path: &Path, id: &str) -> Option<PathBuf> {
+    valid_id(id).then(|| dir(data_path).join(format!("{id}.small.jpg")))
+}
+
+/// The bubble's small copy: decoding the 1280 px thumbnail for a 56 px chip held about
+/// 3 MB per image while it was on screen. Made on first request and kept beside it.
+pub fn read_small(data_path: &Path, id: &str) -> Option<Vec<u8>> {
+    let path = small_file(data_path, id)?;
+    if let Ok(bytes) = fs::read(&path) {
+        return Some(bytes);
+    }
+    let large = read(data_path, id)?;
+    let Some(bytes) = shrink(&large) else {
+        return Some(large);
+    };
+    let tmp = path.with_extension("jpg.tmp");
+    if fs::write(&tmp, &bytes).is_ok() && fs::rename(&tmp, &path).is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    Some(bytes)
+}
+
+fn shrink(jpeg: &[u8]) -> Option<Vec<u8>> {
+    let image = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg).ok()?;
+    if image.width() <= SMALL_SIDE && image.height() <= SMALL_SIDE {
+        return None;
+    }
+    let small = image.resize(
+        SMALL_SIDE,
+        SMALL_SIDE,
+        image::imageops::FilterType::Triangle,
+    );
+    let mut out = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, 80)
+        .encode_image(&small.to_rgb8())
+        .ok()?;
+    Some(out)
+}
+
+/// `size=small` asks for the bubble copy; anything else is the full thumbnail.
+pub fn read_sized(data_path: &Path, id: &str, query: Option<&str>) -> Option<Vec<u8>> {
+    let small = query.is_some_and(|query| query.split('&').any(|pair| pair == "size=small"));
+    if small {
+        read_small(data_path, id)
+    } else {
+        read(data_path, id)
+    }
+}
+
 /// The data URL a message carries when its file cannot be written (kept as before).
 pub fn data_url(jpeg: &[u8]) -> String {
     format!("{DATA_URL}{}", STANDARD.encode(jpeg))
@@ -107,7 +159,10 @@ pub fn release(data_path: &Path, removed: &[Session], data: &AppData) {
         if kept.contains(id) {
             continue;
         }
-        if let Some(path) = file(data_path, id) {
+        for path in [file(data_path, id), small_file(data_path, id)]
+            .into_iter()
+            .flatten()
+        {
             match fs::remove_file(path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -127,7 +182,9 @@ pub fn remove_orphans(data_path: &Path, data: &AppData) {
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let Some(id) = name
-            .strip_suffix(".jpg.tmp")
+            .strip_suffix(".small.jpg.tmp")
+            .or_else(|| name.strip_suffix(".small.jpg"))
+            .or_else(|| name.strip_suffix(".jpg.tmp"))
             .or_else(|| name.strip_suffix(".jpg"))
         else {
             continue;
@@ -139,13 +196,13 @@ pub fn remove_orphans(data_path: &Path, data: &AppData) {
     }
 }
 
-/// `sirus-thumb://localhost/<id>` (macOS) or `http://sirus-thumb.localhost/<id>`.
+/// `sirus-thumb://localhost/<id>[?size=small]` (macOS) or `http://sirus-thumb.localhost/<id>`.
 pub fn serve(
     data_path: Option<&Path>,
     request: &tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let id = request.uri().path().trim_start_matches('/');
-    let bytes = data_path.and_then(|path| read(path, id));
+    let bytes = data_path.and_then(|path| read_sized(path, id, request.uri().query()));
     response(bytes)
 }
 
@@ -174,6 +231,25 @@ mod tests {
 
     fn message(attachments: serde_json::Value) -> Message {
         serde_json::from_value(serde_json::json!({"id":"m","sessionId":"s","role":"user","content":"hi","createdAt":"t","streaming":false,"attachments":attachments})).unwrap()
+    }
+
+    #[test]
+    fn bubbles_get_a_small_copy_made_once() {
+        let root = std::env::temp_dir().join(format!("sirus-thumb-small-{}", uuid::Uuid::new_v4()));
+        let data_path = root.join("state.json");
+        let id = uuid::Uuid::new_v4().to_string();
+        let mut jpeg = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new(&mut jpeg)
+            .encode_image(&image::RgbImage::new(1280, 640))
+            .unwrap();
+        store(&data_path, &id, &jpeg).unwrap();
+        let small = read_sized(&data_path, &id, Some("size=small")).unwrap();
+        let decoded = image::load_from_memory(&small).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (192, 96));
+        assert!(small_file(&data_path, &id).unwrap().is_file());
+        assert_eq!(read_sized(&data_path, &id, None).unwrap(), jpeg);
+        assert!(read_small(&data_path, "../state").is_none());
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

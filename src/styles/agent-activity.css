@@ -76,14 +76,14 @@ button.activity-line { cursor: pointer; }
 .agent-question-progress [data-current="true"] { background: var(--text-primary); }
 html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 @media (prefers-reduced-motion: no-preference) {
-  .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; will-change: transform; }
+  .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; }
   .agent-activity[data-status="waiting"] .activity-orbit-core { animation: activity-orbit-beat calc(var(--motion-slow) * 4.4) ease-in-out infinite; }
   .agent-activity[data-resting] .activity-orbit-core { animation-play-state: paused; }
   .agent-activity[data-status="completed"] .activity-orbit-ring { transform-box: fill-box; transform-origin: center; animation: activity-orbit-settle var(--motion-reveal) var(--ease-spring) both; }
   /* Steps enter only while the turn is live; history renders still. */
   .agent-activity[data-active] .activity-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
   .agent-activity[data-live] .activity-step-pulse::after { animation: activity-step-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
-  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; will-change: transform; }
+  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; }
   .agent-activity[data-active] .activity-child-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
 }
 @keyframes activity-orbit-beat { 50% { transform: scale(1.35); } }
@@ -126,7 +126,7 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .agent-activity .a
   /* The step running now: a highlight sweeps across its words. */
   .tl-shine { color: transparent; background-clip: text; -webkit-background-clip: text;
     background-image: linear-gradient(to right, transparent, var(--text-primary), transparent), linear-gradient(var(--text-muted), var(--text-muted));
-    background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; will-change: transform; }
+    background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; }
 }
 @keyframes tl-open { from { opacity: 0; transform: translateY(-2px); } }
 @keyframes tl-shine { from { background-position: -4.5rem 0, 0 0; } to { background-position: calc(100% + 4.5rem) 0, 0 0; } }

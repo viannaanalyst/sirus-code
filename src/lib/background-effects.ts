@@ -108,8 +108,17 @@ export function releaseBackgroundEffects() {
   cache.clear();
 }
 
+/** Exports the canvas, then frees its backing store (a 2560 px canvas holds ~15 MB until GC). */
 function toBlob(canvas: HTMLCanvasElement, type = "image/png", quality?: number): Promise<Blob> {
-  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas export failed"))), type, quality));
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => {
+    release(canvas);
+    if (blob) resolve(blob); else reject(new Error("Canvas export failed"));
+  }, type, quality));
+}
+
+function release(canvas: HTMLCanvasElement) {
+  canvas.width = 0;
+  canvas.height = 0;
 }
 
 function load(source: string): Promise<HTMLImageElement> {
@@ -129,7 +138,9 @@ function sample(image: HTMLImageElement, width: number, squash = 1) {
   canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true })!;
   context.drawImage(image, 0, 0, width, height);
-  return { width, height, pixels: context.getImageData(0, 0, width, height).data };
+  const pixels = context.getImageData(0, 0, width, height).data;
+  release(canvas);
+  return { width, height, pixels };
 }
 
 async function draw(source: string, effect: BackgroundEffect): Promise<Blob> {
@@ -155,6 +166,7 @@ async function draw(source: string, effect: BackgroundEffect): Promise<Blob> {
     output.height = height * 3;
     context.imageSmoothingEnabled = false;
     context.drawImage(small, 0, 0, output.width, output.height);
+    release(small);
     return toBlob(output);
   }
   if (effect === "ascii") {
@@ -237,5 +249,6 @@ async function haze(image: HTMLImageElement): Promise<Blob> {
   smallContext.putImageData(pixels, 0, 0);
   context.imageSmoothingQuality = "high";
   context.drawImage(small, 0, 0, width, height);
+  release(small);
   return toBlob(output, "image/jpeg", 0.9);
 }
