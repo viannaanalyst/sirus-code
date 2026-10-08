@@ -9,7 +9,6 @@ import { useTranslation } from "@/i18n/use-translation";
 import { client } from "@/client";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
-import { QuickSwitcher } from "@/components/QuickSwitcher";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Archive, Columns3, Folder, Inbox, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
@@ -160,8 +159,6 @@ export default function App() {
   useEffect(() => {
     applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette);
   }, [settings, hostInfo, systemPalette]);
-
-  const [quickOpen, setQuickOpen] = useState(false);
   useChatBackground(settings.chatBackground, settings.chatBackgroundEffect);
 
   // "Open in Sirus Code" from the floating Astro chat (ADR-088).
@@ -180,9 +177,6 @@ export default function App() {
   useEffect(() => {
     const onKey = createShortcutController(() => [
       { id: "palette", combo: "Meta+k", run: () => setPaletteOpen(true) },
-      // ⌘J: jump between conversations across projects (ADR-093).
-      // Only with two or more agents working (MonoCode's live agents, ADR-093).
-      { id: "quick-switch", combo: "Meta+j", when: () => useAppStore.getState().sessions.filter((session) => ["running", "starting", "waiting"].includes(session.status)).length >= 2, run: () => setQuickOpen((value) => !value) },
       { id: "new-session", combo: "Meta+n", run: () => requestNewSession() },
       // ⌘T opens a new blank tab of the selected project, like a browser (fixed, not customizable).
       { id: "new-tab", combo: "Meta+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => requestNewSession() },
@@ -350,7 +344,6 @@ export default function App() {
           {settingsMounted ? <SettingsPage /> : null}
         </Suspense>
         <QuitToast />
-        <QuickSwitcher open={quickOpen} onClose={() => setQuickOpen(false)} />
         {!settingsOpen ? <TopToastStack>
           <ErrorToast />
           <WindowSnapToast />

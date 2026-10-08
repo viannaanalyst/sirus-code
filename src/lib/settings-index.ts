@@ -132,6 +132,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "chat",
+  "title": "chatBehavior.workingPanel",
+  "description": "chatBehavior.workingPanelHelp",
+  "group": "chatBehavior.conversation"
+ },
+ {
+  "section": "chat",
   "title": "chatBehavior.simulator",
   "description": "chatBehavior.simulatorHelp",
   "group": "chatBehavior.conversation"

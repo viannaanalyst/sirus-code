@@ -18,7 +18,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { motion } from "motion/react";
-import { Fragment, memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { MessageTrail } from "@/components/MessageTrail";
 import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
@@ -37,6 +37,7 @@ import { AgentActivity } from "@/components/AgentActivity";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
 import { ChatMarkdown, openLink } from "@/components/ChatMarkdown";
+import { WorkingPanel } from "@/components/WorkingPanel";
 import { splitLinks } from "@/lib/link-text";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { LandingControls } from "@/components/LandingControls";
@@ -138,6 +139,14 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
   const landing = empty && !passive && !astro;
+  // Elapsed times in the Working panel tick once a second while sessions run (ADR-094).
+  const [workingNow, setWorkingNow] = useState(() => Date.now());
+  const workingBusy = useAppStore((state) => state.sessions.filter((row) => ["starting", "running", "waiting"].includes(row.status)).length);
+  useEffect(() => {
+    if (!workingBusy || passive) return;
+    const timer = window.setInterval(() => setWorkingNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [workingBusy, passive]);
   return (
     <section className={cn("session-pane relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")} data-empty={!isConversationStarted(session) || undefined}>
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
@@ -210,8 +219,12 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         </div>
         {sessionMeta && !passive ? <AgentRequests session={sessionMeta} /> : null}
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
-        <div className="relative z-10 px-6 pb-4">
-          {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
+        {/* The Working panel sits at the bottom-left, beside the composer, from the wide layouts up (ADR-094). */}
+        <div className="relative z-10 flex items-end gap-3 px-6 pb-4">
+          {passive ? null : <div className="hidden shrink-0 min-[900px]:block"><WorkingPanel now={workingNow} /></div>}
+          <div className="min-w-0 flex-1">
+            {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
+          </div>
         </div>
         {landing ? <div className="flex-[1.15]" aria-hidden="true" /> : null}
       </div>

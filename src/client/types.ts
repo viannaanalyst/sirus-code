@@ -345,6 +345,8 @@ export interface AppSettings {
   /** Chat behavior (Settings → Chat behavior). */
   dictationEnterSends: boolean;
   foldFinishedTurns: boolean;
+  /** The "Working" panel beside the composer while two or more sessions work (ADR-094). */
+  showWorkingPanel: boolean;
   githubLinksInApp: boolean;
   diffWordWrap: boolean;
   confirmArchive: boolean;

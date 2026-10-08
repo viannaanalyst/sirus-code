@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "tauri": "tauri",
-    "test": "node --import ./scripts/register-test-loader.mjs --test tests/*.test.ts && node scripts/verify-browser-panel.mjs && node scripts/verify-skills.mjs && node scripts/verify-keybindings.mjs && node scripts/verify-appearance.mjs && node scripts/verify-sidebar-rail.mjs && node scripts/verify-editor.mjs && node scripts/verify-document-reader.mjs && node scripts/verify-turn-review.mjs && node scripts/verify-message-trail.mjs && node scripts/verify-conversation-tools.mjs && node scripts/verify-agent-activity.mjs && node scripts/verify-prompt-queue.mjs",
+    "test": "node --import ./scripts/register-test-loader.mjs --test tests/*.test.ts && node scripts/verify-browser-panel.mjs && node scripts/verify-skills.mjs && node scripts/verify-keybindings.mjs && node scripts/verify-appearance.mjs && node scripts/verify-sidebar-rail.mjs && node scripts/verify-working-panel.mjs && node scripts/verify-editor.mjs && node scripts/verify-document-reader.mjs && node scripts/verify-turn-review.mjs && node scripts/verify-message-trail.mjs && node scripts/verify-conversation-tools.mjs && node scripts/verify-agent-activity.mjs && node scripts/verify-prompt-queue.mjs",
     "lint": "eslint src scripts tests",
     "test:arc": "node src/components/arc/demo/verify-previews.mjs"
   },

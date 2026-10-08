@@ -529,6 +529,9 @@ pub struct AppSettings {
     pub dictation_enter_sends: bool,
     /// Chat behavior: a finished turn folds its steps into the "Worked for" line.
     pub fold_finished_turns: bool,
+    /// The "Working" panel beside the composer, shown while two or more sessions work (ADR-094).
+    #[serde(default = "default_show_working_panel")]
+    pub show_working_panel: bool,
     /// Chat behavior: GitHub pull request/issue links in replies open the Pull requests page.
     pub github_links_in_app: bool,
     /// Chat behavior: diffs wrap long lines by default.
@@ -666,6 +669,7 @@ impl Default for AppSettings {
             pr_watch: true,
             dictation_enter_sends: false,
             fold_finished_turns: true,
+            show_working_panel: true,
             github_links_in_app: true,
             diff_word_wrap: false,
             confirm_archive: false,
@@ -1472,4 +1476,8 @@ pub struct QueuedPromptContext {
     pub model: Option<String>,
     pub provider_account_id: String,
     pub worktree_path: String,
+}
+
+fn default_show_working_panel() -> bool {
+    true
 }

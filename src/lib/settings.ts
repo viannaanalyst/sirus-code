@@ -16,6 +16,7 @@ export const defaultSettings: AppSettings = {
   prWatch: true,
   dictationEnterSends: false,
   foldFinishedTurns: true,
+  showWorkingPanel: true,
   githubLinksInApp: true,
   diffWordWrap: false,
   confirmArchive: false,
@@ -117,6 +118,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     prWatch: value?.prWatch !== false,
     dictationEnterSends: value?.dictationEnterSends === true,
     foldFinishedTurns: value?.foldFinishedTurns !== false,
+    showWorkingPanel: value?.showWorkingPanel !== false,
     githubLinksInApp: value?.githubLinksInApp !== false,
     diffWordWrap: value?.diffWordWrap === true,
     confirmArchive: value?.confirmArchive === true,
@@ -265,7 +267,7 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 }
 function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
 
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose", "autoOpenSimulator"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose", "autoOpenSimulator"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {
