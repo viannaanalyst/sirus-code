@@ -744,7 +744,7 @@ where
                     };
                 // Event-driven, coalesced checkpoint written outside the lock. Final
                 // output is always saved by the monitor; crashes retain recent text.
-                crate::persist::checkpoint_soon(&state);
+                crate::persist::checkpoint_soon(&state, &session_id);
                 let _ = app.emit("agent-output", event);
             }
         }

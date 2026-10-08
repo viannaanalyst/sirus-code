@@ -9,7 +9,6 @@ import { TopToastStack } from "@/components/TopToastStack";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
 import { AttachmentModal } from "@/components/AttachmentModal";
 import { useTranslation } from "@/i18n/use-translation";
-import { dismissAppSplash } from "@/lib/app-splash";
 import { cn } from "@/lib/cn";
 import { isSheet, listedSessions, needsYou, type MobileScreen, type MobileTab } from "@/lib/mobile";
 import { motionTokens } from "@/lib/motion";
@@ -50,7 +49,6 @@ export default function MobileApp() {
   const reducedMotion = useMotionPreferences();
   const systemPalette = useSystemPalette();
   const bootstrap = useAppStore((state) => state.bootstrap);
-  const ready = useAppStore((state) => state.ready);
   const settings = useAppStore((state) => state.settings);
   const hostInfo = useAppStore((state) => state.hostInfo);
   const sessions = useAppStore(selectSessionsMeta);
@@ -68,7 +66,6 @@ export default function MobileApp() {
     }).catch((error: unknown) => useAppStore.setState({ ready: true, error: String(error) }));
     return () => { cancelled = true; cleanup?.(); };
   }, [bootstrap]);
-  useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
   useEffect(() => { applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette); }, [settings, hostInfo, systemPalette]);
   useEffect(() => onRemoteConnection((state) => setOnline(state === "open" || state === "connecting" || state === "idle")), []);
   // Messages written while the Mac was out of reach go out once it answers again (ADR-086).

@@ -38,6 +38,7 @@ test("pin acknowledgments serialize without replacing newer output and old snaps
   context.mock.method(client, "prWatchAction", async () => []);
   context.mock.method(client, "onWindowSnap", async () => () => {});
   context.mock.method(client, "onAgentOutput", async () => () => {});
+  context.mock.method(client, "onMemoryPressure", async () => () => {});
   context.mock.method(client, "onAgentExit", async () => () => {});
   context.mock.method(client, "onPtyOutput", async () => () => {});
   context.mock.method(client, "onBrowserState", async () => () => {});

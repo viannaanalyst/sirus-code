@@ -6,6 +6,7 @@
 @import "./appearance.css";
 @import "./scrollbars.css";
 @import "./motion.css";
+@import "./opening.css";
 @import "./composer.css";
 @import "./agent-activity.css";
 @import "../components/arc/foundation.css";

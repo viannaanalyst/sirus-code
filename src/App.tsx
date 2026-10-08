@@ -2,7 +2,7 @@ import { SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
 import { AttachmentModal } from "@/components/AttachmentModal";
 import { useSidebarMotion } from "@/lib/sidebar-motion";
-import { dismissAppSplash } from "@/lib/app-splash";
+import { playWindowOpening } from "@/lib/window-opening";
 import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
@@ -139,8 +139,9 @@ export default function App() {
   // Settings stays mounted after its first open so it can play its exit; the closed dialog renders nothing.
   const [settingsMounted, setSettingsMounted] = useState(false);
   if (settingsOpen && !settingsMounted) setSettingsMounted(true);
-  // Wait for the first ready paint so the splash can find the landing glyph.
-  useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
+  // The first ready paint shows the hidden window and plays its opening (ADR-098). No
+  // requestAnimationFrame here: WebKit pauses it while the window is still hidden.
+  useEffect(() => { if (ready) void playWindowOpening(() => client.windowReady()); }, [ready]);
   // Settings covers the whole window, so decorative loops underneath stop.
   useEffect(() => setAmbientCovered(settingsOpen), [settingsOpen]);
 
@@ -248,7 +249,7 @@ export default function App() {
         <WindowNavigationControls />
         <div aria-hidden="true" className="app-content-frame" />
         {/* The sidebar is the icon rail only (ADR-092); collapsing hides it. */}
-        <div className="sidebar-frame relative z-10 shrink-0 overflow-hidden" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? 0 : SIDEBAR_RAIL_WIDTH }}
+        <div className="sidebar-frame relative z-10 shrink-0 overflow-hidden" data-opening-part="rail" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? 0 : SIDEBAR_RAIL_WIDTH }}
           onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === "width") endSidebarMotion(); }}>
           <Sidebar motion={sidebarMotion} />
         </div>
@@ -263,6 +264,7 @@ export default function App() {
         >
           <header
             data-tauri-drag-region
+            data-opening-part="header"
             className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"}`}
           >
             {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
@@ -285,7 +287,7 @@ export default function App() {
           </header>
 
           {/* The Environment card floats over the conversation; the text and composer never move (ADR-019). */}
-          <div className="relative flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1" data-opening-part="main">
             {mainView === "session" ? <SplitWorkspace
               agents={agents}
               onSend={sendPrompt}

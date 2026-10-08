@@ -6,5 +6,12 @@
   <string>O Sirus Code usa o microfone apenas enquanto você dita uma mensagem.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>O Sirus Code transforma seu ditado em texto no composer.</string>
+  <!-- Freed large allocations go back to the system instead of the allocator's
+       large cache (docs/PERFORMANCE.md, "Memory under agent load"). -->
+  <key>LSEnvironment</key>
+  <dict>
+    <key>MallocLargeCache</key>
+    <string>0</string>
+  </dict>
 </dict>
 </plist>

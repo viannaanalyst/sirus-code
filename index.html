@@ -4,28 +4,9 @@
     <meta charset="UTF-8" />
     <!-- Shared and lazy Arc CSS chunks must follow the same cascade order. -->
     <style>@layer theme, base, components, utilities;</style>
-    <!-- Launch splash: static so it paints before the bundle loads; src/lib/app-splash.ts dismisses it.
-         Durations/easing mirror the motion tokens, which do not exist yet at this point. -->
-    <style>
-      html:has(#app-splash) body { background: transparent; }
-      html:has(#app-splash:not([data-leaving])) #root { visibility: hidden; }
-      #app-splash { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; background: rgb(12 12 12 / .55); -webkit-backdrop-filter: blur(40px) saturate(1.6); backdrop-filter: blur(40px) saturate(1.6); animation: app-splash-timeout 1ms linear 15s forwards; }
-      .app-splash-logo { position: relative; width: 96px; height: 96px; animation: app-splash-in 620ms cubic-bezier(.34, 1.32, .64, 1) 140ms both; }
-      .app-splash-logo img { display: block; width: 100%; height: 100%; }
-      .app-splash-sheen { position: absolute; inset: 0; -webkit-mask: url("/sirus-glyph.png") center / contain no-repeat; mask: url("/sirus-glyph.png") center / contain no-repeat; background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .9) 50%, transparent 65%) 120% 0 / 250% 100% no-repeat; animation: app-splash-sheen 1800ms ease-in-out 760ms infinite; }
-      @keyframes app-splash-in { from { opacity: 0; transform: scale(.86); filter: blur(6px); } }
-      @keyframes app-splash-fade { from { opacity: 0; } }
-      @keyframes app-splash-sheen { 0% { background-position: 120% 0; } 60%, 100% { background-position: -120% 0; } }
-      /* If the bundle never dismisses the splash, never trap the window behind it. */
-      @keyframes app-splash-timeout { to { opacity: 0; visibility: hidden; } }
-      @media (prefers-color-scheme: light) {
-        #app-splash { background: rgb(244 244 245 / .6); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .app-splash-sheen { animation: none; }
-        .app-splash-logo { animation: app-splash-fade 160ms ease-out both; }
-      }
-    </style>
+    <!-- Until the stylesheet loads, the theme background (the stylesheet turns it transparent when
+         the window glass is on). The main window stays hidden until its first ready paint (ADR-098). -->
+    <style>@layer base { body { margin: 0; background: #0c0c0c; } @media (prefers-color-scheme: light) { body { background: #f4f4f5; } } }</style>
     <link rel="icon" type="image/svg+xml" href="/sirus.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
     <!-- Home-screen app when the Mac serves this page to a phone (ADR-081). -->
@@ -39,9 +20,6 @@
     <title>Sirus Code</title>
   </head>
   <body>
-    <div id="app-splash" aria-hidden="true">
-      <div class="app-splash-logo"><img src="/sirus-glyph.png" alt="" draggable="false" /><div class="app-splash-sheen"></div></div>
-    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

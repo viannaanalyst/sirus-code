@@ -107,7 +107,7 @@ Severity: **H** high, **M** medium, **L** low. File references are from the audi
 
 ### Startup
 
-- **H** `ready`, and therefore splash dismissal, waits for 9 sequential listener registrations and `detect_agents` (a `--version` probe per installed CLI, up to 3 s each) and `gitIdentity` for every project.
+- **H** `ready`, and therefore the window reveal (the launch splash until 2026-10-08; ADR-098), waits for 9 sequential listener registrations and `detect_agents` (a `--version` probe per installed CLI, up to 3 s each) and `gitIdentity` for every project.
 - **M** `load_state` runs on the main thread and clones the whole state. On launch, persistence parses the file twice and may re-save.
 
 ### Memory growth
@@ -349,6 +349,55 @@ Fixes:
 ## Following the end of the transcript (2026-10-08)
 
 After MonoCode's scroll fixes, following the latest output changes only on the reader's own direction. A wheel or trackpad step up releases it at once, so the next streamed frame cannot snap the reader back. Steps with no vertical direction (sideways, the end of a momentum swipe) change nothing. A small reversal while reading does not resume it; reaching the very end while moving down does. Content changing size under the reader never flips it. Covered in `tests/transcript-scroll.test.ts`.
+
+## Memory under agent load (2026-10-08)
+
+**Report.** With 3 conversations running agents, Activity Monitor showed "Sirus Code" at 6.28 GB. That figure groups the app, its WebKit helpers and child processes (provider CLIs and their subagents). Later, mostly idle, the owner's debug app read as follows (`footprint`, `vmmap --summary`, read-only):
+
+| Process | Footprint | Peak | Main categories |
+|---|---|---|---|
+| App (Rust) | 311 MB | **2.5 GB** | Malloc Large 201 MB, all of it *empty* (freed blocks kept by the allocator, 201 MB swapped). The zones held only ~112 MB of live allocations. |
+| WebContent | 2.1 GB, 2.19 GB 25 min later | **8.5 GB** | "Owned physical footprint (unmapped)" 1272 MB, all of it swapped or compressed; WebKit Malloc 534 → 614 MB (304 MB swapped); graphics 184 MB. |
+| WebKit GPU | 90 MB | — | — |
+
+Baseline earlier this month was a WebContent of ~118 MB.
+
+**What it is not.**
+- **Not stored data.** The whole data folder is 24 MB. All 10 transcripts together are 2.9 MB; the largest is 1.28 MB.
+- **Not command output buried in old turns.** Outputs are capped natively at 16 KiB per row, and the largest seen was 3.5 KB. Across the three big sessions, command outputs total 0.24 to 0.46 MB per session.
+- **Not terminals.** xterm uses its DOM renderer (no WebGL) and 2,000 lines of scrollback by default. At 12 bytes per cell that is about 5 MB per terminal at 200 columns ([xterm BufferLine](https://raw.githubusercontent.com/xtermjs/xterm.js/master/src/common/buffer/BufferLine.ts)).
+- **Not `evaluateJavaScript` keeping scripts alive** ([WebKit bug 215729](https://bugs.webkit.org/show_bug.cgi?id=215729)). An isolated WKWebView probe on this machine evaluated 2,000 Tauri-shaped 150 KB `session-updated` scripts (300 MB in total). Its WebContent stayed at 13–18 MB and peaked at 23 MB.
+
+**What it is.** The memory comes from transient volume, not from what is kept.
+- **Where the volume comes from.** Tauri delivers every event by evaluating a script that embeds the JSON payload ([Tauri: events are evaluated JS and "not suitable for bigger messages"](https://v2.tauri.app/develop/calling-frontend/)). Each `session-updated` carried the whole current turn, so every tool row, every subagent step and every context reading re-sent it, with all of its command outputs.
+- **Estimated size.** Replaying the owner's 116 stored turns, with one start and one end publication per row, gives 2,460 events and 40.6 MB. That is a lower bound: context readings and subagent steps publish too.
+- **What a burst costs.** If the main thread falls behind, the scripts queue in the app process and then land in WebContent together. The same probe with 2,000 queued scripts peaked at 299 MB in the host and 243 MB in WebContent, about the size of what was queued, and dropped back once processed.
+- **Why it stays.** The allocators keep what such bursts freed:
+  - Native: the 201 MB of empty Malloc Large regions.
+  - WebKit: Malloc keeps its high-water mark, and WebContent stays swapped.
+
+  "Owned physical footprint (unmapped)" is memory the kernel charges to the process but that is not mapped into it ([footprint(1)](https://leancrew.com/all-this/man/man1/footprint.html)). WebKit charges memory the GPU process creates to WebContent ([webkit.org #220770](https://bugs.webkit.org/show_bug.cgi?id=220770), [#241455](https://bugs.webkit.org/show_bug.cgi?id=241455)). Telling which process maps the 1.27 GB needs `sudo footprint --unmapped`, which was not run.
+- **Not ruled out.** The app is a debug build, so the Web Inspector is enabled ([Tauri `devtools` is on in debug](https://docs.rs/tauri/2.2.2/tauri/)). Its cost was not measured.
+
+**Fixes:**
+- **Coalesced activity events.** Activity changes and context readings are published at most once per 250 ms per session; lifecycle changes (requests, answers, identity, model, the end of a turn) still go out at once and replace a pending one. The snapshot is taken under the state lock when it is sent, so streamed deltas stay ordered around it. `transcript_view::emit_soon`; covered by `frequent_publications_coalesce_and_an_immediate_one_supersedes_them`.
+- **Each command output sent once.** A live event sends a command row's output only when it changed in this turn. The renderer keeps the output it already holds when a command row arrives without one; natively, a command's output never goes back to empty. Transcript loads still carry every output. On the stored turns this takes the replay from 40.6 MB to 15.8 MB (2.6×), before coalescing. Covered by `live_events_send_each_command_output_once_per_turn` (Rust) and `transcripts.test.ts`.
+- **Streaming checkpoints clone only streaming sessions.** Before, each checkpoint (at most one per second while output streams) cloned the whole `AppData`, every transcript included, and re-encoded them all. Now it encodes the index (metadata only, ~18 KB here) and clones only the transcripts of the sessions that streamed. Other files are left alone, and full saves still write every changed transcript and remove orphans. Covered by `a_streaming_checkpoint_writes_only_the_named_transcripts`.
+- **Freed native memory goes back to the system.** `Info.plist` sets `MallocLargeCache=0` through `LSEnvironment`, and `main` removes the variable so agents and shells keep the default.
+  - Probe on this machine: 2,000 blocks of 150–600 KB, 98 % freed. With the default large cache, the footprint stayed at 755 MB after freeing; with the variable it dropped to 17 MB. Verified through a bundle launched with `open`.
+  - `malloc_zone_pressure_relief` released 0 bytes in the same probe, so it is not used.
+  - Cost: about 13 µs per 64–512 KB allocate/free cycle instead of 0.4 µs. That is negligible at a few large allocations per event.
+  - It only applies when the app is launched as a bundle, not under `tauri dev`. `MallocLargeCache` is an undocumented libmalloc switch; `MallocSpaceEfficient=1` behaved the same in the probe.
+- **Memory pressure.** `memory.rs` watches macOS memory-pressure notifications (a libdispatch source) and emits `memory-pressure`. The renderer then keeps only the transcripts in use (selected, active, queued, retained); the others reload when opened. WebKit trims its own caches on pressure ([webkit.org #206077](https://bugs.webkit.org/show_bug.cgi?id=206077)).
+
+**After.** Not measured in the running app: the owner's app was not rebuilt or restarted. Measure the next build at the same point (3 agents, then idle): footprint and `vmmap --summary` peaks for the app and its WebContent.
+
+**Still open:**
+- Subagent step lists and `detail` are still re-sent with every event of a turn. Per-row deltas would need a new event shape.
+- Large events could move to a `tauri::ipc::Channel`, which fetches payloads of 8 KB or more instead of evaluating them. Channel messages are not ordered with `agent-output`, so both streams would have to move together.
+- Old turns' command outputs stay in loaded transcripts. Loading them on demand needs the activity rows (`AgentActivity.tsx`) to fetch when a row opens.
+- Compare a release build without the inspector.
+- Run `sudo footprint --unmapped` on a grown WebContent.
 
 ## Remaining risks and unknowns
 

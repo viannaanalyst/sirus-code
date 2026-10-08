@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasConversation, mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "../src/lib/transcripts.ts";
+import { hasConversation, keepSentOutputs, mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "../src/lib/transcripts.ts";
 import type { Message, Session } from "../src/client/types.ts";
 
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, sessionId: "s", role, content, createdAt: "t", streaming: false });
@@ -46,6 +46,9 @@ test("the cache keeps selected, active, queued, retained and the most recent tra
   assert.deepEqual([...keep].sort(), ["a", "b", "c", "d", "e"]);
   const lean = transcriptsToKeep({ loaded: { a: 1, b: 2, e: 5 }, sessions: sessions.map(item => ({ ...item, status: "completed" })), selectedSessionId: null, queued: [], retained: [], limit: 1 });
   assert.deepEqual([...lean], ["e"]);
+  // Under memory pressure (limit 0) only transcripts in use stay.
+  const pressed = transcriptsToKeep({ loaded: { a: 1, b: 2, e: 5 }, sessions: sessions.map(item => ({ ...item, status: "completed" })), selectedSessionId: "a", queued: [], retained: [], limit: 0 });
+  assert.deepEqual([...pressed], ["a"]);
 });
 
 test("a loaded snapshot never drops text that already streamed past it", () => {
@@ -60,4 +63,16 @@ test("a loaded snapshot never drops text that already streamed past it", () => {
 test("an unloaded transcript still counts as a started conversation", () => {
   assert.equal(hasConversation(session([], { transcriptLength: 3 })), true);
   assert.equal(hasConversation(session([message("x", "system", "warning")])), false);
+});
+
+test("a live event without a command's output keeps the output already held", () => {
+  const activity = (items: NonNullable<Message["activity"]>["items"]): NonNullable<Message["activity"]> => ({ provider: "codex", model: null, startedAt: 1, endedAt: null, waitingSince: null, pausedMs: 0, status: "running", items, truncated: false });
+  const command = (id: string, output?: string) => ({ id, kind: "command" as const, label: "Command", state: "completed" as const, model: null, ...(output === undefined ? {} : { output }) });
+  const held = session([message("u", "user", "go"), { ...message("a", "agent", "working"), activity: activity([command("c1", "built"), command("c2", "line 1")]) }]);
+  const event = session([message("u", "user", "go"), { ...message("a", "agent", "working more"), activity: activity([command("c1"), command("c2", "line 1\nline 2"), command("c3")]) }], { status: "running", transcriptLength: 2, transcriptWindow: { from: 0, total: 2 } });
+  const { session: merged } = mergeSessionEvent(held, event, true);
+  assert.deepEqual(merged.messages[1].activity?.items.map(item => item.output), ["built", "line 1\nline 2", undefined]);
+  // Messages without omitted outputs pass through untouched.
+  const plain = [message("u", "user", "go")];
+  assert.equal(keepSentOutputs(held.messages, plain)[0], plain[0]);
 });

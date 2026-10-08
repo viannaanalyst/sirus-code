@@ -103,46 +103,48 @@ pub fn ready(app: &tauri::AppHandle, state: Arc<AppState>) {
 }
 
 fn schedule_current(app: &tauri::AppHandle, state: Arc<AppState>, force_dock: bool) {
-    #[cfg(not(target_os = "macos"))]
-    let _ = force_dock;
     let app_handle = app.clone();
     // Never capture the submitted settings: delayed callbacks read the latest
     // successfully persisted state, so an older save cannot replay old glass.
-    if let Err(error) = app.run_on_main_thread(move || {
-        let data = state.data.lock();
-        if state.ensure_running().is_err() {
-            return;
-        }
-        let Some(window) = app_handle.get_webview_window("main") else {
-            return;
-        };
-        // Keep admission excluded while native effects apply; the next save
-        // queues its own latest-state callback after this one completes.
-        #[cfg(target_os = "macos")]
-        macos::apply(&window, &data.settings, force_dock);
-        #[cfg(not(target_os = "macos"))]
-        {
-            let theme = match data.settings.theme {
-                ThemePref::System => None,
-                ThemePref::Light => Some(tauri::Theme::Light),
-                _ => Some(tauri::Theme::Dark),
-            };
-            let _ = window.set_theme(theme);
-            let intent = window_intent(
-                &data.settings,
-                window
-                    .theme()
-                    .is_ok_and(|theme| theme == tauri::Theme::Light),
-            );
-            let [r, g, b] = intent.background;
-            if let Err(error) =
-                window.set_background_color(Some(tauri::window::Color(r, g, b, 255)))
-            {
-                tracing::warn!(%error, "cannot apply opaque appearance");
-            }
-        }
-    }) {
+    if let Err(error) = app.run_on_main_thread(move || apply_now(&app_handle, &state, force_dock)) {
         tracing::warn!(%error, "cannot schedule native appearance");
+    }
+}
+
+/// Applies the latest persisted appearance to the main window. Main thread only;
+/// the launch reveal calls it right before the hidden window is shown (ADR-098).
+pub fn apply_now(app: &tauri::AppHandle, state: &AppState, force_dock: bool) {
+    #[cfg(not(target_os = "macos"))]
+    let _ = force_dock;
+    let data = state.data.lock();
+    if state.ensure_running().is_err() {
+        return;
+    }
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    // Keep admission excluded while native effects apply; the next save
+    // queues its own latest-state callback after this one completes.
+    #[cfg(target_os = "macos")]
+    macos::apply(&window, &data.settings, force_dock);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let theme = match data.settings.theme {
+            ThemePref::System => None,
+            ThemePref::Light => Some(tauri::Theme::Light),
+            _ => Some(tauri::Theme::Dark),
+        };
+        let _ = window.set_theme(theme);
+        let intent = window_intent(
+            &data.settings,
+            window
+                .theme()
+                .is_ok_and(|theme| theme == tauri::Theme::Light),
+        );
+        let [r, g, b] = intent.background;
+        if let Err(error) = window.set_background_color(Some(tauri::window::Color(r, g, b, 255))) {
+            tracing::warn!(%error, "cannot apply opaque appearance");
+        }
     }
 }
 
@@ -170,6 +172,9 @@ mod macos {
 
     thread_local! {
         static LAST_APPLIED: RefCell<Option<(WindowIntent, DockIcon)>> = const { RefCell::new(None) };
+        /// The private blur needs a window number, which a never-shown window may lack:
+        /// the next apply (right after the launch reveal shows it) tries again.
+        static BLUR_PENDING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     }
 
     type ConnectionFn = unsafe extern "C" fn() -> usize;
@@ -200,7 +205,8 @@ mod macos {
         };
         let intent = window_intent(settings, system_light);
         let previous = LAST_APPLIED.with(|slot| slot.borrow().clone());
-        if previous.as_ref().is_none_or(|(old, _)| *old != intent) {
+        if BLUR_PENDING.get() || previous.as_ref().is_none_or(|(old, _)| *old != intent) {
+            BLUR_PENDING.set(false);
             // AppKit exports these immutable appearance-name constants.
             let appearance_name = unsafe {
                 if intent.light {
@@ -221,6 +227,7 @@ mod macos {
                 native
                     .setBackgroundColor(Some(&NSColor::clearColor().colorWithAlphaComponent(0.01)));
                 let private_blur = apply_blur(native, BLUR_RADIUS);
+                BLUR_PENDING.set(!private_blur && !native.isVisible());
                 set_backing(native, true, private_blur);
             } else {
                 apply_blur(native, 0);

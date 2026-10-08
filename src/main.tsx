@@ -8,9 +8,9 @@ import { isRemoteUi, onRemoteConnection, wakeRemote } from "./client";
 import { REMOTE_TOKEN_KEY, deviceName, pairingCode, redeemPairing } from "./client/remote-pairing";
 import { MobileConnect } from "./components/mobile/MobileConnect";
 import { translate } from "./i18n";
-import { dismissAppSplash } from "./lib/app-splash";
 import { MOBILE_QUERY } from "./lib/mobile";
 import { syncViewport } from "./lib/mobile-viewport";
+import { beginWindowOpening, endWindowOpening } from "./lib/window-opening";
 import { isNewerBuild } from "./lib/remote-resume";
 
 configureDynamicStyleNonce(document);
@@ -29,6 +29,7 @@ function showFatal(error?: unknown) {
   retry.textContent = english ? "Reload" : "Recarregar";
   retry.onclick = () => window.location.reload();
   panel.append(message, retry);
+  endWindowOpening();
   // React may still be clearing a failed tree when onUncaughtError runs.
   queueMicrotask(() => root.replaceChildren(panel));
 }
@@ -88,7 +89,6 @@ async function pair(code: string): Promise<string | null> {
 }
 
 function showConnect(notice?: string | null) {
-  dismissAppSplash();
   mount(<MobileConnect notice={notice} onCode={pair} />);
 }
 
@@ -137,4 +137,8 @@ if (isRemoteUi) {
   void startRemote();
 }
 else if (typeof floatingAstro === "string") mount(<Suspense fallback={null}><AstroFloat initialAstroId={floatingAstro} /></Suspense>);
-else mount(<Suspense fallback={null}><App /></Suspense>);
+else {
+  // The native main window opens hidden and reveals itself on the first ready paint (ADR-098).
+  beginWindowOpening();
+  mount(<Suspense fallback={null}><App /></Suspense>);
+}

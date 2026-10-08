@@ -264,6 +264,8 @@ struct Encoded {
     generation: u64,
     state: Vec<u8>,
     transcripts: Vec<(String, u64, Vec<u8>)>,
+    /// Only some sessions' transcripts: files of the others are kept.
+    partial: bool,
 }
 
 /// Compact JSON: the index without messages, and one transcript per session.
@@ -284,6 +286,7 @@ fn encode(data: &AppData, generation: u64) -> Result<Encoded> {
         generation,
         state,
         transcripts,
+        partial: false,
     })
 }
 
@@ -315,6 +318,10 @@ fn write(path: &Path, encoded: &Encoded) -> Result<()> {
         disk.transcripts.insert(name.clone(), *hash);
     }
     atomic_write(path, &encoded.state)?;
+    if encoded.partial {
+        disk.generation = encoded.generation;
+        return Ok(());
+    }
     let live = encoded
         .transcripts
         .iter()
@@ -354,10 +361,24 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Sessions whose transcripts changed since the last checkpoint, per state file.
+static CHECKPOINT_SESSIONS: OnceLock<Mutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
+
 /// Coalesced, best-effort checkpoint for streaming output: at most one write per
-/// second across every stream. The state is cloned under the lock; encoding,
-/// hashing and writing happen outside it. Final states keep using [`save`].
-pub fn checkpoint_soon(state: &Arc<AppState>) {
+/// second across every stream. Under the lock it encodes the index (metadata only)
+/// and clones only the transcripts of the sessions that streamed; encoding, hashing
+/// and writing them happen outside it. Other transcripts are left as they are on
+/// disk. Final states keep using [`save`], which writes every changed transcript.
+pub fn checkpoint_soon(state: &Arc<AppState>, session_id: &str) {
+    {
+        let mut all = CHECKPOINT_SESSIONS.get_or_init(Mutex::default).lock();
+        if !all.contains_key(&state.data_path) && all.len() >= 64 {
+            all.clear();
+        }
+        all.entry(state.data_path.clone())
+            .or_default()
+            .insert(session_id.to_owned());
+    }
     if state.checkpoint_pending.swap(true, Ordering::AcqRel) {
         return;
     }
@@ -366,16 +387,69 @@ pub fn checkpoint_soon(state: &Arc<AppState>) {
         std::thread::sleep(CHECKPOINT_DELAY);
         // Cleared before the snapshot, so later output schedules another checkpoint.
         state.checkpoint_pending.store(false, Ordering::Release);
-        let (generation, snapshot) = {
+        let snapshot = {
             let data = state.data.lock();
-            (next_generation(), data.clone())
+            let sessions = CHECKPOINT_SESSIONS
+                .get_or_init(Mutex::default)
+                .lock()
+                .remove(&state.data_path)
+                .unwrap_or_default();
+            snapshot_sessions(&data, &sessions, next_generation())
         };
-        if let Err(error) =
-            encode(&snapshot, generation).and_then(|encoded| write(&state.data_path, &encoded))
+        if let Err(error) = snapshot
+            .and_then(|snapshot| snapshot.encode())
+            .and_then(|encoded| write(&state.data_path, &encoded))
         {
             tracing::error!(%error, "cannot checkpoint streamed output");
         }
     });
+}
+
+/// A checkpoint's view of the state: the encoded index and the named sessions' messages.
+struct PartialSnapshot {
+    generation: u64,
+    state: Vec<u8>,
+    transcripts: Vec<(String, Vec<Message>)>,
+}
+
+impl PartialSnapshot {
+    fn encode(self) -> Result<Encoded> {
+        let transcripts = self
+            .transcripts
+            .into_iter()
+            .map(|(session_id, messages)| {
+                let bytes = serde_json::to_vec(&TranscriptRef {
+                    session_id: &session_id,
+                    messages: &messages,
+                })?;
+                Ok((transcript_name(&session_id), content_hash(&bytes), bytes))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Encoded {
+            generation: self.generation,
+            state: self.state,
+            transcripts,
+            partial: true,
+        })
+    }
+}
+
+/// Taken under the state lock; cheap: the index has no messages.
+fn snapshot_sessions(
+    data: &AppData,
+    sessions: &HashSet<String>,
+    generation: u64,
+) -> Result<PartialSnapshot> {
+    Ok(PartialSnapshot {
+        generation,
+        state: without_transcripts(|| serde_json::to_vec(data))?,
+        transcripts: data
+            .sessions
+            .iter()
+            .filter(|session| sessions.contains(&session.id))
+            .map(|session| (session.id.clone(), session.messages.clone()))
+            .collect(),
+    })
 }
 
 const CHECKPOINT_DELAY: Duration = Duration::from_secs(1);
@@ -449,6 +523,40 @@ mod tests {
         data.sessions.remove(1);
         save(&path, &data).unwrap();
         assert!(!dir.join("b.json").exists());
+    }
+
+    #[test]
+    fn a_streaming_checkpoint_writes_only_the_named_transcripts() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let dir = temp.0.join("sessions");
+        let mut data = AppData {
+            sessions: vec![session("a", &["first"]), session("b", &["other"])],
+            ..AppData::default()
+        };
+        save(&path, &data).unwrap();
+        data.sessions[0].messages[0].content.push_str(" streamed");
+        // A change the checkpoint was not told about waits for the next full save.
+        data.sessions[1].messages[0].content.push_str(" unsaved");
+        data.sessions.push(session("c", &["new"]));
+        let named = HashSet::from(["a".to_owned()]);
+        let snapshot = snapshot_sessions(&data, &named, next_generation()).unwrap();
+        assert_eq!(
+            snapshot.transcripts.len(),
+            1,
+            "only the streaming session is cloned"
+        );
+        write(&path, &snapshot.encode().unwrap()).unwrap();
+        let loaded = load_or_create(&path).unwrap();
+        assert_eq!(loaded.sessions.len(), 3, "the index is current");
+        assert_eq!(loaded.sessions[0].messages[0].content, "first streamed");
+        assert_eq!(loaded.sessions[1].messages[0].content, "other");
+        assert!(loaded.sessions[2].messages.is_empty());
+        assert!(dir.join("b.json").exists(), "other transcripts are kept");
+        save(&path, &data).unwrap();
+        let loaded = load_or_create(&path).unwrap();
+        assert_eq!(loaded.sessions[1].messages[0].content, "other unsaved");
+        assert_eq!(loaded.sessions[2].messages[0].content, "new");
     }
 
     #[test]

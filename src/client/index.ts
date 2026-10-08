@@ -506,6 +506,11 @@ export class SirusClient {
     return this.transport.invoke<void>("astro_show_in_main", { sessionId });
   }
 
+  /** The first ready paint: shows the hidden main window; resolves once it is on screen (ADR-098). */
+  windowReady() {
+    return this.transport.invoke<void>("window_ready");
+  }
+
   /** The floating chat's rail switches it to another Astro, through the menu bar's path. */
   astroFloatSelect(astroId: string) {
     return this.transport.invoke<void>("astro_float_select", { astroId });
@@ -595,6 +600,11 @@ export class SirusClient {
 
   onSessionUpdated(handler: (session: Session) => void) {
     return this.transport.listen<Session>("session-updated", handler);
+  }
+
+  /** macOS reported memory pressure: drop what can be reloaded. */
+  onMemoryPressure(handler: () => void) {
+    return this.transport.listen<unknown>("memory-pressure", () => handler());
   }
 
   notificationAction(action: import("./types").NotificationAction) {

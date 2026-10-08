@@ -289,7 +289,7 @@ fn record_provided(app: &AppHandle, session_id: &str, request_id: &str, label: &
         }
     }
     drop(data);
-    crate::persist::checkpoint_soon(state.inner());
+    crate::persist::checkpoint_soon(state.inner(), session_id);
 }
 
 fn request(app: &AppHandle, session_id: &str, args: &Value) -> Result<Value, String> {

@@ -10,7 +10,6 @@ import { QuitToast } from "@/components/QuitToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { dismissAppSplash } from "@/lib/app-splash";
 import { astroFloatCurrent, astroFloatRailMode } from "@/lib/astro-float";
 import { motionTokens } from "@/lib/motion";
 import { applyAppearance } from "@/lib/settings";
@@ -68,7 +67,6 @@ export default function AstroFloat({ initialAstroId }: { initialAstroId: string 
     }).catch((error: unknown) => useAppStore.setState({ ready: true, error: String(error) }));
     return () => { cancelled = true; cleanup?.(); };
   }, [bootstrap]);
-  useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
   useEffect(() => { applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette); }, [settings, hostInfo, systemPalette]);
   useChatBackground(settings.chatBackground, settings.chatBackgroundEffect);
   useEffect(() => {

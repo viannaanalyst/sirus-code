@@ -60,7 +60,7 @@ async function click(locator, ms = 750) {
 /* ---------- script ---------- */
 // The app boots off camera, so the window opens on a ready UI.
 await studio("load", `${BASE}/?demo&lang=${lang}`);
-await page.waitForFunction(() => { const f = document.getElementById("app"); return f.contentDocument && !f.contentDocument.getElementById("app-splash") && f.contentDocument.querySelector("[data-draft-owner]"); }, null, { timeout: 45000, polling: 250 });
+await page.waitForFunction(() => { const f = document.getElementById("app"); return f.contentDocument && f.contentDocument.querySelector("[data-draft-owner]"); }, null, { timeout: 45000, polling: 250 });
 await wait(600);
 await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
 await studio("card", `<div><img src="/sirus-glyph.png" alt=""><h1>Sirus Code</h1><p>${T.tagline}</p></div>`);

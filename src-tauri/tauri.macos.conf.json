@@ -3,6 +3,7 @@
     "windows": [
       {
         "label": "main",
+        "visible": false,
         "title": "Sirus Code",
         "width": 1440,
         "height": 900,

@@ -38,6 +38,7 @@ The button, strip, Enter and Escape behave the same in both.
 **Coming back to the app.** iOS suspends a home-screen app in the background, which drops its socket.
 - Bringing it to the front reconnects at once (`visibilitychange` → `wakeRemote`).
 - It used to reload the page after a lost connection, which replayed the splash each time and asked for dictation permission again. Now it refreshes the data in place (`bootstrap`), keeps the open conversation and reloads its transcript.
+  - *2026-10-08:* the launch splash no longer exists; the desktop window opens in its glass look with a left-to-right reveal instead, and the phone simply shows the app when ready (ADR-098).
 - It reloads only when the Mac serves a newer build: the served `index.html` no longer names the running script (`isNewerBuild`). That way updates arrive by themselves.
 
 **Dictation sessions.** iPhone's recognizer stops hearing after the first session in continuous mode, so `WebDictation` listens in short sessions and starts the next one while the person is still recording. The phrases add up. A permission or service error stops it.

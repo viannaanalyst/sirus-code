@@ -894,11 +894,15 @@ pub fn monitor(
             }
             let mut publish = true;
             let mut persist_immediately = true;
+            // Tool rows, subagent steps and context readings change many times a
+            // second in a busy turn; they are published together (ADR-048 events).
+            let mut coalesce = false;
             match event {
                 Event::Identity(identity) => session.native_thread = Some(identity),
                 Event::Activity(items) => {
                     publish = false;
                     persist_immediately = false;
+                    coalesce = true;
                     for item in items {
                         publish |= crate::activity::observe(session, item);
                     }
@@ -918,6 +922,7 @@ pub fn monitor(
                     };
                     publish = session.context_usage != Some(next);
                     persist_immediately = false;
+                    coalesce = true;
                     session.context_usage = Some(next);
                 }
                 Event::Delta(chunk) => {
@@ -949,9 +954,11 @@ pub fn monitor(
             if persist_immediately {
                 crate::persist::save(&state.data_path, &data)?;
             } else {
-                crate::persist::checkpoint_soon(&state);
+                crate::persist::checkpoint_soon(&state, &session_id);
             }
-            if publish {
+            if publish && coalesce {
+                crate::transcript_view::emit_soon(&app, &session_id);
+            } else if publish {
                 if let Some(session) = data
                     .sessions
                     .iter()

@@ -5,12 +5,13 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::LazyLock;
+use std::time::Duration;
 
 use parking_lot::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::{Error, Result};
 use crate::models::{AppData, Message, MessageRole, Session};
@@ -142,16 +143,130 @@ fn live_from(sent: &mut HashMap<String, u64>, session: &Session, from: usize) ->
     from
 }
 
+/// Per session, the current turn's command outputs as last published.
+static SENT_OUTPUTS: LazyLock<Mutex<HashMap<String, SentOutputs>>> =
+    LazyLock::new(Default::default);
+
+#[derive(Default)]
+struct SentOutputs {
+    /// The turn's user message id; another turn starts over.
+    turn: String,
+    /// Activity item id → fingerprint of the output last sent for it.
+    outputs: HashMap<String, u64>,
+}
+
+/// A command row's output (up to 16 KiB each, most of a busy turn's bytes) is
+/// sent when it changes, not with every later event of the turn. The renderer
+/// keeps the output it holds for a command row whose event omits it; natively a
+/// command's output never goes from text back to empty. Transcript loads are whole.
+fn omit_sent_outputs(
+    sent: &mut HashMap<String, SentOutputs>,
+    session: &Session,
+    value: &mut Value,
+) {
+    let turn = session
+        .messages
+        .get(current_turn(session))
+        .filter(|message| message.role == MessageRole::User)
+        .map(|message| message.id.as_str())
+        .unwrap_or_default();
+    let entry = sent.entry(session.id.clone()).or_default();
+    if entry.turn != turn {
+        entry.turn = turn.to_owned();
+        entry.outputs.clear();
+    }
+    let Some(messages) = value.get_mut("messages").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let items = messages
+        .iter_mut()
+        .filter_map(|message| message.pointer_mut("/activity/items")?.as_array_mut())
+        .flatten();
+    for item in items {
+        let (Some(id), Some(output)) = (
+            item.get("id").and_then(Value::as_str).map(str::to_owned),
+            item.get("output").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let mut hasher = DefaultHasher::new();
+        output.hash(&mut hasher);
+        let print = hasher.finish();
+        if entry.outputs.get(&id) == Some(&print) {
+            if let Some(item) = item.as_object_mut() {
+                item.remove("output");
+            }
+        } else {
+            entry.outputs.insert(id, print);
+        }
+    }
+}
+
 /// Publishes a lifecycle change whose message edits are within the current turn.
 pub fn emit(app: &AppHandle, session: &Session) {
     emit_from(app, session, current_turn(session));
 }
 
+/// How long frequent activity changes (tool rows, subagent steps, context
+/// readings) wait to be published together. Each event carries the whole current
+/// turn, so a busy turn used to send tens of turn-sized snapshots per second.
+const ACTIVITY_PUBLISH_DELAY: Duration = Duration::from_millis(250);
+
+/// Sessions with a coalesced publication scheduled.
+static SCHEDULED: LazyLock<Mutex<Coalescer>> = LazyLock::new(Default::default);
+
+/// Sessions waiting for a deferred publication. An immediate publication sends the
+/// latest snapshot, so it cancels the deferred one.
+#[derive(Default)]
+struct Coalescer(HashSet<String>);
+
+impl Coalescer {
+    /// Marks a session; true when no publication was already scheduled for it.
+    fn request(&mut self, session_id: &str) -> bool {
+        self.0.insert(session_id.to_owned())
+    }
+    /// True when the deferred publication is still due (not superseded).
+    fn take(&mut self, session_id: &str) -> bool {
+        self.0.remove(session_id)
+    }
+}
+
+/// Publishes a frequent activity change at most once per [`ACTIVITY_PUBLISH_DELAY`]
+/// per session. The snapshot is taken when it is sent, under the state lock, so it
+/// includes every change and streamed delta recorded before it, and deltas recorded
+/// after it are emitted after it: the renderer's ordering is unchanged.
+pub fn emit_soon(app: &AppHandle, session_id: &str) {
+    if !SCHEDULED.lock().request(session_id) {
+        return;
+    }
+    let (app, session_id) = (app.clone(), session_id.to_owned());
+    std::thread::spawn(move || {
+        std::thread::sleep(ACTIVITY_PUBLISH_DELAY);
+        let Some(state) = app.try_state::<std::sync::Arc<crate::commands::AppState>>() else {
+            return;
+        };
+        let data = state.data.lock();
+        if !SCHEDULED.lock().take(&session_id) {
+            return;
+        }
+        if let Some(session) = data
+            .sessions
+            .iter()
+            .find(|session| session.id == session_id)
+        {
+            emit(&app, session);
+        }
+    });
+}
+
 /// Publishes a change that also touched an earlier message (`from` covers it).
 pub fn emit_from(app: &AppHandle, session: &Session, from: usize) {
+    // This snapshot supersedes a deferred activity publication.
+    SCHEDULED.lock().take(&session.id);
     let from = live_from(&mut SENT_TURNS.lock(), session, from);
     match session_event(session, from) {
-        Ok(value) => {
+        Ok(mut value) => {
+            omit_sent_outputs(&mut SENT_OUTPUTS.lock(), session, &mut value);
             let _ = app.emit("session-updated", value);
         }
         Err(error) => tracing::error!(%error, "cannot publish a session update"),
@@ -295,6 +410,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn frequent_publications_coalesce_and_an_immediate_one_supersedes_them() {
+        let mut scheduled = Coalescer::default();
+        assert!(scheduled.request("a"), "the first change schedules");
+        assert!(!scheduled.request("a"), "later changes join it");
+        assert!(scheduled.request("b"), "sessions are independent");
+        assert!(scheduled.take("a"), "the deferred publication is due");
+        assert!(!scheduled.take("a"), "and sent once");
+        assert!(scheduled.request("a"), "a new change schedules again");
+        // An immediate publication takes the slot, so the deferred one is skipped.
+        assert!(scheduled.take("b"));
+        assert!(!scheduled.take("b"));
+    }
+
+    #[test]
     fn command_replies_carry_only_the_latest_reply_on() {
         let data = data();
         let session = &data.sessions[0];
@@ -390,6 +519,67 @@ mod tests {
             .messages
             .retain(|message| message.role != MessageRole::User);
         assert_eq!(live_from(&mut sent, session, current_turn(session)), 0);
+    }
+
+    #[test]
+    fn live_events_send_each_command_output_once_per_turn() {
+        let mut data = data();
+        let session = &mut data.sessions[0];
+        let activity = |output: &str| {
+            serde_json::from_value::<crate::activity::TurnActivity>(json!({
+                "provider": "codex", "model": null, "startedAt": 1, "endedAt": null,
+                "waitingSince": null, "pausedMs": 0, "status": "running", "truncated": false,
+                "items": [
+                    {"id": "c1", "kind": "command", "label": "Command", "state": "completed", "output": "built"},
+                    {"id": "c2", "kind": "command", "label": "Command", "state": "running", "output": output}
+                ]
+            }))
+            .unwrap()
+        };
+        session.messages[2].activity = Some(activity("line 1"));
+        let mut sent = HashMap::new();
+        let outputs = |value: &Value| {
+            value["messages"][1]["activity"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| {
+                    item.get("output")
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut first = session_event(session, 1).unwrap();
+        omit_sent_outputs(&mut sent, session, &mut first);
+        assert_eq!(
+            outputs(&first),
+            [Some("built".into()), Some("line 1".into())]
+        );
+        let mut again = session_event(session, 1).unwrap();
+        omit_sent_outputs(&mut sent, session, &mut again);
+        assert_eq!(
+            outputs(&again),
+            [None, None],
+            "unchanged outputs are not resent"
+        );
+        session.messages[2].activity = Some(activity("line 1\nline 2"));
+        let mut grown = session_event(session, 1).unwrap();
+        omit_sent_outputs(&mut sent, session, &mut grown);
+        assert_eq!(outputs(&grown), [None, Some("line 1\nline 2".into())]);
+        // A new turn sends everything again.
+        session.messages[1].id = "next-turn".into();
+        let mut next = session_event(session, 1).unwrap();
+        omit_sent_outputs(&mut sent, session, &mut next);
+        assert_eq!(
+            outputs(&next),
+            [Some("built".into()), Some("line 1\nline 2".into())]
+        );
+        // Persistence and loads keep every output.
+        assert_eq!(
+            serde_json::to_value(&session.messages[2]).unwrap()["activity"]["items"][0]["output"],
+            "built"
+        );
     }
 
     #[test]

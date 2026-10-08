@@ -43,6 +43,7 @@ mod html_preview;
 mod local_servers;
 mod mcp_config;
 mod mcp_stdio;
+mod memory;
 mod models;
 mod new_project;
 mod notifications;
@@ -79,6 +80,7 @@ mod transcript_view;
 mod turn_review;
 mod turn_undo;
 mod window_attachment;
+mod window_reveal;
 mod window_snap;
 mod workspace_entries;
 mod worktree;
@@ -222,6 +224,7 @@ pub fn run() {
             }));
             appearance::schedule(app.handle(), app.state::<Arc<AppState>>().inner().clone());
             notifications::install(app.handle());
+            memory::watch_pressure(app.handle());
             automations::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
             pr_watch::start(app.handle().clone());
@@ -235,6 +238,8 @@ pub fn run() {
                 app.state::<Arc<AppState>>().inner().clone(),
             );
             astro_tray::setup(app.handle());
+            // The main window starts hidden; the front end shows it on its first ready paint.
+            window_reveal::arm_fallback(app.handle());
             #[cfg(debug_assertions)]
             if std::env::var("SIRUS_DEVTOOLS").as_deref() == Ok("1") {
                 if let Some(window) = app.get_webview_window("main") {
@@ -258,6 +263,7 @@ pub fn run() {
             astro_documents::astro_document_action,
             astro_tray::astro_show_in_main,
             astro_tray::astro_float_select,
+            window_reveal::window_ready,
             commands::retry_last_turn,
             attachments::attachment_image,
             chat_background::chat_background_action,
@@ -413,6 +419,14 @@ pub fn run() {
                     if let Some(float) = app.get_webview_window(astro_tray::FLOAT) {
                         let _ = float.close();
                     }
+                }
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen {
+                    has_visible_windows: false,
+                    ..
+                } => {
+                    // Dock click or a second launch while the window is still hidden.
+                    window_reveal::reopen(app);
                 }
                 tauri::RunEvent::ExitRequested { api, .. } => {
                     request_close(app, || api.prevent_exit());

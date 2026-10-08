@@ -2440,13 +2440,17 @@ export function retainTranscript(sessionId: string) {
   };
 }
 
-/** Drops transcripts outside the keep set; their metadata stays. */
-function releaseTranscripts() {
+/**
+ * Drops transcripts outside the keep set; their metadata stays. `limit` is how
+ * many recently opened ones stay beyond the selected, active and retained ones.
+ */
+function releaseTranscripts(limit?: number) {
   useAppStore.setState((state) => {
     const keep = transcriptsToKeep({
       loaded: state.loadedTranscripts, sessions: state.sessions, selectedSessionId: state.selectedSessionId,
       queued: Object.entries(state.promptQueues).filter(([, queue]) => queue.items.length).map(([id]) => id),
       retained: retainedTranscripts.keys(),
+      limit,
     });
     const release = Object.keys(state.loadedTranscripts).filter((id) => !keep.has(id));
     if (!release.length) return {};
@@ -2575,6 +2579,8 @@ export async function bindRealtime() {
       observePromptQueue(current);
     }));
     unlisteners.push(() => outputBatch.cancel());
+    // Under system memory pressure only the transcripts in use stay; others reload when opened.
+    unlisteners.push(await client.onMemoryPressure(() => releaseTranscripts(0)));
     unlisteners.push(await client.onAgentOutput((event) => {
       outputBatch.queue(event);
       const servers = scanLocalServers(event.chunk);
