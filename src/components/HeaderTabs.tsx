@@ -1,7 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { ChevronDown, FolderPlus, Plus, Search, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
-import type { Session } from "@/client/types";
+import { Archive, ChevronDown, FolderPlus, Pin, PinOff, Plus, Search, SquarePen, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
+import type { Project, Session } from "@/client/types";
+import { ProjectActions } from "@/components/ProjectActions";
+import { ProjectEditDialog } from "@/components/SidebarRows";
+import { relativeTime } from "@/lib/session-board";
+import { sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -36,39 +40,57 @@ function useWaitingSets() {
   return useMemo(() => ({ unseen: new Set(unseen), computer: new Set((requests ?? []).map(request => request.sessionId)) }), [unseen, requests]);
 }
 
-/** Project title in the header; opens a searchable switcher with each project's live status. */
+/**
+ * Project title in the header (ADR-092). It opens the switcher that replaced the sidebar:
+ * projects on the left with live status and changes, and on the right every session of
+ * the project under the pointer (pinned first), with New session, pin and archive. The
+ * search matches project names and session titles; right-click a project for its actions.
+ */
 function ProjectSwitcher() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
-  const tabs = useAppStore(state => state.openTabsByProject);
+  const settings = useAppStore(state => state.settings);
+  const diffs = useAppStore(state => state.projectDiffs);
   const open = useAppStore(state => state.projectSwitcherOpen);
   const setOpen = useAppStore(state => state.setProjectSwitcherOpen);
   const { unseen, computer } = useWaitingSets();
   const [query, setQuery] = useState("");
   const [cursor, setCursor] = useState(0);
+  const [focus, setFocus] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Project | null>(null);
   const list = useRef<HTMLDivElement>(null);
-  const rows = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    return [...projects]
-      .sort((a, b) => Number(b.id === project?.id) - Number(a.id === project?.id) || b.lastOpenedAt.localeCompare(a.lastOpenedAt))
-      .filter(row => !needle || row.name.toLocaleLowerCase().includes(needle));
-  }, [projects, project?.id, query]);
+  const needle = query.trim().toLocaleLowerCase();
+  const groups = useMemo(() => sidebarGroups(projects, sessions, settings), [projects, sessions, settings]);
+  const ordered = useMemo(() => [...groups.pinned, ...groups.nested], [groups]);
+  const titleMatch = (session: Session) => !needle || session.title.toLocaleLowerCase().includes(needle);
+  const rows = useMemo(() => groups.projects.filter(row => !needle || row.name.toLocaleLowerCase().includes(needle)
+    || ordered.some(session => session.projectId === row.id && session.title.toLocaleLowerCase().includes(needle))), [groups.projects, ordered, needle]);
+  const focused = rows.find(row => row.id === focus) ?? rows.find(row => row.id === project?.id) ?? rows[0] ?? null;
+  const pinned = new Set(settings.pinnedSessionIds);
+  const shown = focused ? ordered.filter(session => session.projectId === focused.id && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
   // A waiting session in another project is never invisible.
   const elsewhere = projects.some(row => row.id !== project?.id && projectStatus(row.id, sessions, unseen, computer) === "waiting");
-  const choose = (id: string) => { setQuery(""); void useAppStore.getState().switchProject(id); };
+  const close = () => { setOpen(false); setQuery(""); setFocus(null); };
+  const choose = (id: string) => { close(); void useAppStore.getState().switchProject(id); };
+  const openSession = (id: string) => { close(); const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(id); };
+  const newSession = (id: string) => { close(); const store = useAppStore.getState(); void store.switchProject(id).then(() => store.requestNewSession()); };
+  const togglePin = (id: string) => { const store = useAppStore.getState(); void store.saveSettings({ ...store.settings, pinnedSessionIds: toggleSidebarId(store.settings.pinnedSessionIds, id) }); };
   const navigate = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      setCursor(index => (index + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % Math.max(rows.length, 1));
+      const next = (cursor + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % Math.max(rows.length, 1);
+      setCursor(next);
+      setFocus(rows[next]?.id ?? null);
     } else if (event.key === "Enter" && rows[cursor]) {
       event.preventDefault();
       choose(rows[cursor].id);
     }
   };
   useEffect(() => { list.current?.querySelector(`[data-index="${cursor}"]`)?.scrollIntoView({ block: "nearest" }); }, [cursor]);
-  return <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) setQuery(""); setCursor(0); }}>
+  return <>
+  <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) { setQuery(""); setFocus(null); } setCursor(0); }}>
     <PopoverTrigger asChild>
       <button type="button" className="header-project" aria-label={t("tabs.switchProject")}>
         {project ? <ProjectGlyph project={project} size={14} /> : null}
@@ -78,35 +100,68 @@ function ProjectSwitcher() {
       </button>
     </PopoverTrigger>
     <PopoverContent align="start" sideOffset={8} className="floating-material header-switcher" onOpenAutoFocus={event => { event.preventDefault(); (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}>
-      <label className="header-switcher-search">
-        <Search size={13} aria-hidden="true" />
-        <input value={query} placeholder={t("tabs.searchProjects")} aria-label={t("tabs.searchProjects")} onChange={event => { setQuery(event.target.value); setCursor(0); }} onKeyDown={navigate} />
-      </label>
-      <div ref={list} className="header-switcher-list" role="listbox" aria-label={t("tabs.projects")}>
-        {rows.map((row, index) => {
-          const status = projectStatus(row.id, sessions, unseen, computer);
-          const count = (tabs[row.id] ?? []).length;
-          return <button key={row.id} type="button" role="option" data-index={index} aria-selected={index === cursor} data-current={row.id === project?.id || undefined}
-            className="header-switcher-row" onMouseEnter={() => setCursor(index)} onClick={() => choose(row.id)}>
-            <ProjectGlyph project={row} size={15} />
-            <span className="min-w-0 flex-1 truncate">{row.name}</span>
-            <StatusDot status={status} label={t(`tabs.status.${status}`)} />
-            {count > 0 && <span className="header-switcher-count">{t(count === 1 ? "tabs.countOne" : "tabs.count", { count })}</span>}
-          </button>;
-        })}
-        {!rows.length && <p className="header-switcher-empty">{t("tabs.noProjects")}</p>}
+      <div className="header-switcher-projects">
+        <label className="header-switcher-search">
+          <Search size={13} aria-hidden="true" />
+          <input value={query} placeholder={t("tabs.searchAll")} aria-label={t("tabs.searchAll")} onChange={event => { setQuery(event.target.value); setCursor(0); setFocus(null); }} onKeyDown={navigate} />
+        </label>
+        <div ref={list} className="header-switcher-list" role="listbox" aria-label={t("tabs.projects")}>
+          {rows.map((row, index) => {
+            const status = projectStatus(row.id, sessions, unseen, computer);
+            const diff = diffs[row.id];
+            return <ProjectActions key={row.id} project={row} onEdit={() => { close(); setEditing(row); }}>
+              <button type="button" role="option" data-index={index} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
+                className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); }} onFocus={() => setFocus(row.id)} onClick={() => choose(row.id)}>
+                <ProjectGlyph project={row} size={15} />
+                <span className="min-w-0 flex-1 truncate">{row.name}</span>
+                <StatusDot status={status} label={t(`tabs.status.${status}`)} />
+                {diff && (diff.additions || diff.deletions) ? <span className="header-switcher-diff"><span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span></span> : null}
+              </button>
+            </ProjectActions>;
+          })}
+          {!rows.length && <p className="header-switcher-empty">{t("tabs.noProjects")}</p>}
+        </div>
+        <button type="button" className="header-switcher-footer" onClick={() => { close(); void useAppStore.getState().addProjectFromPicker(); }}>
+          <FolderPlus size={14} aria-hidden="true" />{t("New project")}
+        </button>
+        <button type="button" className="header-switcher-footer header-switcher-footer-plain" onClick={() => { close(); useAppStore.getState().setCreateProjectOpen(true); }}>
+          <Plus size={14} aria-hidden="true" />{t("newProject.menu")}
+        </button>
       </div>
-      <button type="button" className="header-switcher-footer" onClick={() => { setOpen(false); void useAppStore.getState().addProjectFromPicker(); }}>
-        <FolderPlus size={14} aria-hidden="true" />{t("New project")}
-      </button>
-      <button type="button" className="header-switcher-footer" onClick={() => { setOpen(false); useAppStore.getState().setCreateProjectOpen(true); }}>
-        <Plus size={14} aria-hidden="true" />{t("newProject.menu")}
-      </button>
+      {focused ? <div className="header-switcher-sessions" aria-label={t("tabs.sessionsOf", { project: focused.name })}>
+        <p className="header-switcher-label">{t("tabs.sessionsOf", { project: focused.name })}<span>{shown.length}</span></p>
+        <button type="button" className="header-switcher-new" onClick={() => newSession(focused.id)}>
+          <SquarePen size={14} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{t("session.new")}</span>
+        </button>
+        <div className="header-switcher-list header-switcher-session-list">
+          {shown.map(session => {
+            const status = tabStatus(session, unseen, computer);
+            const time = relativeTime(session.lastActivityAt);
+            const isPinned = pinned.has(session.id);
+            return <div key={session.id} className="header-switcher-session" data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
+              <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
+                <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
+                <span className="min-w-0 flex-1 truncate">{session.title}</span>
+                {isPinned ? <Pin size={11} aria-label={t("Pinned")} className="shrink-0 text-text-muted" /> : null}
+                <StatusDot status={status} label={t(`tabs.status.${status}`)} />
+                <span className="header-switcher-time">{time === "now" ? t("Now") : time}</span>
+              </button>
+              <span className="header-switcher-actions">
+                <button type="button" aria-label={t(isPinned ? "Unpin session" : "Pin session")} title={t(isPinned ? "Unpin session" : "Pin session")} onClick={() => togglePin(session.id)}>{isPinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
+                <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive size={13} /></button>
+              </span>
+            </div>;
+          })}
+          {!shown.length && <p className="header-switcher-empty">{t(needle ? "tabs.noSessionsMatch" : "Sessions you start will show up here")}</p>}
+        </div>
+      </div> : null}
     </PopoverContent>
-  </Popover>;
+  </Popover>
+  {editing ? <ProjectEditDialog project={editing} open onOpenChange={value => { if (!value) setEditing(null); }} /> : null}
+  </>;
 }
 
-/** Collapsed-sidebar header: project switcher plus the project's open session tabs (T1 pills). */
+/** Header: project switcher plus the project's open session tabs (T1 pills). */
 export function HeaderTabs() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);

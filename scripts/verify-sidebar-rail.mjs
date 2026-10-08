@@ -22,22 +22,12 @@ try {
       assert.ok(!html.includes('data-section="drafts"') && !html.includes('data-section="automations"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");
-      assert.ok(html.includes('aria-expanded="false"') && !html.includes('data-section="projects"'));
-      assert.ok(!html.includes("Session foreign") && !html.includes("Session archived"));
-      if (collapsed) assert.ok(!html.includes('id="sidebar-docked"') && !html.includes("Session draft"));
-      else {
-        assert.ok(html.includes('id="sidebar-docked"') && html.includes("Session draft") && html.includes("Session recent"));
-        assert.ok(!html.includes("sidebar-activity-second") && !html.includes("branch/draft"));
-        assert.ok(!html.includes("sidebar-scope") && !html.includes("sidebar-section-heading") && !html.includes("data-open-project"));
-        assert.ok(html.includes("sidebar-project-group") && html.includes("sidebar-folder-glyph"));
-        assert.ok(!html.includes(locale === "pt-BR" ? "Ordenar sessões" : "Sort sessions"));
-        assert.ok(!html.includes("sidebar-panel-footer"));
-        assert.ok(!html.includes(locale === "pt-BR" ? "Recolher barra lateral" : "Collapse sidebar"));
-        const header = html.slice(html.indexOf("sidebar-panel-header"), html.indexOf("sidebar-new-thread"));
-        assert.ok(header.includes("Sirus Code") && !header.includes("Fixture project"), "the header shows the fixed product name, not the selected project");
-        assert.ok(!header.includes("sidebar-activity-toggle") && !html.includes("sidebar-activity-toolbar"), "the Activity view toggle was removed");
-      }
+      // The rail is the whole sidebar (ADR-092): no panel, no project or session rows, in either state.
+      assert.ok(!html.includes('id="sidebar-docked"') && !html.includes("sidebar-peek") && !html.includes('data-section="projects"'));
+      assert.ok(!html.includes("Session draft") && !html.includes("Session recent") && !html.includes("Session foreign") && !html.includes("Session archived"));
+      assert.ok(!html.includes("sidebar-project-group") && !html.includes("sidebar-panel-header"));
+      assert.ok(html.includes('data-section="home"') && html.includes('aria-current="page"'), "Home is current in the conversation view");
     }
   }
-  console.log("Sidebar rail: customizable rail items, more menu and Settings, owned project folders/title-only sessions/drafts, clean header, collapsed rail and accessible labels pass in both locales");
+  console.log("Sidebar rail: customizable rail items, more menu and Settings, rail only with no project or session panel (ADR-092), accessible labels pass in both locales");
 } finally { await server.close(); }

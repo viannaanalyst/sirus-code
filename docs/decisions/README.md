@@ -108,6 +108,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-089: Chat background, project icon picker and rail pages](ADR-089-chat-background-and-project-icons.md) — an image behind the chat under a theme veil, a Synara-style icon picker on the project name (Emoji, Icons, Astros), Kanban and Archived as rail pages, and ⇧⇥ to cycle reasoning effort.
 - [ADR-090: Press ⌘Q twice to quit](ADR-090-press-command-q-twice.md) — without running agents, the first ⌘Q shows "Press ⌘Q again to quit" for two seconds and a second press quits; with agents running the existing dialog asks.
 - [ADR-091: Commit graph like MonoCode's](ADR-091-commit-graph-like-monocode.md) — the Changes history adapts MonoCode's VS Code–derived graph (22 px rows, a lane colour per branch, arcs at merges, ringed HEAD, ref pills) in Sirus's lilac and Astro colours.
+- [ADR-092: The sidebar is the icon rail; sessions live in the project switcher](ADR-092-rail-only-sidebar.md) — the sidebar panel is gone; the toggle shows or hides the icon rail, and the header switcher lists projects and every session of the hovered one with New session, pin, archive and project actions.
 
 ## Template
 

@@ -50,7 +50,28 @@
   :is(.header-tabs-more, .header-tabs-new):hover { background: var(--navigation-hover); color: var(--text-primary); }
 
   /* Project switcher popover */
-  .header-switcher { width: 232px; min-width: 0; padding: 5px; border-radius: 11px; font-size: var(--text-ui-12); }
+  /* The switcher holds the former sidebar (ADR-092): projects left, the focused project's sessions right. */
+  .header-switcher { display: flex; width: auto; min-width: 0; max-width: calc(100vw - 32px); padding: 0; overflow: hidden; border-radius: 13px; font-size: var(--text-ui-12); }
+  .header-switcher-projects { display: flex; width: 252px; flex-shrink: 0; flex-direction: column; padding: 6px; }
+  .header-switcher-sessions { display: flex; width: 340px; min-width: 0; flex-direction: column; padding: 6px; border-left: 1px solid var(--border-subtle); }
+  .header-switcher-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 7px 9px 5px; color: var(--text-muted); font-size: 11px; }
+  .header-switcher-diff { display: inline-flex; flex-shrink: 0; gap: 5px; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .header-switcher-diff [data-kind="added"] { color: var(--success, #4cc06c); }
+  .header-switcher-diff [data-kind="removed"] { color: var(--danger); }
+  .header-switcher-session-list { max-height: 360px; }
+  .header-switcher-session { position: relative; display: flex; align-items: center; border-radius: var(--radius-md); color: var(--text-secondary); }
+  .header-switcher-session:hover, .header-switcher-session:focus-within { background: var(--navigation-hover); color: var(--text-primary); }
+  .header-switcher-session[data-current] { color: var(--text-primary); font-weight: 500; }
+  .header-switcher-session-open, .header-switcher-new { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; height: 30px; padding: 0 9px; text-align: left; }
+  .header-switcher-new { flex: none; width: 100%; border-radius: var(--radius-md); color: var(--accent); }
+  .header-switcher-new:hover { background: var(--navigation-hover); }
+  .header-switcher-time { width: 34px; flex-shrink: 0; color: var(--text-muted); font-size: 11px; text-align: right; }
+  .header-switcher-actions { position: absolute; right: 4px; display: none; gap: 2px; padding-left: 8px; background: inherit; }
+  .header-switcher-session:hover .header-switcher-actions, .header-switcher-session:focus-within .header-switcher-actions { display: flex; }
+  .header-switcher-session:hover .header-switcher-time { visibility: hidden; }
+  .header-switcher-actions > button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--text-muted); }
+  .header-switcher-actions > button:hover { background: var(--navigation-hover); color: var(--text-primary); }
+  .header-switcher-footer-plain { margin-top: 0; border-top: 0; }
   .header-switcher-search { display: flex; align-items: center; gap: 7px; height: 28px; margin-bottom: 4px; padding: 0 8px; border-radius: var(--radius-md); background: var(--navigation-hover); color: var(--text-muted); }
   .header-switcher-search input { min-width: 0; flex: 1; background: transparent; color: var(--text-primary); outline: none; }
   .header-switcher-list { max-height: 320px; overflow-y: auto; scrollbar-width: none; }

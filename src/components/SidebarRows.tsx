@@ -42,9 +42,6 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
   const diff = useAppStore((state) => state.projectDiffs[project.id]);
   const [editing, setEditing] = useState(false);
   useSidebarPanelHold(editing);
-  const [name, setName] = useState(project.name);
-  const [scripts, setScripts] = useState({ setup: "", onFinish: "" });
-  const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const togglePin = () => { const state = useAppStore.getState(); void state.saveSettings({ ...state.settings, pinnedProjectIds: toggleSidebarId(state.settings.pinnedProjectIds, project.id) }); };
   const action = (kind: "new" | "terminal" | "review") => {
@@ -52,13 +49,7 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
     setActionBusy(true);
     void sidebarProjectAction(project.id, kind).finally(() => setActionBusy(false));
   };
-  const openEditor = () => { setName(project.name); setScripts({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" }); setEditing(true); };
-  const save = async () => {
-    const store = useAppStore.getState();
-    if (!await store.renameProject(project.id, name)) return false;
-    const changed = scripts.setup.trim() !== (project.scripts?.setup ?? "") || scripts.onFinish.trim() !== (project.scripts?.onFinish ?? "");
-    return !changed || store.saveProjectScripts(project.id, scripts.setup, scripts.onFinish);
-  };
+  const openEditor = () => setEditing(true);
   const folder = <ProjectGlyph project={project} expanded={expanded} />;
   const pinLabel = t(pinned ? "Unpin project" : "Pin project");
   return <>
@@ -76,7 +67,32 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
         <span className="sidebar-hover-actions sidebar-project-actions"><RowAction label={t("Review changes")} disabled={actionBusy} onClick={() => action("review")}><GitCompareArrows /></RowAction><RowAction label={t("New terminal session")} disabled={actionBusy} onClick={() => action("terminal")}><Terminal /></RowAction><RowAction label={t("New thread")} className="sidebar-new-thread-action" disabled={actionBusy} onClick={() => action("new")}><SquarePen /></RowAction></span>
       </div></ProjectActions>
     </SidebarHoverCard>
-    <Dialog open={editing} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(460px,calc(100vw-32px))]">
+    <ProjectEditDialog project={project} open={editing} onOpenChange={setEditing} />
+  </>;
+}
+
+/** `showProject` and `unseen` serve the cross-project Activity view. */
+/** Edit project: name and icon, then its scripts (ADR-059, ADR-078, ADR-089). */
+export function ProjectEditDialog({ project, open, onOpenChange }: { project: Project; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const t = useTranslation();
+  const [name, setName] = useState(project.name);
+  const [scripts, setScripts] = useState({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" });
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(open);
+  // Each opening starts from the saved project.
+  if (open !== shown) {
+    setShown(open);
+    if (open) { setName(project.name); setScripts({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" }); }
+  }
+  const setEditing = onOpenChange;
+  const save = async () => {
+    const store = useAppStore.getState();
+    if (!await store.renameProject(project.id, name)) return false;
+    const changed = scripts.setup.trim() !== (project.scripts?.setup ?? "") || scripts.onFinish.trim() !== (project.scripts?.onFinish ?? "");
+    return !changed || store.saveProjectScripts(project.id, scripts.setup, scripts.onFinish);
+  };
+  return <>
+    <Dialog open={open} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(460px,calc(100vw-32px))]">
       <form onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void save().then((saved) => { if (saved) setEditing(false); }).finally(() => setBusy(false)); }}>
         <ProjectIdentityField projectId={project.id} name={name} onName={setName} disabled={busy} />
         <ProjectScriptsFields setup={scripts.setup} onFinish={scripts.onFinish} disabled={busy} onChange={setScripts} />
@@ -86,7 +102,6 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
   </>;
 }
 
-/** `showProject` and `unseen` serve the cross-project Activity view. */
 export function SidebarSessionRow({ session, project, active, archived = false, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; archived?: boolean; showProject?: boolean; unseen?: boolean }) {
   const t = useTranslation();
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));

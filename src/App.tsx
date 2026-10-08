@@ -54,10 +54,10 @@ const ArchivedPage = lazy(() => import("@/components/ArchivedPage").then((module
 const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
 const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
-/** Header tabs are on screen only with the sidebar collapsed, outside Settings, overlays and Kanban. */
+/** Header tabs are on screen in the conversation view, outside Settings and overlays (ADR-092). */
 function headerTabsVisible() {
   const state = useAppStore.getState();
-  return state.sidebarCollapsed && !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session" && !!state.selectedProjectId;
+  return !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session" && !!state.selectedProjectId;
 }
 
 function selectHeaderTab(pick: (tabs: string[], current: number) => string | undefined) {
@@ -85,13 +85,11 @@ export default function App() {
   const createProjectOpen = useAppStore((state) => state.createProjectOpen);
   const [createProjectMounted, setCreateProjectMounted] = useState(createProjectOpen);
   if (createProjectOpen && !createProjectMounted) setCreateProjectMounted(true);
-  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
   const dockWidth = useAppStore((state) => state.dockWidth);
   const dockOpen = useAppStore((state) => state.dockOpen);
   const dockMaximized = useAppStore((state) => state.dockMaximized);
-  const resizeSidebar = useAppStore((state) => state.resizeSidebar);
   const setDockWidth = useAppStore((state) => state.setDockWidth);
   const toggleDock = useAppStore((state) => state.toggleDock);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
@@ -248,13 +246,13 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={reducedMotion ? "always" : "never"} transition={{ duration: reducedMotion ? 0 : motionTokens.fast, ease: motionTokens.ease }}>
     <TooltipProvider>
-      <div data-settings-open={settingsOpen} className="app-material relative flex h-dvh min-h-0 text-text-primary">
+      <div data-settings-open={settingsOpen} data-rail={sidebarCollapsed ? "hidden" : undefined} className="app-material relative flex h-dvh min-h-0 text-text-primary">
         <WindowNavigationControls />
         <div aria-hidden="true" className="app-content-frame" />
-        <div className="sidebar-frame relative z-10 shrink-0" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? SIDEBAR_RAIL_WIDTH : sidebarWidth }}
+        {/* The sidebar is the icon rail only (ADR-092); collapsing hides it. */}
+        <div className="sidebar-frame relative z-10 shrink-0 overflow-hidden" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? 0 : SIDEBAR_RAIL_WIDTH }}
           onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === "width") endSidebarMotion(); }}>
           <Sidebar motion={sidebarMotion} />
-          {!sidebarCollapsed && <div className="absolute inset-y-0 right-0 z-20 flex"><ResizeHandle value={sidebarWidth} onResize={resizeSidebar} /></div>}
         </div>
 
         <AnimatePresence initial={false}>
@@ -267,10 +265,10 @@ export default function App() {
         >
           <header
             data-tauri-drag-region
-            className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px-52px)]" : "pl-2"}`}
+            className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"}`}
           >
-            {/* With the sidebar collapsed the header carries the project switcher and its session tabs. */}
-            {sidebarCollapsed && mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
+            {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
+            {mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
               {mainView === "kanban" ? <Columns3 size={13} className="shrink-0 text-text-muted" /> : mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : mainView === "archived" ? <Archive size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
               <span className="truncate">{mainView === "kanban" ? t("Kanban") : mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : mainView === "archived" ? t("Archived sessions") : sessionTitle ?? t("session.new")}</span>
             </div>}

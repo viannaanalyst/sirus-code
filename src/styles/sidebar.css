@@ -246,5 +246,7 @@
 
 
 @layer components {
-  .app-content-frame { position: absolute; z-index: 30; top: var(--window-controls-height); bottom: 0; left: 52px; right: 0; border: 1px solid var(--border-subtle); border-radius: 10px; pointer-events: none; }
+  .app-content-frame { position: absolute; z-index: 30; top: var(--window-controls-height); bottom: 0; left: 52px; right: 0; border: 1px solid var(--border-subtle); border-radius: 10px; pointer-events: none; transition: left var(--motion-normal) var(--ease-out); }
+  /* The rail can be hidden (ADR-092); the content frame then reaches the window edge. */
+  [data-rail="hidden"] > .app-content-frame { left: 0; }
 }
