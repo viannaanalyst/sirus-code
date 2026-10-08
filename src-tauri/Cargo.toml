@@ -63,6 +63,16 @@ objc2-screen-capture-kit = { version = "0.3.2", default-features = false, featur
 libc = "0.2"
 
 # The debug app decodes and encodes pasted screenshots: keep the image codecs fast there too.
+# The daily desktop app is built with this profile (`npm run build:desktop`), so it is
+# optimized: the app at opt-level 1 (quick incremental rebuilds), every dependency at 2,
+# and only line tables for debug info (smaller binary, less memory). After MonoCode,
+# which ships optimized builds; the full release profile stays for distribution.
+[profile.dev]
+opt-level = 1
+debug = "line-tables-only"
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.dev.package.image]
 opt-level = 3
 [profile.dev.package.png]

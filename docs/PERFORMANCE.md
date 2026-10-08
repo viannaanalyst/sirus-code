@@ -409,6 +409,10 @@ Three renderer patterns from MonoCode (`AgentTranscript.tsx`, `sessionCache.ts`)
 
 **Not measured** in the running app (no build or launch in this pass).
 
+## Optimized daily build (2026-10-08)
+
+The owner's daily app was an unoptimized debug build. MonoCode ships optimized builds. `[profile.dev]` now builds the app crate at opt-level 1 and every dependency at opt-level 2, with line-table debug info only. The bundle stays at `src-tauri/target/debug/bundle/macos/Sirus Code.app`. The first build after the change recompiles everything; later rebuilds of the app crate stay quick. The full release profile (LTO, one codegen unit) is kept for distribution.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.
