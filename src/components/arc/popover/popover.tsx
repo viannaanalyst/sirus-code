@@ -27,6 +27,7 @@ export const PopoverContent = forwardRef<
     <PopoverPrimitive.Content
       {...props}
       data-appearance-floating="true"
+      data-popup=""
       ref={ref}
       align={align}
       sideOffset={sideOffset}

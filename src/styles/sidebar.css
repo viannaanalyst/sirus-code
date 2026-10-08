@@ -214,9 +214,7 @@
   .sidebar-peek-panel.sidebar-peek-panel[data-state="closed"] { animation: sidebar-card-out var(--motion-instant) ease-in forwards; }
   .sidebar-peek-panel::before { content: ""; position: absolute; left: -5px; top: 20px; width: 8px; height: 8px; rotate: 45deg; background: inherit; border-left: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); pointer-events: none; }
   [data-radix-popper-content-wrapper]:has(> .sidebar-peek-panel[data-glide][data-state="open"]) { transition: transform var(--motion-slow) var(--ease-out); }
-  /* Rows cascade in once when a panel opens. */
-  @keyframes sidebar-cascade-in { from { opacity: 0; translate: -10px 0; } }
-  [data-cascade] :is(.sidebar-panel-header, .sidebar-menu-row, .sidebar-project-row, .sidebar-session-row) { animation: sidebar-cascade-in var(--motion-slow) var(--ease-out) both; animation-delay: calc(var(--cascade-base, 0ms) + var(--cascade-index, 0) * var(--motion-stagger)); }
+  /* Rows cascade in once when a panel opens: the shared cascade in motion.css (ADR-096) covers these row classes. */
   .sidebar-docked-panel[data-cascade] { --cascade-base: var(--motion-instant); }
   html:is([data-animations="off"], [data-reduce-motion="on"]) :is(.sidebar-frame, .sidebar-docked-panel, [data-radix-popper-content-wrapper]) { transition: none; }
   html:is([data-animations="off"], [data-reduce-motion="on"]) [data-cascade] * { animation: none; }

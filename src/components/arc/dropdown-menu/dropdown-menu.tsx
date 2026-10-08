@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties, FocusEvent, ReactNode, ComponentPropsWithoutRef } from "react";
+import type { FocusEvent, ReactNode, ComponentPropsWithoutRef } from "react";
 import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -62,10 +62,10 @@ export function DropdownMenu({ label, items, icon }: DropdownMenuProps) {
   }
   return <DropdownPrimitive.Root onOpenChange={open => { if (open) { window.clearTimeout(clearTimer.current); setHighlight(null); } }}>
     <DropdownPrimitive.Trigger className={styles.trigger} type="button">{icon && <span className={styles.triggerIcon} aria-hidden="true">{icon}</span>}<TriggerLabel text={label}/><ChevronDown className={styles.chevron} size={15} strokeWidth={1.8} aria-hidden="true"/></DropdownPrimitive.Trigger>
-    <DropdownPrimitive.Portal><DropdownPrimitive.Content data-appearance-floating="true" className={styles.menu} sideOffset={6} align="end" collisionPadding={12} loop onFocus={onMenuFocus} onPointerMoveCapture={() => { pointer.current = true; }} onKeyDownCapture={() => { pointer.current = false; }}>
+    <DropdownPrimitive.Portal><DropdownPrimitive.Content data-appearance-floating="true" data-popup="" data-cascade="children" className={styles.menu} sideOffset={6} align="end" collisionPadding={12} loop onFocus={onMenuFocus} onPointerMoveCapture={() => { pointer.current = true; }} onKeyDownCapture={() => { pointer.current = false; }}>
       {/* One highlight glides between items for the pointer and jumps instantly for the keyboard. */}
       <motion.span className={styles.highlight} data-tone={highlight?.danger ? "danger" : undefined} aria-hidden="true" initial={false} animate={highlight ? { y: highlight.top, height: highlight.height, opacity: 1 } : { opacity: 0 }} transition={{ default: highlight?.glide && !reduced ? motionTokens.spring.snappy : { duration: 0 }, opacity: { duration: reduced ? 0 : .08 } }}/>
-      {items.map((item, index) => <Fragment key={item.label}>{item.separatorBefore && <DropdownPrimitive.Separator className={styles.separator}/>}<DropdownPrimitive.Item className={[styles.item, item.destructive ? styles.destructive : ""].filter(Boolean).join(" ")} data-tone={item.destructive ? "danger" : undefined} style={{ "--i": index } as CSSProperties} disabled={item.disabled} onSelect={item.onSelect}>{item.icon && <span className={styles.icon} aria-hidden="true">{item.icon}</span>}{item.label}</DropdownPrimitive.Item></Fragment>)}
+      {items.map(item => <Fragment key={item.label}>{item.separatorBefore && <DropdownPrimitive.Separator className={styles.separator}/>}<DropdownPrimitive.Item className={[styles.item, item.destructive ? styles.destructive : ""].filter(Boolean).join(" ")} data-tone={item.destructive ? "danger" : undefined} disabled={item.disabled} onSelect={item.onSelect}>{item.icon && <span className={styles.icon} aria-hidden="true">{item.icon}</span>}{item.label}</DropdownPrimitive.Item></Fragment>)}
     </DropdownPrimitive.Content></DropdownPrimitive.Portal>
   </DropdownPrimitive.Root>;
 }
@@ -76,7 +76,7 @@ export default DropdownMenu;
 export const DropdownRoot = DropdownPrimitive.Root;
 export const DropdownTrigger = DropdownPrimitive.Trigger;
 export function DropdownContent({ children, className, ...props }: ComponentPropsWithoutRef<typeof DropdownPrimitive.Content>) {
-  return <DropdownPrimitive.Portal><DropdownPrimitive.Content data-appearance-floating="true" sideOffset={6} collisionPadding={12} loop className={[styles.menu, className].filter(Boolean).join(" ")} {...props}>{children}</DropdownPrimitive.Content></DropdownPrimitive.Portal>;
+  return <DropdownPrimitive.Portal><DropdownPrimitive.Content data-appearance-floating="true" data-popup="" data-cascade="children" sideOffset={6} collisionPadding={12} loop className={[styles.menu, className].filter(Boolean).join(" ")} {...props}>{children}</DropdownPrimitive.Content></DropdownPrimitive.Portal>;
 }
 export function DropdownItem({ className, ...props }: ComponentPropsWithoutRef<typeof DropdownPrimitive.Item>) {
   return <DropdownPrimitive.Item className={[styles.item, "data-[highlighted]:bg-[var(--navigation-selected)]", className].filter(Boolean).join(" ")} {...props} />;

@@ -17,6 +17,7 @@ import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/prim
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { selectCurrentProject, useAppStore, selectListedSessions } from "@/store/app-store";
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
+import { cascadeIndex, useCascade } from "@/lib/cascade";
 import "@/styles/header-tabs.css";
 
 /** Narrowest tab that still shows a readable title (px). */
@@ -74,6 +75,8 @@ function ProjectSwitcher() {
     },
   });
   const needle = query.trim().toLocaleLowerCase();
+  // Rows cascade in when the switcher opens (ADR-096); filtered results while typing just appear.
+  const cascade = useCascade(open) && !needle;
   const groups = useMemo(() => sidebarGroups(projects, sessions, settings), [projects, sessions, settings]);
   const ordered = useMemo(() => [...groups.pinned, ...groups.nested], [groups]);
   const titleMatch = (session: Session) => !needle || session.title.toLocaleLowerCase().includes(needle);
@@ -111,7 +114,7 @@ function ProjectSwitcher() {
         <ChevronDown size={12} aria-hidden="true" />
       </button>
     </PopoverTrigger>
-    <PopoverContent align="start" sideOffset={8} className="floating-material header-switcher" onOpenAutoFocus={event => { event.preventDefault(); (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}>
+    <PopoverContent align="start" sideOffset={8} className="floating-material header-switcher" data-cascade={cascade ? "" : undefined} onOpenAutoFocus={event => { event.preventDefault(); (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}>
       <div className="header-switcher-projects">
         <label className="header-switcher-search">
           <Search size={13} aria-hidden="true" />
@@ -122,7 +125,7 @@ function ProjectSwitcher() {
             const status = projectStatus(row.id, sessions, unseen, computer);
             const diff = diffs[row.id];
             return <ProjectActions key={row.id} project={row} onEdit={() => { close(); setEditing(row); }}>
-              <button type="button" role="option" data-index={index} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
+              <button type="button" role="option" data-index={index} data-cascade-item="" style={cascadeIndex(index)} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
                 data-reorder-id={row.id} data-dragging={reorder.dragging === row.id || undefined} data-drop-edge={reorder.over?.id === row.id ? reorder.over.edge : undefined}
                 {...(needle || rows.length < 2 ? {} : reorder.bind(row.id))}
                 className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); }} onFocus={() => setFocus(row.id)} onClick={() => choose(row.id)}>
@@ -143,20 +146,20 @@ function ProjectSwitcher() {
           })}
           {!rows.length && <p className="header-switcher-empty">{t("tabs.noProjects")}</p>}
         </div>
-        <button type="button" className="header-switcher-footer" onClick={() => { close(); void useAppStore.getState().addProjectFromPicker(); }}>
+        <button type="button" className="header-switcher-footer" data-cascade-item="" style={cascadeIndex(rows.length)} onClick={() => { close(); void useAppStore.getState().addProjectFromPicker(); }}>
           <FolderPlus size={14} aria-hidden="true" />{t("New project")}
         </button>
-        <button type="button" className="header-switcher-footer header-switcher-footer-plain" onClick={() => { close(); useAppStore.getState().setCreateProjectOpen(true); }}>
+        <button type="button" className="header-switcher-footer header-switcher-footer-plain" data-cascade-item="" style={cascadeIndex(rows.length + 1)} onClick={() => { close(); useAppStore.getState().setCreateProjectOpen(true); }}>
           <Plus size={14} aria-hidden="true" />{t("newProject.menu")}
         </button>
       </div>
       {focused ? <div className="header-switcher-sessions" aria-label={t("tabs.sessionsOf", { project: focused.name })}>
-        <div className="header-switcher-title">
+        <div className="header-switcher-title" data-cascade-item="">
           <span className="min-w-0 flex-1 truncate">{focused.name}</span>
           <button type="button" className="header-switcher-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => newSession(focused.id)}><SquarePen size={14} aria-hidden="true" /></button>
         </div>
         <div className="header-switcher-list header-switcher-session-list">
-          {shown.map(session => {
+          {shown.map((session, index) => {
             const status = tabStatus(session, unseen, computer);
             const time = relativeTime(session.lastActivityAt);
             const isPinned = pinned.has(session.id);
@@ -166,7 +169,7 @@ function ProjectSwitcher() {
               { id: "pin", label: t(isPinned ? "Unpin session" : "Pin session"), icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onSelect: () => togglePin(session.id) },
               { id: "archive", label: t("Archive session"), icon: <Archive size={15} />, onSelect: () => { close(); useAppStore.getState().requestArchive(session.id); } },
               { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: active, onSelect: () => { close(); setSessionAction({ session, kind: "delete" }); } },
-            ]}><div className="header-switcher-session" data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
+            ]}><div className="header-switcher-session" data-cascade-item="" style={cascadeIndex(index + 1)} data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
               <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
                 <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
                 <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>

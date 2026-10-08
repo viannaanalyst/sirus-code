@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { Fragment, useEffect, useRef, useState } from "react";
-import type { CSSProperties, FocusEvent, KeyboardEvent, ReactNode } from "react";
+import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { Check, Copy, Trash2 } from "@/components/icons/phosphor";
@@ -36,6 +36,9 @@ export interface ContextMenuProps {
 type Highlight = { index: number; top: number; height: number; danger: boolean; glide: boolean };
 
 const MENU_WIDTH = 208;
+/** The shared popup entrance (ADR-096): a 160 ms soft scale in, a 100 ms fade out (`--motion-popup`, `--motion-popup-exit`). */
+const POPUP_ENTER = .16;
+const POPUP_EXIT = .1;
 
 export function ContextMenu({ children, items, label = "Context menu", activation = "click-and-context", portal: usePortal = true, onOpenChange, inline = false }: ContextMenuProps) {
   const reduced = useReducedMotion();
@@ -144,10 +147,10 @@ export function ContextMenu({ children, items, label = "Context menu", activatio
   }
 
   const panel = <AnimatePresence>
-      {open && <motion.div key={point.key} ref={node => { if (node) menuRef.current = node; }} data-appearance-floating="true" className={styles.menu} data-arc-menu-open={open ? "true" : undefined} role="menu" aria-label={label} tabIndex={-1} style={{ position: usePortal ? "fixed" : "absolute", pointerEvents: "auto", left: point.x, top: point.y, transformOrigin: `${point.originX}px ${point.originY}px` }} onClick={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={onMenuKeyDown} onFocus={onMenuFocus} onPointerMoveCapture={() => { pointer.current = true; }} onKeyDownCapture={() => { pointer.current = false; }} onPointerLeave={event => { if (live.current) event.currentTarget.focus({ preventScroll: true }); }}
-        initial={reduced ? { opacity: 0 } : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} exit={reduced ? { opacity: 0, transition: { duration: motionTokens.duration.exit } } : { opacity: 0, scale: .98, transition: { duration: motionTokens.duration.exit, ease: [...motionTokens.ease.standard] } }} transition={reduced ? { duration: motionTokens.duration.instant } : { default: { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.enter] }, opacity: { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.enter] } }}>
+      {open && <motion.div key={point.key} ref={node => { if (node) menuRef.current = node; }} data-appearance-floating="true" data-popup="" data-cascade="children" className={styles.menu} data-arc-menu-open={open ? "true" : undefined} role="menu" aria-label={label} tabIndex={-1} style={{ position: usePortal ? "fixed" : "absolute", pointerEvents: "auto", left: point.x, top: point.y, transformOrigin: `${point.originX}px ${point.originY}px` }} onClick={event => event.stopPropagation()} onContextMenu={event => { event.preventDefault(); event.stopPropagation(); }} onKeyDown={onMenuKeyDown} onFocus={onMenuFocus} onPointerMoveCapture={() => { pointer.current = true; }} onKeyDownCapture={() => { pointer.current = false; }} onPointerLeave={event => { if (live.current) event.currentTarget.focus({ preventScroll: true }); }}
+        initial={reduced ? { opacity: 0 } : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, transition: { duration: POPUP_EXIT, ease: [...motionTokens.ease.enter] } }} transition={{ duration: reduced ? motionTokens.duration.instant : POPUP_ENTER, ease: [...motionTokens.ease.enter] }}>
         <motion.span className={styles.highlight} data-tone={highlight?.danger ? "danger" : undefined} aria-hidden="true" initial={false} animate={highlight ? { y: highlight.top, height: highlight.height, opacity: 1 } : { opacity: 0 }} transition={{ default: highlight?.glide && !reduced ? motionTokens.spring.snappy : { duration: 0 }, opacity: { duration: reduced ? 0 : .08 } }}/>
-        {items.map((item, index) => <Fragment key={item.id}>{index > 0 && (item.group ?? (item.destructive ? "danger" : "")) !== (items[index - 1].group ?? (items[index - 1].destructive ? "danger" : "")) ? <div role="separator" className={styles.separator} /> : null}<button type="button" role="menuitem" tabIndex={-1} data-index={index} data-tone={item.destructive ? "danger" : undefined} style={{ "--i": index } as CSSProperties} disabled={item.disabled} className={[styles.item, item.destructive ? styles.destructive : ""].filter(Boolean).join(" ")} onPointerMove={event => { if (!live.current) return; window.clearTimeout(clearTimer.current); if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); if (highlight?.index !== index) place(event.currentTarget, true); }} onPointerLeave={() => { if (live.current) menuRef.current?.focus({ preventScroll: true }); }} onClick={() => { if (!live.current) return; live.current = false; item.onSelect?.(); setOpen(false); (restoreFocus.current?.isConnected ? restoreFocus.current : targetRef.current)?.focus(); }}>
+        {items.map((item, index) => <Fragment key={item.id}>{index > 0 && (item.group ?? (item.destructive ? "danger" : "")) !== (items[index - 1].group ?? (items[index - 1].destructive ? "danger" : "")) ? <div role="separator" className={styles.separator} /> : null}<button type="button" role="menuitem" tabIndex={-1} data-index={index} data-tone={item.destructive ? "danger" : undefined} disabled={item.disabled} className={[styles.item, item.destructive ? styles.destructive : ""].filter(Boolean).join(" ")} onPointerMove={event => { if (!live.current) return; window.clearTimeout(clearTimer.current); if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); if (highlight?.index !== index) place(event.currentTarget, true); }} onPointerLeave={() => { if (live.current) menuRef.current?.focus({ preventScroll: true }); }} onClick={() => { if (!live.current) return; live.current = false; item.onSelect?.(); setOpen(false); (restoreFocus.current?.isConnected ? restoreFocus.current : targetRef.current)?.focus(); }}>
           <span className={styles.icon} aria-hidden="true">{item.icon ?? (item.checked ? <Check size={15} /> : null)}</span><span>{item.label}</span>
         </button></Fragment>)}
       </motion.div>}

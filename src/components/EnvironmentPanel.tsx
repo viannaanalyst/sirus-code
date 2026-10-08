@@ -37,6 +37,8 @@ import { formatUnknownError } from "@/lib/format-error";
 import { orderedUsageWindows, resetDuration, usageWindowLabel } from "@/lib/provider-usage";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
+import { useCascade } from "@/lib/cascade";
+import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { CiFixRow } from "@/components/EnvironmentPullRequestSection";
 import { PrWatchBadge, PrWatchPanel } from "@/components/PrWatch";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
@@ -70,6 +72,7 @@ export function EnvironmentToggle() {
 export function EnvironmentPanel() {
   const open = useAppStore((state) => state.environmentOpen);
   const setOpen = useAppStore((state) => state.setEnvironmentOpen);
+  const reduced = useArcReducedMotion();
 
   // Fixed window, not a popup: it stays open until the toggle, Escape or an
   // action closes it. Clicks elsewhere keep reaching the app.
@@ -88,12 +91,14 @@ export function EnvironmentPanel() {
       {open ? (
         <motion.div
           className="pointer-events-none absolute inset-y-0 right-0 z-20 flex flex-col p-[12px]"
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 16 }}
-          transition={{ duration: motionTokens.fast, ease: motionTokens.ease }}
+          // The shared popup entrance (ADR-096): a soft scale from the header toggle, then a quick fade out.
+          style={{ transformOrigin: "top right" }}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, transition: { duration: POPUP_EXIT, ease: motionTokens.ease } }}
+          transition={{ duration: POPUP_ENTER, ease: motionTokens.ease }}
         >
-          <div className="floating-material pointer-events-auto flex max-h-full w-[288px] flex-col overflow-hidden rounded-[16px] border border-border-default bg-background-1 shadow-[var(--shadow-float)]">
+          <div data-popup="" className="floating-material pointer-events-auto flex max-h-full w-[288px] flex-col overflow-hidden rounded-[16px] border border-border-default bg-background-1 shadow-[var(--shadow-float)]">
             <EnvironmentPanelContent onClose={() => setOpen(false)} />
           </div>
         </motion.div>
@@ -102,8 +107,13 @@ export function EnvironmentPanel() {
   );
 }
 
+const POPUP_ENTER = 0.16;
+const POPUP_EXIT = 0.1;
+
 function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
   const t = useTranslation();
+  // Rows and section labels cascade in when the card opens; rows that arrive later just appear.
+  const cascade = useCascade();
   const session = useAppStore(selectCurrentSessionMeta);
   const project = useAppStore(selectCurrentProject);
   const setSettingsOpen = useAppStore((state) => state.setSettingsOpen);
@@ -124,7 +134,7 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
   }
   return (
     <div className="scroll-thin min-h-0 overflow-y-auto">
-      <div className="flex flex-col gap-[2px] p-[6px]">
+      <div className="flex flex-col gap-[2px] p-[6px]" data-cascade={cascade ? "children" : undefined}>
         <div className="flex items-center justify-between gap-[8px] px-[8px] py-[2px]">
           <span className="ui-body text-text-muted">{t("Environment")}</span>
           <button
@@ -244,6 +254,7 @@ function Expandable({
   const [local, setLocal] = useState(false);
   const open = controlled ?? local;
   const setOpen = onOpenChange ?? setLocal;
+  const cascade = useCascade(open);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -258,7 +269,7 @@ function Expandable({
           <ChevronDown size={12} aria-hidden="true" className={cn("shrink-0 text-text-muted opacity-60 transition-transform", open && "rotate-180")} />
         </button>
       </PopoverTrigger>
-      <PopoverContent data-environment-popover="" side="bottom" align="end" sideOffset={4} collisionPadding={12} aria-label={label} className="w-[256px] p-1.5">
+      <PopoverContent data-environment-popover="" data-cascade={cascade ? "children" : undefined} side="bottom" align="end" sideOffset={4} collisionPadding={12} aria-label={label} className="w-[256px] p-1.5">
         {heading === null ? null : <p className="px-2 pb-1 pt-0.5 ui-caption text-text-muted">{heading ?? label}</p>}
         {children}
       </PopoverContent>

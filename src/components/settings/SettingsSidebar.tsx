@@ -22,6 +22,7 @@ import {
 } from "@/components/icons/phosphor";
 import { isRemoteUi } from "@/client";
 import { cn } from "@/lib/cn";
+import { cascadeIndex, useCascade } from "@/lib/cascade";
 import type { SettingsSectionId } from "@/lib/settings";
 import "@/styles/general-settings.css";
 
@@ -79,6 +80,9 @@ export function SettingsSidebar({
   const indicator = useRef<HTMLSpanElement>(null);
   const placed = useRef(false);
   const navGlide = useGlidingHover(".sidebar-menu-row");
+  // The menu cascades in when Settings opens or its dock reopens (it mounts then), never on a page switch (ADR-096).
+  const cascade = useCascade();
+  let row = 0;
   // One selection highlight glides between menu items; the first placement and resizes are instant.
   useLayoutEffect(() => {
     const box = list.current, mark = indicator.current;
@@ -104,10 +108,10 @@ export function SettingsSidebar({
   return (
     <nav className="sidebar-material flex h-full w-[256px] shrink-0 flex-col border-r border-border-subtle bg-background-1 max-md:h-auto max-md:w-full max-md:border-b max-md:border-r-0">
       <div className="titlebar-drag h-[var(--window-controls-height)] shrink-0" />
-      <div ref={list} {...navGlide.handlers} className="settings-nav glide-hover-host titlebar-no-drag relative isolate flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pt-1.5 pb-3">
+      <div ref={list} {...navGlide.handlers} data-cascade={cascade ? "" : undefined} className="settings-nav glide-hover-host titlebar-no-drag relative isolate flex min-h-0 flex-1 flex-col overflow-y-auto px-2 pt-1.5 pb-3">
         {navGlide.pill}
         <span ref={indicator} aria-hidden="true" className="settings-nav-indicator" />
-        <button type="button" data-settings-back onClick={onBack}
+        <button type="button" data-settings-back data-cascade-item="" style={cascadeIndex(row++)} onClick={onBack}
           className="sidebar-menu-row mb-3 flex w-full shrink-0 items-center gap-2.5 px-2.5 text-left ui-body text-text-primary">
           <ArrowLeft size={16} aria-hidden="true" className="shrink-0 text-text-secondary" />
           <span className="truncate">{t("Back to app")}</span>
@@ -120,7 +124,7 @@ export function SettingsSidebar({
         </label>
         {SETTINGS_GROUPS.map((group, index) => (
           <div key={group.label}>
-            <p className={cn("mb-1 px-2.5 ui-caption text-text-muted", index === 0 ? "mt-1" : "mt-4")}>{t(group.label)}</p>
+            <p data-cascade-item="" style={cascadeIndex(row++)} className={cn("mb-1 px-2.5 ui-caption text-text-muted", index === 0 ? "mt-1" : "mt-4")}>{t(group.label)}</p>
             {group.items.filter((item) => !(isRemoteUi && item.id === "connections")).map((item) => {
               const Icon = item.icon;
               const active = item.id === section;
@@ -130,6 +134,8 @@ export function SettingsSidebar({
                   type="button"
                   aria-current={active && !matched ? "page" : undefined}
                   data-dim={matched && !matched.has(item.id) ? "" : undefined}
+                  data-cascade-item=""
+                  style={cascadeIndex(row++)}
                   onClick={() => onSection(item.id)}
                   className={cn(
                     "sidebar-menu-row mb-0.5 flex w-full items-center gap-2.5 px-2.5 ui-control",

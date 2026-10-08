@@ -14,7 +14,7 @@ import { SETTINGS_INDEX } from "@/lib/settings-index";
 import { searchSettings, type SettingsMatch } from "@/lib/settings-search";
 import { settingsEscapeAction, settingsViewDirection } from "@/lib/settings-navigation";
 import { motionTokens } from "@/lib/motion";
-import { playSidebarCascade, useSidebarMotion } from "@/lib/sidebar-motion";
+import { useSidebarMotion } from "@/lib/sidebar-motion";
 import { WindowNavigationControls } from "@/components/WindowNavigationControls";
 import { useAppStore } from "@/store/app-store";
 
@@ -47,10 +47,9 @@ export function SettingsPage() {
   const refreshAgents = useAppStore((state) => state.refreshAgents);
   const host = useAppStore((state) => state.hostInfo);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
-  // The Settings menu docks like the main sidebar: springs open with cascading rows, eases closed.
+  // The Settings menu docks like the main sidebar: springs open, eases closed. Its rows cascade
+  // in whenever the menu mounts (Settings opening or the dock reopening, ADR-096).
   const [navMotion, endNavMotion] = useSidebarMotion(sidebarCollapsed);
-  const navOpening = navMotion === "opening";
-  const attachNav = useCallback((node: HTMLDivElement | null) => { if (node && navOpening) playSidebarCascade(node); }, [navOpening]);
   const [view, setView] = useState({ section, direction: 1 as 1 | -1 });
   // Settings search (ADR-093): results take the page's place while there is a query.
   const [query, setQuery] = useState("");
@@ -97,7 +96,7 @@ export function SettingsPage() {
       className="settings-material fixed inset-0 z-40 flex text-text-primary max-md:flex-col">
       <DialogPrimitive.Title className="sr-only">{t("Settings")}</DialogPrimitive.Title>
       <WindowNavigationControls />
-      {(!sidebarCollapsed || navMotion === "closing") && <div ref={attachNav} className="settings-nav-frame" data-motion={navMotion ?? undefined} data-collapsed={sidebarCollapsed || undefined} inert={sidebarCollapsed}
+      {(!sidebarCollapsed || navMotion === "closing") && <div className="settings-nav-frame" data-motion={navMotion ?? undefined} data-collapsed={sidebarCollapsed || undefined} inert={sidebarCollapsed}
         onTransitionEnd={(event) => { if (event.target === event.currentTarget && event.propertyName === "width") endNavMotion(); }}>
         <SettingsSidebar section={section} onSection={(id) => { setQuery(""); setSection(id); }} onBack={back} query={query} onQuery={setQuery} matched={matched} />
       </div>}
