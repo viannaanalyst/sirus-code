@@ -18,10 +18,10 @@ The owner compared Sirus with MonoCode and T3 Code and picked, from previews, fo
    - `searchSettings` matches every word of the query against the translated texts and page names, ignoring accents, with title matches first.
    - While searching, results replace the page: the path (page › group), the title and the description, with the matches highlighted. Pages without a match dim in the menu.
    - Opening a result goes to its page, scrolls to the row and flashes it.
-2. **⌘J quick switch** (after MonoCode).
-   - A floating list of conversations: Needs you, then Working, then Recent.
-   - Each row shows the title, what the conversation is doing now (its running step, the waiting state, or the first line of its last reply), the project and the time.
-   - Typing filters, ↑↓ moves, Enter opens. It only navigates; replies happen in the conversation.
+2. **⌘J quick switch** (after MonoCode's live agents).
+   - Lists only conversations with an agent working or waiting for you: those waiting for you first, then the rest in flight, oldest first.
+   - It opens only with two or more agents working (`LIVE_MIN = 2`), shows up to four rows (`LIVE_CAP = 4`) and "+N more" for the rest.
+   - Each row shows the title, what the agent is doing now, the project and the time. Typing filters, ↑↓ moves, Enter opens. It only navigates; replies happen in the conversation.
 3. **Live folding** (after MonoCode).
    - While a turn runs, everything before its newest paragraph folds into one line ("N earlier messages · ran X commands…"), which opens on click.
    - The newest paragraph and the work after it stay in view.

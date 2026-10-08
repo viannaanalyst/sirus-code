@@ -20,3 +20,7 @@
   .quick-switch-meta { color: var(--text-muted); }
   .quick-switch-empty { margin: 0; padding: 18px 12px; color: var(--text-muted); text-align: center; }
 }
+@layer components {
+  .quick-switch-more { display: flex; width: 100%; align-items: center; justify-content: center; gap: 4px; padding: 6px 10px; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 12px; }
+  .quick-switch-more:hover { background: var(--navigation-hover); color: var(--text-primary); }
+}

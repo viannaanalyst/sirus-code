@@ -12,14 +12,19 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { selectListedSessions, useAppStore } from "@/store/app-store";
 import "@/styles/quick-switcher.css";
 
-type Group = { id: "needs" | "working" | "recent"; label: string; sessions: Session[] };
+type Group = { id: "needs" | "working" | "done"; label: string; sessions: Session[] };
 
+/** Sessions with an agent in flight (MonoCode's live agents). */
 const busy = (session: Session) => session.status === "running" || session.status === "starting";
 const needsYou = (session: Session) => session.status === "waiting" || Boolean(session.pendingRequests?.length);
+/** The panel opens only with two or more agents working, as in MonoCode (LIVE_AGENT_MIN). */
+export const LIVE_MIN = 2;
+/** Rows shown before "+N more" (MonoCode's LIVE_AGENT_CAP). */
+export const LIVE_CAP = 4;
 
 /**
- * ⌘J (ADR-093, after MonoCode): jump between conversations across projects. Sessions that
- * need you, then those working (each with what it is doing now), then recent ones; typing
+ * ⌘J (ADR-093, after MonoCode's live agents): the conversations with an agent working right
+ * now, those waiting for you first. It opens only when at least two are working; typing
  * filters, ↑↓ moves, Enter opens. Navigation only — replies happen in the conversation.
  */
 export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -39,18 +44,24 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
     const needle = query.trim().toLocaleLowerCase();
     const hidden = new Set(archived);
     const names = new Map(projects.map((project) => [project.id, project.name]));
-    const visible = sessions.filter((session) => !hidden.has(session.id) && (!needle || `${session.title} ${names.get(session.projectId) ?? ""}`.toLocaleLowerCase().includes(needle)));
-    const recent = (rows: Session[]) => [...rows].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
-    const needs = recent(visible.filter(needsYou));
-    const working = recent(visible.filter((session) => busy(session) && !needsYou(session)));
-    const rest = recent(visible.filter((session) => !busy(session) && !needsYou(session))).slice(0, needle ? 30 : 8);
+    const working = sessions.filter((session) => !hidden.has(session.id) && (busy(session) || needsYou(session)));
+    const matching = working.filter((session) => !needle || `${session.title} ${names.get(session.projectId) ?? ""}`.toLocaleLowerCase().includes(needle));
+    // Waiting for you first, then the rest in flight, oldest first (MonoCode's order).
+    const waiting = matching.filter(needsYou).sort((a, b) => a.lastActivityAt.localeCompare(b.lastActivityAt));
+    const running = matching.filter((session) => !needsYou(session)).sort((a, b) => a.lastActivityAt.localeCompare(b.lastActivityAt));
     return [
-      { id: "needs" as const, label: t("quickSwitch.needsYou"), sessions: needs },
-      { id: "working" as const, label: t("quickSwitch.working"), sessions: working },
-      { id: "recent" as const, label: t("quickSwitch.recent"), sessions: rest },
+      { id: "needs" as const, label: t("quickSwitch.needsYou"), sessions: waiting },
+      { id: "working" as const, label: t("quickSwitch.working"), sessions: running },
     ].filter((group) => group.sessions.length);
   }, [sessions, projects, archived, query, t]);
-  const flat = groups.flatMap((group) => group.sessions);
+  // Only the first LIVE_CAP rows show; "+N more" opens the rest in place.
+  const [expanded, setExpanded] = useState(false);
+  const total = groups.reduce((sum, group) => sum + group.sessions.length, 0);
+  const capped = expanded ? groups : (() => {
+    let left = LIVE_CAP;
+    return groups.map((group) => { const shown = group.sessions.slice(0, left); left -= shown.length; return { ...group, sessions: shown }; }).filter((group) => group.sessions.length);
+  })();
+  const flat = capped.flatMap((group) => group.sessions);
 
   // What a conversation is doing now: its running step, else the start of its last reply.
   const doing = (session: Session): string => {
@@ -94,7 +105,7 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
           <kbd>⌘J</kbd>
         </label>
         <div ref={list} className="quick-switch-list scroll-thin" role="listbox" aria-label={t("quickSwitch.title")}>
-          {groups.map((group) => <section key={group.id} aria-label={group.label}>
+          {capped.map((group) => <section key={group.id} aria-label={group.label}>
             <p className="quick-switch-group"><span className="quick-switch-dot" data-group={group.id} aria-hidden="true" />{group.label}<span>{group.sessions.length}</span></p>
             {group.sessions.map((session) => {
               index += 1;
@@ -109,6 +120,9 @@ export function QuickSwitcher({ open, onClose }: { open: boolean; onClose: () =>
               </button>;
             })}
           </section>)}
+          {total > LIVE_CAP ? <button type="button" className="quick-switch-more" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+            {expanded ? t("quickSwitch.less") : t("quickSwitch.more", { count: total - LIVE_CAP })}
+          </button> : null}
           {!flat.length ? <p className="quick-switch-empty">{t("quickSwitch.empty")}</p> : null}
         </div>
       </motion.div>

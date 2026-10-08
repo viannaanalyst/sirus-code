@@ -181,7 +181,8 @@ export default function App() {
     const onKey = createShortcutController(() => [
       { id: "palette", combo: "Meta+k", run: () => setPaletteOpen(true) },
       // ⌘J: jump between conversations across projects (ADR-093).
-      { id: "quick-switch", combo: "Meta+j", run: () => setQuickOpen((value) => !value) },
+      // Only with two or more agents working (MonoCode's live agents, ADR-093).
+      { id: "quick-switch", combo: "Meta+j", when: () => useAppStore.getState().sessions.filter((session) => ["running", "starting", "waiting"].includes(session.status)).length >= 2, run: () => setQuickOpen((value) => !value) },
       { id: "new-session", combo: "Meta+n", run: () => requestNewSession() },
       // ⌘T opens a new blank tab of the selected project, like a browser (fixed, not customizable).
       { id: "new-tab", combo: "Meta+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => requestNewSession() },
