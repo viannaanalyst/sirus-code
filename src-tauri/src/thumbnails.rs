@@ -141,57 +141,149 @@ pub fn migrate(data_path: &Path, messages: &mut [Message]) -> bool {
     changed
 }
 
-fn ids<'a>(sessions: impl IntoIterator<Item = &'a Session>) -> HashSet<&'a str> {
-    sessions
-        .into_iter()
-        .flat_map(|session| &session.messages)
+fn ids(messages: &[Message]) -> impl Iterator<Item = &str> {
+    messages
+        .iter()
         .flat_map(|message| &message.attachments)
         .filter(|attachment| attachment.has_thumbnail)
         .filter_map(|attachment| attachment.id.as_deref())
+}
+
+/// Where a scan finds which thumbnails a session shows, taken under the state lock:
+/// a loaded transcript's ids, or its file to read afterwards (ADR-099).
+enum Shown {
+    Ids(HashSet<String>),
+    File(std::sync::Arc<crate::transcript_store::Origin>),
+    Unknown,
+}
+
+fn shown(sessions: &[Session]) -> Vec<Shown> {
+    sessions
+        .iter()
+        .map(|session| match session.messages.loaded() {
+            Some(list) => Shown::Ids(ids(list).map(str::to_owned).collect()),
+            None if session.messages.failed() => Shown::Unknown,
+            None => session
+                .messages
+                .origin()
+                .map_or(Shown::Unknown, |origin| Shown::File(origin.clone())),
+        })
         .collect()
 }
 
-/// After sessions were deleted (and the state saved): removes their thumbnails that
-/// no remaining message shows.
-pub fn release(data_path: &Path, removed: &[Session], data: &AppData) {
-    let kept = ids(&data.sessions);
-    for id in ids(removed) {
-        if kept.contains(id) {
-            continue;
+/// Drops the candidates some session still shows. A file is checked for the id as
+/// literal text (never parsed): any mention keeps the thumbnail. `false` when a
+/// transcript could not be read, so nothing may be removed.
+fn drop_shown(candidates: &mut HashSet<String>, sessions: Vec<Shown>) -> bool {
+    for session in sessions {
+        if candidates.is_empty() {
+            break;
         }
-        for path in [file(data_path, id), small_file(data_path, id)]
-            .into_iter()
-            .flatten()
-        {
-            match fs::remove_file(path) {
-                Ok(()) => {}
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-                Err(error) => tracing::warn!(%error, "cannot remove a deleted thumbnail"),
+        match session {
+            Shown::Ids(ids) => candidates.retain(|id| !ids.contains(id)),
+            Shown::File(origin) => {
+                let Some(bytes) = crate::persist::read_raw(&origin) else {
+                    return false;
+                };
+                candidates.retain(|id| !crate::transcript_store::contains(&bytes, id.as_bytes()));
             }
+            Shown::Unknown => return false,
+        }
+    }
+    true
+}
+
+fn remove(data_path: &Path, id: &str) {
+    for path in [file(data_path, id), small_file(data_path, id)]
+        .into_iter()
+        .flatten()
+    {
+        match fs::remove_file(path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::warn!(%error, "cannot remove a deleted thumbnail"),
         }
     }
 }
 
-/// At load, with every transcript read: thumbnail files no message shows (sessions
-/// removed another way, or an interrupted write). Only our own names are touched.
-pub fn remove_orphans(data_path: &Path, data: &AppData) {
+/// Thumbnails the sessions being deleted show. Taken before the save that removes
+/// their transcript files: unloaded ones are read from disk.
+pub fn shown_by(removed: &[Session]) -> HashSet<String> {
+    removed
+        .iter()
+        .flat_map(|session| session.messages.snapshot().read().unwrap_or_default())
+        .flat_map(|message| message.attachments)
+        .filter(|attachment| attachment.has_thumbnail)
+        .filter_map(|attachment| attachment.id)
+        .collect()
+}
+
+/// After sessions were deleted (and the state saved): removes their thumbnails that
+/// no remaining message shows. Remaining transcripts on disk are scanned on another
+/// thread, without the state lock.
+pub fn release_later(data_path: &Path, candidates: HashSet<String>, data: &AppData) {
+    if candidates.is_empty() {
+        return;
+    }
+    let sessions = shown(&data.sessions);
+    let data_path = data_path.to_path_buf();
+    std::thread::spawn(move || release(&data_path, candidates, sessions));
+}
+
+fn release(data_path: &Path, mut candidates: HashSet<String>, sessions: Vec<Shown>) {
+    if drop_shown(&mut candidates, sessions) {
+        for id in &candidates {
+            remove(data_path, id);
+        }
+    }
+}
+
+/// After load: thumbnail files no message shows (sessions removed another way, or an
+/// interrupted write). Transcripts not loaded are read on another thread, so only
+/// files older than this call are candidates. Only our own names are touched.
+pub fn remove_orphans_later(data_path: &Path, data: &AppData) {
+    let sessions = shown(&data.sessions);
+    let data_path = data_path.to_path_buf();
+    let before = std::time::SystemTime::now();
+    std::thread::spawn(move || remove_orphans(&data_path, sessions, before));
+}
+
+fn remove_orphans(data_path: &Path, sessions: Vec<Shown>, before: std::time::SystemTime) {
     let Ok(entries) = fs::read_dir(dir(data_path)) else {
         return;
     };
-    let live = ids(&data.sessions);
+    let mut temporary = Vec::new();
+    let mut candidates = HashSet::new();
     for entry in entries.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|meta| meta.modified())
+            .is_ok_and(|modified| modified < before);
+        if !old || !entry.file_type().is_ok_and(|kind| kind.is_file()) {
+            continue;
+        }
         let name = entry.file_name().to_string_lossy().into_owned();
         let Some(id) = name
             .strip_suffix(".small.jpg.tmp")
             .or_else(|| name.strip_suffix(".small.jpg"))
             .or_else(|| name.strip_suffix(".jpg.tmp"))
             .or_else(|| name.strip_suffix(".jpg"))
+            .filter(|id| valid_id(id))
         else {
             continue;
         };
-        let orphan = name.ends_with(".tmp") || !live.contains(id);
-        if valid_id(id) && orphan && entry.file_type().is_ok_and(|kind| kind.is_file()) {
-            let _ = fs::remove_file(entry.path());
+        if name.ends_with(".tmp") {
+            temporary.push(entry.path());
+        } else {
+            candidates.insert(id.to_owned());
+        }
+    }
+    for path in temporary {
+        let _ = fs::remove_file(path);
+    }
+    if drop_shown(&mut candidates, sessions) {
+        for id in &candidates {
+            remove(data_path, id);
         }
     }
 }
@@ -309,20 +401,25 @@ mod tests {
                 .map(|t| serde_json::json!({"id":t,"name":"a.png","kind":"file","hasThumbnail":true}))
                 .collect::<Vec<_>>();
             let mut session: Session = serde_json::from_value(serde_json::json!({"id":id,"title":"T","projectId":"p","agent":"codex","status":"completed","createdAt":"t","lastActivityAt":"t","worktree":{"path":"/f","branch":"main","isolated":false},"lastError":null,"messages":[]})).unwrap();
-            session.messages = vec![message(serde_json::Value::Array(attachments))];
+            session.messages = vec![message(serde_json::Value::Array(attachments))].into();
             session
         };
         let data = AppData {
             sessions: vec![session("kept", &[&shared])],
             ..AppData::default()
         };
-        release(&path, &[session("gone", &[&shared, &own])], &data);
+        let candidates = shown_by(&[session("gone", &[&shared, &own])]);
+        release(&path, candidates, shown(&data.sessions));
         assert!(read(&path, &shared).is_some());
         assert!(read(&path, &own).is_none());
 
         store(&path, &own, b"y").unwrap();
         fs::write(dir(&path).join("notes.txt"), b"keep").unwrap();
-        remove_orphans(&path, &data);
+        // A file written after the scan started is never an orphan.
+        remove_orphans(&path, shown(&data.sessions), std::time::UNIX_EPOCH);
+        assert!(read(&path, &own).is_some());
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        remove_orphans(&path, shown(&data.sessions), later);
         assert!(read(&path, &shared).is_some());
         assert!(read(&path, &own).is_none());
         assert!(dir(&path).join("notes.txt").exists());

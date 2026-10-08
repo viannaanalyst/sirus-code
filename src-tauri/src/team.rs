@@ -372,7 +372,7 @@ pub fn settled(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
     let session_id = session_id.to_owned();
     tauri::async_runtime::spawn(async move {
         let starts = {
-            let mut data = state.data.lock();
+            let mut data = state.data_with_messages(&[&session_id]);
             let catalog = catalog(&state, &data);
             let mut starts = vec![];
             if let Some(session) = coordinator_mut(&mut data, &session_id) {

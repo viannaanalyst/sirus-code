@@ -237,8 +237,9 @@ pub fn execute(
                 .and_then(Value::as_u64)
                 .map(|limit| limit as usize)
                 .unwrap_or(READ_DEFAULT);
-            let data = state.data.lock();
-            Ok(read(&data, find(&data, &arg("sessionId"))?, limit))
+            let target = arg("sessionId");
+            let data = state.data_with_messages(&[&target]);
+            Ok(read(&data, find(&data, &target)?, limit))
         }
         "sirus_create_session" => {
             let prompt = arg("prompt");

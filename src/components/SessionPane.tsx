@@ -18,7 +18,10 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { motion } from "motion/react";
-import { Fragment, memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Fragment, memo, startTransition, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { flushSync } from "react-dom";
+import { FIRST_PAINT_TURNS, INITIAL_TURNS, LOAD_EARLIER_THRESHOLD, nextTurnCount, prependedScrollTop, turnStarts, turnsToReveal, windowStart } from "@/lib/turn-window";
+import { sameRowProps } from "@/lib/transcript-row";
 import { MessageTrail } from "@/components/MessageTrail";
 import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
@@ -125,13 +128,53 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const latestUserIndex = messages.reduce((last, message, index) => message.role === "user" ? index : last, -1);
   const latestUserId = messages[latestUserIndex]?.id;
   const [following, setFollowing] = useState(true);
+  // Only the last turns are mounted (after MonoCode): the latest few on first paint, then
+  // INITIAL_TURNS in a transition, and earlier pages on request. Each session starts over.
+  const sessionKey = session?.id ?? null;
+  const [turnWindow, setTurnWindow] = useState({ sessionId: sessionKey, turns: FIRST_PAINT_TURNS });
+  const shownTurns = turnWindow.sessionId === sessionKey ? turnWindow.turns : FIRST_PAINT_TURNS;
+  const starts = useMemo(() => turnStarts(messages), [messages]);
+  const start = Math.min(windowStart(starts, shownTurns), Math.max(0, latestUserIndex));
+  const hiddenTurns = Math.max(0, starts.length - shownTurns);
+  // Where the first mounted row sat (in scroll coordinates) before turns were added above it.
+  const prependAnchor = useRef<{ id: string; offset: number } | null>(null);
+  const loadingEarlier = useRef(false);
+  const live = useRef({ messages, starts, shownTurns, sessionKey, start });
+  live.current = { messages, starts, shownTurns, sessionKey, start };
+  const rememberFirstRow = useCallback(() => {
+    const viewport = transcript.current, first = live.current.messages[live.current.start];
+    const node = first && messageNodes.current.get(first.id);
+    if (!viewport || !node) return;
+    prependAnchor.current = { id: first.id, offset: node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop };
+  }, []);
+  /** Turns needed to mount `messageId`, or 0 when it is already mounted or unknown. */
+  const turnsFor = useCallback((messageId: string) => {
+    const { messages: all, starts: turns, shownTurns: shown } = live.current;
+    const needed = turnsToReveal(turns, all.findIndex((message) => message.id === messageId));
+    return needed > shown ? needed : 0;
+  }, []);
+  const loadEarlier = useCallback(() => {
+    const { starts: turns, shownTurns: shown, sessionKey: key } = live.current;
+    if (shown >= turns.length || loadingEarlier.current) return;
+    loadingEarlier.current = true;
+    rememberFirstRow();
+    setTurnWindow({ sessionId: key, turns: nextTurnCount(shown, turns.length) });
+  }, [rememberFirstRow]);
+  useEffect(() => {
+    // Interruptible, so switching away before it finishes costs nothing.
+    if (live.current.starts.length > live.current.shownTurns) rememberFirstRow();
+    startTransition(() => setTurnWindow((current) => ({ sessionId: sessionKey, turns: current.sessionId === sessionKey ? Math.max(current.turns, INITIAL_TURNS) : INITIAL_TURNS })));
+  }, [sessionKey, rememberFirstRow]);
   const navigateMessage = useCallback((messageId: string) => {
+    // A trail tick can point above the mounted turns: widen first, synchronously.
+    const needed = turnsFor(messageId);
+    if (needed) { rememberFirstRow(); flushSync(() => setTurnWindow({ sessionId: live.current.sessionKey, turns: needed })); }
     const node = messageNodes.current.get(messageId);
     if (!node) return;
     scrolling.current?.detach();
     if (transcript.current) scrollWithin(transcript.current, node, "start");
     node.focus({ preventScroll: true });
-  }, []);
+  }, [turnsFor, rememberFirstRow]);
   useLayoutEffect(() => {
     const viewport = transcript.current, content = transcriptContent.current, tail = latestTurn.current;
     if (!viewport || !content || !tail) return;
@@ -140,16 +183,35 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
     setFollowing(true);
     return () => { controller.dispose(); scrolling.current = null; };
   }, [session?.id, empty]);
-  useLayoutEffect(() => { scrolling.current?.update(latestUserId); }, [latestUserId, session?.messages]);
+  // Turns mounted above keep the reader's place: the former first row returns to where it was,
+  // before the follow/anchor logic runs, so the anchor it captured stays valid.
   useLayoutEffect(() => {
-    if (jump?.sessionId !== session?.id || !jump) return;
+    const anchor = prependAnchor.current, viewport = transcript.current;
+    prependAnchor.current = null;
+    loadingEarlier.current = false;
+    const node = anchor && messageNodes.current.get(anchor.id);
+    if (!anchor || !viewport || !node) return;
+    const offset = node.getBoundingClientRect().top - viewport.getBoundingClientRect().top + viewport.scrollTop;
+    const next = prependedScrollTop(viewport.scrollTop, anchor.offset, offset);
+    if (next !== viewport.scrollTop) viewport.scrollTop = next;
+  }, [start]);
+  useLayoutEffect(() => { scrolling.current?.update(latestUserId); }, [latestUserId, session?.messages, start]);
+  // A jump handled once is not replayed while the reader stays in the session.
+  const handledJump = useRef<typeof jump>(null);
+  useLayoutEffect(() => { handledJump.current = null; }, [session?.id]);
+  useLayoutEffect(() => {
+    if (jump?.sessionId !== session?.id || !jump || handledJump.current === jump) return;
+    // The target can sit above the mounted turns: widen, and this runs again once it is mounted.
+    const needed = turnsFor(jump.messageId);
+    if (needed) { setTurnWindow({ sessionId: jump.sessionId, turns: needed }); return; }
     const node = messageNodes.current.get(jump.messageId);
     if (!node) return;
+    handledJump.current = jump;
     scrolling.current?.detach();
     const hit = jump.searchStart === undefined ? null : node.querySelector<HTMLElement>(`[data-search-start="${jump.searchStart}"]`);
     if (transcript.current) scrollWithin(transcript.current, hit ?? node, "center");
     node.focus({ preventScroll: true });
-  }, [jump, session?.id]);
+  }, [jump, session?.id, shownTurns, starts, turnsFor]);
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
   const landing = empty && !passive && !astro;
@@ -187,7 +249,11 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                 tabIndex={0}
                 role="region"
                 aria-label={t("session.transcript")}
-                onScroll={() => scrolling.current?.scroll()}
+                onScroll={(event) => {
+                  scrolling.current?.scroll();
+                  // Reading up towards the first mounted turn brings in the page before it.
+                  if (hiddenTurns && !following && event.currentTarget.scrollTop < LOAD_EARLIER_THRESHOLD) loadEarlier();
+                }}
                 onWheel={(event) => scrolling.current?.interact(event.deltaY)}
                 onTouchMove={() => scrolling.current?.interact()}
                 onPointerDown={() => scrolling.current?.interact()}
@@ -199,13 +265,17 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                 transition={{ duration: motionTokens.fast, ease: motionTokens.ease }}
                 className="transcript-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-8 py-6 focus-visible:outline-none"
               >
+                {/* Outside the content: the scroll anchor treats the content's grandchildren as rows. */}
+                {hiddenTurns ? <div className="mx-auto mb-[var(--chat-message-gap)] flex w-full max-w-[var(--chat-column-width)] shrink-0 justify-center">
+                  <InteractiveButton variant="toolbar" onClick={loadEarlier}>{t("session.showEarlier")}</InteractiveButton>
+                </div> : null}
                 <div ref={transcriptContent} className="mx-auto flex w-full shrink-0 max-w-[var(--chat-column-width)] flex-col gap-[var(--chat-message-gap)]">
-                  {[messages.slice(0, Math.max(0, latestUserIndex)), messages.slice(Math.max(0, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
+                  {[messages.slice(start, Math.max(start, latestUserIndex)), messages.slice(Math.max(start, latestUserIndex))].map((group, groupIndex) => groupIndex === 0 && group.length === 0 ? null : <div key={groupIndex} ref={groupIndex === 1 ? latestTurn : undefined} className="flex shrink-0 flex-col gap-[var(--chat-message-gap)]" data-latest-turn={groupIndex === 1 || undefined}>
                   {group.map((message) => {
                     const change = providerChanges.get(message.id);
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
-                      <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} />
+                      <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} last={session.messages.at(-1)?.id === message.id} />
                       {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} />{emptyReply(message, session) ? <EmptyReplyNotice sessionId={session.id} /> : null}</> : null}
                     </Fragment>;
                   })}
@@ -268,21 +338,17 @@ function PassiveComposer({ session }: { session: Session | null }) {
   </button>;
 }
 
-/** Session fields a message row reads besides its own message. */
-function sameRowSession(a: Session, b: Session) {
-  return a.id === b.id && a.status === b.status && a.agent === b.agent && a.model === b.model && a.pinnedMessageIds === b.pinnedMessageIds && a.team === b.team;
-}
-
 /**
  * One transcript row. Memoized so a streamed chunk re-renders only the message
  * it changed, not every earlier message and its parsed code blocks.
  */
-const TranscriptMessage = memo(function TranscriptMessage({ message, session, searchQuery, nodes, compacted = false }: {
+const TranscriptMessage = memo(function TranscriptMessage({ message, session, searchQuery, nodes, compacted = false, last = false }: {
   message: Message;
   session: Session;
   searchQuery: string;
   nodes: RefObject<Map<string, HTMLElement>>;
   compacted?: boolean;
+  last?: boolean;
 }) {
   const t = useTranslation();
   const register = useCallback((node: HTMLElement | null) => {
@@ -347,7 +413,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
         }`}
       >
         {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
-          onResume={session.messages.at(-1)?.id === message.id ? (text) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } })) : undefined}
+          onResume={last ? (text) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } })) : undefined}
           renderText={(start, end) => renderBlocks(parseCached(replyContent.slice(start, end)), start)}
           renderSteer={(text) => <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
         : message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
@@ -381,7 +447,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       {message.role === "agent" && message.content.trim() && !message.streaming ? <MessageActions message={message} session={session} /> : null}
     </article>
   );
-}, (previous, next) => previous.message === next.message && previous.compacted === next.compacted && previous.searchQuery === next.searchQuery && previous.nodes === next.nodes && sameRowSession(previous.session, next.session));
+}, sameRowProps);
 
 /** The person's own text with its http(s) addresses as links, opened like those in replies. */
 function LinkedText({ text }: { text: string }) {

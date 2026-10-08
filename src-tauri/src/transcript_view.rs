@@ -21,14 +21,14 @@ use crate::models::{AppData, Message, MessageRole, Session};
 const MAX_SEARCH_QUERY: usize = 256;
 const MAX_CANDIDATES: usize = 400;
 const MAX_CANDIDATE_BYTES: usize = 8 * 1024 * 1024;
+/// Most recently active sessions a search reads (MonoCode's bound); older ones are
+/// skipped and the result says it is truncated.
+const MAX_SEARCHED_SESSIONS: usize = 400;
 
-/// User/assistant messages: what views treat as a started conversation.
+/// User/assistant messages: what views treat as a started conversation. Known
+/// without reading an unloaded transcript (ADR-099).
 fn conversation_length(session: &Session) -> usize {
-    session
-        .messages
-        .iter()
-        .filter(|message| message.role != MessageRole::System)
-        .count()
+    session.messages.conversation_len()
 }
 
 /// One session without its transcript. `messages` stays present and empty so the
@@ -79,10 +79,17 @@ pub fn current_turn(session: &Session) -> usize {
 /// transcript is not re-sent for every activity change. A renderer that holds
 /// fewer than `from` messages reloads the transcript instead of splicing.
 pub fn session_event(session: &Session, from: usize) -> Result<Value> {
-    let from = from.min(session.messages.len());
     let mut value = session_meta(session)?;
-    value["messages"] = serde_json::to_value(&session.messages[from..])?;
-    value["transcriptWindow"] = json!({ "from": from, "total": session.messages.len() });
+    let Some(messages) = session.messages.loaded() else {
+        // An unloaded (or unreadable) transcript did not change: the window is empty
+        // at its end, so a renderer keeps what it holds, or reloads when it holds less.
+        let total = session.messages.counts().messages;
+        value["transcriptWindow"] = json!({ "from": total, "total": total });
+        return Ok(value);
+    };
+    let from = from.min(messages.len());
+    value["messages"] = serde_json::to_value(&messages[from..])?;
+    value["transcriptWindow"] = json!({ "from": from, "total": messages.len() });
     Ok(value)
 }
 
@@ -263,6 +270,16 @@ pub fn emit_soon(app: &AppHandle, session_id: &str) {
 pub fn emit_from(app: &AppHandle, session: &Session, from: usize) {
     // This snapshot supersedes a deferred activity publication.
     SCHEDULED.lock().take(&session.id);
+    if session.messages.loaded().is_none() {
+        // A metadata change of a transcript that is not in memory (ADR-099).
+        match session_event(session, 0) {
+            Ok(value) => {
+                let _ = app.emit("session-updated", value);
+            }
+            Err(error) => tracing::error!(%error, "cannot publish a session update"),
+        }
+        return;
+    }
     let from = live_from(&mut SENT_TURNS.lock(), session, from);
     match session_event(session, from) {
         Ok(mut value) => {
@@ -330,14 +347,35 @@ pub fn load(data: &AppData, session_id: &str) -> Result<Response> {
         .iter()
         .find(|session| session.id == session_id)
         .ok_or_else(|| Error::not_found("session not found"))?;
+    let messages = session.messages.to_vec();
+    if session.messages.failed() {
+        // Never answer with an empty transcript the renderer would show as the conversation.
+        return Err(Error::new(
+            "persist",
+            "This conversation could not be read.",
+        ));
+    }
     Ok(Response::Transcript {
         session_id: session.id.clone(),
-        messages: session.messages.clone(),
+        messages,
     })
 }
 
-/// Runs on a cloned snapshot so a long scan never holds the state lock.
-pub fn search(sessions: &[Session], projects: &HashSet<String>, query: &str) -> Result<Response> {
+/// One session as a search reads it, taken under the lock: loaded transcripts are
+/// copied, unloaded ones are read from their files during the scan (ADR-099).
+pub struct Searched {
+    session_id: String,
+    project_id: String,
+    transcript: crate::transcript_store::Snapshot,
+}
+
+/// What [`search_snapshot`] takes under the lock: sessions, owned project ids and
+/// whether older sessions were left out.
+pub type SearchSnapshot = (Vec<Searched>, HashSet<String>, bool);
+
+/// Runs on a snapshot so a long scan never holds the state lock. Unloaded
+/// transcripts are read one at a time and dropped after their matches are copied.
+pub fn search((sessions, projects, skipped): SearchSnapshot, query: &str) -> Result<Response> {
     let needle = query.trim();
     if needle.is_empty() || needle.chars().count() > MAX_SEARCH_QUERY {
         return Err(Error::new(
@@ -346,40 +384,40 @@ pub fn search(sessions: &[Session], projects: &HashSet<String>, query: &str) -> 
         ));
     }
     let needle = needle.to_lowercase();
-    let (mut found, mut bytes, mut truncated) = (Vec::<CandidateSession>::new(), 0usize, false);
+    let (mut found, mut bytes, mut truncated) = (Vec::<CandidateSession>::new(), 0usize, skipped);
+    let mut count = 0usize;
     'sessions: for session in sessions
-        .iter()
+        .into_iter()
         .filter(|session| projects.contains(&session.project_id))
     {
+        let Some(transcript) = session.transcript.read() else {
+            continue;
+        };
         let mut messages = Vec::new();
-        for message in &session.messages {
+        for message in transcript {
             if message.role == MessageRole::System
-                || message.session_id != session.id
+                || message.session_id != session.session_id
                 || !message.content.to_lowercase().contains(&needle)
             {
                 continue;
             }
-            let count = found
-                .iter()
-                .map(|entry| entry.messages.len())
-                .sum::<usize>()
-                + messages.len();
             if count >= MAX_CANDIDATES || bytes + message.content.len() > MAX_CANDIDATE_BYTES {
                 truncated = true;
                 if !messages.is_empty() {
                     found.push(CandidateSession {
-                        session_id: session.id.clone(),
+                        session_id: session.session_id,
                         messages,
                     });
                 }
                 break 'sessions;
             }
             bytes += message.content.len();
-            messages.push(message.clone());
+            count += 1;
+            messages.push(message);
         }
         if !messages.is_empty() {
             found.push(CandidateSession {
-                session_id: session.id.clone(),
+                session_id: session.session_id,
                 messages,
             });
         }
@@ -390,18 +428,34 @@ pub fn search(sessions: &[Session], projects: &HashSet<String>, query: &str) -> 
     })
 }
 
-/// Clones what a search needs under the lock; the scan runs after release.
-pub fn search_snapshot(data: &AppData) -> (Vec<Session>, HashSet<String>) {
+/// Takes what a search needs under the lock (no file reads); the scan runs after
+/// release. At most [`MAX_SEARCHED_SESSIONS`], the most recently active, in state order.
+pub fn search_snapshot(data: &AppData) -> SearchSnapshot {
+    // Side chats are hidden from session lists, so search does not open them.
+    let mut owned = owned(data)
+        .filter(|session| session.side_chat.is_none())
+        .enumerate()
+        .collect::<Vec<_>>();
+    let skipped = owned.len() > MAX_SEARCHED_SESSIONS;
+    if skipped {
+        owned.sort_by(|a, b| b.1.last_activity_at.cmp(&a.1.last_activity_at));
+        owned.truncate(MAX_SEARCHED_SESSIONS);
+        owned.sort_by_key(|(index, _)| *index);
+    }
     (
-        // Side chats are hidden from session lists, so search does not open them.
-        owned(data)
-            .filter(|session| session.side_chat.is_none())
-            .cloned()
+        owned
+            .into_iter()
+            .map(|(_, session)| Searched {
+                session_id: session.id.clone(),
+                project_id: session.project_id.clone(),
+                transcript: session.messages.snapshot(),
+            })
             .collect(),
         data.projects
             .iter()
             .map(|project| project.id.clone())
             .collect(),
+        skipped,
     )
 }
 
@@ -585,11 +639,11 @@ mod tests {
     #[test]
     fn search_returns_bounded_owned_literal_candidates() {
         let data = data();
-        let (sessions, projects) = search_snapshot(&data);
+        assert!(!search_snapshot(&data).2);
         let Response::Candidates {
             sessions: found,
             truncated,
-        } = search(&sessions, &projects, "  RATE ").unwrap()
+        } = search(search_snapshot(&data), "  RATE ").unwrap()
         else {
             panic!()
         };
@@ -604,11 +658,63 @@ mod tests {
             ["a0", "a1", "a2"],
             "system text is excluded"
         );
-        assert!(search(&sessions, &projects, "   ").is_err());
-        assert!(search(&sessions, &projects, &"x".repeat(257)).is_err());
+        let again = || search_snapshot(&data);
+        assert!(search(again(), "   ").is_err());
+        assert!(search(again(), &"x".repeat(257)).is_err());
         assert!(
-            matches!(search(&sessions, &projects, ".*"), Ok(Response::Candidates { sessions, .. }) if sessions.is_empty())
+            matches!(search(again(), ".*"), Ok(Response::Candidates { sessions, .. }) if sessions.is_empty())
         );
+    }
+
+    #[test]
+    fn search_reads_unloaded_transcripts_from_disk_without_keeping_them() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        crate::persist::save(&path, &data()).unwrap();
+        let loaded = crate::persist::load_or_create(&path).unwrap();
+        assert!(!loaded.sessions[0].messages.is_loaded());
+        let Response::Candidates { sessions, .. } =
+            search(search_snapshot(&loaded), "rate").unwrap()
+        else {
+            panic!()
+        };
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].messages.len(), 3);
+        assert!(
+            !loaded.sessions[0].messages.is_loaded(),
+            "the scan does not keep it"
+        );
+        // Unloaded sessions publish metadata with an empty window at their end.
+        let event = session_event(&loaded.sessions[0], 0).unwrap();
+        assert_eq!(event["transcriptWindow"], json!({"from": 4, "total": 4}));
+        assert_eq!(event["transcriptLength"], json!(3));
+        assert!(!loaded.sessions[0].messages.is_loaded());
+    }
+
+    #[test]
+    fn search_reads_at_most_the_most_recent_sessions() {
+        let mut data = data();
+        let template = data.sessions[0].clone();
+        data.sessions = (0..=MAX_SEARCHED_SESSIONS)
+            .map(|index| {
+                let mut session = template.clone();
+                session.id = format!("s{index}");
+                session.last_activity_at = format!("2026-01-01T00:00:{:06}Z", index);
+                for message in &mut session.messages {
+                    message.session_id = session.id.clone();
+                }
+                session
+            })
+            .collect();
+        let (sessions, _, skipped) = search_snapshot(&data);
+        assert!(skipped);
+        assert_eq!(sessions.len(), MAX_SEARCHED_SESSIONS);
+        assert_eq!(sessions[0].session_id, "s1", "the oldest is left out");
+        let Response::Candidates { truncated, .. } = search(search_snapshot(&data), "zzz").unwrap()
+        else {
+            panic!()
+        };
+        assert!(truncated);
     }
 
     #[test]

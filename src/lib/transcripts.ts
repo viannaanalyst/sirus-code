@@ -6,6 +6,11 @@ import { reuseMessages } from "@/lib/agent-events";
  * selected, active, queued and explicitly retained sessions always stay loaded.
  */
 export const TRANSCRIPT_CACHE = 8;
+/**
+ * Estimated bytes the recent (not in use) transcripts may hold together, after
+ * MonoCode's session cache: a few huge transcripts release the older ones early.
+ */
+export const TRANSCRIPT_BUDGET = 32 * 1024 * 1024;
 
 const ACTIVE: SessionStatus[] = ["starting", "running", "waiting"];
 
@@ -52,7 +57,41 @@ export function keepSentOutputs(held: Message[], incoming: Message[]): Message[]
   });
 }
 
-/** Loaded transcripts to keep; the others are released from memory. */
+const messageSizes = new WeakMap<Message, number>();
+const length = (text: string | null | undefined) => text ? text.length * 2 : 0;
+/**
+ * Rough bytes a message holds (UTF-16 text of its content, activity details,
+ * outputs, review diffs, steers and attachments), cached per message object:
+ * unchanged messages keep their identity across updates, so only new ones are counted.
+ */
+export function estimateMessageBytes(message: Message): number {
+  let size = messageSizes.get(message);
+  if (size !== undefined) return size;
+  size = 64 + length(message.content);
+  for (const item of message.activity?.items ?? []) {
+    size += 48 + length(item.label) + length(item.detail) + length(item.output);
+    for (const step of item.steps ?? []) size += 32 + length(step.label);
+  }
+  for (const file of message.activity?.review?.files ?? []) size += 48 + length(file.path) + length(file.diff);
+  for (const steer of message.steers ?? []) size += 32 + length(steer.text);
+  for (const file of message.attachments ?? []) size += 48 + length(file.name) + length(file.thumbnail);
+  messageSizes.set(message, size);
+  return size;
+}
+
+/** Rough bytes a loaded transcript holds; cheap after the first call per message. */
+export function estimateTranscriptBytes(messages: Message[]): number {
+  let size = 0;
+  for (const message of messages) size += estimateMessageBytes(message);
+  return size;
+}
+
+/**
+ * Loaded transcripts to keep; the others are released from memory. The selected,
+ * active, queued and retained ones always stay. Of the `limit` most recently
+ * opened, the others stay while everything kept fits `budget` estimated bytes
+ * (newest first; one that alone would exceed it is never kept).
+ */
 export function transcriptsToKeep(input: {
   loaded: Record<string, number>;
   sessions: Session[];
@@ -60,12 +99,26 @@ export function transcriptsToKeep(input: {
   queued: Iterable<string>;
   retained: Iterable<string>;
   limit?: number;
+  budget?: number;
 }): Set<string> {
   const keep = new Set<string>([...input.queued, ...input.retained]);
   if (input.selectedSessionId) keep.add(input.selectedSessionId);
   for (const session of input.sessions) if (ACTIVE.includes(session.status)) keep.add(session.id);
-  const recent = Object.entries(input.loaded).sort((a, b) => b[1] - a[1]).slice(0, input.limit ?? TRANSCRIPT_CACHE);
-  for (const [id] of recent) keep.add(id);
+  const byId = new Map(input.sessions.map((session) => [session.id, session]));
+  const budget = input.budget ?? TRANSCRIPT_BUDGET;
+  let used = 0;
+  for (const id of keep) if (input.loaded[id] !== undefined) used += estimateTranscriptBytes(byId.get(id)?.messages ?? []);
+  let room = input.limit ?? TRANSCRIPT_CACHE;
+  // As before the budget, in-use transcripts among the most recent take their place in `limit`.
+  for (const [id] of Object.entries(input.loaded).sort((a, b) => b[1] - a[1])) {
+    if (room <= 0) break;
+    room -= 1;
+    if (keep.has(id)) continue;
+    const size = estimateTranscriptBytes(byId.get(id)?.messages ?? []);
+    if (used + size > budget) continue;
+    used += size;
+    keep.add(id);
+  }
   return keep;
 }
 

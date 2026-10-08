@@ -399,6 +399,16 @@ Baseline earlier this month was a WebContent of ~118 MB.
 - Compare a release build without the inspector.
 - Run `sudo footprint --unmapped` on a grown WebContent.
 
+## MonoCode comparison, front end (2026-10-08)
+
+Three renderer patterns from MonoCode (`AgentTranscript.tsx`, `sessionCache.ts`) that Sirus lacked.
+
+- **Only the last turns are mounted.** `SessionPane` mounted every message of a loaded transcript; `content-visibility` skipped painting old rows but not building them (markdown, code blocks, activity). Now a turn window (`src/lib/turn-window.ts`) mounts the last 3 turns on first paint and grows to 20 in a `startTransition`. "Show earlier messages" above the transcript, or scrolling up within 400 px of the top while not following, adds 20 more. The first mounted row is measured before and after, and the scroll position moves by the difference before the follow/anchor logic of `transcript-scroll.ts` runs, so its captured anchor stays valid. The button sits outside the content element, because the anchor treats the content's grandchildren as rows. Store jumps (search hits, pins, fork origins) widen the window and run once the target is mounted; trail clicks widen synchronously (`flushSync`). The message trail still lists every request. Each session opens with the default window. Rows inside the window keep `content-visibility`. Covered in `tests/turn-window.test.ts` and `scripts/verify-message-trail.mjs`.
+- **Rows skip streamed frames by what they read.** The store builds a new session object per flushed frame, and native events rebuild its nested objects. The row's `memo` compare already ignored session identity, but checked `team` by identity (new on every native event) and missed fields its children read (`worktree.path`, `astro`, `sideChat`, `execution.approval`, the last message). `sameRowProps` (`src/lib/transcript-row.ts`) compares those as values, compares the whole team only on the coordinator's row, and the row gets `last` instead of reading `session.messages`. Covered in `tests/transcript-row.test.ts`.
+- **A byte budget for kept transcripts.** Besides the 8 most recent, kept transcripts are capped at an estimated 32 MB together (`TRANSCRIPT_BUDGET`). The estimate counts UTF-16 text of contents, activity labels, details and outputs, review diffs, steers and attachments, cached per message object in a `WeakMap`. The selected, active, queued and retained transcripts are never released and count first; recent ones are added newest first while they fit, and one that alone exceeds the room left is skipped. Memory pressure still keeps only those in use. Covered in `tests/transcripts.test.ts`.
+
+**Not measured** in the running app (no build or launch in this pass).
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.

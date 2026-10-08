@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hasConversation, keepSentOutputs, mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "../src/lib/transcripts.ts";
+import { estimateMessageBytes, estimateTranscriptBytes, hasConversation, keepSentOutputs, mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "../src/lib/transcripts.ts";
 import type { Message, Session } from "../src/client/types.ts";
 
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, sessionId: "s", role, content, createdAt: "t", streaming: false });
@@ -49,6 +49,34 @@ test("the cache keeps selected, active, queued, retained and the most recent tra
   // Under memory pressure (limit 0) only transcripts in use stay.
   const pressed = transcriptsToKeep({ loaded: { a: 1, b: 2, e: 5 }, sessions: sessions.map(item => ({ ...item, status: "completed" })), selectedSessionId: "a", queued: [], retained: [], limit: 0 });
   assert.deepEqual([...pressed], ["a"]);
+});
+
+test("the size estimate counts text, activity outputs and diffs, cached per message", () => {
+  const plain = message("a", "agent", "x".repeat(1000));
+  assert.equal(estimateMessageBytes(plain), 64 + 2000);
+  const busy: Message = { ...plain, activity: { provider: "codex", model: null, startedAt: 0, endedAt: 1, waitingSince: null, pausedMs: 0, status: "completed", truncated: false,
+    items: [{ id: "c", kind: "command", label: "ls", state: "completed", model: null, detail: "ls -la", output: "y".repeat(5000) }],
+    review: { files: [{ path: "a.ts", kind: "modified", additions: 1, deletions: 0, binary: false, diff: "z".repeat(3000) }], partial: false, sharedWorkspace: false, keptAt: null, expired: false } } } as Message;
+  assert.ok(estimateMessageBytes(busy) > 2 * (1000 + 5000 + 3000));
+  assert.equal(estimateTranscriptBytes([plain, busy]), estimateMessageBytes(plain) + estimateMessageBytes(busy));
+  // Cached by identity: the same object is not walked again.
+  assert.equal(estimateMessageBytes(plain), estimateMessageBytes(plain));
+});
+
+test("recent transcripts stay within the byte budget, newest first, never the in-use ones evicted", () => {
+  const big = (id: string, chars: number) => session([message(`${id}-m`, "agent", "x".repeat(chars))], { id });
+  // Each about 1 000 bytes (500 UTF-16 chars) plus overhead.
+  const sessions = [big("a", 500), big("b", 500), big("c", 500), big("d", 500), big("huge", 5000)];
+  const loaded = { a: 1, b: 2, c: 3, d: 4, huge: 5 };
+  const base = { loaded, sessions, queued: [], retained: [], limit: 8 };
+  // Room for two recent ones: the over-budget one is skipped, the next newest stay, the oldest goes.
+  const keep = transcriptsToKeep({ ...base, selectedSessionId: null, budget: 2200 });
+  assert.deepEqual([...keep].sort(), ["c", "d"]);
+  // The selected transcript always stays, even over budget, and its bytes count first.
+  const selected = transcriptsToKeep({ ...base, selectedSessionId: "huge", budget: 2200 });
+  assert.deepEqual([...selected].sort(), ["huge"]);
+  // A large enough budget keeps the count limit as before.
+  assert.deepEqual([...transcriptsToKeep({ ...base, selectedSessionId: null, limit: 2 })].sort(), ["d", "huge"]);
 });
 
 test("a loaded snapshot never drops text that already streamed past it", () => {

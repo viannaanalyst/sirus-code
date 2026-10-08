@@ -54,7 +54,7 @@ pub async fn undo_turn_changes(
         Ok(outcome)
     })
     .await?;
-    let data = state.data.lock();
+    let data = state.data_with_messages(&[&session_id]);
     if let Some(session) = data.sessions.iter().find(|s| s.id == session_id) {
         let from = session
             .messages
@@ -69,7 +69,7 @@ pub async fn undo_turn_changes(
 /// The owned, idle session's workspace and the requested files of a settled turn
 /// that are not undone yet.
 fn plan(state: &AppState, request: &UndoRequest) -> Result<(PathBuf, Vec<ReviewFile>)> {
-    let data = state.data.lock();
+    let data = state.data_with_messages(&[&request.session_id]);
     state.ensure_running()?;
     let session = data
         .sessions
@@ -202,7 +202,7 @@ fn record(state: &AppState, request: &UndoRequest, undone: &[String]) -> Result<
     if undone.is_empty() {
         return Ok(());
     }
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[&request.session_id]);
     let now = crate::paths::now_rfc3339();
     if let Some(review) = data
         .sessions

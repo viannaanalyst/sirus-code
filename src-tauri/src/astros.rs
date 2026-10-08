@@ -601,7 +601,7 @@ pub fn settled(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
     let session_id = session_id.to_owned();
     tauri::async_runtime::spawn(async move {
         let posted = {
-            let mut data = state.data.lock();
+            let mut data = state.data_with_messages(&[&session_id]);
             post_report(&mut data, &session_id)
         };
         if let Some(conversation) = posted {
@@ -1110,7 +1110,7 @@ fn session_tool(
             Ok(json!({ "sessions": rows }))
         }
         "astro_session_read" => {
-            let data = state.data.lock();
+            let data = state.data_with_messages(&[&arg("sessionId")]);
             let session = owned(&data, &arg("sessionId"))?;
             let answer = session
                 .messages

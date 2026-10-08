@@ -76,6 +76,7 @@ mod team;
 mod text_search;
 mod thumbnails;
 mod transcript;
+mod transcript_store;
 mod transcript_view;
 mod turn_review;
 mod turn_undo;

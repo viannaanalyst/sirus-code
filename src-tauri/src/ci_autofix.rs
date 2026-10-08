@@ -573,7 +573,7 @@ enum Outcome {
 
 async fn finish(app: &AppHandle, state: &Arc<AppState>, session_id: &str) -> Result<()> {
     let (status, files, number, checks) = {
-        let data = state.data.lock();
+        let data = state.data_with_messages(&[session_id]);
         let session = data
             .sessions
             .iter()

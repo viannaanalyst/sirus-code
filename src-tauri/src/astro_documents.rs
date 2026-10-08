@@ -130,11 +130,15 @@ fn delete(app: &AppHandle, state: &AppState, id: &str) -> Result<()> {
     }
     std::fs::remove_file(&target)
         .map_err(|_| Error::new("io", "Could not delete the document."))?;
-    // Its cards leave every reply, so a later save cannot bring them back.
+    // Its cards leave every reply, so a later save cannot bring them back. Only
+    // transcripts that mention it are loaded (read without the lock, ADR-099).
+    let mentioning = crate::transcript_store::sessions_mentioning(&state.data, id);
     let changed: Vec<(crate::models::Session, usize)> = {
-        let mut data = state.data.lock();
+        let mut data =
+            state.data_with_messages(&mentioning.iter().map(String::as_str).collect::<Vec<_>>());
         data.sessions
             .iter_mut()
+            .filter(|session| mentioning.contains(&session.id))
             .filter_map(|session| {
                 let first = session
                     .messages
@@ -176,8 +180,7 @@ fn clean_title(title: &str) -> std::result::Result<String, String> {
 /// The caller's reply in progress: the last agent message of its conversation.
 fn reply_documents(state: &AppState, session_id: &str) -> Vec<String> {
     state
-        .data
-        .lock()
+        .data_with_messages(&[session_id])
         .sessions
         .iter()
         .find(|session| session.id == session_id)
@@ -194,7 +197,7 @@ fn reply_documents(state: &AppState, session_id: &str) -> Vec<String> {
 
 fn attach(app: &AppHandle, state: &AppState, session_id: &str, id: &str) {
     let snapshot = {
-        let mut data = state.data.lock();
+        let mut data = state.data_with_messages(&[session_id]);
         let Some(session) = data.sessions.iter_mut().find(|item| item.id == session_id) else {
             return;
         };

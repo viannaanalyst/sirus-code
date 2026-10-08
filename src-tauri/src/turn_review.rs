@@ -594,7 +594,7 @@ pub async fn keep_turn_changes(
     let kept = message_id.clone();
     let review =
         crate::commands::native_task(move || keep_native(&worker_state, &owner, &kept)).await?;
-    let data = state.data.lock();
+    let data = state.data_with_messages(&[&session_id]);
     if let Some(session) = data.sessions.iter().find(|s| s.id == session_id) {
         // The acknowledged message may be older than the current turn.
         let from = session
@@ -607,7 +607,7 @@ pub async fn keep_turn_changes(
     Ok(review)
 }
 fn keep_native(state: &AppState, session_id: &str, message_id: &str) -> Result<TurnReview> {
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[session_id]);
     state.ensure_running()?;
     let session = data
         .sessions

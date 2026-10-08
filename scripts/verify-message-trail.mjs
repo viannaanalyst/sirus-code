@@ -36,5 +36,21 @@ try {
   finally { if (originalDocument === undefined) delete globalThis.document; else globalThis.document = originalDocument; }
   assert.ok(pane.includes('data-message-id="first"') && pane.includes('data-message-id="reply"'));
   assert.ok(pane.includes("transcript-shell") && pane.includes("message-trail"));
-  console.log("Message trail: real transcript integration, localized/escaped requests and one keyboard Tab stop verified.");
+  assert.ok(!pane.includes("Show earlier messages"), "a short conversation is mounted whole");
+  // A long conversation mounts only its last turns on first paint; the trail still lists every request.
+  const long = Array.from({ length: 25 }, (_, turn) => [
+    { id: `u${turn}`, sessionId: "s", role: "user", content: `Pedido ${turn}`, createdAt: "2026-10-02T12:00:00Z", streaming: false },
+    { id: `a${turn}`, sessionId: "s", role: "agent", content: `Resposta ${turn}`, createdAt: "2026-10-02T12:00:00Z", streaming: false },
+  ]).flat();
+  Object.assign(useAppStore.getInitialState(), { sessions: [{ ...session, messages: long }] });
+  globalThis.document = { hidden: false };
+  try { for (const locale of ["en", "pt-BR"]) {
+    useAppStore.getInitialState().settings = { ...useAppStore.getInitialState().settings, locale };
+    const windowed = renderToString(createElement(SessionPane, { agents: [], onSend: async () => false, onStop: () => {}, onNewSession: () => {} }));
+    assert.equal((windowed.match(/data-message-id=/g) ?? []).length, 6, "the first paint mounts the last three turns");
+    assert.ok(windowed.includes('data-message-id="u22"') && !windowed.includes('data-message-id="u21"'));
+    assert.equal((windowed.match(/data-trail-message=/g) ?? []).length, 25, "the trail lists unmounted requests too");
+    assert.ok(windowed.includes(locale === "pt-BR" ? "Mostrar mensagens anteriores" : "Show earlier messages"));
+  } } finally { if (originalDocument === undefined) delete globalThis.document; else globalThis.document = originalDocument; }
+  console.log("Message trail: real transcript integration, turn window with every request on the trail, localized/escaped requests and one keyboard Tab stop verified.");
 } finally { await server.close(); }

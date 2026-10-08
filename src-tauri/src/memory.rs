@@ -3,7 +3,7 @@
 //! WebKit already trims its own caches when macOS reports memory pressure. The
 //! renderer's caches (loaded transcripts beyond the open ones, parsed text) are
 //! app data it can reload, so the app forwards the notification and the renderer
-//! drops them.
+//! drops them; the native side releases its saved, idle transcripts (ADR-099).
 //!
 //! Freed native memory: the macOS allocator keeps freed large blocks in its large
 //! cache, and `malloc_zone_pressure_relief` returned nothing for them when tried
@@ -23,6 +23,12 @@ pub fn watch_pressure(app: &AppHandle) {
     let installed = on_pressure(move || {
         tracing::info!("system memory pressure: asking the renderer to drop caches");
         let _ = app.emit(PRESSURE_EVENT, ());
+        // Native transcripts that are saved and idle go too (ADR-099).
+        use tauri::Manager;
+        if let Some(state) = app.try_state::<std::sync::Arc<crate::commands::AppState>>() {
+            let mut data = state.data.lock();
+            crate::transcript_store::evict_to(&mut data, &state.data_path, &[], 0);
+        }
     });
     if !installed {
         tracing::warn!("cannot watch memory pressure");

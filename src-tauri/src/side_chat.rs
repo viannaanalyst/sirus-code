@@ -90,7 +90,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
         last_activity_at: now,
         // The parent's workspace, never a copy: answers describe the real files.
         worktree: source.worktree.clone(),
-        messages: vec![],
+        messages: Default::default(),
         last_error: None,
         model: source.model.clone(),
         native_thread: None,
@@ -264,7 +264,7 @@ mod tests {
             "lastError": null
         }))
         .unwrap();
-        session.messages = messages;
+        session.messages = messages.into();
         session.status = status;
         session
     }

@@ -349,9 +349,10 @@ pub struct Session {
     pub created_at: String,
     pub last_activity_at: String,
     pub worktree: Worktree,
-    /// Each transcript has its own file and loader (ADR-047); memory keeps it inline.
+    /// Each transcript has its own file and loader (ADR-047); memory keeps only
+    /// loaded ones (ADR-099), and an unloaded one is read when it is used.
     #[serde(default, skip_serializing_if = "crate::persist::omit_transcripts")]
-    pub messages: Vec<Message>,
+    pub messages: crate::transcript_store::Messages,
     pub last_error: Option<String>,
     #[serde(default)]
     pub model: Option<String>,

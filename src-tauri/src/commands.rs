@@ -79,15 +79,32 @@ impl AppState {
             }
             session.pending_requests.clear();
             // A stream can fail before its process monitor publishes finality.
-            for message in &mut session.messages {
-                message.streaming = false;
+            // Unloaded transcripts are settled on disk and stay unread.
+            if session
+                .messages
+                .loaded()
+                .is_some_and(|list| list.iter().any(|message| message.streaming))
+            {
+                for message in &mut session.messages {
+                    message.streaming = false;
+                }
             }
         }
         persist::save(&self.data_path, &data)
     }
 
+    /// Saves, then releases transcripts that are no longer needed in memory (ADR-099).
     pub fn persist(&self) -> Result<()> {
-        persist::save(&self.data_path, &self.data.lock())
+        let mut data = self.data.lock();
+        persist::save(&self.data_path, &data)?;
+        crate::transcript_store::evict(&mut data, &self.data_path, &[]);
+        Ok(())
+    }
+
+    /// Locks the state with these sessions' transcripts loaded; unloaded ones are
+    /// read from disk before the lock is taken (ADR-099).
+    pub fn data_with_messages(&self, ids: &[&str]) -> parking_lot::MutexGuard<'_, AppData> {
+        crate::transcript_store::lock_loaded(&self.data, &self.data_path, ids)
     }
 }
 
@@ -138,10 +155,12 @@ pub async fn transcript_action(
     use crate::transcript_view::{self as view, Action};
     let state = state.inner().clone();
     native_task(move || match action {
-        Action::Load { session_id } => view::load(&state.data.lock(), &session_id),
+        Action::Load { session_id } => {
+            view::load(&state.data_with_messages(&[&session_id]), &session_id)
+        }
         Action::Search { query } => {
-            let (sessions, projects) = view::search_snapshot(&state.data.lock());
-            view::search(&sessions, &projects, &query)
+            let snapshot = view::search_snapshot(&state.data.lock());
+            view::search(snapshot, &query)
         }
     })
     .await
@@ -344,10 +363,12 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     crate::sidebar::prune(&mut data);
     state.attachments.prune(&data);
     drop(data);
+    // Read before the save removes their transcript files.
+    let thumbnails = crate::thumbnails::shown_by(&removed);
     // Shell cleanup scans processes and waits; keep it outside the data lock.
     let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
-    crate::thumbnails::release(&state.data_path, &removed, &state.data.lock());
+    crate::thumbnails::release_later(&state.data_path, thumbnails, &state.data.lock());
     killed
 }
 
@@ -1054,7 +1075,7 @@ pub(crate) fn create_session_locked(
         created_at: now.clone(),
         last_activity_at: now,
         worktree,
-        messages: vec![],
+        messages: Default::default(),
         last_error: None,
         model: request.model.clone(),
         native_thread: None,
@@ -1083,7 +1104,7 @@ pub async fn fork_session(
 }
 
 fn fork_session_native(state: &AppState, session_id: &str, message_id: &str) -> Result<Session> {
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[session_id]);
     state.ensure_running()?;
     let source = data
         .sessions
@@ -1198,7 +1219,7 @@ fn handoff_session_native(
     } else {
         None
     };
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[session_id]);
     state.ensure_running()?;
     let source = data
         .sessions
@@ -1457,10 +1478,12 @@ pub(crate) fn delete_session_native(
     crate::sidebar::prune(&mut data);
     state.attachments.prune(&data);
     drop(data);
+    // Read before the save removes their transcript files.
+    let thumbnails = crate::thumbnails::shown_by(&removed);
     // Shell cleanup scans processes and waits; keep it outside the data lock.
     let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
-    crate::thumbnails::release(&state.data_path, &removed, &state.data.lock());
+    crate::thumbnails::release_later(&state.data_path, thumbnails, &state.data.lock());
     killed
 }
 
@@ -1474,7 +1497,7 @@ pub async fn retry_last_turn(
     session_id: String,
 ) -> Result<serde_json::Value> {
     let request = {
-        let data = state.data.lock();
+        let data = state.data_with_messages(&[&session_id]);
         let session = data
             .sessions
             .iter()
@@ -1558,8 +1581,22 @@ pub async fn send_prompt(
         None
     };
 
+    // The turn reads this transcript, and a side chat's also its main session's.
+    let parent = state
+        .data
+        .lock()
+        .sessions
+        .iter()
+        .find(|session| session.id == request.session_id)
+        .and_then(|session| session.side_chat.as_ref())
+        .map(|origin| origin.parent_session_id.clone());
     let (session_snapshot, cwd, provider, model, overrides, process_prompt, attachments) = {
-        let mut data = state.data.lock();
+        let mut data = state.data_with_messages(
+            &[Some(request.session_id.as_str()), parent.as_deref()]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+        );
         state.ensure_running()?;
         let snapshot = data
             .sessions
@@ -2076,7 +2113,7 @@ pub async fn steer_turn(
         .await
         .map_err(|_| Error::agent("The provider did not take the instruction in time."))?
         .map_err(|_| Error::agent("The reply ended before taking the instruction."))??;
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[&session_id]);
     let still_running = state
         .agents
         .lock()
@@ -2147,7 +2184,7 @@ pub async fn stop_agent(
     state: State<'_, Arc<AppState>>,
     session_id: String,
 ) -> Result<()> {
-    let mut data = state.data.lock();
+    let mut data = state.data_with_messages(&[&session_id]);
     if let Some(process) = state.agents.lock().get(&session_id) {
         process.interrupt()?;
     }
