@@ -81,7 +81,7 @@ These are not a changelog. Overturned decisions get a new ADR; the old one is ma
 - [ADR-062: Steer a running reply](ADR-062-steer-running-replies.md) — Codex `turn/steer` and Claude in-turn input, recorded in place on the reply.
 - [ADR-063: Usage-limit notice and resume at reset](ADR-063-usage-limit-notice.md) — provider-reported limits, reset countdown and an explicitly armed continue.
 - [ADR-064: CI auto-fix](ADR-064-ci-auto-fix.md) — owner-enabled loop that fixes failing PR checks with an automatic turn, then commits and pushes the session branch.
-- [ADR-066: iOS Simulator pane](ADR-066-ios-simulator-pane.md) — live, touchable iOS simulator in the dock through a locally compiled CoreSimulator helper, plus agent tools.
+- [ADR-066: iOS Simulator pane](ADR-066-ios-simulator-pane.md) — superseded: removed on 2026-10-08 at the owner's request (was a live, touchable iOS simulator in the dock).
 - [ADR-065: Environment Git actions, worktree handoff and stopping servers](ADR-065-environment-git-actions.md) — explicit fast-forward Pull, Create PR, handoff into a new snapshot worktree and stopping only app-started localhost servers.
 - [ADR-067: Sirus Code identity](ADR-067-sirus-code-rebrand.md) — name, identifier and mark; no traces of the previous name are kept in code or data.
 - [ADR-068: Provider switch motion](ADR-068-provider-switch-motion.md) — picker orbit swap, a 5 s logo-assembly scene per provider on switch, and the handoff card flying into a transcript marker.

@@ -40,7 +40,6 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
         settings.dictationEnterSends ? "send" : "stop", (value) => value === "send")}
       {toggle("foldFinishedTurns", "chatBehavior.fold", "chatBehavior.foldHelp")}
       {toggle("showWorkingPanel", "chatBehavior.workingPanel", "chatBehavior.workingPanelHelp")}
-      {toggle("autoOpenSimulator", "chatBehavior.simulator", "chatBehavior.simulatorHelp")}
     </SettingsGroup>
     <SettingsGroup title={t("chatBehavior.review")} card>
       {choice("githubLinksInApp", "chatBehavior.links", "chatBehavior.linksHelp",

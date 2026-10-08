@@ -37,5 +37,5 @@ ADR-080 serves the Sirus UI to paired devices. On a phone, the Mac layout does n
 
 - The phone gets every conversation feature the Mac has, through the same components. New desktop features reach the phone without porting, but they need a check at phone width.
 - Store actions that save settings (for example selection memory) can write the phone's copy of the settings to the Mac. Phone screens avoid settings writes; a per-device preference layer can come later.
-- The simulator stream and the native browser pane remain Mac-only.
+- The native browser pane remains Mac-only (the simulator stream was removed on 2026-10-08).
 - Web push needs HTTPS (`tailscale serve`) and a service worker; that is the next stage.

@@ -548,8 +548,6 @@ pub struct AppSettings {
     pub confirm_archive: bool,
     /// Chat behavior: ask before closing a terminal tab.
     pub confirm_terminal_close: bool,
-    /// Chat behavior: open the Simulator pane when an agent starts using a simulator (ADR-066).
-    pub auto_open_simulator: bool,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
     pub window_snap_enabled: bool,
     pub window_snap_shortcut: WindowSnapShortcut,
@@ -683,7 +681,6 @@ impl Default for AppSettings {
             diff_word_wrap: false,
             confirm_archive: false,
             confirm_terminal_close: true,
-            auto_open_simulator: true,
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),
             github_pins: Vec::new(),

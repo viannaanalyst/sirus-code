@@ -67,8 +67,6 @@ mod secrets;
 mod session_export;
 mod side_chat;
 mod sidebar;
-mod simulator;
-mod simulator_h264;
 mod sirus_tools;
 mod skills;
 mod tasks;
@@ -197,7 +195,6 @@ pub fn run() {
             browser_mcp::init(app.handle().clone(), app_dir.clone());
             secrets::init(&app_dir);
             remote::init(app.handle().clone(), &app_dir);
-            simulator::init(app.handle().clone(), &app_dir);
             let worktree_root = app_dir.join("worktrees");
             std::fs::create_dir_all(&worktree_root)?;
             let data = persist::load_or_create(&data_path)?;
@@ -258,7 +255,6 @@ pub fn run() {
             ci_autofix::ci_autofix_action,
             pr_watch::pr_watch_action,
             local_servers::local_server_action,
-            simulator::simulator_action,
             tasks::task_action,
             astros::astro_action,
             astro_documents::astro_document_action,
@@ -436,7 +432,6 @@ pub fn run() {
             }
             if matches!(event, tauri::RunEvent::Exit) {
                 attachment_platform::remove_paste_listener();
-                simulator::shutdown_all();
                 secrets::clear_all();
                 remote::shutdown();
                 let state = app.state::<Arc<AppState>>();

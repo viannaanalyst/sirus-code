@@ -205,7 +205,6 @@ test("native admission clears the initial draft once while startup IPC is pendin
   context.mock.method(client, "onAstrosChanged", async () => () => {});
   context.mock.method(client, "onAutomationsChanged", async () => () => {});
   context.mock.method(client, "onCiAutofixChanged", async () => () => {});
-  context.mock.method(client, "onSimulatorOpen", async () => () => {});
   context.mock.method(client, "ciAutofixAction", async () => []);
   context.mock.method(client, "onPrWatchChanged", async () => () => {});
   context.mock.method(client, "prWatchAction", async () => []);

@@ -34,7 +34,7 @@ The UI already talks to the Mac only through `Transport` (`src/client/transport.
 
 - The first message must be `hello` with a valid token within ten seconds.
 - `invoke` is handed to the main webview's own IPC entry point (`Webview::on_message`) on the main thread, with the webview's URL and the app's invoke key. Command lookup, argument parsing and capability checks are exactly the ones the window uses, and no command list is duplicated.
-- These are refused: `plugin:` commands and anything that acts on the Mac itself or manages remote access (`remote_*`, the file pickers, window capture and pasteboard, dictation, computer use, simulator streaming, window snapping).
+- These are refused: `plugin:` commands and anything that acts on the Mac itself or manages remote access (`remote_*`, the file pickers, window capture and pasteboard, dictation, computer use, simulator streaming (the simulator was removed on 2026-10-08), window snapping).
 - `listen` and `unlisten` subscribe to app events by name through `listen_any`, at most 64 per socket.
 - Replies are JSON. Raw IPC replies are base64.
 - A device whose queue reaches 4,096 messages is disconnected. It reconnects and reloads, so the queue never grows without bound.
@@ -44,7 +44,7 @@ The UI already talks to the Mac only through `Transport` (`src/client/transport.
 - It opens the socket on first use, rejects pending calls when the connection drops, and reconnects with backoff (1 s doubling to 30 s) while anything listens. Subscriptions are renewed after a reconnect.
 - `main.tsx` pairs from `?pair=` and stores the token in local storage.
 - Without a token it shows how to pair. After a lost connection comes back, it reloads so the state is fresh. A revoked token is forgotten.
-- Simulator frames (Tauri channels) are not available remotely yet.
+- Simulator frames (Tauri channels) are not available remotely yet. (The simulator was removed on 2026-10-08.)
 
 ## Consequences
 

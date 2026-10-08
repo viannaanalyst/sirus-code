@@ -22,7 +22,6 @@ export const defaultSettings: AppSettings = {
   diffWordWrap: false,
   confirmArchive: false,
   confirmTerminalClose: true,
-  autoOpenSimulator: true,
   windowSnapEnabled: false,
   windowSnapShortcut: "controlOptionCommandS",
   githubPins: [],
@@ -126,7 +125,6 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     confirmArchive: value?.confirmArchive === true,
     releaseWorktreeOnArchive: value?.releaseWorktreeOnArchive === true,
     confirmTerminalClose: value?.confirmTerminalClose !== false,
-    autoOpenSimulator: value?.autoOpenSimulator !== false,
     windowSnapEnabled: value?.windowSnapEnabled === true,
     windowSnapShortcut: (["controlOptionCommandS", "optionShiftS", "controlShiftS"] as const).find((id) => id === value?.windowSnapShortcut) ?? "controlOptionCommandS",
     railItemOrder: [...new Set((value?.railItemOrder ?? []).filter((id) => (RAIL_ITEMS as readonly string[]).includes(id)))],
@@ -269,7 +267,7 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 }
 function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
 
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose", "autoOpenSimulator"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {

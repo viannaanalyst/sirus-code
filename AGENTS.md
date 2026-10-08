@@ -18,10 +18,10 @@ npm run build:desktop   # local macOS debug app bundle
 
 - `src/client/` — the client the UI talks to (`SirusClient`) and its transport; `LocalTransport` is the only place that calls Tauri directly.
 - `src/store/app-store.ts` — the Zustand store (projects, sessions, layout, realtime events).
-- `src/components/` — product UI, grouped by surface (`astros/`, `automations/`, `pull-requests/`, `simulator/`, `tasks/`, …).
+- `src/components/` — product UI, grouped by surface (`astros/`, `automations/`, `pull-requests/`, `tasks/`, …).
 - `src/lib/` — pure helpers and shared logic, with tests in `tests/`.
 - `src/styles/` — design tokens (`index.css`) and per-surface styles.
-- `src-tauri/src/` — the Rust side: one module per area (`commands.rs` for IPC, `agent.rs` / `codex.rs` / `claude.rs` / `opencode.rs` for providers, `git*.rs`, `worktree.rs`, `persist.rs`, `simulator.rs`, `astros.rs`, …).
+- `src-tauri/src/` — the Rust side: one module per area (`commands.rs` for IPC, `agent.rs` / `codex.rs` / `claude.rs` / `opencode.rs` for providers, `git*.rs`, `worktree.rs`, `persist.rs`, `astros.rs`, …).
 
 For the full map — every module, the domain model, IPC commands and events, provider argv, Git and security choices, design system and performance notes — see [`docs/development/architecture.md`](docs/development/architecture.md). Decisions and their reasons are in [`docs/decisions/`](docs/decisions/README.md).
 

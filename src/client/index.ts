@@ -1,7 +1,6 @@
 import { LocalTransport } from "./local-transport";
 import { REMOTE_TOKEN_KEY, socketUrl } from "./remote-pairing";
 import { RemoteTransport, type RemoteConnection } from "./remote-transport";
-import { parseSimulatorFrame } from "./simulator-frame";
 import type { Transport } from "./transport";
 import type {
   AgentEvent,
@@ -728,32 +727,6 @@ export class SirusClient {
 
   onComputerState(handler: (state: import("./types").ComputerSnapshot) => void) {
     return this.transport.listen<import("./types").ComputerSnapshot>("computer-state", handler);
-  }
-
-  simulatorAction<T = unknown>(action: import("./types").SimulatorAction) {
-    return this.transport.invoke<T>("simulator_action", { action });
-  }
-
-  /**
-   * Subscribes to the attached simulator's frames; the stream runs while a pane
-   * watches. Each message is the helper's binary envelope, unchanged.
-   */
-  async watchSimulator(handler: (frame: import("./types").SimulatorFrame) => void): Promise<() => void> {
-    if (!this.transport.channel) throw new Error("This transport cannot stream simulator frames.");
-    const channel = await this.transport.channel<ArrayBuffer>((buffer) => {
-      const frame = parseSimulatorFrame(buffer);
-      if (frame) handler(frame);
-    });
-    const { id } = await this.transport.invoke<{ id: number }>("simulator_action", { action: { type: "watch", channel } });
-    return () => { void this.transport.invoke("simulator_action", { action: { type: "unwatch", id } }).catch(() => undefined); };
-  }
-
-  onSimulatorState(handler: (state: { attached: import("./types").SimulatorAttached | null }) => void) {
-    return this.transport.listen<{ attached: import("./types").SimulatorAttached | null }>("simulator-state", handler);
-  }
-
-  onSimulatorOpen(handler: (event: { sessionId: string }) => void) {
-    return this.transport.listen<{ sessionId: string }>("simulator-open", handler);
   }
 
   onBrowserState(handler: (state: import("./types").BrowserSessionState) => void) {

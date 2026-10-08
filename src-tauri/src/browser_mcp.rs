@@ -290,12 +290,6 @@ fn execute(
         // PR watch (ADR-079): only ever for the session that owns this token.
         return crate::pr_watch::agent_tool(app, session_id, tool);
     }
-    if tool.starts_with("simulator_") {
-        // The same per-session bridge serves the iOS Simulator tools (ADR-066).
-        return tauri::async_runtime::block_on(crate::simulator::execute(
-            app, session_id, tool, args,
-        ));
-    }
     match tool {
         "browser_status" | "browser_tabs" => browser::mcp_status(app, session_id)
             .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
@@ -461,7 +455,6 @@ fn tool_definitions() -> Vec<Value> {
         json!({ "name": "browser_close", "description": "Close all tabs of the session browser.", "inputSchema": { "type": "object", "properties": {} } }),
     ]
     .into_iter()
-    .chain(crate::simulator::tool_definitions())
     .chain(crate::astros::tool_definitions())
     .chain(crate::sirus_tools::tool_definitions())
     .chain(crate::secrets::tool_definitions())
@@ -493,7 +486,6 @@ mod tests {
             assert!(tool["name"]
                 .as_str()
                 .is_some_and(|name| name.starts_with("browser_")
-                    || name.starts_with("simulator_")
                     || name.starts_with("astro_")
                     || name.starts_with("sirus_")
                     || name.ends_with("_secret")

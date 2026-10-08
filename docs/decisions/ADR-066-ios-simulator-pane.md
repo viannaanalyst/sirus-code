@@ -1,6 +1,8 @@
 # ADR-066: iOS Simulator pane
 
-**Status:** Accepted
+> **2026-10-08:** Superseded/removed at the owner's request. The Simulator dock pane, the `simulator_action` command and `simulator_*` agent tools, the native helper (`src-tauri/native/simulator-helper`), the H.264 frame path and the `autoOpenSimulator` setting are gone; a saved `autoOpenSimulator` key is ignored on load. Files the helper left in the app data folder (`simulator/`) are not deleted. The text below is kept as the historical record.
+
+**Status:** Superseded (removed 2026-10-08)
 
 ## Context
 
