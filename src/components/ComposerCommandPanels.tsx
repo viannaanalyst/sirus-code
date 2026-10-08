@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Session } from "@/client/types";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Input } from "@/components/arc/input/input";
-import { X } from "@/components/icons/phosphor";
+import { RefreshCw, X } from "@/components/icons/phosphor";
+import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/provider-registry";
+import { orderedUsageWindows, resetDuration, USAGE_PROVIDER_IDS, usageWindowLabel } from "@/lib/provider-usage";
+import { isProviderEnabled } from "@/lib/settings";
 import { modelDisplayName } from "@/lib/model-registry";
 import { isMcpProvider, serversFor, serverTarget } from "@/lib/mcp-servers";
 import { useMcpCatalog } from "@/lib/use-mcp-catalog";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useAppStore } from "@/store/app-store";
+import "@/styles/context-meter.css";
 
 /** `/rename`: the same rename as the session menu. */
 export function RenameSessionDialog({ session, open, onClose }: { session: Session; open: boolean; onClose: () => void }) {
@@ -88,5 +92,46 @@ export function ComposerStatusCard({ session, effort, fast, approval, planning, 
     <dl className="mt-1 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-0.5">
       {rows.map(([label, value]) => <div key={label} className="contents"><dt className="ui-caption text-text-muted">{label}</dt><dd className="min-w-0 truncate ui-caption text-text-secondary selectable">{value}</dd></div>)}
     </dl>
+  </section>;
+}
+
+/** `/usage`: each installed provider's usage windows as bars with their reset, as in the sidebar rings. */
+export function ComposerUsageCard({ onClose }: { onClose: () => void }) {
+  const t = useTranslation();
+  const agents = useAppStore((state) => state.agents);
+  const settings = useAppStore((state) => state.settings);
+  const usage = useAppStore((state) => state.usageByProvider);
+  const loading = useAppStore((state) => state.usageLoading);
+  const [now, setNow] = useState(() => Date.now());
+  const providers = USAGE_PROVIDER_IDS.filter((id) => agents.some((agent) => agent.id === id && agent.installed) && isProviderEnabled(settings, id));
+  const refresh = (force: boolean) => { setNow(Date.now()); for (const id of providers) void useAppStore.getState().refreshProviderUsage(id, force); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- once the providers are known
+  useEffect(() => refresh(false), [providers.join(",")]);
+  const busy = providers.some((id) => loading[id]);
+  return <section aria-label={t("commands.usage.title")} className="composer-usage mx-auto mb-2 w-full max-w-[var(--chat-column-width)] rounded-2xl border border-border-subtle bg-background-2 px-3 py-2" onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); onClose(); } }}>
+    <div className="flex items-center gap-2">
+      <span className="flex-1 ui-control text-text-primary">{t("commands.usage.title")}</span>
+      <button type="button" aria-label={t("commands.usage.refresh")} title={t("commands.usage.refresh")} className="usage-limit-close" onClick={() => refresh(true)}><RefreshCw size={13} aria-hidden="true" className={busy ? "animate-spin" : undefined} /></button>
+      <button type="button" autoFocus aria-label={t("commands.usage.close")} className="usage-limit-close" onClick={onClose}><X size={13} aria-hidden="true" /></button>
+    </div>
+    {!providers.length ? <p className="mt-1 ui-caption text-text-muted">{t("commands.usage.none")}</p> : providers.map((id) => {
+      const data = usage[id];
+      const windows = orderedUsageWindows(data).filter((window) => window.usedPercent !== null);
+      return <div key={id} className="composer-usage-provider">
+        <div className="composer-usage-name"><ProviderIcon id={id} size={14} /><span className="ui-control text-text-primary">{providerById(id).name}</span>{data?.account?.plan ? <span className="ui-caption text-text-muted">{data.account.plan}</span> : null}</div>
+        <div className="min-w-0">
+          {windows.length ? windows.map((window) => {
+            const used = Math.max(0, Math.min(100, Math.round(window.usedPercent ?? 0)));
+            const reset = resetDuration(window.resetsAt, now);
+            return <div key={window.id} className="composer-usage-window">
+              <span className="truncate">{t(usageWindowLabel(window))}</span>
+              <span className="composer-usage-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={used} aria-label={t(usageWindowLabel(window))}><span style={{ width: `${used}%` }} data-level={used >= 90 ? "high" : used >= 70 ? "mid" : undefined} /></span>
+              <span className="composer-usage-percent">{used}%</span>
+              <span className="truncate text-text-muted">{reset ? t("commands.usage.resets", { time: reset }) : ""}</span>
+            </div>;
+          }) : <p className="ui-caption text-text-muted">{loading[id] ? t("common.loading") : data?.note ?? t("mobile.usageUnavailable")}</p>}
+        </div>
+      </div>;
+    })}
   </section>;
 }

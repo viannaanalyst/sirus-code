@@ -7,9 +7,9 @@ const message = (role: Message["role"], content: string, streaming = false): Mes
 
 test("commands follow the composer's situation", () => {
   const ids = (list: { id: string }[]) => list.map((command) => command.id);
-  assert.deepEqual(ids(availableCommands({ session: null, agent: "codex", fastAvailable: false })), ["review"]);
+  assert.deepEqual(ids(availableCommands({ session: null, agent: "codex", fastAvailable: false })), ["review", "usage"]);
   const settled = { status: "completed" as const, sideChat: null, messages: [message("user", "hi"), message("agent", "ok")] };
-  assert.deepEqual(ids(availableCommands({ session: settled, agent: "codex", fastAvailable: true })), ["review", "compact", "status", "mcp", "fast", "rename", "fork", "export", "side", "new"]);
+  assert.deepEqual(ids(availableCommands({ session: settled, agent: "codex", fastAvailable: true })), ["review", "compact", "status", "usage", "mcp", "fast", "rename", "fork", "export", "side", "new"]);
   const running = { ...settled, status: "running" as const };
   assert.ok(!ids(availableCommands({ session: running, agent: "opencode", fastAvailable: false })).some((id) => id === "fork" || id === "compact" || id === "fast"));
   const side = { ...settled, sideChat: { parentSessionId: "p" } };
