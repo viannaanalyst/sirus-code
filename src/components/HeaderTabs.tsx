@@ -129,10 +129,10 @@ function ProjectSwitcher() {
         </button>
       </div>
       {focused ? <div className="header-switcher-sessions" aria-label={t("tabs.sessionsOf", { project: focused.name })}>
-        <p className="header-switcher-label">{t("tabs.sessionsOf", { project: focused.name })}<span>{shown.length}</span></p>
-        <button type="button" className="header-switcher-new" onClick={() => newSession(focused.id)}>
-          <SquarePen size={14} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{t("session.new")}</span>
-        </button>
+        <div className="header-switcher-title">
+          <span className="min-w-0 flex-1 truncate">{focused.name}</span>
+          <button type="button" className="header-switcher-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => newSession(focused.id)}><SquarePen size={14} aria-hidden="true" /></button>
+        </div>
         <div className="header-switcher-list header-switcher-session-list">
           {shown.map(session => {
             const status = tabStatus(session, unseen, computer);
