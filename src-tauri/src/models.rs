@@ -553,8 +553,14 @@ pub struct AppSettings {
     pub project_auto_icons: bool,
     /// The chat background image saved in `backgrounds/` (ADR-089), if any.
     pub chat_background: Option<String>,
-    /// How much of the theme colour covers that image, in percent (0–90).
-    pub chat_background_dim: u8,
+    /// How the image is drawn: none, dither, ascii, halftone, scanlines or haze.
+    pub chat_background_effect: String,
+    /// Where it shows: `empty` conversations only, or `all` of them.
+    pub chat_background_show_on: String,
+    /// Image strength before a conversation has messages, in percent.
+    pub chat_background_empty_visibility: u8,
+    /// Image strength once the conversation has messages, in percent.
+    pub chat_background_session_visibility: u8,
     pub worktree_base_path: Option<String>,
     /// Archiving a session removes its isolated worktree when it is clean and its
     /// branch is merged or pushed (ADR-078); off by default.
@@ -672,7 +678,10 @@ impl Default for AppSettings {
             open_last_project: true,
             project_auto_icons: false,
             chat_background: None,
-            chat_background_dim: 70,
+            chat_background_effect: "none".into(),
+            chat_background_show_on: "all".into(),
+            chat_background_empty_visibility: 24,
+            chat_background_session_visibility: 24,
             worktree_base_path: None,
             release_worktree_on_archive: false,
             default_session_workspace: SessionWorkspacePref::Ask,
@@ -780,7 +789,10 @@ impl AppSettings {
             .chat_background
             .as_deref()
             .is_some_and(|name| !crate::chat_background::valid_name(name))
-            || self.chat_background_dim > 90
+            || !crate::chat_background::EFFECTS.contains(&self.chat_background_effect.as_str())
+            || !["empty", "all"].contains(&self.chat_background_show_on.as_str())
+            || self.chat_background_empty_visibility > 100
+            || self.chat_background_session_visibility > 100
         {
             return Err(Error::new("invalid_settings", "Invalid chat background."));
         }

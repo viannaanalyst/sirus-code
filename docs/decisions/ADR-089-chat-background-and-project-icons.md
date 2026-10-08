@@ -15,8 +15,12 @@ Several pieces of UI fell short of MonoCode and Synara:
 1. **Chat background.**
    - Settings → Appearance → Chat background picks a PNG or JPEG natively (`chat_background_action`).
    - The image is decoded with bounds (at most 30 MiB and 12,000 px), scaled to at most 2560 px and saved as `backgrounds/chat-<uuid>.jpg` next to `state.json`. Older backgrounds are removed.
-   - Settings keep only the file name (`chatBackground`, validated natively) and a veil (`chatBackgroundDim`, 0–90%, default 70%) of the theme colour that keeps text readable.
-   - The renderer loads the image as a data URL (`chat_background_image`) and draws it behind `.session-pane`, in the main window and the floating Astro chat.
+   - Settings keep only the file name (`chatBackground`, validated natively). The rest follows MonoCode's settings:
+     - an effect (`chatBackgroundEffect`): None, Dither, ASCII, Halftone, Scanlines or Haze. Dither (ordered Bayer), ASCII and Halftone are redrawn once on a canvas (`lib/background-effects.ts`); Scanlines and Haze are CSS;
+     - where it shows (`chatBackgroundShowOn`): empty conversations only, or all of them;
+     - its strength in an empty conversation and once there are messages (`chatBackgroundEmptyVisibility`, `chatBackgroundSessionVisibility`, 24% by default), as the image's opacity over the pane.
+   - The renderer loads the image as a data URL (`chat_background_image`) and draws it behind `.session-pane` only, not the sidebar, in the main window and the floating Astro chat. In an empty conversation it fades out toward the composer.
+   - Settings shows a preview of an empty conversation at its strength, with Change and Remove.
    - Picking is refused to paired phones, because the dialog opens on the Mac.
 2. **Project icon picker.**
    - Edit project now shows the name field with the icon at its left.

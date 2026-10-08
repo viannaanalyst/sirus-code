@@ -1,6 +1,13 @@
 @layer components {
-  /* Chat background preview (ADR-089): the saved image under its veil. */
-  .appearance-chat-background { height: 120px; margin: 0 16px 12px; border: 1px solid var(--border-subtle); border-radius: 10px; background: linear-gradient(color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent), color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent)), var(--chat-background, none) center / cover no-repeat; }
+  /* Chat background (ADR-089): the picker when empty, else a preview of an empty chat. */
+  .appearance-chat-pick { display: flex; width: calc(100% - 32px); flex-direction: column; align-items: center; gap: 6px; margin: 16px; padding: 40px 16px; border: 1px dashed var(--border-default); border-radius: 12px; color: var(--text-secondary); transition: background var(--motion-fast) var(--ease-out); }
+  .appearance-chat-pick:hover:not(:disabled) { background: var(--navigation-hover); }
+  .appearance-chat-preview-block { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-bottom: 1px solid var(--border-subtle); }
+  .appearance-chat-background { position: relative; height: 140px; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--background-1); }
+  .appearance-chat-background-image { position: absolute; inset: 0; background: var(--chat-background, none) center / cover no-repeat; mask-image: linear-gradient(to bottom, #000 40%, transparent 98%); }
+  .appearance-chat-background[data-effect="scanlines"] .appearance-chat-background-image { background: repeating-linear-gradient(to bottom, rgb(0 0 0 / .45) 0 1px, transparent 1px 3px), var(--chat-background, none) center / cover no-repeat; }
+  .appearance-chat-background[data-effect="haze"] .appearance-chat-background-image { filter: blur(10px) saturate(1.2) brightness(1.08); }
+  .appearance-chat-background-label { position: absolute; left: 12px; bottom: 10px; color: var(--text-muted); }
   .general-settings .settings-group-card {
     overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
     background: color-mix(in srgb, var(--background-2) 30%, transparent);

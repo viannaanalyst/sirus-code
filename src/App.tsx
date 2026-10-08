@@ -162,7 +162,7 @@ export default function App() {
     applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette);
   }, [settings, hostInfo, systemPalette]);
 
-  useChatBackground(settings.chatBackground);
+  useChatBackground(settings.chatBackground, settings.chatBackgroundEffect);
 
   // "Open in Sirus Code" from the floating Astro chat (ADR-088).
   useEffect(() => {

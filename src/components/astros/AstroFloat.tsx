@@ -51,7 +51,7 @@ export default function AstroFloat({ initialAstroId }: { initialAstroId: string 
   }, [bootstrap]);
   useEffect(() => { if (ready) requestAnimationFrame(dismissAppSplash); }, [ready]);
   useEffect(() => { applyAppearance(settings, hostInfo?.appearanceSupport, systemPalette); }, [settings, hostInfo, systemPalette]);
-  useChatBackground(settings.chatBackground);
+  useChatBackground(settings.chatBackground, settings.chatBackgroundEffect);
   useEffect(() => {
     let stop: (() => void) | undefined;
     let cancelled = false;

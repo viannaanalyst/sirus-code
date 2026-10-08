@@ -366,8 +366,13 @@ export interface AppSettings {
   projectAutoIcons: boolean;
   /** The chat background image file on this Mac (ADR-089), or null. */
   chatBackground: string | null;
-  /** How much of the theme colour covers the background image, 0–90 (%). */
-  chatBackgroundDim: number;
+  /** How the background is drawn (after MonoCode). */
+  chatBackgroundEffect: "none" | "dither" | "ascii" | "halftone" | "scanlines" | "haze";
+  /** Show it in empty conversations only, or in all of them. */
+  chatBackgroundShowOn: "empty" | "all";
+  /** Image strength (%) before a conversation has messages, and once it has. */
+  chatBackgroundEmptyVisibility: number;
+  chatBackgroundSessionVisibility: number;
   worktreeBasePath: string | null;
   /** Archiving removes the session's clean, merged or pushed isolated worktree (ADR-078). */
   releaseWorktreeOnArchive: boolean;

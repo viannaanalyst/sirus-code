@@ -14,6 +14,8 @@ use uuid::Uuid;
 use crate::commands::AppState;
 use crate::error::{Error, Result};
 
+/// Effects the renderer draws the image with (after MonoCode).
+pub const EFFECTS: [&str; 6] = ["none", "dither", "ascii", "halftone", "scanlines", "haze"];
 const MAX_FILE: u64 = 30 * 1024 * 1024;
 const MAX_SIDE: u32 = 2560;
 

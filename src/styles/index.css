@@ -397,17 +397,26 @@ html[data-density="comfortable"] {
     background-color: var(--navigation-selected);
   }
 
-  /* The chosen chat background (ADR-089), under a veil of the theme colour for legibility. */
+  /* The chosen chat background (ADR-089, after MonoCode): the image at its visibility
+     behind the conversation; in an empty chat it fades out toward the composer. */
   html[data-chat-background="on"] .session-pane::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background:
-      linear-gradient(color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent), color-mix(in srgb, var(--background-1) var(--chat-background-dim, 70%), transparent)),
-      var(--chat-background) center / cover no-repeat;
+    background: var(--chat-background) center / cover no-repeat;
+    opacity: var(--chat-background-session-opacity, .24);
   }
+  html[data-chat-background="on"] .session-pane[data-empty]::before {
+    opacity: var(--chat-background-empty-opacity, .24);
+    mask-image: linear-gradient(to bottom, #000 40%, transparent 92%);
+  }
+  html[data-chat-background-show-on="empty"] .session-pane:not([data-empty])::before { display: none; }
+  html[data-chat-background-effect="scanlines"] .session-pane::before {
+    background: repeating-linear-gradient(to bottom, rgb(0 0 0 / .45) 0 1px, transparent 1px 3px), var(--chat-background) center / cover no-repeat;
+  }
+  html[data-chat-background-effect="haze"] .session-pane::before { filter: blur(14px) saturate(1.2) brightness(1.08); }
 }
 
 /* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */

@@ -7,6 +7,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { UI_FONTS, MONO_FONTS } from "@/lib/fonts";
 import { APPEARANCE_SETTING_KEYS, defaultSettings, resetAppearanceSettings } from "@/lib/settings";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
+import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { Select } from "@/primitives/Select";
 import { Switch } from "@/primitives/Switch";
 import { Slider } from "@/components/arc/slider/slider";
@@ -50,17 +51,45 @@ function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSa
     } catch (reason) { setError(formatUnknownError(reason)); }
     finally { setBusy(false); }
   };
+  const effect = settings.chatBackgroundEffect;
+  const effects = [
+    { value: "none", label: t("None"), hint: "Shows the original artwork." },
+    { value: "dither", label: "Dither", hint: "A few colours, mixed in a fine pattern." },
+    { value: "ascii", label: "ASCII", hint: "Drawn with text characters." },
+    { value: "halftone", label: "Halftone", hint: "Dots that grow with the light." },
+    { value: "scanlines", label: "Scanlines", hint: "Thin lines, like an old screen." },
+    { value: "haze", label: "Haze", hint: "Soft and out of focus." },
+  ] as const;
+  if (!settings.chatBackground) return <SettingsGroup title={t("Chat background")} card>
+    <button type="button" className="appearance-chat-pick" disabled={busy} onClick={() => void run("pick")}>
+      <ImagePlus size={22} aria-hidden="true" /><span className="ui-control">{t("Choose an image")}</span>
+      <span className="ui-caption text-text-muted">{t("An image behind your chat panes. It stays on this Mac.")}</span>
+    </button>
+    {error ? <p role="alert" className="px-4 pb-3 ui-caption text-danger">{error}</p> : null}
+  </SettingsGroup>;
   return <SettingsGroup title={t("Chat background")} card>
-    <SettingsRow title={t("Image")} description={t("An image behind your chat panes. It stays on this Mac.")}>
-      <div className="flex items-center gap-2">
-        {settings.chatBackground ? <InteractiveButton variant="toolbar" className="text-danger" disabled={busy} onClick={() => void run("clear")}>{t("connections.remove")}</InteractiveButton> : null}
-        <InteractiveButton variant="secondary" glow={false} loading={busy} onClick={() => void run("pick")}><ImagePlus size={14} aria-hidden="true" />{t(settings.chatBackground ? "Change image" : "Choose an image")}</InteractiveButton>
+    <div className="appearance-chat-preview-block">
+      <div className="appearance-chat-background" data-effect={effect}>
+        <span className="appearance-chat-background-image" style={{ opacity: settings.chatBackgroundEmptyVisibility / 100 }} />
+        <span className="appearance-chat-background-label ui-caption">{t("Empty chat preview at {percent}%", { percent: settings.chatBackgroundEmptyVisibility })}</span>
       </div>
+      <div className="flex justify-end gap-2">
+        <InteractiveButton variant="secondary" glow={false} loading={busy} onClick={() => void run("pick")}>{t("Change image")}</InteractiveButton>
+        <InteractiveButton variant="secondary" glow={false} className="text-danger" disabled={busy} onClick={() => void run("clear")}>{t("connections.remove")}</InteractiveButton>
+      </div>
+    </div>
+    <SettingsRow title={t("Background effect")} description={t(effects.find((item) => item.value === effect)?.hint ?? "Shows the original artwork.")}>
+      <SegmentedControl label={t("Background effect")} value={effect} options={effects.map(({ value, label }) => ({ value, label }))} onChange={(value) => onSave({ ...settings, chatBackgroundEffect: value })} />
     </SettingsRow>
-    {settings.chatBackground ? <div className="appearance-chat-background" aria-hidden="true" /> : null}
-    {settings.chatBackground ? <SettingsRow title={t("Veil")} description={t("How much of the theme colour covers the image, so text stays readable.")}>
-      <OpacityControl label={t("Veil")} value={settings.chatBackgroundDim} min={0} max={90} disabled={false} onCommit={(value) => onSave({ ...settings, chatBackgroundDim: value })} />
-    </SettingsRow> : null}
+    <SettingsRow title={t("Show on")} description={t("Empty sessions only, or every conversation.")}>
+      <SegmentedControl label={t("Show on")} value={settings.chatBackgroundShowOn} options={[{ value: "empty", label: t("Empty only") }, { value: "all", label: t("All sessions") }]} onChange={(value) => onSave({ ...settings, chatBackgroundShowOn: value })} />
+    </SettingsRow>
+    <SettingsRow title={t("Empty chat visibility")} description={t("Background strength before a chat has messages.")}>
+      <OpacityControl label={t("Empty chat visibility")} value={settings.chatBackgroundEmptyVisibility} min={0} max={100} disabled={false} onCommit={(value) => onSave({ ...settings, chatBackgroundEmptyVisibility: value })} />
+    </SettingsRow>
+    <SettingsRow title={t("Session visibility")} description={t("Background strength once the conversation has messages.")}>
+      <OpacityControl label={t("Session visibility")} value={settings.chatBackgroundSessionVisibility} min={0} max={100} disabled={settings.chatBackgroundShowOn === "empty"} onCommit={(value) => onSave({ ...settings, chatBackgroundSessionVisibility: value })} />
+    </SettingsRow>
     {error ? <p role="alert" className="px-4 pb-3 ui-caption text-danger">{error}</p> : null}
   </SettingsGroup>;
 }
