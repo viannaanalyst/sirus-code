@@ -93,7 +93,6 @@ export default function App() {
   const setDockWidth = useAppStore((state) => state.setDockWidth);
   const toggleDock = useAppStore((state) => state.toggleDock);
   const toggleSidebar = useAppStore((state) => state.toggleSidebar);
-  const environmentOpen = useAppStore((state) => state.environmentOpen);
   const hostInfo = useAppStore((state) => state.hostInfo);
   const settings = useAppStore((state) => state.settings);
   const requestNewSession = useAppStore((state) => state.requestNewSession);
@@ -285,10 +284,8 @@ export default function App() {
             </div>
           </header>
 
-          <div className={cn(
-            "relative flex min-h-0 flex-1 transition-[padding] duration-[var(--motion-normal)] ease-[var(--ease-out)] motion-reduce:transition-none",
-            environmentOpen && !dockOpen && "pr-[312px]",
-          )}>
+          {/* The Environment card floats over the conversation; the text and composer never move (ADR-019). */}
+          <div className="relative flex min-h-0 flex-1">
             {mainView === "session" ? <SplitWorkspace
               agents={agents}
               onSend={sendPrompt}

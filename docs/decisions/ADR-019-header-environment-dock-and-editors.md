@@ -97,9 +97,9 @@ security reviews.
   projects/sessions to a live fallback and never records the replay itself.
   `⌘[` drives settings-back while Settings is open and navigation otherwise;
   `⌘]` is forward.
-- While the Environment card is open and the dock is closed it insets the chat
-  column by 312px (288px card + 12px gutters) instead of covering it; with the
-  dock open it only overlays, matching Synara. `AppSettings.environmentPanelDefaultOpen`
+- The Environment card floats over the conversation and slides in from the
+  right; the chat column, its text and the composer never move (2026-10-08; it
+  used to inset the column by 312px when the dock was closed). `AppSettings.environmentPanelDefaultOpen`
   (General → Environment panel → Open by default) reopens it on startup, and the
   header toggle is the only action that persists it; action/Escape closes keep
   the preference.
