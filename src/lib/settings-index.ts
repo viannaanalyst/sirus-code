@@ -252,6 +252,54 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "general",
+  "title": "Reopen last project",
+  "description": "Automatically reopen the last active project when Sirus Code starts.",
+  "group": "Startup"
+ },
+ {
+  "section": "general",
+  "title": "Automatic project icons",
+  "description": "Projects without a chosen icon show their own favicon or logo, found in the project folder.",
+  "group": "Startup"
+ },
+ {
+  "section": "general",
+  "title": "Reopen newest session",
+  "description": "Reopen the newest-created session in the last project. Other sessions remain in the sidebar; agents do not start automatically.",
+  "group": "Startup"
+ },
+ {
+  "section": "general",
+  "title": "Show confirmation before closing running sessions",
+  "description": "Ask before closing or quitting while agents are running.",
+  "group": "Application"
+ },
+ {
+  "section": "general",
+  "title": "Astros in the menu bar",
+  "description": "Show the Astros icon in the macOS menu bar, to open an Astro's floating chat.",
+  "group": "Application"
+ },
+ {
+  "section": "general",
+  "title": "Open by default",
+  "description": "Open the chat Environment panel automatically on normal threads. When off, the panel stays closed until you open it. Your last open/close also updates this preference.",
+  "group": "Environment panel"
+ },
+ {
+  "section": "general",
+  "title": "Repository",
+  "description": "Show the repository link in the Environment panel.",
+  "group": "Environment panel"
+ },
+ {
+  "section": "general",
+  "title": "Editor",
+  "description": "Show the editor actions in the Environment panel.",
+  "group": "Environment panel"
+ },
+ {
+  "section": "general",
   "title": "Check for updates automatically",
   "description": null,
   "group": "Application"

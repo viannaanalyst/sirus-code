@@ -64,6 +64,8 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
   let reserve = -1;
   let rows: HTMLElement[] | null = null;
   let anchor: { node: HTMLElement; offset: number } | null = null;
+  // Last scroll position seen, to tell the reader's direction from layout changes.
+  let lastTop = 0;
   const readPadding = () => {
     const style = getComputedStyle(viewport);
     padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
@@ -73,7 +75,7 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
     frame = 0;
     const next = Math.max(0, viewport.clientHeight - (padding ?? readPadding()));
     if (next !== reserve) { reserve = next; tail.style.minHeight = `${next}px`; }
-    if (following) viewport.scrollTop = viewport.scrollHeight;
+    if (following) { viewport.scrollTop = viewport.scrollHeight; lastTop = viewport.scrollTop; }
   };
   // Rows are the grandchildren of `content` (turn groups hold messages and their markers).
   const rowList = () => {
@@ -115,13 +117,28 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
     },
     scroll() {
       scheduleCapture();
-      if (jumped) return;
-      const next = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48;
-      if (next !== following) { following = next; changed(next); }
+      const top = viewport.scrollTop;
+      const moved = top - lastTop;
+      lastTop = top;
+      if (jumped || !moved) return;
+      const distance = viewport.scrollHeight - top - viewport.clientHeight;
+      // Following stops only when the reader moves up and away from the end, and resumes
+      // only once they are back at the very end moving down: a small reversal while
+      // reading, or content shrinking under the reader, never flips it.
+      if (following && moved < 0 && distance >= 48) { following = false; changed(false); }
+      else if (!following && moved > 0 && distance < 4) { following = true; anchor = null; changed(true); }
     },
     /** Before a programmatic jump: stop following; the anchor is taken where the jump lands. */
     detach() { jumped = true; following = false; anchor = null; scheduleCapture(); changed(false); },
-    interact() { jumped = false; },
+    /**
+     * The reader touched the transcript. A wheel or trackpad step up releases following at
+     * once, so the next streamed frame cannot snap them back; a step without vertical
+     * direction (sideways, the end of a momentum swipe) changes nothing.
+     */
+    interact(deltaY?: number) {
+      jumped = false;
+      if (deltaY !== undefined && deltaY < 0 && following) { following = false; anchor = null; scheduleCapture(); changed(false); }
+    },
     follow() { jumped = false; following = true; anchor = null; changed(true); layout(); },
     dispose() { observer.disconnect(); cancelAnimationFrame(frame); cancelAnimationFrame(captureFrame); },
   };

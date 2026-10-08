@@ -17,6 +17,7 @@ export const defaultSettings: AppSettings = {
   dictationEnterSends: false,
   foldFinishedTurns: true,
   showWorkingPanel: true,
+  showAstroMenuBar: true,
   githubLinksInApp: true,
   diffWordWrap: false,
   confirmArchive: false,
@@ -119,6 +120,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     dictationEnterSends: value?.dictationEnterSends === true,
     foldFinishedTurns: value?.foldFinishedTurns !== false,
     showWorkingPanel: value?.showWorkingPanel !== false,
+    showAstroMenuBar: value?.showAstroMenuBar !== false,
     githubLinksInApp: value?.githubLinksInApp !== false,
     diffWordWrap: value?.diffWordWrap === true,
     confirmArchive: value?.confirmArchive === true,
@@ -189,7 +191,7 @@ function sidebarIds(ids: string[] | undefined): string[] {
 }
 
 export const GENERAL_SETTING_KEYS = ["defaultAgent", "locale", "defaultSessionWorkspace", "openLastProject", "projectAutoIcons",
-  "confirmCloseRunning", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
+  "confirmCloseRunning", "showAstroMenuBar", "restorePreviousSessions", "sidebarProjectSortOrder", "sidebarThreadSortOrder",
   "environmentPanelDefaultOpen", "showEnvironmentUsage", "showEnvironmentRepository", "showEnvironmentEditor", "showEnvironmentPullRequest",
   "showEnvironmentPinned", "showEnvironmentNotepad", "showEnvironmentInstructions"] as const satisfies readonly (keyof AppSettings)[];
 

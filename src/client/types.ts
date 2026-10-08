@@ -357,6 +357,8 @@ export interface AppSettings {
   foldFinishedTurns: boolean;
   /** The "Working" panel beside the composer while two or more sessions work (ADR-094). */
   showWorkingPanel: boolean;
+  /** The Astros icon in the macOS menu bar (ADR-088). */
+  showAstroMenuBar: boolean;
   githubLinksInApp: boolean;
   diffWordWrap: boolean;
   confirmArchive: boolean;

@@ -428,6 +428,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         aria-controls={suggestions.visible ? suggestions.listId : undefined}
         aria-activedescendant={suggestions.visible && suggestions.rows.length ? `${suggestions.listId}-${suggestions.index}` : undefined}
         rows={1}
+        spellCheck
         onChange={(event) => { recall.current = { index: null, draft: "" }; setValue(event.target.value); suggestions.syncCursor(event.currentTarget); }}
         onSelect={(event) => suggestions.syncCursor(event.currentTarget)}
         onFocus={(event) => suggestions.onFocus(event.currentTarget)}

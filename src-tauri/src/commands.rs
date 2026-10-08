@@ -158,6 +158,7 @@ pub async fn save_settings(
         let saved = save_settings_native(&state, settings)?;
         crate::appearance::schedule(&app, state.clone());
         crate::window_snap::apply(&app, &saved);
+        crate::astro_tray::set_visible(&app, saved.show_astro_menu_bar);
         Ok(saved)
     })
     .await

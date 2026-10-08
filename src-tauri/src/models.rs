@@ -536,6 +536,9 @@ pub struct AppSettings {
     /// The "Working" panel beside the composer, shown while two or more sessions work (ADR-094).
     #[serde(default = "default_show_working_panel")]
     pub show_working_panel: bool,
+    /// The Astros icon in the macOS menu bar (ADR-088); off hides it, kept across restarts.
+    #[serde(default = "default_true")]
+    pub show_astro_menu_bar: bool,
     /// Chat behavior: GitHub pull request/issue links in replies open the Pull requests page.
     pub github_links_in_app: bool,
     /// Chat behavior: diffs wrap long lines by default.
@@ -674,6 +677,7 @@ impl Default for AppSettings {
             dictation_enter_sends: false,
             fold_finished_turns: true,
             show_working_panel: true,
+            show_astro_menu_bar: true,
             github_links_in_app: true,
             diff_word_wrap: false,
             confirm_archive: false,

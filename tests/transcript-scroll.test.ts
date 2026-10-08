@@ -106,3 +106,47 @@ test("rows above the viewport changing height do not move what is being read", (
     globalThis.getComputedStyle = original.style;
   }
 });
+
+test("following changes only on the reader's own direction", () => {
+  const original = { resize: globalThis.ResizeObserver, request: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame, style: globalThis.getComputedStyle };
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} } as unknown as typeof ResizeObserver;
+  globalThis.requestAnimationFrame = () => 0;
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.getComputedStyle = () => ({ paddingTop: "0px", paddingBottom: "0px" }) as CSSStyleDeclaration;
+  try {
+    const viewport = { scrollTop: 0, clientHeight: 300, scrollHeight: 2000, getBoundingClientRect: () => ({ top: 0 }) } as unknown as HTMLElement;
+    const content = { children: [] } as unknown as HTMLElement;
+    const tail = { style: { minHeight: "" } } as unknown as HTMLElement;
+    const following: boolean[] = [];
+    const controller = createTranscriptScroll(viewport, content, tail, value => following.push(value));
+    controller.update("latest");
+    assert.equal(viewport.scrollTop, 2000);
+    // A sideways or momentum-end step (no vertical direction) keeps following.
+    controller.interact(0);
+    assert.equal(following.at(-1), true);
+    // A small step up releases following at once, before any frame can snap back.
+    controller.interact(-3);
+    assert.equal(following.at(-1), false);
+    viewport.scrollTop = 1690;
+    controller.scroll();
+    // Reading: a small reversal down, still away from the end, does not resume following.
+    viewport.scrollTop = 1680;
+    controller.scroll();
+    viewport.scrollTop = 1690;
+    controller.scroll();
+    assert.equal(following.at(-1), false);
+    // Back at the very end moving down resumes it.
+    viewport.scrollTop = 1699;
+    controller.scroll();
+    assert.equal(following.at(-1), true);
+    // Content shrinking under the reader (no move of their own) never flips it.
+    controller.scroll();
+    assert.equal(following.at(-1), true);
+    controller.dispose();
+  } finally {
+    globalThis.ResizeObserver = original.resize;
+    globalThis.requestAnimationFrame = original.request;
+    globalThis.cancelAnimationFrame = original.cancel;
+    globalThis.getComputedStyle = original.style;
+  }
+});

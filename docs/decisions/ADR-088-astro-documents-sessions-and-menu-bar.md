@@ -38,6 +38,7 @@ Astros had none of these:
 4. **Hidden sessions.** `Astro.hideSessions` keeps the sessions the Astro starts from then on out of the sidebar and lists (`launchedBy.hidden`). They stay saved and open from the reply's Sessions control.
 5. **Menu bar.**
    - A tray item with the Sirus logo (a template image, so it follows the menu bar) lists "Astros", each Astro with a dot in its colour, then "Open SirusCode" and "Quit SirusCode". Quit takes the same path as ⌘Q.
+   - Settings → General → Application → "Astros in the menu bar" (`showAstroMenuBar`, on by default) hides or restores the icon. The choice survives restarts (2026-10-08, after MonoCode).
    - Choosing an Astro opens `astro-float`: a resizable window that stays above other windows and follows across Spaces. It runs the normal UI over the same state, showing only that Astro's conversation (`AstroFloat`), so messages, attachments, approvals, questions and stop all work there.
    - "Open in Sirus Code" shows the conversation in the main window.
    - The float closes when the main window closes. Its close never runs the app quit flow.

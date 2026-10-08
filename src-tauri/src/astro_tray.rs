@@ -33,6 +33,20 @@ pub fn setup(app: &AppHandle) {
         .build(app);
     if built.is_ok() {
         refresh(app);
+        let shown = app
+            .state::<Arc<AppState>>()
+            .data
+            .lock()
+            .settings
+            .show_astro_menu_bar;
+        set_visible(app, shown);
+    }
+}
+
+/// Shows or hides the menu bar icon (Settings → General → Astros in the menu bar).
+pub fn set_visible(app: &AppHandle, visible: bool) {
+    if let Some(tray) = app.tray_by_id(TRAY) {
+        let _ = tray.set_visible(visible);
     }
 }
 

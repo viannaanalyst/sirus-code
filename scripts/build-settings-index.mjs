@@ -8,8 +8,8 @@ const files = {
   "McpSettings.tsx": "mcp", "SkillsSettings.tsx": "skills", "KeybindingsSettings.tsx": "keybindings", "SettingsPanels.tsx": null,
 };
 const tag = /<(SettingsRow|SettingsGroup|SettingsSection)\b[^>]*?\btitle=\{t\("([^"]+)"\)\}(?:[^>]*?\bdescription=\{t\("([^"]+)"\)\})?/g;
-// Rows built by small helpers: toggle("key", "Title", "Help"), boolRow(...), row("Title", "Help", …).
-const helper = /\b(?:toggle|boolRow)\(\s*"[A-Za-z]+",\s*"([^"]+)"(?:,\s*"([^"]+)")?|\brow\(\s*"([^"]+)",\s*(?:"([^"]+)"|undefined)/g;
+// Rows built by small helpers: toggle("key", "Title", "Help"), boolRow(...), booleanRow(...), row("Title", "Help", …).
+const helper = /\b(?:toggle|boolRow|booleanRow)\(\s*"[A-Za-z]+",\s*"([^"]+)"(?:,\s*"([^"]+)")?|\brow\(\s*"([^"]+)",\s*(?:"([^"]+)"|undefined)/g;
 const entries = [];
 for (const [file, fixed] of Object.entries(files)) {
   const source = readFileSync(new URL(`../src/components/settings/${file}`, import.meta.url), "utf8");

@@ -96,6 +96,19 @@ pub fn run_computer_mcp() -> i32 {
     computer_mcp::run_stdio()
 }
 
+/// The composer gets macOS spell checking (red underlines, suggestions in its context
+/// menu). WebKit reads this from the app's defaults before its first web view; a choice
+/// the person already made in Edit → Spelling and Grammar is kept.
+#[cfg(target_os = "macos")]
+fn enable_spell_checking() {
+    use objc2_foundation::{NSString, NSUserDefaults};
+    let defaults = NSUserDefaults::standardUserDefaults();
+    let key = NSString::from_str("WebContinuousSpellCheckingEnabled");
+    if defaults.objectForKey(&key).is_none() {
+        defaults.setBool_forKey(true, &key);
+    }
+}
+
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -103,6 +116,8 @@ pub fn run() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("sirus_code=info")),
         )
         .init();
+    #[cfg(target_os = "macos")]
+    enable_spell_checking();
 
     tauri::Builder::default()
         .manage(html_preview::HtmlPreviews::default())

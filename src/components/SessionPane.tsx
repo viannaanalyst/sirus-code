@@ -187,7 +187,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                 role="region"
                 aria-label={t("session.transcript")}
                 onScroll={() => scrolling.current?.scroll()}
-                onWheel={() => scrolling.current?.interact()}
+                onWheel={(event) => scrolling.current?.interact(event.deltaY)}
                 onTouchMove={() => scrolling.current?.interact()}
                 onPointerDown={() => scrolling.current?.interact()}
                 onKeyDown={() => scrolling.current?.interact()}

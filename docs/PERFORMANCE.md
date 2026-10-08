@@ -346,6 +346,10 @@ Fixes:
 
 **Not done:** the transcript scroller spans the whole pane width (about 4600 px at 5K), so scroll tiles cover empty margins. Narrowing it would cut the scroll peak, but wheel scrolling in the margins would then need forwarding.
 
+## Following the end of the transcript (2026-10-08)
+
+After MonoCode's scroll fixes, following the latest output changes only on the reader's own direction. A wheel or trackpad step up releases it at once, so the next streamed frame cannot snap the reader back. Steps with no vertical direction (sideways, the end of a momentum swipe) change nothing. A small reversal while reading does not resume it; reaching the very end while moving down does. Content changing size under the reader never flips it. Covered in `tests/transcript-scroll.test.ts`.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.
