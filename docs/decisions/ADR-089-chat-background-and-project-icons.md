@@ -19,7 +19,7 @@ Several pieces of UI fell short of MonoCode and Synara:
      - an effect (`chatBackgroundEffect`): None, Dither, ASCII, Halftone, Scanlines or Haze. Dither (ordered Bayer), ASCII and Halftone are redrawn once on a canvas (`lib/background-effects.ts`); Scanlines and Haze are CSS;
      - where it shows (`chatBackgroundShowOn`): empty conversations only, or all of them;
      - its strength in an empty conversation and once there are messages (`chatBackgroundEmptyVisibility`, `chatBackgroundSessionVisibility`, 24% by default), as the image's opacity over the pane.
-   - The renderer loads the image as a data URL (`chat_background_image`) and draws it behind `.session-pane` only, not the sidebar, in the main window and the floating Astro chat. In an empty conversation it fades out toward the composer.
+   - The renderer loads the image as a data URL (`chat_background_image`) and draws it behind `.session-pane` only, not the sidebar, in the main window and the floating Astro chat. In a new thread it covers only the top of the pane and fades out at the composer, leaving the rest plain, as MonoCode does.
    - Settings shows a preview of an empty conversation at its strength, with Change and Remove.
    - Picking is refused to paired phones, because the dialog opens on the Mac.
 2. **Project icon picker.**
