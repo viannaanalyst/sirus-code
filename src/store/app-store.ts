@@ -289,7 +289,8 @@ interface AppStore {
   astroDrawer: { astroId: string; page: AstroDrawerPage } | null;
   setAstroDrawer: (drawer: { astroId: string; page: AstroDrawerPage } | null) => void;
   /** Creates an Astro with a starting look in the current project and opens its drawer. */
-  createAstro: (name: string) => Promise<void>;
+  /** Creates an Astro, opens its conversation and drawer; resolves to its id. */
+  createAstro: (name: string) => Promise<string | null>;
   astroMemory: (action: Extract<import("@/client/types").AstroAction, { type: "remember" | "editFact" | "forget" }>) => Promise<void>;
   saveAstro: (input: import("@/client/types").AstroInput) => Promise<import("@/client/types").Astro | null>;
   openAstro: (id: string) => Promise<void>;
@@ -1706,14 +1707,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   createAstro: async (name) => {
     const state = get();
     const projectId = state.selectedProjectId ?? state.projects[0]?.id ?? null;
-    if (!projectId) { set({ error: "Add a project first: an Astro works in at least one." }); return; }
+    if (!projectId) { set({ error: "Add a project first: an Astro works in at least one." }); return null; }
     const icons = ["planeta", "saturno", "lua", "sol", "estrela", "foguete", "cometa", "galaxia"] as const;
     const colors = ["#8c9bff", "#d97757", "#74aa9c", "#f2a541", "#e86ba8", "#5fb3f9", "#c9a2ff"];
     const used = state.astros?.length ?? 0;
     const created = await get().saveAstro({ id: null, name, icon: icons[used % icons.length], style: "metal", color: colors[used % colors.length], background: "liso", projectIds: [projectId], soul: "" });
-    if (!created) return;
+    if (!created) return null;
     await get().openAstro(created.id);
     set({ astroDrawer: { astroId: created.id, page: "main" } });
+    return created.id;
   },
   astroMemory: async (action) => {
     try { set({ astros: await client.astroAction<import("@/client/types").Astro[]>(action) }); }

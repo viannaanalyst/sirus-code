@@ -9,7 +9,7 @@ const base = { agent: "claude", status: "completed", nativeThread: { id: "t" } a
 
 test("compact and send needs a heavy context, a long pause and a compacting provider", () => {
   assert.equal(shouldCompactBeforeSend(base, now), true);
-  assert.equal(shouldCompactBeforeSend({ ...base, agent: "codex" }, now), true);
+  assert.equal(shouldCompactBeforeSend({ ...base, agent: "codex" }, now), false, "only Claude, as in T3 Code");
   // 70% of a known window counts even below 100k tokens.
   assert.equal(shouldCompactBeforeSend({ ...base, contextUsage: { used: 90_000, window: 128_000 } }, now), true);
   assert.equal(shouldCompactBeforeSend({ ...base, contextUsage: { used: 100_000, window: null } }, now), true);

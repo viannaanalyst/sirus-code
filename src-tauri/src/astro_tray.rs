@@ -160,7 +160,7 @@ pub fn open_float(app: &AppHandle, astro_id: &str) -> Result<()> {
     );
     WebviewWindowBuilder::new(app, FLOAT, WebviewUrl::App("index.html".into()))
         .title(&name)
-        .inner_size(420.0, 640.0)
+        .inner_size(480.0, 660.0)
         .min_inner_size(340.0, 420.0)
         .always_on_top(true)
         .visible_on_all_workspaces(true)
@@ -169,6 +169,13 @@ pub fn open_float(app: &AppHandle, astro_id: &str) -> Result<()> {
         .build()
         .map_err(|error| Error::new("native", error.to_string()))?;
     Ok(())
+}
+
+/// From the floating chat's Astro rail: switch to another Astro through the same path
+/// as the menu bar, so the window title and the rail stay in step.
+#[tauri::command]
+pub fn astro_float_select(app: AppHandle, astro_id: String) -> Result<()> {
+    open_float(&app, &astro_id)
 }
 
 /// From the floating chat: show the conversation in the main window.

@@ -128,7 +128,7 @@ impl TurnActivity {
             pending: vec![],
         }
     }
-    fn sync_at(&mut self, status: SessionStatus, at: i64) {
+    pub(crate) fn sync_at(&mut self, status: SessionStatus, at: i64) {
         let at = at.max(self.started_at);
         if self.ended_at.is_some() {
             return;

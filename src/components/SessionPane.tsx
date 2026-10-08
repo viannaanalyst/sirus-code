@@ -334,7 +334,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     });
   };
   return (
-    <article data-message-id={message.id} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
+    <article data-message-id={message.id} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>

@@ -55,6 +55,8 @@ There is no free-form cron.
 
 *Amended 2026-10-07:* **Automations page removed; the engine remains for Astro habits.** Once Astros existed (ADR-069), habits covered scheduled work and the standalone page no longer made sense, so the owner removed it: its rail item, ⌘K entry and main view are gone, and saved rail settings drop the `automations` ID on load, like the retired `drafts` ID. The scheduler, `automation_action`, run history, failure pause and run notifications are unchanged, and every automation is now a habit (`astroId`). Standalone automations from before are never deleted: on load they are paused (`enabled: false`, no next run) and kept in `AppData.automations`, and `automation_action` refuses to create one, resume one or Run now one ("Scheduled work now lives in Astro habits."). They stay out of the Inbox, which lists failing habits instead.
 
+*Amended 2026-10-08:* **Habit runs have a one-hour working limit.** Time waiting on an approval does not count; overdue runs are stopped and recorded as failed, counting toward the failure pause. Details in ADR-069.
+
 ## Consequences
 
 - **Positive:**

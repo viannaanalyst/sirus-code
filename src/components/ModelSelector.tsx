@@ -19,6 +19,10 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 
+/** A catalog older than this is reloaded when the picker opens. */
+const CATALOG_REFRESH_MS = 5 * 60 * 1000;
+const catalogReadAt = new Map<string, number>();
+
 export function ModelSelector({ currentProvider, currentModel, onSelect, disabled = false, executionControls = false, switchOwner }: {
   executionControls?: boolean;
   /** Announces a provider switch for this pane's scene (`ProviderSwitchScene`). */
@@ -69,7 +73,14 @@ export function ModelSelector({ currentProvider, currentModel, onSelect, disable
       settings.favoriteModels.some((key) => parseModelKey(key)?.provider === provider)
     ) : enabledProviders.filter((provider) => provider === next);
     setLoading(sources.some((provider) => !catalogs[provider]));
-    void Promise.all(sources.map((provider) => loadProviderModels(provider))).finally(() => {
+    // Opening the picker also refreshes a catalog read a while ago, so a model released
+    // since then shows up without restarting (after MonoCode 0.4).
+    const now = Date.now();
+    void Promise.all(sources.map((provider) => {
+      const stale = catalogs[provider] && now - (catalogReadAt.get(provider) ?? 0) > CATALOG_REFRESH_MS;
+      if (!catalogs[provider] || stale) catalogReadAt.set(provider, now);
+      return loadProviderModels(provider, Boolean(stale));
+    })).finally(() => {
       if (requestSequence.current === sequence) setLoading(false);
     });
   };

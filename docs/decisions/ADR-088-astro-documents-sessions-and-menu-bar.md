@@ -41,8 +41,9 @@ Astros had none of these:
    - Settings → General → Application → "Astros in the menu bar" (`showAstroMenuBar`, on by default) hides or restores the icon. The choice survives restarts (2026-10-08, after MonoCode).
    - Choosing an Astro opens `astro-float`: a resizable window that stays above other windows and follows across Spaces. It runs the normal UI over the same state, showing only that Astro's conversation (`AstroFloat`), so messages, attachments, approvals, questions and stop all work there.
    - "Open in Sirus Code" shows the conversation in the main window.
+   - A rail of Astros sits on the left of the float (2026-10-08, after MonoCode 0.4's Mono rail): each Astro's icon in its colour with a tooltip, the current one marked (`aria-current`), an unread dot, and "+" for New Astro, which runs the main window's flow (create, open its conversation, open its drawer) inside the float. Choosing an Astro calls `astro_float_select`, the same path as the menu bar, so the window title changes and `astro-float-select` echoes the choice; the menu bar's choice moves the rail the same way. At 460 px and wider the rail stays beside the chat; narrower, it hides behind a toggle in the bar and slides in over the chat (Escape closes it). It dims while the window is in the background. The float now opens at 480×660. A deleted Astro hands the float to the first one left.
    - The float closes when the main window closes. Its close never runs the app quit flow.
-   - Opening the float and showing the main window are refused to paired phones.
+   - Opening the float, switching it and showing the main window are refused to paired phones.
 
 ## Consequences
 

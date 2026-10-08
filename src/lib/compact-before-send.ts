@@ -9,11 +9,12 @@ export const COMPACT_RATIO = 0.7;
 export const COMPACT_IDLE_MS = 70 * 60 * 1000;
 
 /**
- * "Compact and send" (T3 Code #16631): a heavy conversation coming back after a long pause
- * compacts first, so the next request does not resend the whole uncached context.
+ * "Compact and send" (T3 Code #16631): a heavy Claude conversation coming back after a long
+ * pause compacts first, so the next request does not resend the whole uncached context.
+ * Only Claude, as in T3 Code: its prompt cache lapses after an hour; Codex caches differently.
  */
 export function shouldCompactBeforeSend(session: Pick<Session, "agent" | "status" | "nativeThread" | "contextUsage" | "lastActivityAt"> | null, now: number): boolean {
-  if (!session || !COMPACTING_PROVIDERS.has(session.agent) || !session.nativeThread) return false;
+  if (!session || session.agent !== "claude" || !session.nativeThread) return false;
   if (["starting", "running", "waiting"].includes(session.status)) return false;
   const usage = session.contextUsage;
   if (!usage || !(usage.used >= COMPACT_TOKENS || (usage.window ? usage.used / usage.window >= COMPACT_RATIO : false))) return false;

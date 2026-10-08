@@ -68,6 +68,7 @@ const DENIED: &[&str] = &[
     "simulator_action",
     "window_snap_action",
     "astro_show_in_main",
+    "astro_float_select",
     "chat_background_action",
 ];
 

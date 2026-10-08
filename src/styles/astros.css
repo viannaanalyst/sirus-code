@@ -56,7 +56,22 @@
   .astro-sessions-panel .astro-card { max-width: none; }
   .astro-document-reader { width: min(760px, calc(100vw - 48px)); }
   /* The floating Astro chat from the menu bar (ADR-088). */
-  .astro-float { display: flex; height: 100vh; flex-direction: column; overflow: hidden; background: var(--background-0); }
+  .astro-float { position: relative; display: flex; height: 100vh; overflow: hidden; background: var(--background-0); }
+  .astro-float-main { display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; }
+  /* Its Astro rail: beside the chat when wide, a sheet behind the bar's toggle when narrow; dimmed in the background. */
+  .astro-float-rail { display: flex; width: 52px; flex-shrink: 0; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; border-right: 1px solid var(--border-subtle); background: var(--background-1); transition: opacity var(--motion-normal) var(--ease-out); }
+  .astro-float-rail[data-focused="false"] { opacity: .55; }
+  .astro-float-rail-list { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 4px; overflow-y: auto; scrollbar-width: none; }
+  .astro-float-rail-astro { position: relative; display: grid; flex-shrink: 0; width: 36px; height: 36px; place-items: center; border-radius: 10px; transition: background var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+  .astro-float-rail-astro:hover { background: var(--surface-muted); }
+  .astro-float-rail-astro[aria-current="page"] { background: color-mix(in srgb, var(--astro) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--astro) 45%, transparent); }
+  .astro-float-rail-astro:focus-visible, .astro-float-rail-add:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 1px; }
+  .astro-float-rail-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 999px; background: var(--astro); box-shadow: 0 0 0 2px var(--background-1); }
+  .astro-float-rail-add { display: grid; flex-shrink: 0; width: 30px; height: 30px; place-items: center; border: 1px dashed var(--border-default); border-radius: 9px; color: var(--text-muted); transition: color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+  .astro-float-rail-add:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .astro-float-rail-layer { position: absolute; inset: 0; z-index: 30; display: flex; }
+  .astro-float-rail-scrim { position: absolute; inset: 0; background: rgb(0 0 0 / .18); cursor: default; }
+  .astro-float-rail-sheet { position: relative; display: flex; height: 100%; box-shadow: var(--shadow-float); }
   .astro-float-bar { display: flex; flex-shrink: 0; justify-content: flex-end; padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); }
   .astro-document-body { height: min(62vh, 640px); overflow: hidden; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--background-2); }
   button.astro-run { cursor: pointer; }

@@ -496,7 +496,12 @@ export class SirusClient {
     return this.transport.invoke<void>("astro_show_in_main", { sessionId });
   }
 
-  /** The menu bar switched the floating chat to another Astro. */
+  /** The floating chat's rail switches it to another Astro, through the menu bar's path. */
+  astroFloatSelect(astroId: string) {
+    return this.transport.invoke<void>("astro_float_select", { astroId });
+  }
+
+  /** The menu bar or the rail switched the floating chat to another Astro. */
   onAstroFloatSelect(handler: (astroId: string) => void) {
     return this.transport.listen<{ astroId: string }>("astro-float-select", (payload) => handler(payload.astroId));
   }

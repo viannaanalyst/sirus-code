@@ -38,6 +38,17 @@ const MISSED_GRACE: Span = Span::minutes(60);
 const FAILURES_BEFORE_PAUSE: usize = 3;
 /// The timer re-reads the clock at least this often (wall-clock changes, sleep).
 const MAX_SLEEP: Duration = Duration::from_secs(60 * 60);
+/// Working time one habit run may use before it is stopped and recorded as a
+/// failure (after MonoCode 0.4). Working time is wall time while the run's
+/// session is starting or running; time spent `waiting` on an approval or a
+/// question does not count. A run's watchdog lives only while its session is
+/// active, and an app restart interrupts the session anyway.
+pub const HABIT_WORK_LIMIT: Duration = Duration::from_secs(60 * 60);
+/// Recorded on the run (and as the habit's last error) when the limit stops it.
+const OVERDUE: &str = "Stopped after one hour of work.";
+/// While the run waits on the person its working time stands still, so the
+/// watchdog re-reads it at most this often instead of every remaining second.
+const WAITING_RECHECK: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
@@ -633,9 +644,9 @@ pub async fn start_run(
         record(
             &mut data,
             Run {
-                id: run_id,
+                id: run_id.clone(),
                 automation_id: automation.id.clone(),
-                session_id,
+                session_id: session_id.clone(),
                 started_at,
                 manual,
                 status: if error.is_some() {
@@ -643,14 +654,158 @@ pub async fn start_run(
                 } else {
                     RunStatus::Started
                 },
-                note: error,
+                note: error.clone(),
                 reported: false,
             },
         );
+        if let (Some(session_id), None) = (session_id, error) {
+            watch(app.clone(), state.clone(), run_id, session_id);
+        }
     }
     let _ = state.persist();
     changed(app);
     Ok(())
+}
+
+/// One turn's clock, read from its `TurnActivity` (milliseconds since the epoch).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TurnClock {
+    started_at: i64,
+    ended_at: Option<i64>,
+    waiting_since: Option<i64>,
+    paused_ms: i64,
+}
+
+impl From<&crate::activity::TurnActivity> for TurnClock {
+    fn from(activity: &crate::activity::TurnActivity) -> Self {
+        Self {
+            started_at: activity.started_at,
+            ended_at: activity.ended_at,
+            waiting_since: activity.waiting_since,
+            paused_ms: activity.paused_ms,
+        }
+    }
+}
+
+/// Working time across turns at `now`: each turn's wall time from start to end
+/// (or now), minus the time it spent waiting on the person. Gaps between turns
+/// are not work.
+fn work_ms(turns: &[TurnClock], now: i64) -> i64 {
+    turns
+        .iter()
+        .map(|turn| {
+            let end = turn.ended_at.unwrap_or(now).max(turn.started_at);
+            let waiting = turn
+                .waiting_since
+                .filter(|_| turn.ended_at.is_none())
+                .map_or(0, |since| end.saturating_sub(since.max(turn.started_at)));
+            end.saturating_sub(turn.started_at)
+                .saturating_sub(turn.paused_ms.max(0))
+                .saturating_sub(waiting)
+                .max(0)
+        })
+        .sum()
+}
+
+fn session_work_ms(session: &crate::models::Session, now: i64) -> i64 {
+    let turns: Vec<TurnClock> = session
+        .messages
+        .iter()
+        .filter_map(|message| message.activity.as_ref().map(TurnClock::from))
+        .collect();
+    work_ms(&turns, now)
+}
+
+/// What the watchdog does next for one run.
+#[derive(Debug, PartialEq, Eq)]
+enum Watch {
+    /// The session settled (or is gone): nothing left to limit.
+    Done,
+    /// Re-evaluate after this long, the earliest the limit could be reached.
+    Sleep(Duration),
+    /// Over the limit: stop the session and record the failure.
+    Overdue,
+}
+
+fn evaluate(session: Option<&crate::models::Session>, now: i64) -> Watch {
+    let Some(session) = session.filter(|session| session.status.is_active()) else {
+        return Watch::Done;
+    };
+    let limit = HABIT_WORK_LIMIT.as_millis() as i64;
+    let remaining = limit - session_work_ms(session, now);
+    if remaining <= 0 {
+        return Watch::Overdue;
+    }
+    let remaining = Duration::from_millis(remaining as u64).max(Duration::from_secs(1));
+    let waiting = session.status == crate::models::SessionStatus::Waiting
+        || !session.pending_requests.is_empty();
+    Watch::Sleep(if waiting {
+        remaining.max(WAITING_RECHECK)
+    } else {
+        remaining
+    })
+}
+
+/// Records an overdue run as failed (it counts toward the failure pause).
+fn fail_overdue(data: &mut AppData, run_id: &str) -> bool {
+    let Some(run) = data
+        .automation_runs
+        .iter_mut()
+        .find(|run| run.id == run_id && run.status == RunStatus::Started)
+    else {
+        return false;
+    };
+    run.status = RunStatus::Failed;
+    run.note = Some(OVERDUE.into());
+    let automation_id = run.automation_id.clone();
+    if let Some(entry) = data
+        .automations
+        .iter_mut()
+        .find(|item| item.id == automation_id)
+    {
+        entry.last_error = Some(OVERDUE.into());
+    }
+    true
+}
+
+/// A watchdog for one active habit run: sleeps until the earliest moment its
+/// working time could reach `HABIT_WORK_LIMIT`, re-reads it, and when overdue
+/// records the failure and stops the session through the Stop button's path.
+fn watch(app: AppHandle, state: Arc<AppState>, run_id: String, session_id: String) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            if state.ensure_running().is_err() {
+                return;
+            }
+            let next = {
+                let data = state.data.lock();
+                let session = data.sessions.iter().find(|item| item.id == session_id);
+                evaluate(session, chrono::Utc::now().timestamp_millis())
+            };
+            match next {
+                Watch::Done => return,
+                Watch::Sleep(wait) => tokio::time::sleep(wait).await,
+                Watch::Overdue => break,
+            }
+        }
+        let failed = fail_overdue(&mut state.data.lock(), &run_id);
+        if failed {
+            let _ = state.persist();
+        }
+        // The Stop button's path: interrupts the turn and its scripts, clears
+        // pending requests and marks the session stopped, which also pauses
+        // any queued follow-ups in the renderer.
+        if let Err(error) = crate::commands::stop_agent(
+            app.clone(),
+            app.state::<Arc<AppState>>(),
+            session_id.clone(),
+        )
+        .await
+        {
+            tracing::warn!(%error, "cannot stop an overdue habit run");
+        }
+        changed(&app);
+    });
 }
 
 /// One explicit or scheduled start: a new session admitted through `send_prompt`.
@@ -1063,6 +1218,109 @@ mod tests {
         );
         assert!(failing(&data, "a"));
         assert!(!failing(&data, "b"));
+    }
+
+    const MIN: i64 = 60 * 1000;
+
+    #[test]
+    fn working_time_excludes_waiting_and_gaps_between_turns() {
+        use crate::activity::TurnActivity;
+        use crate::models::SessionStatus;
+        // Turn 1: 20 min of work, 30 min waiting on an approval, 10 min more, done.
+        let mut first = TurnActivity::new(AgentProviderId::Codex, None);
+        let t0 = first.started_at;
+        first.sync_at(SessionStatus::Running, t0 + MIN);
+        first.sync_at(SessionStatus::Waiting, t0 + 20 * MIN);
+        first.sync_at(SessionStatus::Running, t0 + 50 * MIN);
+        first.sync_at(SessionStatus::Completed, t0 + 60 * MIN);
+        let first = TurnClock::from(&first);
+        assert_eq!(work_ms(&[first], t0 + 500 * MIN), 30 * MIN);
+        // Turn 2 starts after a 100 min gap and is waiting right now.
+        let second = TurnClock {
+            started_at: t0 + 160 * MIN,
+            ended_at: None,
+            waiting_since: Some(t0 + 175 * MIN),
+            paused_ms: 5 * MIN,
+        };
+        // 30 + (200 - 160 - 5 paused - 25 waiting so far) = 40.
+        assert_eq!(work_ms(&[first, second], t0 + 200 * MIN), 40 * MIN);
+        // Waiting longer adds nothing.
+        assert_eq!(work_ms(&[first, second], t0 + 900 * MIN), 40 * MIN);
+        assert_eq!(work_ms(&[], t0), 0);
+    }
+
+    fn habit_session(status: &str, started_at: i64, waiting: bool) -> crate::models::Session {
+        let mut session: crate::models::Session = serde_json::from_value(serde_json::json!({
+            "id": "s", "title": "Habit", "projectId": "p", "agent": "codex", "status": status,
+            "createdAt": "t", "lastActivityAt": "t",
+            "worktree": {"path": "/fixture", "branch": "main", "isolated": false},
+            "lastError": null, "messages": [{"id": "m", "sessionId": "s", "role": "agent",
+                "content": "", "createdAt": "t", "streaming": true}]
+        }))
+        .unwrap();
+        let mut activity = crate::activity::TurnActivity::new(AgentProviderId::Codex, None);
+        activity.started_at = started_at;
+        if waiting {
+            activity.sync_at(crate::models::SessionStatus::Waiting, started_at + 30 * MIN);
+        }
+        session.messages[0].activity = Some(activity);
+        session
+    }
+
+    #[test]
+    fn the_watchdog_sleeps_until_the_earliest_deadline() {
+        let t0 = 1_000_000 * MIN;
+        let running = habit_session("running", t0, false);
+        assert_eq!(
+            evaluate(Some(&running), t0 + 15 * MIN),
+            Watch::Sleep(Duration::from_secs(45 * 60))
+        );
+        assert_eq!(evaluate(Some(&running), t0 + 60 * MIN), Watch::Overdue);
+        // Waiting since minute 30: still 30 minutes left hours later.
+        let waiting = habit_session("waiting", t0, true);
+        assert_eq!(
+            evaluate(Some(&waiting), t0 + 300 * MIN),
+            Watch::Sleep(Duration::from_secs(30 * 60))
+        );
+        let done = habit_session("completed", t0, false);
+        assert_eq!(evaluate(Some(&done), t0 + 300 * MIN), Watch::Done);
+        assert_eq!(evaluate(None, t0), Watch::Done);
+    }
+
+    #[test]
+    fn an_overdue_run_is_recorded_as_failed_and_counts_toward_the_pause() {
+        let mut data = data_with_project();
+        upsert(&mut data, input(ApprovalMode::Ask, false), Local::now()).unwrap();
+        let automation_id = data.automations[0].id.clone();
+        for index in 0..FAILURES_BEFORE_PAUSE {
+            record(
+                &mut data,
+                Run {
+                    id: index.to_string(),
+                    automation_id: automation_id.clone(),
+                    session_id: Some(format!("s{index}")),
+                    started_at: "t".into(),
+                    manual: false,
+                    status: if index == 0 {
+                        RunStatus::Started
+                    } else {
+                        RunStatus::Failed
+                    },
+                    note: None,
+                    reported: false,
+                },
+            );
+        }
+        assert!(!failing(&data, &automation_id));
+        assert!(fail_overdue(&mut data, "0"));
+        let run = &data.automation_runs[0];
+        assert_eq!(run.status, RunStatus::Failed);
+        assert_eq!(run.note.as_deref(), Some(OVERDUE));
+        assert_eq!(data.automations[0].last_error.as_deref(), Some(OVERDUE));
+        assert!(failing(&data, &automation_id));
+        // Only once, and only for a started run.
+        assert!(!fail_overdue(&mut data, "0"));
+        assert!(!fail_overdue(&mut data, "missing"));
     }
 
     #[test]

@@ -308,6 +308,23 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     return () => window.removeEventListener(QUICK_REPLY_EVENT, onQuickReply);
   }, [sessionId, draftKey, updateDraft, setContext]);
 
+  // Typing while nothing editable has focus (after clicking the conversation) writes in the composer.
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      const field = area.current;
+      if (!field || field.disabled || event.defaultPrevented || event.isComposing) return;
+      if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.isContentEditable || active.closest("input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=listbox], .xterm"))) return;
+      // Focus moves before the key's default action, so the character lands in the composer.
+      field.focus({ preventScroll: true });
+      const end = field.value.length;
+      field.setSelectionRange(end, end);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   // ↑/↓ on an empty composer walk this session's sent prompts (T3-style recall).
   const recall = useRef<Recall>({ index: null, draft: "" });
   const recallPrompt = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {

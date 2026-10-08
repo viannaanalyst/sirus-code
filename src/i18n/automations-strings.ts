@@ -58,6 +58,7 @@ const strings: Record<string, [string, string]> = {
   "Paused after 3 failed runs in a row.": ["Paused after 3 failed runs in a row.", "Pausada depois de 3 execuções seguidas com falha."],
   "Missed while Sirus Code was closed.": ["Missed while Sirus Code was closed.", "Perdida enquanto o Sirus Code estava fechado."],
   "The previous run is still working.": ["The previous run is still working.", "A execução anterior ainda está trabalhando."],
+  "Stopped after one hour of work.": ["Stopped after one hour of work.", "Interrompida depois de uma hora de trabalho."],
 };
 export const automationsEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const automationsPortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));
