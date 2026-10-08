@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { annotatedImageName, appendAttachments, isAttachmentPaste, pastedFiles, replaceAttachment, attachmentFileLimit } from "../src/lib/composer-attachments.ts";
+import { annotatedImageName, appendAttachments, fileBase64, isAttachmentPaste, pastedFiles, replaceAttachment, attachmentFileLimit } from "../src/lib/composer-attachments.ts";
 import { composerPrompt } from "../src/lib/composer-context.ts";
 
 test("paste intercepts screenshot paths with spaces, quoted paths, and file URIs while preserving normal text", () => {
@@ -13,6 +13,24 @@ test("pasted files preserve PNG, PDF, CSV, DOCX and opaque binary bytes without 
     const [file] = await pastedFiles([new File([bytes], name)]);
     assert.equal(file.name, name);
     assert.deepEqual(Buffer.from(file.data, "base64"), Buffer.from(bytes));
+  }
+});
+test("pasted files use the webview's FileReader and drop the data URL prefix", async () => {
+  const bytes = new Uint8Array([0, 255, 128, 1, 2]);
+  const previous = (globalThis as { FileReader?: unknown }).FileReader;
+  class Reader {
+    result: string | null = null; error: Error | null = null;
+    onload: (() => void) | null = null; onerror: (() => void) | null = null;
+    readAsDataURL(blob: Blob) {
+      void blob.arrayBuffer().then((buffer) => { this.result = `data:application/octet-stream;base64,${Buffer.from(buffer).toString("base64")}`; this.onload?.(); });
+    }
+  }
+  (globalThis as { FileReader?: unknown }).FileReader = Reader;
+  try {
+    assert.deepEqual(Buffer.from(await fileBase64(new File([bytes], "a.bin")), "base64"), Buffer.from(bytes));
+    assert.equal(await fileBase64(new File([], "empty.bin")), "");
+  } finally {
+    (globalThis as { FileReader?: unknown }).FileReader = previous;
   }
 });
 test("paste checks size and count before reading file bodies", async () => {

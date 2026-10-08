@@ -16,7 +16,7 @@ Several pieces of UI fell short of MonoCode and Synara:
    - Settings → Appearance → Chat background picks a PNG or JPEG natively (`chat_background_action`).
    - The image is decoded with bounds (at most 30 MiB and 12,000 px), scaled to at most 2560 px and saved as `backgrounds/chat-<uuid>.jpg` next to `state.json`. Older backgrounds are removed.
    - Settings keep only the file name (`chatBackground`, validated natively). The rest follows MonoCode's settings:
-     - an effect (`chatBackgroundEffect`): None, Dither, ASCII, Halftone, Scanlines or Haze. Dither (ordered Bayer), ASCII and Halftone are redrawn once on a canvas (`lib/background-effects.ts`); Scanlines and Haze are CSS;
+     - an effect (`chatBackgroundEffect`): None, Dither, ASCII, Halftone, Scanlines or Haze. Dither (ordered Bayer), ASCII, Halftone and Haze are redrawn once on a canvas (`lib/background-effects.ts`) and shown as a `blob:` URL, never a multi-MB data URL in a CSS variable; Scanlines is CSS;
      - where it shows (`chatBackgroundShowOn`): empty conversations only, or all of them;
      - its strength in an empty conversation and once there are messages (`chatBackgroundEmptyVisibility`, `chatBackgroundSessionVisibility`, 24% by default), as the image's opacity over the pane.
    - The renderer loads the image as a data URL (`chat_background_image`) and draws it behind `.session-pane` only, not the sidebar, in the main window and the floating Astro chat. In a new thread it covers only the top of the pane and fades out at the composer, leaving the rest plain, as MonoCode does.

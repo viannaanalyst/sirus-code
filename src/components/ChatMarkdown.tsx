@@ -157,7 +157,7 @@ function Inline({ nodes, owner }: { nodes: ChatInline[]; owner: Owner | null }):
       case "image":
         // Images in a reply open together in the gallery, in the order they appear in the message.
         return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, node.url)}>
-          <img src={node.url} alt={node.alt} loading="lazy" className="chat-image" draggable={false} />
+          <img src={node.url} alt={node.alt} loading="lazy" decoding="async" className="chat-image" draggable={false} />
         </button>;
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {

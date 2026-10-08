@@ -415,6 +415,9 @@ html[data-density="comfortable"] {
     pointer-events: none;
     background: var(--chat-background) center / cover no-repeat;
     opacity: var(--chat-background-session-opacity, .24);
+    /* Its own compositing layer: painted once, not with every transcript repaint. */
+    transform: translateZ(0);
+    will-change: transform;
   }
   /* A new thread shows it only down to the composer, as MonoCode does; below stays plain. */
   html[data-chat-background="on"] .session-pane[data-empty]::before {
@@ -426,7 +429,7 @@ html[data-density="comfortable"] {
   html[data-chat-background-effect="scanlines"] .session-pane::before {
     background: repeating-linear-gradient(to bottom, rgb(0 0 0 / .45) 0 1px, transparent 1px 3px), var(--chat-background) center / cover no-repeat;
   }
-  html[data-chat-background-effect="haze"] .session-pane::before { filter: blur(14px) saturate(1.2) brightness(1.08); }
+  /* Haze is drawn once on a canvas (src/lib/background-effects.ts), not filtered here. */
 }
 
 /* Status pulses rest while the window is unfocused or hidden (src/lib/ambient-motion.ts). */

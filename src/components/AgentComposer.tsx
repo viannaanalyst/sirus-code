@@ -448,7 +448,10 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
           setPasting(true); setAttachmentError(null);
           void (async () => {
             try {
-              const attachments = await client.pastePromptAttachments(owner, await pastedFiles(files), text || undefined);
+              // The desktop reads the clipboard natively, off the page's thread; files are
+              // only encoded here when that finds nothing (a menu paste, the phone).
+              const native = files.length ? await client.pastePromptAttachments(owner, [], text || undefined).catch(() => []) : [];
+              const attachments = native.length ? native : await client.pastePromptAttachments(owner, await pastedFiles(files), text || undefined);
               const state = useAppStore.getState();
               if (attachments.length) {
                 const current = composerContextForOwner(owner, state.composerContexts, state.sessions);

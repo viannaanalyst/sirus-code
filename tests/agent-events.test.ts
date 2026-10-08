@@ -47,3 +47,29 @@ test("a native snapshot keeps unchanged message objects so memoized rows skip re
   assert.notEqual(settled[1], previous[1], "metadata changes replace the object");
   assert.deepEqual(reuseMessages(previous, [snapshot[1]]).map(item => item.id), ["a"]);
 });
+
+test("message comparison sees nested activity, attachment and list changes without serializing", () => {
+  const item = { id: "i", kind: "command", label: "npm test", state: "running", model: null, steps: [{ id: "s", kind: "read", label: "a", state: "running" }] };
+  const activity = { provider: "codex", model: "m", startedAt: 0, endedAt: null, waitingSince: null, pausedMs: 0, status: "running", items: [item], truncated: false, review: null };
+  const base = { ...message("a", "agent", "Answer"), activity, attachments: [{ id: "f", name: "a.png", kind: "file", thumbnail: "data:image/jpeg;base64,AAAA" }], launched: ["x"] } as unknown as Message;
+  const copy = () => JSON.parse(JSON.stringify(base)) as Message & { activity: typeof activity };
+  const previous = [base];
+  assert.equal(reuseMessages(previous, [copy()]), previous, "an equal deep copy keeps the object");
+  const changes: ((next: ReturnType<typeof copy>) => void)[] = [
+    (next) => { next.activity.items[0].state = "completed"; },
+    (next) => { next.activity.items[0].steps[0].state = "completed"; },
+    (next) => { next.activity.items.push({ ...item, id: "j" }); },
+    (next) => { next.activity.endedAt = 5 as unknown as null; },
+    (next) => { next.activity.review = { files: [], partial: false, sharedWorkspace: false, keptAt: null, expired: false } as unknown as null; },
+    (next) => { next.attachments![0].name = "b.png"; },
+    (next) => { next.attachments!.push({ name: "c.txt", kind: "file" }); },
+    (next) => { next.launched = ["y"]; },
+    (next) => { next.steers = [{ text: "go", at: "t", offset: 1 }]; },
+    (next) => { next.createdAt = "later"; },
+  ];
+  for (const change of changes) {
+    const next = copy();
+    change(next);
+    assert.notEqual(reuseMessages(previous, [next])[0], base, change.toString());
+  }
+});

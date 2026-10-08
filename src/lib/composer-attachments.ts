@@ -29,10 +29,26 @@ export async function pastedFiles(files: File[]): Promise<{ name: string; data: 
   if (files.length > 8) throw new Error("composer.attachmentLimit");
   if (files.some((file) => file.size > attachmentFileLimit)) throw new Error("composer.attachmentFileLimit");
   if (files.reduce((total, file) => total + file.size, 0) > attachmentBatchLimit) throw new Error("composer.attachmentBatchLimit");
-  return Promise.all(files.map(async (file) => {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let binary = "";
-    for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
-    return { name: file.name, data: btoa(binary) };
-  }));
+  return Promise.all(files.map(async (file) => ({ name: file.name, data: await fileBase64(file) })));
+}
+/**
+ * Base64 of a file body. The webview's FileReader encodes natively, off the JS heap;
+ * a byte loop with `btoa` is only the fallback (Node tests, older engines).
+ */
+export async function fileBase64(file: Blob): Promise<string> {
+  if (typeof FileReader === "function") {
+    const url = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("composer.attachmentRead"));
+      reader.readAsDataURL(file);
+    });
+    return url.slice(url.indexOf(",") + 1);
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const native = (bytes as Uint8Array & { toBase64?: () => string }).toBase64;
+  if (typeof native === "function") return native.call(bytes);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  return btoa(binary);
 }

@@ -33,7 +33,9 @@ button.activity-line { cursor: pointer; }
 .activity-step-status { margin-left: auto; display: inline-grid; place-items: center; width: 14px; flex-shrink: 0; color: var(--text-muted); }
 .activity-step-status[data-state="completed"] { color: var(--success); }
 .activity-step-status[data-state="failed"] { color: var(--danger); }
-.activity-step-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
+.activity-step-pulse { position: relative; width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); }
+/* The running ring: a disc scaled and faded on the compositor (was an animated box-shadow, repainted every frame). */
+.activity-step-pulse::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: color-mix(in srgb, var(--text-secondary) 50%, transparent); opacity: 0; pointer-events: none; }
 /* S1: a subagent is a trail row with its own tint; its steps open as a branch under it. */
 .activity-child { display: block; min-height: 0; }
 .activity-child::before { top: 13px; margin-top: -3.5px; }
@@ -74,21 +76,25 @@ button.activity-line { cursor: pointer; }
 .agent-question-progress [data-current="true"] { background: var(--text-primary); }
 html[data-window-glass="on"] .agent-request { background: var(--background-2); }
 @media (prefers-reduced-motion: no-preference) {
-  .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
+  .agent-activity[data-live] .activity-state { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; will-change: transform; }
   .agent-activity[data-status="waiting"] .activity-orbit-core { animation: activity-orbit-beat calc(var(--motion-slow) * 4.4) ease-in-out infinite; }
   .agent-activity[data-resting] .activity-orbit-core { animation-play-state: paused; }
   .agent-activity[data-status="completed"] .activity-orbit-ring { transform-box: fill-box; transform-origin: center; animation: activity-orbit-settle var(--motion-reveal) var(--ease-spring) both; }
   /* Steps enter only while the turn is live; history renders still. */
   .agent-activity[data-active] .activity-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
-  .agent-activity[data-live] .activity-step-pulse { animation: activity-step-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
-  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) linear infinite; }
+  .agent-activity[data-live] .activity-step-pulse::after { animation: activity-step-pulse calc(var(--motion-slow) * 5) ease-out infinite; }
+  .agent-activity[data-live] .activity-child[data-state="running"] .activity-child-now { background: linear-gradient(100deg, var(--text-muted) 30%, var(--text-primary) 50%, var(--text-muted) 70%); background-size: 200% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: activity-shimmer calc(var(--motion-slow) * 8) steps(40) infinite; will-change: transform; }
   .agent-activity[data-active] .activity-child-step { animation: activity-step-in var(--motion-slow) var(--ease-out) both; }
 }
 @keyframes activity-orbit-beat { 50% { transform: scale(1.35); } }
 @keyframes activity-orbit-settle { from { transform: scale(1.3); opacity: 0; } }
 @keyframes activity-step-in { from { opacity: 0; translate: 0 5px; } }
-@keyframes activity-step-pulse { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-secondary) 50%, transparent); } to { box-shadow: 0 0 0 6px transparent; } }
+@keyframes activity-step-pulse { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(3); } }
 @keyframes activity-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+/* Text sweeps cannot move on the compositor (the gradient is clipped to the glyphs), so they
+   step at ~15 fps on their own small layers and rest, like the status pulses, while the
+   window is unfocused or hidden (src/lib/ambient-motion.ts). */
+html[data-ambient="off"] :is(.agent-activity .activity-state, .agent-activity .activity-child-now, .tl-shine), html[data-ambient="off"] .agent-activity .activity-step-pulse::after { animation-play-state: paused; }
 @media (prefers-reduced-motion: reduce) { .activity-chevron { transition: none; } }
 }
 
@@ -120,7 +126,7 @@ html[data-window-glass="on"] .agent-request { background: var(--background-2); }
   /* The step running now: a highlight sweeps across its words. */
   .tl-shine { color: transparent; background-clip: text; -webkit-background-clip: text;
     background-image: linear-gradient(to right, transparent, var(--text-primary), transparent), linear-gradient(var(--text-muted), var(--text-muted));
-    background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; }
+    background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; will-change: transform; }
 }
 @keyframes tl-open { from { opacity: 0; transform: translateY(-2px); } }
 @keyframes tl-shine { from { background-position: -4.5rem 0, 0 0; } to { background-position: calc(100% + 4.5rem) 0, 0 0; } }

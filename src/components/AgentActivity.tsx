@@ -211,7 +211,9 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
     : activity.status === "failed" ? t("timeline.failedAfter", { duration })
     : t("timeline.workedFor", { duration });
   // While the reply is revealed at a steady pace, work that came after the text shown so far waits for it.
-  const parts = useMemo(() => timelineParts(renderText ? content : "", renderText && active ? activity.items.filter(item => (item.offset ?? 0) <= content.length) : activity.items, renderText ? steers : []), [activity.items, content, steers, renderText, active]);
+  // A new `renderText` arrives with every parent render; only whether there is one matters here.
+  const textual = Boolean(renderText);
+  const parts = useMemo(() => timelineParts(textual ? content : "", textual && active ? activity.items.filter(item => (item.offset ?? 0) <= content.length) : activity.items, textual ? steers : []), [activity.items, content, steers, textual, active]);
   const boundary = foldBoundary(parts);
   // A running turn folds its earlier paragraphs and steps behind one line (unless kept open).
   const liveBoundary = active && renderText && !keepOpen ? liveFoldBoundary(parts) : 0;

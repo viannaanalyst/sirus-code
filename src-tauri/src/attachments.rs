@@ -707,6 +707,10 @@ pub async fn paste_prompt_attachments(
                     crate::attachment_platform::ClipboardFile::Bytes(name, bytes) => {
                         from_bytes(name, bytes)
                     }
+                    crate::attachment_platform::ClipboardFile::Tiff(bytes) => from_bytes(
+                        "Clipboard.png".into(),
+                        crate::attachment_platform::tiff_to_png(&bytes)?,
+                    ),
                 })
                 .collect::<Result<Vec<_>>>()
         } else {

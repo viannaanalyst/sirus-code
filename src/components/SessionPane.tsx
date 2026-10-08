@@ -18,7 +18,7 @@ import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";
 import { useTranslation } from "@/i18n/use-translation";
 import { motion } from "motion/react";
-import { Fragment, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Fragment, memo, useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { MessageTrail } from "@/components/MessageTrail";
 import { TranscriptSelectionMenu } from "@/components/TranscriptSelectionMenu";
 import { TurnChangeSummary } from "@/components/TurnChangeSummary";
@@ -52,6 +52,18 @@ import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
 
 const noSteers: { offset: number; text: string }[] = [];
+// A running turn re-renders every second and on each streamed frame; its finished
+// paragraphs parse once instead of on every render.
+const parsedText = new Map<string, ReturnType<typeof parseTranscript>>();
+function parseCached(text: string) {
+  let blocks = parsedText.get(text);
+  if (!blocks) {
+    if (parsedText.size >= 64) parsedText.delete(parsedText.keys().next().value!);
+    blocks = parseTranscript(text);
+    parsedText.set(text, blocks);
+  }
+  return blocks;
+}
 
 interface Props {
   agents: AgentInstall[];
@@ -139,14 +151,6 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const title = passive && !session ? t("split.newConversation") : project ? t("session.workOn", { project: project.name }) : t("session.workOnEmpty");
 
   const landing = empty && !passive && !astro;
-  // Elapsed times in the Working panel tick once a second while sessions run (ADR-094).
-  const [workingNow, setWorkingNow] = useState(() => Date.now());
-  const workingBusy = useAppStore((state) => state.sessions.filter((row) => ["starting", "running", "waiting"].includes(row.status)).length);
-  useEffect(() => {
-    if (!workingBusy || passive) return;
-    const timer = window.setInterval(() => setWorkingNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [workingBusy, passive]);
   return (
     <section className={cn("session-pane relative flex min-h-0 min-w-0 flex-1 flex-col", !passive && !isConversationStarted(session) && "dot-grid")} data-empty={!isConversationStarted(session) || undefined}>
       {passive ? null : <ProviderSwitchScene owner={session?.id ?? "landing"} />}
@@ -221,7 +225,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
         {empty && project && !passive && !astro && !session?.handoff?.pending ? <LandingControls /> : null}
         {/* The Working panel sits at the bottom-left, beside the composer, from the wide layouts up (ADR-094). */}
         <div className="relative z-10 flex items-end gap-3 px-6 pb-4">
-          {passive ? null : <div className="hidden shrink-0 min-[900px]:block"><WorkingPanel now={workingNow} /></div>}
+          {passive ? null : <div className="hidden shrink-0 min-[900px]:block"><WorkingPanel /></div>}
           <div className="min-w-0 flex-1">
             {passive ? <PassiveComposer session={session} /> : <AgentComposer session={sessionMeta} agents={agents} onSend={onSend} onStop={onStop} onModelChange={onModelChange} />}
           </div>
@@ -320,7 +324,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
         }`}
       >
         {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
-          renderText={(start, end) => renderBlocks(parseTranscript(replyContent.slice(start, end)), start)}
+          renderText={(start, end) => renderBlocks(parseCached(replyContent.slice(start, end)), start)}
           renderSteer={(text) => <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
         : message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
           const offset = segment.start;
@@ -329,7 +333,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
             {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
-          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.thumbnail} alt="" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
+          {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.thumbnail} alt="" decoding="async" loading="lazy" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}
           {searchQuery.trim() ? <SearchText text={userRequest} query={searchQuery} />
             : hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? <LinkedText key={index} text={segment.text} /> : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)
             : <LinkedText text={userRequest} />}

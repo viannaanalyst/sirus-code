@@ -20,4 +20,6 @@
   .working-panel-more:hover { background: var(--navigation-hover); color: var(--text-primary); }
   @keyframes working-panel-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
   html[data-animations="off"] .working-panel-dot, html[data-reduce-motion="on"] .working-panel-dot { animation: none; }
+  /* Rests with the other status pulses while the window is unfocused or hidden (src/lib/ambient-motion.ts). */
+  html[data-ambient="off"] .working-panel-dot { animation-play-state: paused; }
 }

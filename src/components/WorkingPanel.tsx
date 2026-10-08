@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@/client/types";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { activityElapsed, formatActivityDuration } from "@/lib/agent-activity";
+import { useAmbientActive } from "@/lib/ambient-motion";
 import { stepSentence } from "@/lib/turn-timeline";
 import { selectListedSessions, useAppStore } from "@/store/app-store";
 import "@/styles/working-panel.css";
@@ -21,7 +22,7 @@ const waiting = (session: Session) => session.status === "waiting" || Boolean(se
  * its provider, its project's icon, its title, what it is doing now and how long. Those
  * waiting for you come first. It shows only while the setting is on and two or more run.
  */
-export function WorkingPanel({ now }: { now: number }) {
+export function WorkingPanel() {
   const t = useTranslation();
   const enabled = useAppStore((state) => state.settings.showWorkingPanel);
   const sessions = useAppStore(selectListedSessions);
@@ -30,18 +31,30 @@ export function WorkingPanel({ now }: { now: number }) {
   const [expanded, setExpanded] = useState(false);
   const rows = useMemo(() => sessions.filter(inFlight).sort((a, b) =>
     Number(waiting(b)) - Number(waiting(a)) || (a.messages.at(-1)?.createdAt ?? "").localeCompare(b.messages.at(-1)?.createdAt ?? "")), [sessions]);
-  if (!enabled || rows.length < WORKING_MIN) return null;
+  const open = enabled && rows.length >= WORKING_MIN;
+  // Its own clock: the conversation beside it does not re-render each second.
+  const ambient = useAmbientActive();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!open || !ambient) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [open, ambient]);
+  if (!open) return null;
+  // Listed sessions keep stale messages; the live ones are read at each tick.
+  const live = (session: Session) => useAppStore.getState().sessions.find((row) => row.id === session.id) ?? session;
   const shown = expanded ? rows : rows.slice(0, WORKING_CAP);
   const extra = rows.length - WORKING_CAP;
 
   const doing = (session: Session) => {
     if (waiting(session)) return t("working.waiting");
-    const last = session.messages.at(-1);
+    const last = live(session).messages.at(-1);
     const step = last?.activity?.items.filter((item) => item.kind !== "agent").at(-1);
     return step ? stepSentence(step, t, session.worktree.path) : t("working.running");
   };
   const elapsed = (session: Session) => {
-    const activity = session.messages.at(-1)?.activity;
+    const activity = live(session).messages.at(-1)?.activity;
     return activity ? formatActivityDuration(activityElapsed(activity, now)) : "";
   };
 

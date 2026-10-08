@@ -18,11 +18,39 @@ export interface ComposerMetalMotion {
   reduced: boolean;
 }
 
-/** ShaderMount owns resize/visibility; focus, window blur and Settings stop time without resetting it. */
+/** How long after the last transcript scroll event the rim starts moving again. */
+export const SCROLL_IDLE_MS = 250;
+
+/**
+ * Tracks transcript scrolling (`.transcript-scroll`, see SessionPane): `onChange(true)` on
+ * the first scroll event, `onChange(false)` once scrolling has been idle for `idleMs`.
+ * Scroll events do not bubble, so one capture-phase listener on the document hears them all.
+ */
+export function watchTranscriptScroll(target: Pick<Document, "addEventListener" | "removeEventListener">, onChange: (scrolling: boolean) => void, idleMs = SCROLL_IDLE_MS) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const onScroll = (event: Event) => {
+    const element = event.target as Element | null;
+    if (!element || typeof element.matches !== "function" || !element.matches(".transcript-scroll")) return;
+    if (timer === undefined) onChange(true);
+    else clearTimeout(timer);
+    timer = setTimeout(() => { timer = undefined; onChange(false); }, idleMs);
+  };
+  target.addEventListener("scroll", onScroll, { capture: true, passive: true });
+  return () => {
+    target.removeEventListener("scroll", onScroll, { capture: true });
+    if (timer !== undefined) clearTimeout(timer);
+  };
+}
+
+/**
+ * ShaderMount owns resize/visibility; focus, window blur, Settings and transcript scrolling
+ * stop time without resetting it (a still rim skips its per-frame render).
+ */
 export function mountComposerMetalBorder(node: HTMLElement, Mount: typeof ShaderMount, fragment: string, initial: ComposerMetalMotion) {
   const composer = node.parentElement;
   if (!composer) throw new Error("Composer metal requires an owning surface");
   let motion = initial;
+  let scrolling = false;
   // Cover the rectangular surface: the button's contain fit clips its circular
   // material at the ends of wide composers, before the CSS rim mask is applied.
   const uniforms = { ...composerMetalUniforms(), u_fit: 2 };
@@ -30,11 +58,12 @@ export function mountComposerMetalBorder(node: HTMLElement, Mount: typeof Shader
     { alpha: false, antialias: false, powerPreference: "low-power" }, 0, 700, 1, 512 * 256);
   const sync = () => {
     const editing = composer.querySelector("textarea")?.matches(":focus");
-    shader.setSpeed(motion.reduced || editing || !ambientActive() ? 0 : { slow: .35, smooth: .55, fast: .9 }[motion.speed]);
+    shader.setSpeed(motion.reduced || editing || scrolling || !ambientActive() ? 0 : { slow: .35, smooth: .55, fast: .9 }[motion.speed]);
   };
   composer.addEventListener("focusin", sync);
   composer.addEventListener("focusout", sync);
   const unsubscribe = subscribeAmbient(sync);
+  const unwatchScroll = watchTranscriptScroll(document, (active) => { scrolling = active; sync(); });
   sync();
   return {
     setMotion(next: ComposerMetalMotion) { motion = next; sync(); },
@@ -42,6 +71,7 @@ export function mountComposerMetalBorder(node: HTMLElement, Mount: typeof Shader
       composer.removeEventListener("focusin", sync);
       composer.removeEventListener("focusout", sync);
       unsubscribe();
+      unwatchScroll();
       const gl = shader.canvasElement.getContext("webgl2");
       shader.dispose();
       gl?.getExtension("WEBGL_lose_context")?.loseContext();

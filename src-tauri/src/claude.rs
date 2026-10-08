@@ -544,15 +544,21 @@ pub(crate) async fn execute(
                 } else if let Some(echoed) = echoed {
                     if let Some(index) = unread_steers.iter().position(|steer| steer == echoed) {
                         unread_steers.remove(index);
-                    } else if !prompt_seen && echoed.trim_start().starts_with('<') {
+                    } else if !prompt_seen
+                        && (value["origin"]["kind"].is_string()
+                            || (value["isSynthetic"] != true
+                                && echoed.trim_start().starts_with('<')))
+                    {
                         // The CLI's own queued prompt (a `<task-notification>` about a background
-                        // task the last turn left) runs before this turn's prompt.
+                        // task the last turn left), answered with a result of its own.
                         foreign_prompt = true;
                     }
                 }
             }
-            // That prompt's result is not this turn's end: keep reading until ours answers.
-            Some("result") if foreign_prompt && !prompt_seen && !interrupted => {
+            // Another prompt's result is not this turn's end: keep reading until ours answers.
+            Some("result")
+                if !interrupted && answers_other_prompt(&value, &turn, foreign_prompt) =>
+            {
                 foreign_prompt = false;
             }
             // An instruction that arrived as the turn ended runs as its continuation.
@@ -581,6 +587,23 @@ pub(crate) async fn execute(
             }
         }
     }
+}
+
+/// Whether a `result` answers a prompt other than this turn's. The CLI names the prompts a
+/// result answers (`user_message_uuids`); a turn it queued itself names none of ours. Older
+/// CLIs name nothing, so a queued prompt it echoed decides instead.
+fn answers_other_prompt(value: &Value, turn: &str, foreign_prompt: bool) -> bool {
+    let mut named = value["user_message_uuids"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .chain(std::iter::once(&value["user_message_uuid"]))
+        .filter_map(Value::as_str)
+        .peekable();
+    if named.peek().is_some() {
+        return !named.any(|uuid| uuid == turn);
+    }
+    foreign_prompt
 }
 
 /// Claude also ends a limited turn with the limit as its error text.
@@ -675,6 +698,19 @@ mod tests {
             Some(1_791_201_600_000)
         );
         assert_eq!(epoch_ms(&json!(null)), None);
+    }
+
+    #[test]
+    fn results_for_queued_prompts_do_not_end_the_turn() {
+        // A notification turn the CLI queued names no prompt of ours, even after our echo.
+        let queued = json!({"type":"result","subtype":"success","num_turns":0,"result":""});
+        assert!(answers_other_prompt(&queued, "ours", true));
+        assert!(!answers_other_prompt(&queued, "ours", false));
+        let theirs = json!({"type":"result","user_message_uuids":["other"]});
+        assert!(answers_other_prompt(&theirs, "ours", false));
+        let ours =
+            json!({"type":"result","user_message_uuid":"ours","user_message_uuids":["x","ours"]});
+        assert!(!answers_other_prompt(&ours, "ours", true));
     }
 
     #[test]

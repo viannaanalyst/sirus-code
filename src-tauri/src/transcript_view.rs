@@ -2,7 +2,11 @@
 //! metadata-only state, turn-windowed session events and the closed
 //! read-only `transcript_action` (load one transcript, search candidates).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::LazyLock;
+
+use parking_lot::Mutex;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -81,6 +85,62 @@ pub fn session_event(session: &Session, from: usize) -> Result<Value> {
     Ok(value)
 }
 
+/// Per session, a fingerprint of the current turn's user message as last published.
+static SENT_TURNS: LazyLock<Mutex<HashMap<String, u64>>> = LazyLock::new(Default::default);
+
+/// Everything a renderer shows of a user message. Image thumbnails make it up to
+/// megabytes, so it is hashed field by field instead of serialized.
+fn fingerprint(message: &Message) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    if let Ok(bytes) = serde_json::to_vec(&(
+        &message.id,
+        &message.role,
+        &message.content,
+        &message.created_at,
+        message.streaming,
+        &message.activity,
+        &message.steers,
+        &message.launched,
+        &message.documents,
+    )) {
+        bytes.hash(&mut hasher);
+    }
+    for attachment in &message.attachments {
+        attachment.id.hash(&mut hasher);
+        attachment.name.hash(&mut hasher);
+        attachment.kind.hash(&mut hasher);
+        attachment.mime_type.hash(&mut hasher);
+        attachment.size.hash(&mut hasher);
+        attachment.thumbnail.hash(&mut hasher);
+    }
+    message.attachments.len().hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Where a live event's window starts. The turn's user message (with its image
+/// thumbnails) is sent once; while it stays unchanged, later events of the same
+/// turn start at the reply after it. A renderer that missed that first event holds
+/// fewer than `from` messages and reloads the transcript instead of splicing.
+fn live_from(sent: &mut HashMap<String, u64>, session: &Session, from: usize) -> usize {
+    let turn = current_turn(session);
+    let Some(user) = session
+        .messages
+        .get(turn)
+        .filter(|message| message.role == MessageRole::User)
+    else {
+        return from;
+    };
+    if from > turn {
+        return from;
+    }
+    let print = fingerprint(user);
+    if from == turn && sent.get(&session.id) == Some(&print) {
+        return turn + 1;
+    }
+    sent.insert(session.id.clone(), print);
+    from
+}
+
 /// Publishes a lifecycle change whose message edits are within the current turn.
 pub fn emit(app: &AppHandle, session: &Session) {
     emit_from(app, session, current_turn(session));
@@ -88,6 +148,7 @@ pub fn emit(app: &AppHandle, session: &Session) {
 
 /// Publishes a change that also touched an earlier message (`from` covers it).
 pub fn emit_from(app: &AppHandle, session: &Session, from: usize) {
+    let from = live_from(&mut SENT_TURNS.lock(), session, from);
     match session_event(session, from) {
         Ok(value) => {
             let _ = app.emit("session-updated", value);
@@ -286,6 +347,48 @@ mod tests {
                 .len(),
             4
         );
+    }
+
+    #[test]
+    fn live_events_send_the_user_message_once_per_turn() {
+        let mut data = data();
+        let session = &mut data.sessions[0];
+        let mut sent = HashMap::new();
+        let turn = current_turn(session);
+        assert_eq!(turn, 1);
+        assert_eq!(
+            live_from(&mut sent, session, turn),
+            1,
+            "first event carries it"
+        );
+        assert_eq!(
+            live_from(&mut sent, session, turn),
+            2,
+            "later events skip it"
+        );
+        assert_eq!(
+            live_from(&mut sent, session, 0),
+            0,
+            "explicit earlier windows stay"
+        );
+        assert_eq!(live_from(&mut sent, session, turn), 2);
+        let event = session_event(session, live_from(&mut sent, session, turn)).unwrap();
+        assert_eq!(event["transcriptWindow"], json!({"from": 2, "total": 4}));
+        // An edited user message is sent again.
+        session.messages[1].content.push_str(" now");
+        assert_eq!(live_from(&mut sent, session, turn), 1);
+        assert_eq!(live_from(&mut sent, session, turn), 2);
+        // A new turn starts at its own user message.
+        let mut next = session.messages[1].clone();
+        next.id = "a4".into();
+        session.messages.push(next);
+        assert_eq!(live_from(&mut sent, session, current_turn(session)), 4);
+        assert_eq!(live_from(&mut sent, session, current_turn(session)), 5);
+        // Without a user message the window is unchanged.
+        session
+            .messages
+            .retain(|message| message.role != MessageRole::User);
+        assert_eq!(live_from(&mut sent, session, current_turn(session)), 0);
     }
 
     #[test]

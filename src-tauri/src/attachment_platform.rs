@@ -4,6 +4,47 @@ use std::path::PathBuf;
 pub enum ClipboardFile {
     Path(PathBuf),
     Bytes(String, Vec<u8>),
+    /// Raw clipboard TIFF, converted to PNG by [`tiff_to_png`] off the AppKit main thread.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    Tiff(Vec<u8>),
+}
+
+/// Decodes clipboard TIFF and re-encodes it as PNG. Runs on a blocking worker, never
+/// on the main thread: large screenshots take long enough to stall the UI.
+#[cfg(target_os = "macos")]
+pub fn tiff_to_png(tiff: &[u8]) -> Result<Vec<u8>> {
+    use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep};
+    use objc2_foundation::{NSData, NSDictionary};
+    objc2::rc::autoreleasepool(|_| {
+        let data = NSData::with_bytes(tiff);
+        let image = NSBitmapImageRep::imageRepWithData(&data)
+            .ok_or_else(|| Error::new("attachment", "Cannot read clipboard image."))?;
+        if image.pixelsWide() > 8192
+            || image.pixelsHigh() > 8192
+            || image.pixelsWide() * image.pixelsHigh() > 32_000_000
+        {
+            return Err(Error::new("attachment", "Clipboard image is too large."));
+        }
+        // Empty properties dictionary has no values with incorrect Objective-C types.
+        let png = unsafe {
+            image.representationUsingType_properties(
+                NSBitmapImageFileType::PNG,
+                &NSDictionary::new(),
+            )
+        }
+        .ok_or_else(|| Error::new("attachment", "Cannot prepare clipboard image."))?;
+        if png.length() > crate::attachments::MAX_FILE_BYTES {
+            return Err(Error::new(
+                "attachment",
+                "Each attachment must be at most 10 MiB.",
+            ));
+        }
+        Ok(png.to_vec())
+    })
+}
+#[cfg(not(target_os = "macos"))]
+pub fn tiff_to_png(_tiff: &[u8]) -> Result<Vec<u8>> {
+    Err(Error::new("attachment", "Cannot read clipboard image."))
 }
 
 #[cfg(target_os = "macos")]
@@ -99,10 +140,10 @@ pub async fn paste(
 ) -> Result<Vec<ClipboardFile>> {
     main_thread(app, move || {
         use objc2_app_kit::{
-            NSBitmapImageFileType, NSBitmapImageRep, NSPasteboard, NSPasteboardTypeFileURL,
-            NSPasteboardTypePNG, NSPasteboardTypeString, NSPasteboardTypeTIFF,
+            NSPasteboard, NSPasteboardTypeFileURL, NSPasteboardTypePNG, NSPasteboardTypeString,
+            NSPasteboardTypeTIFF,
         };
-        use objc2_foundation::{NSDictionary, NSURL};
+        use objc2_foundation::NSURL;
         let board = NSPasteboard::generalPasteboard();
         if !state.attachments.take_paste(board.changeCount()) {
             return Ok(Vec::new());
@@ -148,32 +189,8 @@ pub async fn paste(
                     "Each attachment must be at most 10 MiB.",
                 ));
             }
-            let image = NSBitmapImageRep::imageRepWithData(&data)
-                .ok_or_else(|| Error::new("attachment", "Cannot read clipboard image."))?;
-            if image.pixelsWide() > 8192
-                || image.pixelsHigh() > 8192
-                || image.pixelsWide() * image.pixelsHigh() > 32_000_000
-            {
-                return Err(Error::new("attachment", "Clipboard image is too large."));
-            }
-            // Empty properties dictionary has no values with incorrect Objective-C types.
-            let png = unsafe {
-                image.representationUsingType_properties(
-                    NSBitmapImageFileType::PNG,
-                    &NSDictionary::new(),
-                )
-            }
-            .ok_or_else(|| Error::new("attachment", "Cannot prepare clipboard image."))?;
-            if png.length() > crate::attachments::MAX_FILE_BYTES {
-                return Err(Error::new(
-                    "attachment",
-                    "Each attachment must be at most 10 MiB.",
-                ));
-            }
-            return Ok(vec![ClipboardFile::Bytes(
-                "Clipboard.png".into(),
-                png.to_vec(),
-            )]);
+            // Only copy the bytes out here; decoding and PNG encoding run off the main thread.
+            return Ok(vec![ClipboardFile::Tiff(data.to_vec())]);
         }
         if let (Some(expected), Some(actual)) = (
             expected_text,

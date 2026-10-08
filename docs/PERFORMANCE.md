@@ -304,6 +304,28 @@ A code-reading audit after the workspace features. It found issues; none of them
 
 **Still open:** the Environment card's blur over a streaming dock may be recomputed per frame. Not measured.
 
+## Scroll and attachment pass (2026-10-08)
+
+From code reading after reports of scroll jank and paste hitches:
+
+- **Chat background:**
+  - the image is a `blob:` URL, never a multi-MB data URL in a CSS variable on the root;
+  - Haze is blurred once on a canvas;
+  - `.session-pane::before` sits on its own layer.
+- **Per-second renders:**
+  - the Working panel keeps its own clock, so the conversation no longer re-renders each second;
+  - running turns cache parsed text instead of re-parsing on every tick and streamed frame.
+- **Compositing:**
+  - the activity pulse grows and fades instead of animating a shadow;
+  - shimmers step at about 15 fps and pause with ambient motion off;
+  - the composer rim rests while the transcript scrolls.
+- **Attachments:**
+  - clipboard TIFF→PNG runs off the main thread;
+  - a paste tries the native clipboard before encoding files in JavaScript;
+  - live `session-updated` events send the turn's user message (and its thumbnails) once per turn;
+  - `sameMessage` compares fields instead of stringifying messages;
+  - `serde_json` is optimized in debug builds.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.
