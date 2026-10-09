@@ -29,6 +29,7 @@ import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
+import { useHugWidth } from "@/lib/use-hug-width";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { smallThumbnailUrl, thumbnailUrl } from "@/lib/thumbnail-url";
 import { PlanActions, QUICK_REPLY_EVENT, ReplyChoices, type QuickReplyDetail } from "@/components/ReplyChoices";
@@ -404,26 +405,29 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       return searchQuery.trim() ? <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p> : <ChatMarkdown key={index} text={block.content} sessionId={session.id} cwd={session.worktree.path} />;
     });
   };
+  const bubble = useRef<HTMLDivElement>(null);
+  useHugWidth(bubble, message.role === "user", `${userRequest}\u0000${message.attachments?.length ?? 0}\u0000${searchQuery}`);
   return (
-    <article data-message-id={message.id} data-fresh={fresh ? message.role : undefined} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
+    <article data-message-id={message.id} data-fresh={fresh ? message.role : undefined} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[80%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
       <div
+        ref={bubble}
         data-transcript-text
         className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
-          message.role === "user" ? "rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary" : "text-text-secondary"
+          message.role === "user" ? "user-bubble bg-[var(--chat-bubble)] text-text-primary" : "text-text-secondary"
         }`}
       >
         {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
           onResume={last ? (text) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } })) : undefined}
           renderText={(start, end) => renderBlocks(parseCached(replyContent.slice(start, end)), start)}
-          renderSteer={(text) => <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
+          renderSteer={(text) => <div className="my-3 flex justify-end"><div className="user-bubble max-w-[80%] bg-[var(--chat-bubble)] text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{text}</div></div>} />
         : message.content ? (message.role === "agent" ? (segments ?? []).map((segment, part) => {
           const offset = segment.start;
           return <Fragment key={part}>
             {renderBlocks(segment.blocks, offset)}
-            {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="max-w-[85%] rounded-[18px] bg-[var(--chat-bubble)] px-4 py-2.5 text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
+            {segment.steer !== undefined ? <div className="my-3 flex justify-end"><div className="user-bubble max-w-[80%] bg-[var(--chat-bubble)] text-text-primary"><span className="mb-0.5 block ui-caption text-text-muted">{t("steer.label")}</span>{segment.steer}</div></div> : null}
           </Fragment>;
         }) : <>
           {userImages.length ? <span className="prompt-thumbnails">{userImages.map((file, index) => <button key={index} type="button" className="prompt-thumbnail-button" aria-label={file.name} title={file.name} onClick={() => setOpenImage(index)}><img src={file.small} alt="" decoding="async" loading="lazy" className="prompt-thumbnail" draggable={false} /></button>)}</span> : null}

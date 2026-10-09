@@ -211,6 +211,8 @@ html[data-ambient="off"] .background-pill-dot { animation-play-state: paused; }
 .prompt-references { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 .prompt-reference { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 9px 3px 7px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); }
 .prompt-thumbnails { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
+/* Your message (2026-10-09, option B, after MonoCode): compact, and it hugs its widest line (use-hug-width.ts). */
+.user-bubble { border-radius: 14px; padding: 8px 12px; line-height: 1.5; }
 /* Square 48 px tiles, after Synara's 60 px ones: a glance at what was sent, the lightbox shows it whole. */
 .prompt-thumbnail { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: zoom-in; transition: opacity var(--motion-fast) var(--ease-out); }
 .prompt-thumbnail-button { display: block; padding: 0; border-radius: 10px; }

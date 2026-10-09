@@ -348,7 +348,7 @@ Launch has no splash (ADR-098): the main window is created hidden, Rust applies 
 
 - **Controls:** `--surface` and `--surface-muted`.
 - **Window glass:** `--background-1/2/3` turn into tints inside `.app-material`.
-- **Bubble and highlights:** `--chat-bubble`, `--navigation-*`.
+- **Bubble and highlights:** `--chat-bubble`, `--navigation-*`. The person's message bubble is compact (`.user-bubble`: 14 px corners, 8×12 px padding, at most 80% wide) and hugs its widest line (`src/lib/use-hug-width.ts`), since CSS keeps a wrapped block at its maximum width.
 
 Portaled popups and dialogs keep their own material. With window glass on, every popup (menus, selects, tooltips, hover cards, the usage panel, dialogs) is glass: in dark, a 5% ink film over a blur of at least 24px (as in MonoCode), so it always reads a step lighter than what lies beneath; in light, `--floating-material` at `--popup-opacity` (0.4 × window opacity, clamped 24–80%). Controls inside are tints. The dialog overlay becomes a light shade without blur. The light palette has its own darker status colours.
 
