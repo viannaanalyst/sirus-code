@@ -539,6 +539,9 @@ fn validate_external_url(raw: &str) -> Result<String> {
         }
         None => (authority, ()),
     };
+    // Links the person clicks in replies open in their browser on any http(s) host
+    // (2026-10-08: an allowlist of github.com and localhost silently turned every other
+    // link into a clipboard copy). Userinfo, control characters and empty hosts stay out.
     let host = if let Some(stripped) = host_port.strip_prefix('[') {
         stripped
             .split(']')
@@ -547,11 +550,11 @@ fn validate_external_url(raw: &str) -> Result<String> {
     } else {
         host_port.split(':').next().unwrap_or("")
     };
-    let allowed = host.eq_ignore_ascii_case("github.com")
-        || host.eq_ignore_ascii_case("localhost")
-        || host == "127.0.0.1"
-        || host == "::1";
-    if !allowed {
+    if host.is_empty()
+        || !host
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | ':') || !ch.is_ascii())
+    {
         return Err(crate::error::Error::invalid_path("URL host is not allowed"));
     }
     Ok(value.to_string())
@@ -661,5 +664,26 @@ fn request_close(app: &tauri::AppHandle, prevent: impl FnOnce()) {
                     }
                 });
         }
+    }
+}
+
+#[cfg(test)]
+mod external_url_tests {
+    use super::validate_external_url;
+
+    #[test]
+    fn any_http_host_opens_but_malformed_urls_do_not() {
+        assert!(validate_external_url(
+            "https://docs.cnpj.ws/referencia-de-api/api-publica/consultando-cnpj"
+        )
+        .is_ok());
+        assert!(validate_external_url("https://www.gov.br/pt-br/servicos?x=1#y").is_ok());
+        assert!(validate_external_url("http://localhost:3000/").is_ok());
+        assert!(validate_external_url("https://github.com/a/b/pull/1").is_ok());
+        assert!(validate_external_url("https://user@evil.com/").is_err());
+        assert!(validate_external_url("javascript:alert(1)").is_err());
+        assert!(validate_external_url("https:///path").is_err());
+        assert!(validate_external_url("https://exa mple.com").is_err());
+        assert!(validate_external_url("file:///etc/passwd").is_err());
     }
 }
