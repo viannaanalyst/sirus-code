@@ -11,3 +11,15 @@ test("user text links http(s) addresses and leaves sentence punctuation out", ()
   assert.deepEqual(splitLinks("sem link"), [{ kind: "text", text: "sem link" }]);
   assert.equal(splitLinks("file:///etc/passwd").some((segment) => segment.kind === "link"), false);
 });
+
+test("bare web addresses link as https, file names and emails do not", () => {
+  const link = (text: string) => splitLinks(text).filter((segment) => segment.kind === "link");
+  assert.deepEqual(link("E isso aqui ?\n\nportaldatransparencia.gov.br/api-de-dados"), [
+    { kind: "link", text: "portaldatransparencia.gov.br/api-de-dados", url: "https://portaldatransparencia.gov.br/api-de-dados" },
+  ]);
+  assert.equal(link("veja google.com.").at(0)?.url, "https://google.com");
+  assert.equal(link("www.cnpj.ws").at(0)?.url, "https://www.cnpj.ws");
+  for (const text of ["edite package.json", "abra src/index.ts", "leia README.md", "mande para eu@gmail.com", "versão 1.2.3", "app-store.ts", "localhost:3000"]) {
+    assert.equal(link(text).length, 0, text);
+  }
+});
