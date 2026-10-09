@@ -3,6 +3,8 @@ import { composerContextForOwner, MAX_SNIPPET } from "@/lib/composer-context";
 import { terminalAppearance, terminalTransparent } from "@/lib/appearance";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebLinksAddon } from "@xterm/addon-web-links";
+import { openLink } from "@/components/ChatMarkdown";
 import { Terminal } from "@xterm/xterm";
 import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { useEffect, useRef, useState } from "react";
@@ -253,6 +255,8 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // http(s) addresses (localhost included) open like links in replies.
+  term.loadAddon(new WebLinksAddon((event, uri) => { event.preventDefault(); openLink(uri, event.metaKey); }));
   term.open(element);
   let disposed = false;
   let exited = false;

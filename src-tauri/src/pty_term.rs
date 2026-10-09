@@ -195,6 +195,15 @@ pub fn start(
     let mut cmd = CommandBuilder::new(shell);
     cmd.cwd(cwd);
     cmd.env("TERM", "xterm-256color");
+    // Apps opened from Finder get no locale, and zsh then prints accents as `\M-^C`.
+    if let Some(lang) = utf8_lang(
+        std::env::var("LANG").ok().as_deref(),
+        std::env::var("LC_ALL").ok().as_deref(),
+        std::env::var("LC_CTYPE").ok().as_deref(),
+    ) {
+        cmd.env("LANG", lang);
+    }
+    cmd.env("COLORTERM", "truecolor");
 
     let mut child = pair
         .slave
@@ -316,9 +325,55 @@ const MAX_BATCH: usize = 64 * 1024;
 /// Keyed by terminal id. Each entry is owner-checked against its session.
 pub type PtyMap = HashMap<String, PtySession>;
 
+/// A UTF-8 `LANG` for the shell when the environment does not already select
+/// a UTF-8 character set (through `LC_ALL`, `LC_CTYPE` or `LANG`).
+pub fn utf8_lang(
+    lang: Option<&str>,
+    lc_all: Option<&str>,
+    lc_ctype: Option<&str>,
+) -> Option<String> {
+    let utf8 = |value: &str| {
+        let lower = value.to_ascii_lowercase();
+        lower.contains("utf-8") || lower.contains("utf8")
+    };
+    let chosen = [lc_all, lc_ctype, lang]
+        .into_iter()
+        .flatten()
+        .find(|value| !value.is_empty());
+    // An explicit LC_ALL wins over LANG anyway, so it is the person's choice to keep.
+    if chosen.is_some_and(utf8) || lc_all.is_some_and(|value| !value.is_empty()) {
+        return None;
+    }
+    // Keep the person's language and region when one is set, only switching the encoding.
+    let base = lang
+        .filter(|value| !value.is_empty() && *value != "C" && *value != "POSIX")
+        .map(|value| value.split(['.', '@']).next().unwrap_or(value).to_string())
+        .filter(|value| {
+            value.len() >= 2 && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
+    Some(format!("{}.UTF-8", base.unwrap_or_else(|| "en_US".into())))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shells_get_a_utf8_locale_only_when_missing() {
+        assert_eq!(utf8_lang(None, None, None).as_deref(), Some("en_US.UTF-8"));
+        assert_eq!(
+            utf8_lang(Some("C"), None, None).as_deref(),
+            Some("en_US.UTF-8")
+        );
+        assert_eq!(
+            utf8_lang(Some("pt_BR.ISO8859-1"), None, None).as_deref(),
+            Some("pt_BR.UTF-8")
+        );
+        assert_eq!(utf8_lang(Some("pt_BR.UTF-8"), None, None), None);
+        assert_eq!(utf8_lang(None, Some("en_US.UTF-8"), None), None);
+        assert_eq!(utf8_lang(None, None, Some("UTF-8")), None);
+        assert_eq!(utf8_lang(Some("pt_BR.UTF-8"), Some("C"), None), None);
+    }
     #[cfg(unix)]
     #[test]
     fn terminal_close_terminates_shell_ignoring_hangup() {

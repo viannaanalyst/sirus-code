@@ -17,6 +17,10 @@
   - line height 1.15.
 - **Lifetime.** `TerminalPanel.tsx` keeps a module-level map of live terminals: xterm, its element and the PTY subscriptions. A view attaches the element when it mounts and only detaches it when it unmounts, so the shell keeps running and the screen is kept.
   - The shell stops when its tab is closed, its session is removed (a store subscription catches both while no view shows it), or the person reopens an ended terminal.
+- **Links and text.**
+  - http(s) addresses in the terminal, `localhost` included, are links (`@xterm/addon-web-links`). They open like links in replies (`openLink`; ⌘-click forces the system browser).
+  - Shells get a UTF-8 `LANG` when the app was opened without a UTF-8 locale (Finder gives none), keeping the person's language and region; an explicit `LC_ALL` is respected. Without it, zsh printed accents in folder names as `\M-^C`.
+  - "Add to chat" stacks above xterm's layers.
 - **Icons.** `FileGlyph` shows the Material Icon Theme glyph (`react-material-icon-theme`, MIT) for files and folders. This covers the file tree, file search, Changes, changed-files card, chat file links, composer file suggestions and mobile files.
   - The roughly 1 MB pack loads after first paint. Until then each row shows the drawn icon from `file-icons.ts` at the same size.
   - Lookup tries the full name, then each compound suffix (`material-file-icon.ts`).
