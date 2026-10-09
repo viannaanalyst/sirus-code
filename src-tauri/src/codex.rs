@@ -201,7 +201,40 @@ pub async fn start(
     if !install.installed {
         return Err(Error::agent("Codex is not installed on this machine"));
     }
-    let mut cmd = crate::detect::command(install.path.unwrap_or(install.binary));
+    let binary = install.path.unwrap_or(install.binary);
+    let key = codex_pool_key(&session, &cwd, &binary, account_home.as_deref());
+    if let Some((child, wire)) =
+        crate::agent_pool::take(&session.id, &crate::agent_pool::with_thread(&key, &session))
+    {
+        let generation = uuid::Uuid::new_v4().to_string();
+        let (cancel, receiver) = watch::channel(false);
+        let (sender, replies) = mpsc::channel(16);
+        return Ok((
+            crate::agent::AgentProcess {
+                cancel,
+                #[cfg(unix)]
+                pid: child.id(),
+                replies: Some(sender),
+                generation: Some(generation.clone()),
+            },
+            crate::agent::StartedAgent {
+                review: None,
+                child,
+                cancel: receiver,
+                wire: Some(wire),
+                pool_key: Some(key),
+                codex: Some(Run {
+                    session,
+                    cwd,
+                    prompt,
+                    attachments: Vec::new(),
+                    generation,
+                    replies,
+                }),
+            },
+        ));
+    }
+    let mut cmd = crate::detect::command(binary);
     crate::provider_accounts::apply(&mut cmd, &session.agent, account_home.as_deref());
     if let Some(endpoint) = crate::browser_mcp::ensure_endpoint(&session.id) {
         if let Ok(exe) = std::env::current_exe() {
@@ -249,6 +282,8 @@ pub async fn start(
             review: None,
             child,
             cancel: receiver,
+            wire: None,
+            pool_key: Some(key),
             codex: Some(Run {
                 session,
                 cwd,
@@ -261,7 +296,37 @@ pub async fn start(
     ))
 }
 
+/// What a kept app-server must match to be reused.
+pub(crate) fn codex_pool_key(
+    session: &Session,
+    cwd: &str,
+    binary: &str,
+    account_home: Option<&std::path::Path>,
+) -> String {
+    // The MCP servers are fixed when the process starts: computer use turning on or off
+    // needs a new one.
+    let computer = !crate::computer_mcp::codex_overrides(&session.id)
+        .0
+        .is_empty();
+    format!(
+        "{binary}\u{0}{}\u{0}{}\u{0}{cwd}\u{0}{computer}",
+        session.provider_account_id,
+        account_home
+            .map(|home| home.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    )
+}
+
 pub(crate) struct Wire {
+    /// The process already answered `initialize` (a process kept between turns).
+    pub(crate) initialized: bool,
+    /// Set by a provider when its turn ended cleanly enough to keep the process (agent_pool).
+    pub(crate) reusable: bool,
+    /// The native session an ACP process already has loaded (kept between turns), with the
+    /// process's `initialize` result and the session's setup result.
+    pub(crate) loaded: Option<String>,
+    pub(crate) acp_init: serde_json::Value,
+    pub(crate) acp_setup: serde_json::Value,
     input: ChildStdin,
     output: BufReader<ChildStdout>,
     sequence: u64,
@@ -272,6 +337,11 @@ pub(crate) struct Wire {
 impl Wire {
     pub(crate) fn new(input: ChildStdin, output: ChildStdout) -> Self {
         Self {
+            initialized: false,
+            reusable: false,
+            loaded: None,
+            acp_init: Value::Null,
+            acp_setup: Value::Null,
             input,
             output: BufReader::new(output),
             sequence: 0,
@@ -427,8 +497,12 @@ async fn execute(
     cancel: &mut watch::Receiver<bool>,
     emit: &mut impl FnMut(Event) -> Result<()>,
 ) -> Result<bool> {
-    wire.request("initialize", json!({"clientInfo":{"name":"sirus","title":"Sirus Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true}}),cancel).await?;
-    wire.send(json!({"method":"initialized"})).await?;
+    // A kept app-server is initialized once; each turn still resumes and checks its thread.
+    if !wire.initialized {
+        wire.request("initialize", json!({"clientInfo":{"name":"sirus","title":"Sirus Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true}}),cancel).await?;
+        wire.send(json!({"method":"initialized"})).await?;
+        wire.initialized = true;
+    }
     let (sandbox, approval, reviewer) = crate::execution::codex_policy(&run.session.execution);
     let mut params = json!({"cwd":run.cwd,"sandbox":sandbox,"approvalPolicy":approval,"approvalsReviewer":reviewer});
     if let Some(model) = &run.session.model {
@@ -864,17 +938,32 @@ pub fn monitor(
     awake: crate::keep_awake::Hold,
 ) {
     use tauri::Emitter;
-    let Some(input) = started.child.stdin.take() else {
-        return;
-    };
-    let Some(output) = started.child.stdout.take() else {
-        return;
+    let reused = started.wire.take();
+    let pool_key = started.pool_key.take();
+    let fresh = match reused {
+        Some(wire) => Ok(wire),
+        None => {
+            let Some(input) = started.child.stdin.take() else {
+                return;
+            };
+            let Some(output) = started.child.stdout.take() else {
+                return;
+            };
+            Err((input, output))
+        }
     };
     let (provider_error_sender, mut provider_errors) = tokio::sync::mpsc::channel(4);
-    let opencode = run.session.agent == AgentProviderId::OpenCode;
+    // OpenCode and Devin write routine logs to stderr: drained, never shown as messages.
+    let quiet_logs = matches!(
+        run.session.agent,
+        AgentProviderId::OpenCode | AgentProviderId::Devin | AgentProviderId::Hermes
+    );
+    // The log reader of a kept process outlives its first turn: it reports to whichever turn
+    // runs now.
+    crate::opencode::route_errors(&session_id, provider_error_sender);
     let diagnostics = started.child.stderr.take().map(|reader| {
-        if opencode {
-            crate::opencode::watch_logs(reader, provider_error_sender)
+        if quiet_logs {
+            crate::opencode::watch_logs(reader, session_id.clone())
         } else {
             crate::agent::spawn_reader(
                 app.clone(),
@@ -888,7 +977,17 @@ pub fn monitor(
     tokio::spawn(async move {
         // Held until the turn's monitor ends: the Mac stays awake (ADR-100).
         let _awake = awake;
-        let mut wire = Wire::new(input, output);
+        let mut wire = match fresh {
+            Ok(wire) => wire,
+            Err((input, output)) => Wire::new(input, output),
+        };
+        // A process that may be kept between turns has a stderr reader that lives as long as
+        // it does; the turn does not wait for it.
+        let diagnostics = if pool_key.is_some() {
+            None
+        } else {
+            diagnostics
+        };
         let mut cursor = crate::agent::OutputCursor::default();
         let mut emit = |event| -> Result<()> {
             let mut data = state.data.lock();
@@ -991,8 +1090,13 @@ pub fn monitor(
                 &mut emit,
             )
             .await
+        } else if crate::acp_cli::handles(&run.session.agent) {
+            crate::acp_cli::execute(&mut wire, &mut run, &mut started.cancel, &mut emit).await
         } else {
-            execute(&mut wire, &mut run, &mut started.cancel, &mut emit).await
+            let outcome = execute(&mut wire, &mut run, &mut started.cancel, &mut emit).await;
+            // A completed Codex turn leaves its app-server idle and ready for the next.
+            wire.reusable = matches!(outcome, Ok(false));
+            outcome
         };
         // Completion invalidates callbacks before the server's bounded cleanup window.
         // Closing the reply receiver also rejects IPC queued after the turn has settled.
@@ -1010,8 +1114,20 @@ pub fn monitor(
                 }
             }
         }
-        drop(wire); // EOF requests app-server shutdown after turn completion.
-        stop_owned(&mut started.child).await;
+        // A completed Codex turn keeps its app-server for the session's next turn; any other
+        // ending closes it (EOF requests app-server shutdown after turn completion).
+        let keep = pool_key.is_some()
+            && wire.reusable
+            && matches!(outcome, Ok(false))
+            && !state.closing.load(std::sync::atomic::Ordering::Acquire)
+            && matches!(started.child.try_wait(), Ok(None));
+        let kept_wire = if keep {
+            Some(wire)
+        } else {
+            drop(wire);
+            stop_owned(&mut started.child).await;
+            None
+        };
         let protocol_failed =
             crate::agent::drain_output_readers(diagnostics).await || outcome.is_err();
         let review =
@@ -1057,10 +1173,22 @@ pub fn monitor(
         let _ = app.emit(
             "agent-exit",
             AgentExitEvent {
-                session_id,
+                session_id: session_id.clone(),
                 code: outcome.is_ok().then_some(0),
             },
         );
+        if let (Some(wire), Some(key)) = (kept_wire, pool_key) {
+            // Kept under the conversation it now holds, which the next turn asks for.
+            // `data` is still held here: never lock it again.
+            let thread = data
+                .sessions
+                .iter()
+                .find(|session| session.id == session_id)
+                .map(|session| crate::agent_pool::with_thread(&key, session));
+            if let Some(key) = thread {
+                crate::agent_pool::keep(session_id, key, started.child, wire);
+            }
+        }
     });
 }
 
@@ -1357,6 +1485,11 @@ else:
                 {}
             });
             let mut wire = Wire {
+                initialized: false,
+                reusable: false,
+                loaded: None,
+                acp_init: Value::Null,
+                acp_setup: Value::Null,
                 input: started.child.stdin.take().unwrap(),
                 output: BufReader::new(started.child.stdout.take().unwrap()),
                 sequence: 0,
@@ -1445,6 +1578,11 @@ else:
         let sender = process.replies.as_ref().unwrap().clone();
         let mut run = started.codex.take().unwrap();
         let mut wire = Wire {
+            initialized: false,
+            reusable: false,
+            loaded: None,
+            acp_init: Value::Null,
+            acp_setup: Value::Null,
             input: started.child.stdin.take().unwrap(),
             output: BufReader::new(started.child.stdout.take().unwrap()),
             sequence: 0,

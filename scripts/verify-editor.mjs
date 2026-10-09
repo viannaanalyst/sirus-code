@@ -20,8 +20,11 @@ try {
     assert.ok(save?.preventDefault);
     assert.equal(save.run({ state }), true);
     assert.equal(state.update({ changes: { from: doc.length, insert: "\nnew text" } }).state.doc.toString(), `${doc}\nnew text`);
-    const wrapping = state.facet(EditorView.contentAttributes).some(attrs => typeof attrs === "object" && attrs.class?.includes("cm-lineWrapping"));
-    assert.equal(wrapping, path.endsWith(".md"));
+    // Wrapping is the reader's preference for every file, passed in by the pane.
+    const wraps = (target) => target.facet(EditorView.contentAttributes).some(attrs => typeof attrs === "object" && attrs.class?.includes("cm-lineWrapping"));
+    assert.equal(wraps(state), false);
+    const wrapped = EditorState.create({ doc, extensions: editorExtensions({ language: languageForPath(path), onChange() {}, onSave() {}, wrap: EditorView.lineWrapping }) });
+    assert.equal(wraps(wrapped), true);
   }
   assert.equal(saves, 2);
   assert.equal(languageForPath("guide.MDX"), "markdown");

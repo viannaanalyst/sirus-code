@@ -7,7 +7,8 @@
   .header-project:focus-visible, .header-tabs-new:focus-visible, .header-tabs-more:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 1px; }
   .header-project > svg { color: var(--text-muted); transition: rotate var(--motion-normal) var(--ease-out); }
   .header-project[data-state="open"] > svg { rotate: 180deg; }
-  .header-tabs-separator { flex-shrink: 0; color: var(--text-muted); opacity: .6; }
+  /* The same thin vertical rule that separates the tabs, between the project and its tabs. */
+  .header-tabs-separator { flex-shrink: 0; width: 1px; height: 16px; margin: 0 2px; background: color-mix(in srgb, var(--text-primary) 16%, transparent); }
   .header-tabs-context { height: 100%; min-width: 0; flex: 1 1 0%; overflow: hidden; }
   .header-tabs-context > div { width: 100%; height: 100%; min-width: 0; }
   .header-tabs-list { position: relative; isolation: isolate; display: flex; width: 100%; min-width: 0; align-items: center; gap: 2px; height: 100%; overflow: hidden; }
@@ -85,6 +86,13 @@
   .header-switcher-row { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 5px 0 9px; border-radius: var(--radius-md); color: var(--text-secondary); text-align: left; }
   .header-switcher-row[aria-selected="true"] { background: var(--navigation-hover); color: var(--text-primary); }
   .header-switcher-row[data-current] { color: var(--text-primary); font-weight: 500; }
+  /* Project folders (2026-10-09): a disclosure row, and its projects indented under it. */
+  .header-switcher-folder { color: var(--text-secondary); }
+  .header-switcher-folder-chevron { flex-shrink: 0; margin-left: -2px; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
+  .header-switcher-folder-chevron[data-open] { transform: rotate(90deg); }
+  .header-switcher-folder-count { margin-left: auto; padding-left: 8px; font-size: var(--text-ui-11); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .header-switcher-folder[data-drop-edge="inside"] { background: var(--navigation-selected); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+  .header-switcher-row[data-in-folder] { padding-left: 26px; }
   .header-switcher-row[data-dragging] { position: relative; z-index: 1; background: var(--navigation-selected); cursor: grabbing; }
   .header-switcher-count { flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-12); }
   .header-switcher-empty { margin: 0; padding: 12px 10px; color: var(--text-muted); }

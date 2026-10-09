@@ -19,6 +19,7 @@ const LOOK: Record<AgentProviderId, { tint: Rgb; pixels: string[] }> = {
   droid: { tint: [242, 165, 65], pixels: ["#F2A541", "#FFD08A", "#B87420"] },
   pi: { tint: [240, 144, 130], pixels: ["#F09082", "#4D9ABF", "#F1BE58"] },
   devin: { tint: [95, 179, 249], pixels: ["#5FB3F9", "#B9DEFF", "#2E7BC0"] },
+  hermes: { tint: [214, 196, 150], pixels: ["#D6C496", "#F2E6C4", "#8A7448"] },
 };
 
 export const SCENE_LIFETIME = 5000;

@@ -5,7 +5,7 @@ import { ProviderIcon } from "@/components/settings/ProviderIcon";
 const TINTS: Record<AgentProviderId, string> = {
   claude: "rgb(217 119 87 / .75)", codex: "rgb(116 170 156 / .75)", opencode: "rgb(214 214 222 / .6)",
   grok: "rgb(226 228 255 / .6)", cursor: "rgb(169 184 214 / .7)", antigravity: "rgb(127 168 255 / .75)",
-  droid: "rgb(242 165 65 / .75)", pi: "rgb(240 144 130 / .75)", devin: "rgb(95 179 249 / .75)",
+  droid: "rgb(242 165 65 / .75)", pi: "rgb(240 144 130 / .75)", devin: "rgb(95 179 249 / .75)", hermes: "rgb(214 196 150 / .75)",
 };
 
 /**

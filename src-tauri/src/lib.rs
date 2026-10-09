@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::Manager;
 
+mod acp_cli;
 mod activity;
 mod agent;
 mod agent_output;
+mod agent_pool;
 mod appearance;
 mod astro_documents;
 mod astro_tray;
@@ -283,6 +285,7 @@ pub fn run() {
             chat_background::chat_background_image,
             window_snap::window_snap_action,
             project_look::project_look_action,
+            project_look::pick_look_image,
             project_scripts::project_scripts_action,
             worktree_cleanup::worktree_cleanup_action,
             project_look::project_auto_icon,

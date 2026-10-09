@@ -143,7 +143,6 @@ pub async fn paste(
             NSPasteboard, NSPasteboardTypeFileURL, NSPasteboardTypePNG, NSPasteboardTypeString,
             NSPasteboardTypeTIFF,
         };
-        use objc2_foundation::NSURL;
         let board = NSPasteboard::generalPasteboard();
         if !state.attachments.take_paste(board.changeCount()) {
             return Ok(Vec::new());
@@ -153,10 +152,8 @@ pub async fn paste(
             for item in items.iter().take(9) {
                 // Framework globals are immutable. URLs must be local file URLs.
                 if let Some(value) = item.stringForType(unsafe { NSPasteboardTypeFileURL }) {
-                    if let Some(url) = NSURL::URLWithString(&value).filter(|url| url.isFileURL()) {
-                        if let Some(path) = url.path() {
-                            paths.push(ClipboardFile::Path(PathBuf::from(path.to_string())));
-                        }
+                    if let Some(path) = pasted_file_path(&value.to_string()) {
+                        paths.push(ClipboardFile::Path(path));
                     }
                 }
             }
@@ -216,9 +213,63 @@ pub async fn paste(
     Ok(Vec::new())
 }
 
+/// A pasted file URL as the file's current path. Finder copies file reference URLs
+/// (`file:///.file/id=…`); they resolve to where the file is now, so a file renamed after
+/// copying still attaches. Only local file URLs are accepted, before anything is resolved.
+#[cfg(target_os = "macos")]
+fn pasted_file_path(value: &str) -> Option<PathBuf> {
+    use objc2_foundation::{NSString, NSURL};
+    let url = NSURL::URLWithString(&NSString::from_str(value))?;
+    let host = url.host().map(|host| host.to_string()).unwrap_or_default();
+    if !url.isFileURL() || !(host.is_empty() || host == "localhost") {
+        return None;
+    }
+    let resolved = if url.isFileReferenceURL() {
+        url.filePathURL()?
+    } else {
+        url
+    };
+    resolved.path().map(|path| PathBuf::from(path.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn finder_file_references_resolve_to_the_current_path_and_remote_hosts_are_refused() {
+        use objc2_foundation::{NSString, NSURL};
+        let dir = std::env::temp_dir().join(format!("sirus-paste-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let first = dir.join("copied.png");
+        std::fs::write(&first, b"x").unwrap();
+        let url = NSURL::fileURLWithPath(&NSString::from_str(&first.to_string_lossy()));
+        let reference = url
+            .fileReferenceURL()
+            .unwrap()
+            .absoluteString()
+            .unwrap()
+            .to_string();
+        assert!(reference.starts_with("file:///.file/id="), "{reference}");
+        let renamed = dir.join("renamed.png");
+        std::fs::rename(&first, &renamed).unwrap();
+        let resolved = pasted_file_path(&reference).unwrap();
+        assert_eq!(
+            resolved.canonicalize().unwrap(),
+            renamed.canonicalize().unwrap()
+        );
+        assert_eq!(
+            pasted_file_path(&url.absoluteString().unwrap().to_string())
+                .unwrap()
+                .file_name()
+                .unwrap(),
+            "copied.png"
+        );
+        assert!(pasted_file_path("file://evil.example/etc/passwd").is_none());
+        assert!(pasted_file_path("https://example.com/a.png").is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
     #[test]
     fn clipboard_paths_are_single_local_values_not_remote_or_multiline() {
         assert_eq!(

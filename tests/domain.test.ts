@@ -32,8 +32,8 @@ test("localization preserves external parameters and provides English fallback",
   assert.equal(translate("pt-BR", "General"), "Geral");
   assert.equal(translate("en", "no.such.key"), "no.such.key");
 });
-test("provider registry has nine unique identities", () => {
-  assert.deepEqual(PROVIDERS.map((item) => item.id).sort(), ["antigravity", "claude", "codex", "cursor", "devin", "droid", "grok", "opencode", "pi"]);
+test("provider registry has ten unique identities", () => {
+  assert.deepEqual(PROVIDERS.map((item) => item.id).sort(), ["antigravity", "claude", "codex", "cursor", "devin", "droid", "grok", "hermes", "opencode", "pi"]);
 });
 test("structured IPC errors remain readable", () => {
   assert.equal(formatUnknownError({ code: "git", message: "dirty worktree" }), "git: dirty worktree");

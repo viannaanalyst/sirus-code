@@ -179,6 +179,11 @@ export class SirusClient {
     return this.transport.invoke<Project>("open_project", { projectId });
   }
 
+  /** Native image picker; the picked image as a small square PNG data URL, or `null` when cancelled. */
+  pickLookImage() {
+    return this.transport.invoke<string | null>("pick_look_image");
+  }
+
   projectLookAction(action: import("./types").ProjectLookAction) {
     return this.transport.invoke<Project | null>("project_look_action", { action });
   }

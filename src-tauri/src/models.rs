@@ -31,6 +31,7 @@ pub enum AgentProviderId {
     Droid,
     Pi,
     Devin,
+    Hermes,
 }
 
 impl AgentProviderId {
@@ -45,6 +46,7 @@ impl AgentProviderId {
             Self::Droid => "droid",
             Self::Pi => "pi",
             Self::Devin => "devin",
+            Self::Hermes => "hermes",
         }
     }
 
@@ -60,6 +62,7 @@ impl AgentProviderId {
             Self::Droid => "Droid",
             Self::Pi => "Pi",
             Self::Devin => "Devin",
+            Self::Hermes => "Hermes",
         }
     }
 }
@@ -99,6 +102,19 @@ pub struct Project {
         skip_serializing_if = "crate::project_scripts::ProjectScripts::is_empty"
     )]
     pub scripts: crate::project_scripts::ProjectScripts,
+}
+
+/// A folder in the project switcher that groups projects (2026-10-09). Display only:
+/// no directory is created or moved. Its icon follows the same rules as a project's.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProjectFolder {
+    pub id: String,
+    pub name: String,
+    pub look: ProjectLook,
+    /// Projects in the folder, in their switcher order. A project is in at most one folder.
+    pub project_ids: Vec<String>,
+    pub collapsed: bool,
 }
 
 /// How a project's sidebar icon looks: one of a logo, an emoji or an Astro icon; the colour tints it.
@@ -553,6 +569,9 @@ pub struct AppSettings {
     /// The "Working" panel beside the composer, shown while two or more sessions work (ADR-094).
     #[serde(default = "default_show_working_panel")]
     pub show_working_panel: bool,
+    /// Chat behavior: macOS spelling and autocorrect in the composers (on by default).
+    #[serde(default = "default_true")]
+    pub composer_autocorrect: bool,
     /// The Astros icon in the macOS menu bar (ADR-088); off hides it, kept across restarts.
     #[serde(default = "default_true")]
     pub show_astro_menu_bar: bool,
@@ -654,6 +673,7 @@ pub struct AppSettings {
     pub sidebar_project_sort_order: SidebarProjectSortOrder,
     pub sidebar_thread_sort_order: SidebarThreadSortOrder,
     pub pinned_project_ids: Vec<String>,
+    pub project_folders: Vec<ProjectFolder>,
     pub pinned_session_ids: Vec<String>,
     pub archived_session_ids: Vec<String>,
     #[serde(default)]
@@ -692,6 +712,7 @@ impl Default for AppSettings {
             dictation_enter_sends: false,
             fold_finished_turns: true,
             show_working_panel: true,
+            composer_autocorrect: true,
             show_astro_menu_bar: true,
             github_links_in_app: true,
             diff_word_wrap: false,
@@ -766,6 +787,7 @@ impl Default for AppSettings {
             sidebar_project_sort_order: SidebarProjectSortOrder::Manual,
             sidebar_thread_sort_order: SidebarThreadSortOrder::CreatedAt,
             pinned_project_ids: Vec::new(),
+            project_folders: Vec::new(),
             pinned_session_ids: Vec::new(),
             archived_session_ids: Vec::new(),
             environment_panel_default_open: false,

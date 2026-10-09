@@ -103,6 +103,7 @@ pub async fn list_for_provider(
         | AgentProviderId::Droid
         | AgentProviderId::Pi
         | AgentProviderId::Devin => list_additional(provider, &binary).await,
+        AgentProviderId::Hermes => list_hermes(&binary).await,
     }
 }
 
@@ -550,6 +551,64 @@ fn parse_codex_json(stdout: &str) -> Result<Vec<DiscoveredModel>, String> {
             })
         })
         .collect())
+}
+
+/// Hermes lists its models only inside a session: a probe session in the temp folder, no prompt.
+async fn list_hermes(binary: &str) -> ProviderModelList {
+    let cwd = serde_json::to_string(&std::env::temp_dir().to_string_lossy())
+        .unwrap_or_else(|_| "\"/tmp\"".into());
+    let input = format!(
+        "{}\n{}\n",
+        r#"{"jsonrpc":"2.0","id":"sirus_init","method":"initialize","params":{"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Sirus Code","version":"0.1.0"}}}"#,
+        format_args!(
+            r#"{{"jsonrpc":"2.0","id":"sirus_session","method":"session/new","params":{{"cwd":{cwd},"mcpServers":[]}}}}"#
+        )
+    );
+    let result =
+        crate::cli_output::request(binary, &["acp"], input.as_bytes(), DISCOVER_TIMEOUT, |v| {
+            (v["id"] == "sirus_session").then(|| v.clone())
+        })
+        .await;
+    let Ok(reply) = result else {
+        return empty(
+            AgentProviderId::Hermes,
+            "cli",
+            "Hermes did not answer. Check `hermes acp --check`, then refresh.",
+        );
+    };
+    if reply.get("error").is_some() {
+        return empty(AgentProviderId::Hermes, "cli", "Hermes has no model provider yet. Run `hermes model` in a terminal, then refresh. No login was started by Sirus Code.");
+    }
+    let models = parse_hermes_catalog(&reply["result"]);
+    ProviderModelList {
+        provider: AgentProviderId::Hermes,
+        source: "cli".into(),
+        note: if models.is_empty() { "Hermes offered no models. Run `hermes model`, then refresh; no models were invented." } else { "Models offered by Hermes for its configured provider. Presence does not verify quota or access." }.into(),
+        models,
+    }
+}
+
+fn parse_hermes_catalog(result: &serde_json::Value) -> Vec<DiscoveredModel> {
+    let mut rows: Vec<DiscoveredModel> = Vec::new();
+    for item in result["models"]["availableModels"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .take(512)
+    {
+        let Some(id) = item["modelId"]
+            .as_str()
+            .or_else(|| item["id"].as_str())
+            .filter(|id| catalog_id(id))
+        else {
+            continue;
+        };
+        if rows.iter().any(|row| row.id == id) {
+            continue;
+        }
+        rows.push(plain_model(id, item["name"].as_str().unwrap_or(id)));
+    }
+    rows
 }
 
 async fn list_cursor(binary: &str) -> ProviderModelList {

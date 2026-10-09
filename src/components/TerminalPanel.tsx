@@ -1,6 +1,7 @@
 import { monoFontFamily } from "@/lib/fonts";
 import { composerContextForOwner, MAX_SNIPPET } from "@/lib/composer-context";
-import { terminalAppearance, terminalTransparent } from "@/lib/appearance";
+import { isConversationStarted, resolveAppearanceMaterial, terminalAppearance, terminalTransparent } from "@/lib/appearance";
+import { terminalSurface } from "@/lib/terminal-surface";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -50,7 +51,7 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
   const atLimit = terminalCount(workspace) >= MAX_TERMINALS_PER_SESSION;
   if (!workspace || workspace.panes.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--main-material)]" data-terminal>
+      <div className="flex h-full items-center justify-center" data-terminal>
         <button type="button" className="ui-control text-text-muted transition-colors duration-[var(--motion-fast)] hover:text-text-primary" onClick={() => ensureTerminal(sessionId)}>
           {t("New terminal")}
         </button>
@@ -58,7 +59,7 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
     );
   }
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--main-material)]" data-terminal>
+    <div className="flex h-full min-h-0 flex-col" data-terminal>
       <ConfirmDialog open={pendingClose !== null} onOpenChange={(open) => { if (!open) setPendingClose(null); }}
         title={t("chatBehavior.terminalTitle")} description={t("chatBehavior.terminalBody")} confirmLabel={t("chatBehavior.terminalClose")} cancelLabel={t("common.cancel")}
         onConfirm={() => { if (pendingClose) closeNow(sessionId, pendingClose); setPendingClose(null); }} />
@@ -310,6 +311,12 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const terminalScrollback = useAppStore((state) => state.settings.terminalScrollback);
   const terminalBackground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).background);
   const terminalGlass = useAppStore((state) => terminalTransparent(state.settings, state.hostInfo?.appearanceSupport, systemPalette));
+  // What the surface around the terminal depends on: the dock's material changes with these.
+  const surfaceKey = useAppStore((state) => {
+    const material = resolveAppearanceMaterial(state.settings, state.hostInfo?.appearanceSupport, systemPalette);
+    const session = state.sessions.find((row) => row.id === sessionId) ?? null;
+    return `${material.palette}:${material.windowGlass}:${material.sidebarGlass}:${material.sidebarOpacity}:${isConversationStarted(session)}`;
+  });
   const terminal = useRef<Terminal | null>(null);
   const refit = useRef<(() => void) | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -368,10 +375,21 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     term.options.fontSize = terminalFontSize;
     term.options.cursorStyle = terminalCursorStyle === "bar" ? "bar" : terminalCursorStyle === "underline" ? "underline" : "block";
     term.options.scrollback = terminalScrollback;
+    const appearance = terminalAppearance(useAppStore.getState().settings, useAppStore.getState().hostInfo?.appearanceSupport, systemPalette);
     term.options.allowTransparency = terminalGlass;
-    term.options.theme = terminalAppearance(useAppStore.getState().settings, useAppStore.getState().hostInfo?.appearanceSupport, systemPalette);
+    term.options.theme = appearance;
     const fit = () => { if (!cancelled && terminal.current === term) refit.current?.(); };
-    const frame = requestAnimationFrame(fit);
+    const frame = requestAnimationFrame(() => {
+      // Paint the surface the terminal sits on (the dock's material), read once styles apply.
+      const backgrounds: string[] = [];
+      for (let node = host.current?.parentElement ?? null; node && backgrounds.length < 12; node = node.parentElement) backgrounds.push(getComputedStyle(node).backgroundColor);
+      const surface = terminalSurface(backgrounds, appearance.background);
+      if (!cancelled && terminal.current === term) {
+        term.options.allowTransparency = surface.transparent;
+        term.options.theme = { ...appearance, background: surface.background, cursorAccent: surface.background.slice(0, 7) };
+      }
+      fit();
+    });
     // Set the new family only once its face settles, so xterm measures loaded glyphs.
     // The public font option triggers measurement without restarting the owned PTY.
     const applyFont = () => {
@@ -381,7 +399,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     };
     void document.fonts.load(`${terminalFontSize}px ${monoFontFamily(terminalFont)}`).then(applyFont).catch(applyFont);
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalGlass, systemPalette, generation]);
+  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalGlass, systemPalette, surfaceKey, generation]);
 
   useEffect(() => {
     if (!visible) return;

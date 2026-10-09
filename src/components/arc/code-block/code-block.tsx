@@ -2,7 +2,8 @@
 
 import { useTranslation } from "@/i18n/use-translation";
 import { SearchText } from "@/components/SearchText";
-import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { codeChunks } from "@/lib/code-chunks";
+import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, FileCode2 } from "@/components/icons/phosphor";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -83,6 +84,15 @@ function highlight(code: string, language: string): ReactNode[] {
   return parts;
 }
 
+const HighlightedChunk = memo(function HighlightedChunk({ text, language }: { text: string; language: string }) {
+  return <>{highlight(text, language)}</>;
+});
+
+function Highlighted({ code, language }: { code: string; language: string }) {
+  const chunks = useMemo(() => codeChunks(code, tokenPattern), [code]);
+  return <>{chunks.map((chunk, index) => <HighlightedChunk key={index} text={chunk} language={language} />)}</>;
+}
+
 const textEnter = { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] } as const;
 const textExit = { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } as const;
 
@@ -124,8 +134,8 @@ function FileName({ name, reduced }: { name: string; reduced: boolean }) {
 export function CodeBlock({ code, filename, language = "tsx", maxLines, animateChanges = true, searchQuery = "", searchOffset = 0 }: CodeBlockProps) {
   const t = useTranslation();
   const displayLanguage = normaliseLanguage(language);
-  // Highlighting is the costliest part of a render; recompute only when the code changes.
-  const highlighted = useMemo(() => highlight(code, displayLanguage), [code, displayLanguage]);
+  // Highlighting is the costliest part of a render: chunks that did not change are reused.
+  const highlighted = <Highlighted code={code} language={displayLanguage} />;
   const reduced = useReducedMotion() ?? false;
   const preId = useId();
   const lineCount = code.split("\n").length;

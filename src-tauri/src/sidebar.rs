@@ -17,6 +17,26 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
             ));
         }
     }
+    if settings.project_folders.len() > 64 {
+        return Err(Error::new("invalid", "too many project folders"));
+    }
+    for folder in &settings.project_folders {
+        let name = folder.name.trim();
+        if folder.id.is_empty()
+            || folder.id.len() > 64
+            || name.is_empty()
+            || name.chars().count() > 80
+            || name.chars().any(char::is_control)
+            || folder.project_ids.len() > 4096
+            || folder
+                .project_ids
+                .iter()
+                .any(|id| id.is_empty() || id.len() > 64)
+        {
+            return Err(Error::new("invalid", "project folder exceeds its bounds"));
+        }
+        crate::project_look::validate_look(&folder.look)?;
+    }
     Ok(())
 }
 
@@ -29,6 +49,17 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
         .collect();
     retain_unique(&mut settings.sidebar_project_order, &project_ids);
     retain_unique(&mut settings.pinned_project_ids, &project_ids);
+    // Folders keep only existing projects, each in one folder, and unique ids.
+    let mut placed = HashSet::new();
+    let mut folder_ids = HashSet::new();
+    settings
+        .project_folders
+        .retain(|folder| folder_ids.insert(folder.id.clone()));
+    for folder in &mut settings.project_folders {
+        folder
+            .project_ids
+            .retain(|id| project_ids.contains(id.as_str()) && placed.insert(id.clone()));
+    }
     retain_unique(&mut settings.archived_session_ids, &session_ids);
     retain_unique(&mut settings.pinned_session_ids, &session_ids);
     settings
@@ -79,6 +110,40 @@ mod tests {
             "projects": [{"id":"p","name":"Project","path":"/owned","addedAt":"time","lastOpenedAt":"time"}],
             "sessions": [{"id":"s","title":"Task","projectId":"p","agent":"codex","status":"running","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/owned","branch":"main","isolated":false},"lastError":null,"messages":[]}]
         })).unwrap()
+    }
+
+    #[test]
+    fn folders_keep_existing_projects_once_and_reject_bad_looks() {
+        let mut data = fixture();
+        data.settings.project_folders = vec![
+            crate::models::ProjectFolder {
+                id: "f".into(),
+                name: "InChurch".into(),
+                project_ids: vec!["p".into(), "gone".into()],
+                ..Default::default()
+            },
+            crate::models::ProjectFolder {
+                id: "g".into(),
+                name: "Other".into(),
+                project_ids: vec!["p".into()],
+                ..Default::default()
+            },
+            crate::models::ProjectFolder {
+                id: "f".into(),
+                name: "Duplicate".into(),
+                ..Default::default()
+            },
+        ];
+        prune(&mut data);
+        assert_eq!(data.settings.project_folders.len(), 2);
+        assert_eq!(data.settings.project_folders[0].project_ids, ["p"]);
+        assert!(data.settings.project_folders[1].project_ids.is_empty());
+        assert!(validate(&data.settings).is_ok());
+        data.settings.project_folders[0].look.logo = Some("https://example.com/x.png".into());
+        assert!(validate(&data.settings).is_err());
+        data.settings.project_folders[0].look.logo = None;
+        data.settings.project_folders[0].name = "  ".into();
+        assert!(validate(&data.settings).is_err());
     }
 
     #[test]

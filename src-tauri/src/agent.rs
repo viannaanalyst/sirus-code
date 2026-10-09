@@ -30,6 +30,10 @@ pub struct StartedAgent {
     pub(crate) cancel: watch::Receiver<bool>,
     pub(crate) codex: Option<crate::codex::Run>,
     pub(crate) review: Option<crate::turn_review::Capture>,
+    /// A Codex app-server kept from the session's previous turn, already initialized.
+    pub(crate) wire: Option<crate::codex::Wire>,
+    /// Set for Codex: after a completed turn its app-server is kept under this key.
+    pub(crate) pool_key: Option<String>,
 }
 
 pub fn conversation_prompt(messages: &[Message], prompt: &str) -> String {
@@ -162,6 +166,8 @@ fn command_args(
             "--tools",
             "read,grep,find,ls,edit,write",
         ],
+        // Devin and Hermes run through ACP (`acp_cli`); this print form stays for Devin's fallback.
+        AgentProviderId::Hermes => vec!["acp"],
         AgentProviderId::Devin => vec![
             "--print",
             "--permission-mode",
@@ -303,6 +309,8 @@ pub async fn start(
             cancel: receiver,
             codex: None,
             review: None,
+            wire: None,
+            pool_key: None,
         },
     ))
 }

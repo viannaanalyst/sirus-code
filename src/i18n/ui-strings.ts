@@ -788,6 +788,7 @@ export const messages: Record<string, [string, string]> = {
   "Saved": ["Saved", "Salvo"],
   "Code": ["Code", "Código"],
   "Preview": ["Preview", "Visualizar"],
+  "editor.wrap": ["Word wrap", "Quebrar linhas"],
   "Find in page": ["Find in page", "Buscar na página"],
   "Found": ["Found", "Encontrado"],
   "No matches": ["No matches", "Sem resultados"],

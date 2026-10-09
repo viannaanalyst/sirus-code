@@ -29,7 +29,6 @@ import { TeamPanel } from "@/components/TeamPanel";
 import { stripTeamPlan } from "@/lib/team";
 import { hasConversation } from "@/lib/transcripts";
 import { useSmoothText } from "@/lib/use-smooth-text";
-import { useHugWidth } from "@/lib/use-hug-width";
 import { splitPromptContext } from "@/lib/prompt-context";
 import { smallThumbnailUrl, thumbnailUrl } from "@/lib/thumbnail-url";
 import { PlanActions, QUICK_REPLY_EVENT, ReplyChoices, type QuickReplyDetail } from "@/components/ReplyChoices";
@@ -405,15 +404,12 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       return searchQuery.trim() ? <p key={index} className="whitespace-pre-wrap"><SearchText text={block.content} query={searchQuery} offset={start} /></p> : <ChatMarkdown key={index} text={block.content} sessionId={session.id} cwd={session.worktree.path} />;
     });
   };
-  const bubble = useRef<HTMLDivElement>(null);
-  useHugWidth(bubble, message.role === "user", `${userRequest}\u0000${message.attachments?.length ?? 0}\u0000${searchQuery}`);
   return (
     <article data-message-id={message.id} data-fresh={fresh ? message.role : undefined} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[80%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
       <div
-        ref={bubble}
         data-transcript-text
         className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
           message.role === "user" ? "user-bubble bg-[var(--chat-bubble)] text-text-primary" : "text-text-secondary"

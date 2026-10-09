@@ -24,6 +24,18 @@ const strings: Record<string, [string, string]> = {
   "tabs.status.waiting": ["Waiting for you", "Esperando você"],
   "tabs.status.done": ["Finished — not seen yet", "Terminou — ainda não visto"],
   "tabs.status.idle": ["Idle", "Parado"],
+  "folders.new": ["New folder", "Nova pasta"],
+  "folders.edit": ["Edit folder", "Editar pasta"],
+  "folders.help": ["Folders group projects in the switcher. Nothing moves on disk.", "Pastas agrupam projetos no seletor. Nada muda no disco."],
+  "folders.name": ["Folder name", "Nome da pasta"],
+  "folders.placeholder": ["For example, a client or company", "Por exemplo, um cliente ou empresa"],
+  "folders.create": ["Create folder", "Criar pasta"],
+  "folders.delete": ["Delete folder", "Excluir pasta"],
+  "folders.deleteHelp": ["Its projects stay in the list, outside any folder.", "Os projetos continuam na lista, fora de qualquer pasta."],
+  "folders.moveTo": ["Move to {folder}", "Mover para {folder}"],
+  "folders.newWith": ["New folder with this project", "Nova pasta com este projeto"],
+  "folders.removeFrom": ["Remove from {folder}", "Tirar de {folder}"],
+  "folders.count": ["{count} projects", "{count} projetos"],
 };
 export const tabsEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const tabsPortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));

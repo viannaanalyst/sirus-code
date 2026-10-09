@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Eye, FileCode2, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, X } from "@/components/icons/phosphor";
+import { ChevronDown, Eye, FileCode2, WrapText, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, X } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { EditorId, TextFileSnapshot } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/app-store";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { CodeEditor, languageForPath, type EditorReveal } from "@/components/editor/CodeEditor";
+import { editorWrap, markdownView, setEditorWrap, setMarkdownView } from "@/lib/editor-preferences";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 
@@ -44,7 +45,10 @@ export function EditorPane({ sessionId, path, reveal, onClose }: { sessionId: st
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
   const [confirmClose, setConfirmClose] = useState(false);
-  const [view, setView] = useState<"code" | "preview">("code");
+  // Reading preferences carry across files (after T3): Markdown rendered or as code, and wrap.
+  const [view, setViewState] = useState<"code" | "preview">(() => markdownView());
+  const setView = (next: "code" | "preview") => { setViewState(next); setMarkdownView(next); };
+  const [wrap, setWrapState] = useState(() => editorWrap());
   const isMarkdown = /\.(md|markdown|mdx)$/i.test(path);
   const installed = (editors ?? []).filter((editor) => editor.installed);
 
@@ -151,6 +155,10 @@ export function EditorPane({ sessionId, path, reveal, onClose }: { sessionId: st
             <Eye size={13} aria-hidden="true" />
           </button>
         </> : null}
+        {!(isMarkdown && view === "preview") ? <button type="button" title={t("editor.wrap")} aria-label={t("editor.wrap")} aria-pressed={wrap} onClick={() => { setWrapState(!wrap); setEditorWrap(!wrap); }}
+          className={`flex size-6 shrink-0 items-center justify-center rounded-[6px] text-text-muted transition-colors duration-[var(--motion-fast)] hover:bg-background-3 hover:text-text-primary ${wrap ? "bg-background-3 text-text-primary" : ""}`}>
+          <WrapText size={13} aria-hidden="true" />
+        </button> : null}
         {installed.length > 0 ? <div className="flex shrink-0 items-center">
           <button type="button" onClick={() => openIn(installed[0].id)}
             className="flex h-6 items-center gap-1.5 rounded-l-[7px] border border-border-subtle px-2 ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary">
@@ -185,7 +193,7 @@ export function EditorPane({ sessionId, path, reveal, onClose }: { sessionId: st
       <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
         {isMarkdown && view === "preview"
           ? <MarkdownPreview source={content} />
-          : <CodeEditor key={key} label={path} value={content} language={languageForPath(path)} onChange={(value) => setEditorBuffer(key, value)} onSave={() => void persist()} reveal={reveal} />}
+          : <CodeEditor key={key} label={path} value={content} language={languageForPath(path)} onChange={(value) => setEditorBuffer(key, value)} onSave={() => void persist()} reveal={reveal} wrap={wrap} />}
       </div>
       {onClose && <ConfirmDialog open={confirmClose} onOpenChange={setConfirmClose} title={t("Discard changes?")} description={t("This file has unsaved changes. Closing the tab will discard them.")} cancelLabel={t("Keep editing")} confirmLabel={t("Discard changes")} disabled={saving} onConfirm={() => { if (useAppStore.getState().editorSaving[key]) return false; useAppStore.getState().discardEditorBuffer(key); onClose(); }} />}
     </div>

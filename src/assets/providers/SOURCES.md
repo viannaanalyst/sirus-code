@@ -12,6 +12,7 @@ Bundled locally; no runtime hotlinking. These are vendor glyphs, without favicon
 | Antigravity | `antigravity.svg` | [Antigravity](https://antigravity.google), colored glyph, mask and filters from the header SVG; Google/product wordmarks omitted. |
 | Droid | `droid.svg` | [Factory](https://factory.ai), mobile navigation Factory glyph SVG. |
 | Pi | `pi.svg` | [Official logo](https://pi.dev/logo-auto.svg), original colored pixel mark; whitespace cropped. |
+| Hermes | `hermes.svg` | Hermes Agent mark (Nous Research), as shipped by MonoCode; monochrome shape preserved. |
 | Devin | `devin.svg` | [Official favicon](https://devin.ai/favicon.svg), no tile in the source; monochrome shape preserved. |
 
 Legacy PNG and placeholder files are retained for previous standalone previews but are not used by product provider/model controls. Vendor trademarks remain their owners' property. Do not replace them with generated illustrations or recolor them to Sirus Code's accent.

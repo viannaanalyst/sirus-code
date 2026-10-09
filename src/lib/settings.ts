@@ -2,7 +2,7 @@ import { monoFontFamily, uiFontFamily, UI_FONTS, MONO_FONTS } from "./fonts";
 import { resolveAppearanceMaterial } from "./appearance";
 import { sanitizeShortcuts } from "./keybindings";
 import { defaultNotifications, normalizeNotifications } from "./notifications";
-import type { AgentProviderId, AppSettings } from "@/client/types";
+import type { AgentProviderId, AppSettings, ProjectFolder } from "@/client/types";
 import { AGENT_PROVIDER_IDS } from "@/client/types";
 import { SIDEBAR_USAGE_LIMIT, USAGE_PROVIDER_IDS } from "./provider-usage";
 import { RAIL_ITEMS } from "./rail";
@@ -17,6 +17,7 @@ export const defaultSettings: AppSettings = {
   dictationEnterSends: false,
   foldFinishedTurns: true,
   showWorkingPanel: true,
+  composerAutocorrect: true,
   showAstroMenuBar: true,
   githubLinksInApp: true,
   diffWordWrap: false,
@@ -91,6 +92,7 @@ export const defaultSettings: AppSettings = {
   sidebarProjectSortOrder: "manual",
   sidebarThreadSortOrder: "created_at",
   pinnedProjectIds: [],
+  projectFolders: [],
   pinnedSessionIds: [],
   archivedSessionIds: [],
   environmentPanelDefaultOpen: false,
@@ -119,6 +121,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     dictationEnterSends: value?.dictationEnterSends === true,
     foldFinishedTurns: value?.foldFinishedTurns !== false,
     showWorkingPanel: value?.showWorkingPanel !== false,
+    composerAutocorrect: value?.composerAutocorrect !== false,
     showAstroMenuBar: value?.showAstroMenuBar !== false,
     githubLinksInApp: value?.githubLinksInApp !== false,
     diffWordWrap: value?.diffWordWrap === true,
@@ -155,6 +158,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     showEnvironmentNotepad: typeof value?.showEnvironmentNotepad === "boolean" ? value.showEnvironmentNotepad : true,
     showEnvironmentInstructions: typeof value?.showEnvironmentInstructions === "boolean" ? value.showEnvironmentInstructions : true,
     pinnedProjectIds: sidebarIds(value?.pinnedProjectIds),
+    projectFolders: projectFolders(value?.projectFolders),
     pinnedSessionIds: sidebarIds(value?.pinnedSessionIds),
     archivedSessionIds: sidebarIds(value?.archivedSessionIds),
     gitConfirmDestructive: true,
@@ -184,6 +188,13 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     locale: value?.locale === "en" ? "en" : "pt-BR",
     customShortcuts: sanitizeShortcuts(value?.customShortcuts),
   };
+}
+
+function projectFolders(folders: ProjectFolder[] | undefined): ProjectFolder[] {
+  if (!Array.isArray(folders)) return [];
+  return folders.filter((folder) => folder && typeof folder.id === "string" && folder.id && typeof folder.name === "string" && folder.name.trim())
+    .slice(0, 64)
+    .map((folder) => ({ id: folder.id, name: folder.name, look: folder.look ?? {}, projectIds: sidebarIds(folder.projectIds), collapsed: folder.collapsed === true }));
 }
 
 function sidebarIds(ids: string[] | undefined): string[] {
@@ -289,7 +300,7 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 }
 function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
 
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {

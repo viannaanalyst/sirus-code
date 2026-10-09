@@ -211,8 +211,9 @@ html[data-ambient="off"] .background-pill-dot { animation-play-state: paused; }
 .prompt-references { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 .prompt-reference { display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 3px 9px 3px 7px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 8%, transparent); color: var(--text-secondary); }
 .prompt-thumbnails { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 8px; }
-/* Your message (2026-10-09, option B, after MonoCode): compact, and it hugs its widest line (use-hug-width.ts). */
-.user-bubble { border-radius: 14px; padding: 8px 12px; line-height: 1.5; }
+/* Your message (2026-10-09, option B, after MonoCode): compact. Lines fill the bubble greedily:
+   WebKit's `text-wrap: pretty` (from ui-chat) shortened them and left an empty strip beside the text. */
+.user-bubble { border-radius: 14px; padding: 8px 12px; line-height: 1.5; text-wrap: wrap; }
 /* Square 48 px tiles, after Synara's 60 px ones: a glance at what was sent, the lightbox shows it whole. */
 .prompt-thumbnail { display: block; width: 48px; height: 48px; object-fit: cover; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: zoom-in; transition: opacity var(--motion-fast) var(--ease-out); }
 .prompt-thumbnail-button { display: block; padding: 0; border-radius: 10px; }
@@ -220,6 +221,11 @@ html[data-ambient="off"] .background-pill-dot { animation-play-state: paused; }
 .prompt-thumbnail-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .image-lightbox { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 48px; background: rgb(0 0 0 / .82); backdrop-filter: blur(6px); cursor: zoom-out; }
 .image-lightbox-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); cursor: default; }
+.image-lightbox-stage { position: relative; width: 100%; height: 100%; overflow: hidden; touch-action: none; }
+.image-lightbox-zoom { display: grid; place-items: center; width: 100%; height: 100%; transform-origin: center; transition: transform 80ms linear; will-change: transform; }
+.image-lightbox-stage[data-zoomed] .image-lightbox-image { cursor: grab; }
+.image-lightbox-stage[data-dragging] .image-lightbox-zoom { transition: none; }
+.image-lightbox-stage[data-dragging] .image-lightbox-image { cursor: grabbing; }
 .image-lightbox-close { position: absolute; top: 16px; right: 16px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 999px; border: 1px solid rgb(255 255 255 / .18); background: rgb(255 255 255 / .06); color: #fff; }
 .image-lightbox-close:hover { background: rgb(255 255 255 / .14); }
 

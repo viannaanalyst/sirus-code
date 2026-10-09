@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, ChevronDown, Clock3, FolderPlus, GitCompareArrows, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
-import type { Project, Session } from "@/client/types";
+import { Archive, ChevronDown, ChevronRight, Clock3, Folder, FolderOutput, FolderPlus, GitCompareArrows, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import type { Project, ProjectFolder, Session } from "@/client/types";
 import { ProjectActions } from "@/components/ProjectActions";
 import { SessionActionDialog } from "@/components/SessionActions";
 import { SnoozeCountdown, SnoozePicker } from "@/components/SnoozePicker";
@@ -12,6 +12,9 @@ import { moveSidebarProject, sidebarGroups, toggleSidebarId } from "@/lib/sideba
 import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectFolderDialog } from "@/components/ProjectFolderDialog";
+import { ConfirmDialog } from "@/primitives/ConfirmDialog";
+import { deleteFolder, folderOf, moveProjectToFolder, switcherEntries, updateFolder } from "@/lib/project-folders";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
@@ -80,13 +83,33 @@ function ProjectSwitcher() {
   const [sessionAction, setSessionAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
   const [snoozing, setSnoozing] = useState<{ session: Session; anchor: HTMLElement } | null>(null);
   const [snoozedOpen, setSnoozedOpen] = useState(true);
+  const [folderDialog, setFolderDialog] = useState<{ folder?: ProjectFolder; projectId?: string } | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState<ProjectFolder | null>(null);
   const list = useRef<HTMLDivElement>(null);
+  // Hovering the project title opens the switcher (after a short pause, so passing over it
+  // does not). Opened that way, it closes again when the pointer leaves both, unless the
+  // person used it (typed, clicked or opened a menu), which keeps it until a click outside.
+  const hover = useRef({ opened: false, used: false, at: 0, timer: 0 });
+  const later = (action: () => void, delay: number) => { window.clearTimeout(hover.current.timer); hover.current.timer = window.setTimeout(action, delay); };
+  const hoverIn = () => { if (open) { window.clearTimeout(hover.current.timer); return; } later(() => { hover.current = { ...hover.current, opened: true, used: false, at: Date.now() }; setOpen(true); }, 140); };
+  const hoverOut = () => {
+    if (!open) { window.clearTimeout(hover.current.timer); return; }
+    if (hover.current.opened && !hover.current.used) later(() => { setOpen(false); setQuery(""); setFocus(null); }, 280);
+  };
+  const used = () => { hover.current.used = true; window.clearTimeout(hover.current.timer); };
+  useEffect(() => () => window.clearTimeout(hover.current.timer), []);
+  // Opened another way (click, shortcut, palette): it behaves as before.
+  useEffect(() => { if (open && Date.now() - hover.current.at > 100) hover.current.opened = false; }, [open]);
   // Projects reorder by dragging, as they did in the sidebar (pinned and unpinned apart).
   const reorder = usePointerReorder({
-    canDrop: (source, target) => settings.pinnedProjectIds.includes(source) === settings.pinnedProjectIds.includes(target),
+    canDrop: (source, target) => target.startsWith("folder:") || settings.pinnedProjectIds.includes(source) === settings.pinnedProjectIds.includes(target),
     onDrop: (source, target, edge) => {
       const state = useAppStore.getState();
-      const next = moveSidebarProject(state.projects, state.settings, source, target, edge, state.sessions);
+      // Dropped on a folder: into it. Beside a project: into that project's folder (or out), in its place.
+      if (target.startsWith("folder:")) { void state.saveSettings(moveProjectToFolder(state.settings, source, target.slice(7))); return; }
+      let next = moveSidebarProject(state.projects, state.settings, source, target, edge, state.sessions);
+      const into = folderOf(state.settings, target)?.id ?? null;
+      if ((folderOf(next, source)?.id ?? null) !== into) next = moveProjectToFolder(next, source, into);
       if (next !== state.settings) void state.saveSettings(next);
     },
   });
@@ -98,6 +121,9 @@ function ProjectSwitcher() {
   const titleMatch = (session: Session) => !needle || session.title.toLocaleLowerCase().includes(needle);
   const rows = useMemo(() => groups.projects.filter(row => !needle || row.name.toLocaleLowerCase().includes(needle)
     || ordered.some(session => session.projectId === row.id && session.title.toLocaleLowerCase().includes(needle))), [groups.projects, ordered, needle]);
+  const entries = useMemo(() => switcherEntries(rows, settings.projectFolders, Boolean(needle)), [rows, settings.projectFolders, needle]);
+  // Keyboard moves through the projects that are showing (not those in a closed folder).
+  const navRows = useMemo(() => entries.flatMap(entry => entry.kind === "project" ? [entry.project] : []), [entries]);
   const focused = rows.find(row => row.id === focus) ?? rows.find(row => row.id === project?.id) ?? rows[0] ?? null;
   const pinned = new Set(settings.pinnedSessionIds);
   const shown = focused ? ordered.filter(session => session.projectId === focused.id && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
@@ -111,41 +137,72 @@ function ProjectSwitcher() {
   const choose = (id: string) => { close(); void useAppStore.getState().switchProject(id); };
   const openSession = (id: string) => { close(); const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(id); };
   const newSession = (id: string) => { close(); const store = useAppStore.getState(); void store.switchProject(id).then(() => store.requestNewSession()); };
+  const saveFolders = (change: (current: typeof settings) => typeof settings) => { const store = useAppStore.getState(); void store.saveSettings(change(store.settings)); };
+  const folderItems = (row: Project) => {
+    const current = folderOf(settings, row.id);
+    return [
+      ...settings.projectFolders.filter(folder => folder.id !== current?.id).map(folder => ({ id: `move:${folder.id}`, group: "folders", label: t("folders.moveTo", { folder: folder.name }), icon: <Folder size={15} />, onSelect: () => saveFolders(value => moveProjectToFolder(value, row.id, folder.id)) })),
+      ...(current ? [{ id: "out", group: "folders", label: t("folders.removeFrom", { folder: current.name }), icon: <FolderOutput size={15} />, onSelect: () => saveFolders(value => moveProjectToFolder(value, row.id, null)) }] : []),
+      { id: "new-folder", group: "folders", label: t("folders.newWith"), icon: <FolderPlus size={15} />, onSelect: () => { close(); setFolderDialog({ projectId: row.id }); } },
+    ];
+  };
   const togglePin = (id: string) => { const store = useAppStore.getState(); void store.saveSettings({ ...store.settings, pinnedSessionIds: toggleSidebarId(store.settings.pinnedSessionIds, id) }); };
   const navigate = (event: KeyboardEvent) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      const next = (cursor + (event.key === "ArrowDown" ? 1 : rows.length - 1)) % Math.max(rows.length, 1);
+      const next = (cursor + (event.key === "ArrowDown" ? 1 : navRows.length - 1)) % Math.max(navRows.length, 1);
       setCursor(next);
-      setFocus(rows[next]?.id ?? null);
-    } else if (event.key === "Enter" && rows[cursor]) {
+      setFocus(navRows[next]?.id ?? null);
+    } else if (event.key === "Enter" && navRows[cursor]) {
       event.preventDefault();
-      choose(rows[cursor].id);
+      choose(navRows[cursor].id);
     }
   };
   useEffect(() => { list.current?.querySelector(`[data-index="${cursor}"]`)?.scrollIntoView({ block: "nearest" }); }, [cursor]);
   return <>
   <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) { setQuery(""); setFocus(null); } setCursor(0); }}>
     <PopoverTrigger asChild>
-      <button type="button" className="header-project" aria-label={t("tabs.switchProject")}>
+      <button type="button" className="header-project" aria-label={t("tabs.switchProject")} onPointerEnter={hoverIn} onPointerLeave={hoverOut}
+        // A click right after the hover opened it keeps it open instead of toggling it shut.
+        onClick={event => { if (open && hover.current.opened && Date.now() - hover.current.at < 600) { event.preventDefault(); used(); } else if (open) hover.current.opened = false; else { hover.current.opened = false; window.clearTimeout(hover.current.timer); } }}>
         {project ? <ProjectGlyph project={project} size={14} /> : null}
         <span className="truncate">{project?.name ?? "Sirus Code"}</span>
         {elsewhere && <span className="header-tab-status" data-status="waiting" aria-label={t("tabs.waitingElsewhere")} role="img" />}
         <ChevronDown size={12} aria-hidden="true" />
       </button>
     </PopoverTrigger>
-    <PopoverContent align="start" sideOffset={8} className="floating-material header-switcher" data-cascade={cascade ? "" : undefined} onOpenAutoFocus={event => { event.preventDefault(); (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}>
+    <PopoverContent align="start" sideOffset={8} onPointerEnter={() => window.clearTimeout(hover.current.timer)} onPointerLeave={hoverOut} onPointerDown={used} onKeyDown={used} onContextMenu={used} className="floating-material header-switcher" data-cascade={cascade ? "" : undefined} onOpenAutoFocus={event => { event.preventDefault(); if (!hover.current.opened) (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}
+      // Opened by hover, it leaves focus where it was (the composer keeps it while the pointer passes by).
+      onCloseAutoFocus={event => { if (hover.current.opened && !hover.current.used) event.preventDefault(); }}>
       <div className="header-switcher-projects">
         <label className="header-switcher-search">
           <Search size={13} aria-hidden="true" />
           <input value={query} placeholder={t("tabs.searchAll")} aria-label={t("tabs.searchAll")} onChange={event => { setQuery(event.target.value); setCursor(0); setFocus(null); }} onKeyDown={navigate} />
         </label>
         <div ref={list} className="header-switcher-list" role="listbox" aria-label={t("tabs.projects")} data-reorder-scope="">
-          {rows.map((row, index) => {
+          {entries.map((entry, position) => {
+            if (entry.kind === "folder") {
+              const { folder } = entry;
+              return <ContextMenu key={`folder:${folder.id}`} activation="context-only" label={folder.name} items={[
+                { id: "edit", label: t("folders.edit"), icon: <Pencil size={15} />, onSelect: () => { close(); setFolderDialog({ folder }); } },
+                { id: "delete", label: t("folders.delete"), icon: <Trash2 size={15} />, destructive: true, onSelect: () => { close(); setDeletingFolder(folder); } },
+              ]}>
+                <button type="button" className="header-switcher-row header-switcher-folder" data-cascade-item="" style={cascadeIndex(position)} data-reorder-id={`folder:${folder.id}`}
+                  data-drop-edge={reorder.over?.id === `folder:${folder.id}` ? "inside" : undefined} aria-expanded={entry.open}
+                  onClick={() => { if (!needle) saveFolders(value => updateFolder(value, folder.id, { collapsed: !folder.collapsed })); }}>
+                  <ChevronRight size={11} aria-hidden="true" className="header-switcher-folder-chevron" data-open={entry.open || undefined} />
+                  <ProjectGlyph project={{ look: folder.look }} expanded={entry.open} size={15} />
+                  <span className="header-tab-title"><span>{folder.name}</span></span>
+                  <span className="header-switcher-folder-count">{entry.count}</span>
+                </button>
+              </ContextMenu>;
+            }
+            const row = entry.project;
+            const index = navRows.indexOf(row);
             const status = projectStatus(row.id, sessions, unseen, computer);
             const diff = diffs[row.id];
-            return <ProjectActions key={row.id} project={row} onEdit={() => { close(); setEditing(row); }}>
-              <button type="button" role="option" data-index={index} data-cascade-item="" style={cascadeIndex(index)} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
+            return <ProjectActions key={row.id} project={row} onEdit={() => { close(); setEditing(row); }} extraItems={folderItems(row)}>
+              <button type="button" role="option" data-index={index} data-cascade-item="" data-in-folder={entry.folderId ? "" : undefined} style={cascadeIndex(position)} aria-selected={row.id === focused?.id} data-current={row.id === project?.id || undefined}
                 data-reorder-id={row.id} data-dragging={reorder.dragging === row.id || undefined} data-drop-edge={reorder.over?.id === row.id ? reorder.over.edge : undefined}
                 {...(needle || rows.length < 2 ? {} : reorder.bind(row.id))}
                 className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); }} onFocus={() => setFocus(row.id)} onClick={() => choose(row.id)}>
@@ -164,13 +221,16 @@ function ProjectSwitcher() {
               </button>
             </ProjectActions>;
           })}
-          {!rows.length && <p className="header-switcher-empty">{t("tabs.noProjects")}</p>}
+          {!entries.length && <p className="header-switcher-empty">{t("tabs.noProjects")}</p>}
         </div>
-        <button type="button" className="header-switcher-footer" data-cascade-item="" style={cascadeIndex(rows.length)} onClick={() => { close(); void useAppStore.getState().addProjectFromPicker(); }}>
+        <button type="button" className="header-switcher-footer" data-cascade-item="" style={cascadeIndex(entries.length)} onClick={() => { close(); void useAppStore.getState().addProjectFromPicker(); }}>
           <FolderPlus size={14} aria-hidden="true" />{t("New project")}
         </button>
-        <button type="button" className="header-switcher-footer header-switcher-footer-plain" data-cascade-item="" style={cascadeIndex(rows.length + 1)} onClick={() => { close(); useAppStore.getState().setCreateProjectOpen(true); }}>
+        <button type="button" className="header-switcher-footer header-switcher-footer-plain" data-cascade-item="" style={cascadeIndex(entries.length + 1)} onClick={() => { close(); useAppStore.getState().setCreateProjectOpen(true); }}>
           <Plus size={14} aria-hidden="true" />{t("newProject.menu")}
+        </button>
+        <button type="button" className="header-switcher-footer header-switcher-footer-plain" data-cascade-item="" style={cascadeIndex(entries.length + 2)} onClick={() => { close(); setFolderDialog({}); }}>
+          <Folder size={14} aria-hidden="true" />{t("folders.new")}
         </button>
       </div>
       {focused ? <div className="header-switcher-sessions" aria-label={t("tabs.sessionsOf", { project: focused.name })}>
@@ -237,6 +297,9 @@ function ProjectSwitcher() {
       <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
     </PopoverContent>
   </Popover>
+  <ProjectFolderDialog folder={folderDialog?.folder} projectId={folderDialog?.projectId} open={folderDialog !== null} onOpenChange={value => { if (!value) setFolderDialog(null); }} />
+  <ConfirmDialog open={deletingFolder !== null} onOpenChange={value => { if (!value) setDeletingFolder(null); }} title={`${t("folders.delete")} · ${deletingFolder?.name ?? ""}`} description={t("folders.deleteHelp")} confirmLabel={t("folders.delete")} cancelLabel={t("common.cancel")}
+    onConfirm={() => { if (deletingFolder) saveFolders(value => deleteFolder(value, deletingFolder.id)); setDeletingFolder(null); }} />
   {editing ? <ProjectEditDialog project={editing} open onOpenChange={value => { if (!value) setEditing(null); }} /> : null}
   {sessionAction ? <SessionActionDialog session={sessionAction.session} action={sessionAction.kind} onClose={() => setSessionAction(null)} /> : null}
   </>;
@@ -334,7 +397,7 @@ export function HeaderTabs() {
 
   return <div className="header-tabs titlebar-no-drag">
     <ProjectSwitcher />
-    <span className="header-tabs-separator" aria-hidden="true">/</span>
+    <span className="header-tabs-separator" aria-hidden="true" />
     <div className="header-tabs-context">
       <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [
         { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },

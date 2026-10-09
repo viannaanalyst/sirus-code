@@ -60,6 +60,7 @@ impl AppState {
         self.accounts.stop();
         self.attachments.clear();
         crate::project_scripts::cancel_all();
+        crate::agent_pool::clear();
         for process in self.agents.lock().values() {
             if let Err(error) = process.stop() {
                 tracing::warn!(%error, "agent shutdown failed");
@@ -337,6 +338,9 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
         .filter(|session| session.project_id == project_id)
         .map(|session| session.id.clone())
         .collect::<HashSet<_>>();
+    for session_id in &owned {
+        crate::agent_pool::discard(session_id);
+    }
     // Terminals are keyed by terminal id; match them by their owning session.
     let terminals = {
         let mut ptys = state.ptys.lock();
@@ -1453,6 +1457,10 @@ pub(crate) fn delete_session_native(
         }
     }
     crate::project_scripts::cancel(&session_id);
+    crate::agent_pool::discard(&session_id);
+    for side in &side_chats {
+        crate::agent_pool::discard(side);
+    }
     if remove_worktree {
         let project = project.ok_or_else(|| Error::not_found("project not found"))?;
         worktree::remove(&PathBuf::from(project.path), &session.worktree, confirm)?;
@@ -1700,6 +1708,8 @@ pub async fn send_prompt(
             crate::claude::validate_binding(session, &display_path(&cwd))?;
         } else if session.agent == AgentProviderId::OpenCode {
             crate::opencode::validate_binding(session, &display_path(&cwd))?;
+        } else if crate::acp_cli::handles(&session.agent) {
+            crate::acp_cli::validate_binding(session, &display_path(&cwd))?;
         }
         let process_prompt = crate::transcript::process_prompt(session, &prompt)?;
         // A pending handoff recap travels with the first prompt only; the
@@ -1903,6 +1913,8 @@ pub async fn send_prompt(
         .await
     } else if provider == AgentProviderId::OpenCode {
         crate::opencode::start(session_snapshot.clone(), cwd, process_prompt, overrides).await
+    } else if crate::acp_cli::handles(&provider) {
+        crate::acp_cli::start(session_snapshot.clone(), cwd, process_prompt, overrides).await
     } else {
         agent::start(
             provider,
@@ -2031,6 +2043,8 @@ pub async fn respond_agent_request(
                 &session.pending_requests[index],
                 &request.response,
             )?;
+        } else if crate::acp_cli::handles(&session.agent) {
+            crate::acp_cli::validate_response(&session.pending_requests[index], &request.response)?;
         } else {
             crate::codex::answer(&session.pending_requests[index], &request.response)?;
         }

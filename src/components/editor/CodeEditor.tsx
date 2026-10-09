@@ -47,11 +47,18 @@ export function languageForPath(path: string): EditorLanguage | null {
 
 /** Palette-aware code colors, with the same fonts and sizes as Appearance. */
 const highlight = HighlightStyle.define([
-  { tag: tags.heading, color: "var(--text-primary)", fontWeight: "700" },
-  { tag: tags.strong, color: "var(--text-primary)", fontWeight: "700" },
-  { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.link, color: "var(--accent)", textDecoration: "underline" },
-  { tag: tags.url, color: "var(--text-muted)" },
+  // Markdown reads like VS Code's (T3 uses its themes): coloured headings, emphasis, inline
+  // code, quotes, list markers and the `#`/`**` marks themselves.
+  { tag: tags.heading, color: "var(--code-function)", fontWeight: "700" },
+  { tag: tags.strong, color: "var(--code-keyword)", fontWeight: "700" },
+  { tag: tags.emphasis, color: "var(--code-keyword)", fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: tags.monospace, color: "var(--code-string)" },
+  { tag: tags.quote, color: "var(--code-comment)", fontStyle: "italic" },
+  { tag: tags.list, color: "var(--code-number)" },
+  { tag: [tags.processingInstruction, tags.contentSeparator], color: "var(--code-comment)" },
+  { tag: tags.link, color: "var(--code-property)", textDecoration: "underline" },
+  { tag: tags.url, color: "var(--code-property)" },
   { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--code-keyword)" },
   { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--code-string)" },
   { tag: [tags.number, tags.bool, tags.null], color: "var(--code-number)" },
@@ -113,14 +120,15 @@ function theme(dark: boolean): Extension {
 }
 
 /** Shared construction lets regressions verify the actual CSP/editable state. */
-export function editorExtensions({ language, nonce, onChange, onSave }: { language: EditorLanguage | null; nonce?: string; onChange: (value: string) => void; onSave: () => void }): Extension[] {
+export function editorExtensions({ language, nonce, onChange, onSave, wrap }: { language: EditorLanguage | null; nonce?: string; onChange: (value: string) => void; onSave: () => void; wrap?: Extension }): Extension[] {
   return [
     basicSetup,
     EditorView.editable.of(true),
     EditorState.readOnly.of(false),
     ...(nonce ? [EditorView.cspNonce.of(nonce)] : []),
     syntaxHighlighting(highlight),
-    ...(language === "markdown" ? [EditorView.lineWrapping] : []),
+    // Wrapping is a preference for every file (EditorPane), reconfigured in place.
+    ...(wrap ? [wrap] : []),
     ...(language ? [languageExtensions[language]()] : []),
     EditorState.tabSize.of(2),
     keymap.of([{ key: "Mod-s", preventDefault: true, run: () => { onSave(); return true; } }, indentWithTab]),
@@ -139,6 +147,7 @@ export function CodeEditor({
   onChange,
   onSave,
   reveal,
+  wrap = true,
 }: {
   value: string;
   label?: string;
@@ -146,6 +155,7 @@ export function CodeEditor({
   onChange: (value: string) => void;
   onSave: () => void;
   reveal?: EditorReveal;
+  wrap?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
@@ -157,6 +167,9 @@ export function CodeEditor({
   const emitted = useRef<string | null>(null);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
+  const wrapping = useRef(new Compartment());
+  const wrapRef = useRef(wrap);
+  wrapRef.current = wrap;
 
   useEffect(() => {
     const node = host.current;
@@ -166,7 +179,7 @@ export function CodeEditor({
     const state = EditorState.create({
       doc: initialValue.current,
       extensions: [
-        ...editorExtensions({ language, nonce: editorStyleNonce(document), onChange: value => { emitted.current = value; onChangeRef.current(value); }, onSave: () => onSaveRef.current() }),
+        ...editorExtensions({ language, nonce: editorStyleNonce(document), onChange: value => { emitted.current = value; onChangeRef.current(value); }, onSave: () => onSaveRef.current(), wrap: wrapping.current.of(wrapRef.current ? EditorView.lineWrapping : []) }),
         EditorView.contentAttributes.of({ "aria-label": label }),
         palette.of(theme(resolvedDark())),
       ],
@@ -191,6 +204,10 @@ export function CodeEditor({
       view.current = null;
     };
   }, [language, label]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: wrapping.current.reconfigure(wrap ? EditorView.lineWrapping : []) });
+  }, [wrap]);
 
   useEffect(() => {
     const instance = view.current;

@@ -56,12 +56,8 @@ pub fn validate(
         && (matches!(
             provider,
             AgentProviderId::Grok | AgentProviderId::Antigravity
-        ) || (matches!(
-            provider,
-            AgentProviderId::Droid | AgentProviderId::Pi | AgentProviderId::Devin
-        ) && options.approval != Some(ApprovalMode::Auto))
-            || (*provider == AgentProviderId::Cursor
-                && options.approval == Some(ApprovalMode::Ask)))
+        ) || (matches!(provider, AgentProviderId::Droid | AgentProviderId::Pi)
+            && options.approval != Some(ApprovalMode::Auto)))
     {
         return Err(Error::agent(
             "This approval mode is not supported by this adapter.",
@@ -81,6 +77,8 @@ pub fn validate(
                 | AgentProviderId::OpenCode
                 | AgentProviderId::Droid
                 | AgentProviderId::Pi
+                | AgentProviderId::Devin
+                | AgentProviderId::Hermes
         )
     {
         return Err(Error::agent(
@@ -116,6 +114,7 @@ pub fn validate(
                     | AgentProviderId::OpenCode
                     | AgentProviderId::Grok
                     | AgentProviderId::Cursor
+                    | AgentProviderId::Devin
             )
             || (*provider == AgentProviderId::Cursor && !entry.parameterized)
         {
@@ -298,12 +297,26 @@ mod tests {
         assert_eq!(request.prompt, "Reproduce the error");
     }
     #[test]
+    fn devin_acp_offers_every_access_mode_and_planning() {
+        for mode in [ApprovalMode::Ask, ApprovalMode::Auto, ApprovalMode::Full] {
+            let options = ExecutionOptions {
+                approval: Some(mode),
+                ..Default::default()
+            };
+            assert!(validate(&AgentProviderId::Devin, None, &options, None).is_ok());
+        }
+        let planning = ExecutionOptions {
+            planning: true,
+            ..Default::default()
+        };
+        assert!(validate(&AgentProviderId::Devin, None, &planning, None).is_ok());
+    }
+    #[test]
     fn additional_adapters_reject_unimplemented_permission_profiles() {
         for provider in [
             AgentProviderId::Antigravity,
             AgentProviderId::Droid,
             AgentProviderId::Pi,
-            AgentProviderId::Devin,
         ] {
             for mode in [ApprovalMode::Ask, ApprovalMode::Full] {
                 assert!(validate(
@@ -364,10 +377,8 @@ mod tests {
             let options: ExecutionOptions =
                 serde_json::from_value(json!({"approval":mode})).unwrap();
             assert!(validate(&AgentProviderId::Grok, None, &options, None).is_err());
-            assert_eq!(
-                validate(&AgentProviderId::Cursor, None, &options, None).is_ok(),
-                mode != "ask"
-            );
+            // Cursor runs through ACP (ADR-107): every access mode, answered by Sirus.
+            assert!(validate(&AgentProviderId::Cursor, None, &options, None).is_ok());
         }
         let options: ExecutionOptions =
             serde_json::from_value(json!({"approval":"full","planning":true})).unwrap();

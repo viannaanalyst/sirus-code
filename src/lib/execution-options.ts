@@ -2,7 +2,7 @@ import type { AgentProviderId, DiscoveredModel, ExecutionOptions } from "@/clien
 import { modelDisplayName } from "@/lib/model-registry";
 export const EFFORT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"] as const;
 export function supportsPlanning(provider: AgentProviderId, model: string | null) {
-  return provider === "claude" || provider === "cursor" || provider === "opencode" || provider === "pi" || provider === "droid" || (provider === "codex" && Boolean(model));
+  return provider === "claude" || provider === "cursor" || provider === "opencode" || provider === "pi" || provider === "droid" || provider === "devin" || provider === "hermes" || (provider === "codex" && Boolean(model));
 }
 export function cursorPreset(model: DiscoveredModel) {
   // Only actual catalog IDs are selected. The suffix identifies an offered CLI preset.

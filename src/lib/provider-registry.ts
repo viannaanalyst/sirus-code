@@ -32,13 +32,13 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
   {
     id: "cursor",
-    approvalModes: ["auto", "full"],
-    approvalPolicy: "auto-review",
+    approvalModes: ["ask", "auto", "full"],
+    approvalPolicy: "host",
     name: "Cursor",
     vendor: "Cursor",
-    website: "https://cursor.com/docs/cli/overview",
-    capabilities: ["cli", "workspace-edits"],
-    executionNote: "Cursor Auto-review uses its sandbox; Full access uses --force with the sandbox disabled. Manual callbacks cannot be answered in this adapter. Vendor deny rules remain effective.",
+    website: "https://cursor.com/docs/cli/acp",
+    capabilities: ["cli", "workspace-edits", "native-resume"],
+    executionNote: "Cursor runs through ACP (as in T3 Code) with native sessions that resume exactly. Request approval asks here before its tools; Auto-review allows file edits and asks before commands; Full access allows every request. Planning uses Cursor's Plan mode. Vendor deny rules remain effective.",
   },
   {
     id: "grok",
@@ -76,8 +76,13 @@ export const PROVIDERS: ProviderDefinition[] = [
   },
   {
     id: "devin", name: "Devin", vendor: "Cognition", website: "https://docs.devin.ai/cli/index",
-    capabilities: ["cli", "workspace-edits"], approvalPolicy: "vendor", approvalModes: ["auto"],
-    executionNote: "Devin runs locally with Accept Edits and its exec-tool sandbox. Existing workspace trust is required. This adapter cannot answer interactive permissions and does not start cloud sessions.",
+    capabilities: ["cli", "workspace-edits", "native-resume"], approvalPolicy: "host", approvalModes: ["ask", "auto", "full"],
+    executionNote: "Devin runs through ACP with native sessions that resume exactly, using the CLI's own sign-in. Request approval and Auto-review run in Devin's Code mode: it accepts file edits and asks here before commands, each answer once only. Full access uses Bypass permissions; planning uses Plan mode, which denies writes. It does not start cloud sessions.",
+  },
+  {
+    id: "hermes", name: "Hermes", vendor: "Nous Research", website: "https://hermes-agent.nousresearch.com/docs/",
+    capabilities: ["cli", "workspace-edits", "native-resume"], approvalPolicy: "host", approvalModes: ["ask", "auto", "full"],
+    executionNote: "Hermes Agent runs through ACP with native sessions that resume exactly, using the model provider set with `hermes model`. Request approval asks here for every tool; Auto-review accepts file edits; Full access runs without asking. Planning asks for everything and denies writes.",
   },
 ];
 

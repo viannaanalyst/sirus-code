@@ -24,7 +24,7 @@ test("approval controls offer only modes supported by the native provider adapte
   for (const provider of ["codex", "claude", "opencode"] as const) {
     assert.deepEqual(Reflect.get(providerById(provider), "approvalModes"), ["ask", "auto", "full"]);
   }
-  assert.deepEqual(Reflect.get(providerById("cursor"), "approvalModes"), ["auto", "full"]);
+  assert.deepEqual(Reflect.get(providerById("cursor"), "approvalModes"), ["ask", "auto", "full"]);
   assert.deepEqual(Reflect.get(providerById("grok"), "approvalModes"), []);
 });
 test("Cursor effort and Fast select only offered presets within the same model family", () => {

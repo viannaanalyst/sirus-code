@@ -62,6 +62,7 @@ function fitComposerHeight(node: HTMLTextAreaElement) {
 
 function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }: Props) {
   const t = useTranslation();
+  const autocorrect = useAppStore((state) => state.settings.composerAutocorrect);
   const reducedMotion = useMotionPreferences();
   const draftProjectId = useAppStore((state) => state.selectedProjectId);
   const draftKey = session ? `session:${session.id}` : `project:${draftProjectId}`;
@@ -440,6 +441,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         variant="plain"
         ref={area}
         data-draft-owner={draftKey}
+        spellCheck={autocorrect}
+        autoCorrect={autocorrect ? "on" : "off"}
         value={value}
         disabled={!canType || pasting}
         placeholder={astroName ? t("astros.composer", { name: astroName }) : t("session.prompt")}
@@ -449,7 +452,6 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         aria-controls={suggestions.visible ? suggestions.listId : undefined}
         aria-activedescendant={suggestions.visible && suggestions.rows.length ? `${suggestions.listId}-${suggestions.index}` : undefined}
         rows={1}
-        spellCheck
         onChange={(event) => { recall.current = { index: null, draft: "" }; setValue(event.target.value); suggestions.syncCursor(event.currentTarget); }}
         onSelect={(event) => suggestions.syncCursor(event.currentTarget)}
         onFocus={(event) => suggestions.onFocus(event.currentTarget)}

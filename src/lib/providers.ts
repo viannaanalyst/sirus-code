@@ -8,6 +8,7 @@ import antigravityMark from "@/assets/providers/antigravity.svg";
 import droidMark from "@/assets/providers/droid.svg";
 import piMark from "@/assets/providers/pi.svg";
 import devinMark from "@/assets/providers/devin.svg";
+import hermesMark from "@/assets/providers/hermes.svg";
 
 export { PROVIDERS, providerById, type ProviderDefinition } from "./provider-registry";
 
@@ -22,4 +23,5 @@ export const PROVIDER_MARKS: Record<AgentProviderId, BrandAsset> = {
   droid: { src: droidMark, official: true, monochrome: true },
   pi: { src: piMark, official: true },
   devin: { src: devinMark, official: true, monochrome: true },
+  hermes: { src: hermesMark, official: true, monochrome: true },
 };

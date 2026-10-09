@@ -62,7 +62,53 @@ pub async fn start(
     if !install.installed {
         return Err(Error::agent("Claude Code is not installed"));
     }
-    let mut command = crate::detect::command(install.path.unwrap_or(install.binary));
+    let binary = install.path.unwrap_or(install.binary);
+    // Everything fixed when the CLI starts is part of the key a kept process must match.
+    let key = format!(
+        "{binary}\u{0}{}\u{0}{}\u{0}{cwd}\u{0}{}\u{0}{}\u{0}{:?}\u{0}{:?}\u{0}{}",
+        session.provider_account_id,
+        account_home
+            .as_deref()
+            .map(|home| home.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        crate::execution::claude_permission_mode(&session.execution),
+        session.execution.fast,
+        session.execution.effort,
+        session.model,
+        crate::computer_mcp::endpoint(&session.id).is_some(),
+    );
+    if let Some((child, wire)) =
+        crate::agent_pool::take(&session.id, &crate::agent_pool::with_thread(&key, &session))
+    {
+        let generation = uuid::Uuid::new_v4().to_string();
+        let (cancel, receiver) = watch::channel(false);
+        let (sender, replies) = mpsc::channel(16);
+        return Ok((
+            crate::agent::AgentProcess {
+                cancel,
+                replies: Some(sender),
+                generation: Some(generation.clone()),
+                #[cfg(unix)]
+                pid: child.id(),
+            },
+            crate::agent::StartedAgent {
+                review: None,
+                wire: Some(wire),
+                pool_key: Some(key),
+                child,
+                cancel: receiver,
+                codex: Some(Run {
+                    session,
+                    cwd,
+                    prompt,
+                    attachments: Vec::new(),
+                    generation,
+                    replies,
+                }),
+            },
+        ));
+    }
+    let mut command = crate::detect::command(binary);
     crate::provider_accounts::apply(&mut command, &session.agent, account_home.as_deref());
     if let Some(config) = crate::browser_mcp::claude_mcp_config(&session.id) {
         command.arg("--mcp-config").arg(config);
@@ -128,6 +174,8 @@ pub async fn start(
         },
         crate::agent::StartedAgent {
             review: None,
+            wire: None,
+            pool_key: Some(key),
             child,
             cancel: receiver,
             codex: Some(Run {
@@ -484,8 +532,10 @@ async fn run_turn(
     emit: &mut impl FnMut(Event) -> Result<()>,
     limits: Limits,
 ) -> Result<bool> {
-    wire.send(json!({"type":"control_request","request_id":"sy_init","request":{"subtype":"initialize","hooks":null}})).await?;
-    tokio::time::timeout(Duration::from_secs(30),async {
+    // A kept process was initialized by its first turn (agent_pool).
+    if !wire.initialized {
+        wire.send(json!({"type":"control_request","request_id":"sy_init","request":{"subtype":"initialize","hooks":null}})).await?;
+        tokio::time::timeout(Duration::from_secs(30),async {
         loop {
             let value=tokio::select! {value=wire.read()=>value?,_=cancel.changed()=>return Err(Error::agent("Claude initialization cancelled"))};
             if value["type"]=="control_response" && value["response"]["request_id"]=="sy_init" {
@@ -496,6 +546,8 @@ async fn run_turn(
             if value["type"]=="control_request" {let vendor_id=id(&value["request_id"])?;wire.send(unsupported(&vendor_id)).await?;}
         }
     }).await.map_err(|_|Error::agent("Claude initialization timed out"))??;
+        wire.initialized = true;
+    }
     if !run.session.execution.planning
         && matches!(
             run.session.execution.approval,
@@ -792,6 +844,8 @@ async fn run_turn(
                     background.expect_follow_up();
                 }
                 if !background.waiting() {
+                    // Kept for the next turn only when no background work ever ran in it.
+                    wire.reusable = !background.seen;
                     return Ok(false);
                 }
                 background.since = Some(tokio::time::Instant::now());

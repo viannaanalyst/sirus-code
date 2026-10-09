@@ -1,4 +1,4 @@
-export const AGENT_PROVIDER_IDS = ["codex", "claude", "opencode", "cursor", "grok", "antigravity", "droid", "pi", "devin"] as const;
+export const AGENT_PROVIDER_IDS = ["codex", "claude", "opencode", "cursor", "grok", "antigravity", "droid", "pi", "devin", "hermes"] as const;
 export type AgentProviderId = typeof AGENT_PROVIDER_IDS[number];
 
 export type SessionStatus =
@@ -42,6 +42,7 @@ export interface WorktreeLeftoverScan { leftovers: WorktreeLeftover[]; reclaimab
 export interface WorktreeCleanupResult { removed: number; freedBytes: number; kept: WorktreeLeftover[] }
 export type WorktreeRelease = { outcome: "released"; branch: string } | { outcome: "kept"; reason: WorktreeKeptReason; branch: string } | { outcome: "missing" };
 
+export interface ProjectFolder { id: string; name: string; look: ProjectLook; projectIds: string[]; collapsed: boolean }
 export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null; icon?: string | null }
 /** One of the Astro cosmic icons as a project icon, drawn in the project colour. */
 export interface ProjectAstroIcon { icon: AstroIconId; style: AstroStyle }
@@ -371,6 +372,8 @@ export interface AppSettings {
   foldFinishedTurns: boolean;
   /** The "Working" panel beside the composer while two or more sessions work (ADR-094). */
   showWorkingPanel: boolean;
+  /** Chat behavior: macOS spelling and autocorrect in the composers. */
+  composerAutocorrect: boolean;
   /** The Astros icon in the macOS menu bar (ADR-088). */
   showAstroMenuBar: boolean;
   githubLinksInApp: boolean;
@@ -458,6 +461,8 @@ export interface AppSettings {
   sidebarProjectSortOrder: "manual" | "created_at";
   sidebarThreadSortOrder: "updated_at" | "created_at";
   pinnedProjectIds: string[];
+  /** Switcher folders that group projects (display only). */
+  projectFolders: ProjectFolder[];
   pinnedSessionIds: string[];
   archivedSessionIds: string[];
   environmentPanelDefaultOpen: boolean;

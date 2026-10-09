@@ -167,11 +167,48 @@ pub async fn start(
     if !install.installed {
         return Err(Error::agent("OpenCode is not installed"));
     }
-    let mut command = crate::detect::command(install.path.unwrap_or(install.binary));
+    let binary = install.path.unwrap_or(install.binary);
     let inline_config = approval_config(
         std::env::var("OPENCODE_CONFIG_CONTENT").ok().as_deref(),
         &session.execution,
     )?;
+    // The permission policy is fixed when OpenCode starts: it is part of a kept process's key.
+    let key = format!(
+        "{binary}\u{0}{cwd}\u{0}{inline_config}\u{0}{}",
+        crate::computer_mcp::endpoint(&session.id).is_some()
+    );
+    if let Some((child, wire)) =
+        crate::agent_pool::take(&session.id, &crate::agent_pool::with_thread(&key, &session))
+    {
+        let generation = uuid::Uuid::new_v4().to_string();
+        let (cancel, receiver) = watch::channel(false);
+        let (sender, replies) = mpsc::channel(16);
+        return Ok((
+            crate::agent::AgentProcess {
+                cancel,
+                replies: Some(sender),
+                generation: Some(generation.clone()),
+                #[cfg(unix)]
+                pid: child.id(),
+            },
+            crate::agent::StartedAgent {
+                review: None,
+                wire: Some(wire),
+                pool_key: Some(key),
+                child,
+                cancel: receiver,
+                codex: Some(Run {
+                    session,
+                    cwd,
+                    prompt,
+                    attachments: Vec::new(),
+                    generation,
+                    replies,
+                }),
+            },
+        ));
+    }
+    let mut command = crate::detect::command(binary);
     command
         // Error-level logs are the only place OpenCode reports provider failures it keeps retrying.
         .args(["acp", "--print-logs", "--log-level", "ERROR", "--cwd", &cwd])
@@ -204,6 +241,8 @@ pub async fn start(
         },
         crate::agent::StartedAgent {
             review: None,
+            wire: None,
+            pool_key: Some(key),
             child,
             cancel: receiver,
             codex: Some(Run {
@@ -217,10 +256,10 @@ pub async fn start(
         },
     ))
 }
-fn denied(id: &Value) -> Value {
+pub(crate) fn denied(id: &Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"result":{"outcome":{"outcome":"cancelled"}}})
 }
-fn unsupported(value: &Value) -> Value {
+pub(crate) fn unsupported(value: &Value) -> Value {
     if value["method"] == "session/request_permission" {
         denied(&value["id"])
     } else {
@@ -243,7 +282,7 @@ async fn request(
         if v.get("id").is_some() && v.get("method").is_some() {wire.send(unsupported(&v)).await?;}
     }}).await.map_err(|_|Error::agent("OpenCode startup timed out"))?
 }
-fn approval(params: &Value, cwd: &str) -> Option<(PendingRequestKind, String, String)> {
+pub(crate) fn approval(params: &Value, cwd: &str) -> Option<(PendingRequestKind, String, String)> {
     let call = &params["toolCall"];
     if !call["toolCallId"]
         .as_str()
@@ -325,7 +364,7 @@ fn approval(params: &Value, cwd: &str) -> Option<(PendingRequestKind, String, St
         reject,
     ))
 }
-fn rpc_code(value: &Value) -> String {
+pub(crate) fn rpc_code(value: &Value) -> String {
     value["error"]["code"]
         .as_i64()
         .map(|code| format!(" (JSON-RPC {code})"))
@@ -382,12 +421,21 @@ fn offered_effort(configured: &Value, effort: &str) -> Result<Value> {
     }
     Ok(row["id"].clone())
 }
+/// Where each session's log reader reports provider errors: the turn running now.
+static ERROR_ROUTES: parking_lot::Mutex<Option<HashMap<String, mpsc::Sender<String>>>> =
+    parking_lot::Mutex::new(None);
+
+pub(crate) fn route_errors(session_id: &str, errors: mpsc::Sender<String>) {
+    ERROR_ROUTES
+        .lock()
+        .get_or_insert_with(HashMap::new)
+        .insert(session_id.to_owned(), errors);
+}
+
 /// Reads OpenCode's error-level logs. Only the main agent's provider stream errors are kept, as
-/// bounded secret-free text; every other log line is discarded rather than shown.
-pub(crate) fn watch_logs<R>(
-    reader: R,
-    errors: mpsc::Sender<String>,
-) -> tokio::task::JoinHandle<bool>
+/// bounded secret-free text, and go to the session's current turn; every other log line is
+/// discarded rather than shown.
+pub(crate) fn watch_logs<R>(reader: R, session_id: String) -> tokio::task::JoinHandle<bool>
 where
     R: tokio::io::AsyncRead + Unpin + Send + 'static,
 {
@@ -396,7 +444,13 @@ where
         let mut lines = tokio::io::BufReader::new(reader);
         while let Ok(Some(line)) = crate::agent::bounded_line(&mut lines).await {
             if let Some(error) = provider_stream_error(&line) {
-                let _ = errors.try_send(error);
+                let route = ERROR_ROUTES
+                    .lock()
+                    .as_ref()
+                    .and_then(|routes| routes.get(&session_id).cloned());
+                if let Some(route) = route {
+                    let _ = route.try_send(error);
+                }
             }
         }
         false
@@ -445,30 +499,10 @@ pub(crate) fn fatal_provider_error(message: &str) -> bool {
     .any(|needle| lower.contains(needle))
 }
 
-pub(crate) async fn execute(
-    wire: &mut Wire,
-    run: &mut Run,
-    cancel: &mut watch::Receiver<bool>,
-    provider_errors: &mut mpsc::Receiver<String>,
-    emit: &mut impl FnMut(Event) -> Result<()>,
-) -> Result<bool> {
-    let init=request(wire,"initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Sirus Code","version":"0.1.0"}}),cancel).await?;
-    if init["protocolVersion"] != 1 {
-        return Err(Error::agent("Unsupported OpenCode ACP version"));
-    }
-    let existing = run
-        .session
-        .native_thread
-        .as_ref()
-        .map(|n| n.thread_id.clone());
-    if existing.is_some() && init["agentCapabilities"]["loadSession"] != true {
-        return Err(Error::agent(
-            "OpenCode does not support exact session loading",
-        ));
-    }
-    // ACP sessions receive MCP servers from the client, not from the CLI config.
-    let mcp_servers: Vec<serde_json::Value> =
-        crate::browser_mcp::ensure_endpoint(&run.session.id)
+/// The app's own MCP servers (browser, Sirus tools, computer use) for an ACP session, which
+/// receives them from the client rather than from the CLI configuration.
+pub(crate) fn acp_mcp_servers(session_id: &str) -> Vec<Value> {
+    crate::browser_mcp::ensure_endpoint(session_id)
             .and_then(|endpoint| {
                 let exe = std::env::current_exe().ok()?;
                 let mut env = vec![
@@ -488,27 +522,68 @@ pub(crate) async fn execute(
             .map(|server| vec![server])
             .unwrap_or_default()
             .into_iter()
-            .chain(crate::computer_mcp::acp_server(&run.session.id))
-            .collect();
-    let setup = request(
-        wire,
-        if existing.is_some() {
-            "session/load"
-        } else {
-            "session/new"
-        },
-        if let Some(id) = &existing {
-            json!({"sessionId":id,"cwd":run.cwd,"mcpServers":mcp_servers})
-        } else {
-            json!({"cwd":run.cwd,"mcpServers":mcp_servers})
-        },
-        cancel,
-    )
-    .await?;
+            .chain(crate::computer_mcp::acp_server(session_id))
+            .collect()
+}
+
+pub(crate) async fn execute(
+    wire: &mut Wire,
+    run: &mut Run,
+    cancel: &mut watch::Receiver<bool>,
+    provider_errors: &mut mpsc::Receiver<String>,
+    emit: &mut impl FnMut(Event) -> Result<()>,
+) -> Result<bool> {
+    // A kept process (agent_pool) was initialized by its first turn.
+    let init = if wire.initialized {
+        wire.acp_init.clone()
+    } else {
+        let init=request(wire,"initialize",json!({"protocolVersion":1,"clientCapabilities":{},"clientInfo":{"name":"Sirus Code","version":"0.1.0"}}),cancel).await?;
+        wire.initialized = true;
+        wire.acp_init = init.clone();
+        init
+    };
+    if init["protocolVersion"] != 1 {
+        return Err(Error::agent("Unsupported OpenCode ACP version"));
+    }
+    let existing = run
+        .session
+        .native_thread
+        .as_ref()
+        .map(|n| n.thread_id.clone());
+    if existing.is_some() && init["agentCapabilities"]["loadSession"] != true {
+        return Err(Error::agent(
+            "OpenCode does not support exact session loading",
+        ));
+    }
+    // ACP sessions receive MCP servers from the client, not from the CLI config.
+    // A kept process already holds this session loaded: no reload, the last setup stands.
+    let reused = existing.is_some() && wire.loaded == existing;
+    let mcp_servers = acp_mcp_servers(&run.session.id);
+    let setup = if reused {
+        wire.acp_setup.clone()
+    } else {
+        request(
+            wire,
+            if existing.is_some() {
+                "session/load"
+            } else {
+                "session/new"
+            },
+            if let Some(id) = &existing {
+                json!({"sessionId":id,"cwd":run.cwd,"mcpServers":mcp_servers})
+            } else {
+                json!({"cwd":run.cwd,"mcpServers":mcp_servers})
+            },
+            cancel,
+        )
+        .await?
+    };
     let native = existing
         .or_else(|| setup["sessionId"].as_str().map(str::to_owned))
         .filter(|id| !id.is_empty() && id.len() <= 1024)
         .ok_or_else(|| Error::agent("OpenCode returned invalid native identity"))?;
+    wire.loaded = Some(native.clone());
+    wire.acp_setup = setup.clone();
     let mut configured = setup.clone();
     let mode_value = if run.session.execution.planning {
         "plan"
@@ -645,7 +720,11 @@ pub(crate) async fn execute(
                 return Err(prompt_error(&v));
             }
             return match v["result"]["stopReason"].as_str() {
-                Some("end_turn") => Ok(false),
+                Some("end_turn") => {
+                    // The session is idle again: the process can be kept for the next turn.
+                    wire.reusable = true;
+                    Ok(false)
+                }
                 Some("cancelled") => Ok(true),
                 _ => Err(Error::agent(
                     "OpenCode stopped without successful completion",

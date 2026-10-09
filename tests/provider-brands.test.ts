@@ -26,16 +26,20 @@ test("routed models retain their upstream brand across coding CLIs", () => {
   assert.equal(resolveModelBrand("opencode/absolute-custom-model", "opencode"), "opencode");
 });
 
-test("all nine providers retain model preferences and truthful capabilities", () => {
+test("all ten providers retain model preferences and truthful capabilities", () => {
   for (const provider of AGENT_PROVIDER_IDS) {
     assert.deepEqual(parseModelKey(modelKey(provider, "vendor/model")), { provider, id: "vendor/model" });
   }
   assert.equal(parseModelKey("unregistered::model"), null);
-  assert.equal(mergeSettings({ usageProviders: [...AGENT_PROVIDER_IDS] }).usageProviders.length, 9);
-  for (const provider of ["droid", "pi", "devin"] as const) assert.deepEqual(providerById(provider).approvalModes, ["auto"]);
+  assert.equal(mergeSettings({ usageProviders: [...AGENT_PROVIDER_IDS] }).usageProviders.length, 10);
+  for (const provider of ["droid", "pi"] as const) assert.deepEqual(providerById(provider).approvalModes, ["auto"]);
+  // Devin runs through ACP (2026-10-09): every access mode, approvals answered here, and planning.
+  assert.deepEqual(providerById("devin").approvalModes, ["ask", "auto", "full"]);
   assert.deepEqual(providerById("antigravity").approvalModes, []);
   assert.equal(supportsPlanning("pi", null), true);
   assert.equal(supportsPlanning("droid", null), true);
-  assert.equal(supportsPlanning("devin", null), false);
+  assert.equal(supportsPlanning("devin", null), true);
+  assert.equal(supportsPlanning("hermes", null), true);
+  assert.deepEqual(providerById("hermes").approvalModes, ["ask", "auto", "full"]);
   assert.equal(supportsPlanning("antigravity", null), false);
 });

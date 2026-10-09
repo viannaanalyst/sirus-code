@@ -136,6 +136,8 @@ const strings: Record<string, [string, string]> = {
   "chatBehavior.fold": ["Fold finished turns", "Recolher turnos terminados"],
   "chatBehavior.workingPanel": ["Show working sessions", "Mostrar sessões trabalhando"],
   "chatBehavior.workingPanelHelp": ["Lists the sessions an agent is working on beside the composer, once two or more run at the same time.", "Lista as sessões em que um agente está trabalhando ao lado do campo de mensagem, quando duas ou mais rodam ao mesmo tempo."],
+  "chatBehavior.autocorrect": ["Autocorrect", "Autocorreção"],
+  "chatBehavior.autocorrectHelp": ["macOS spelling underlines and automatic corrections while you write a message, in sessions and Astros.", "Sublinhado de ortografia e correções automáticas do macOS enquanto você escreve uma mensagem, nas sessões e nos Astros."],
   "chatBehavior.foldHelp": ["When a reply ends, its steps fold into the \"Worked for\" line. Turn this off to keep every step visible.", "Quando uma resposta termina, os passos dela se recolhem na linha \"Trabalhou por\". Desligue para manter todos os passos visíveis."],
   "chatBehavior.review": ["Review", "Revisão"],
   "chatBehavior.links": ["Open pull requests and issues", "Abrir pull requests e issues"],

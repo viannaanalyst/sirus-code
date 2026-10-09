@@ -18,7 +18,7 @@ struct Summary {
     projects: usize,
     sessions: usize,
     statuses: [usize; 7],
-    providers: [usize; 9],
+    providers: [usize; 10],
 }
 impl Summary {
     fn from_data(data: &AppData) -> Self {
@@ -47,6 +47,7 @@ impl Summary {
                 AgentProviderId::Droid => 6,
                 AgentProviderId::Pi => 7,
                 AgentProviderId::Devin => 8,
+                AgentProviderId::Hermes => 9,
             };
             summary.statuses[status] += 1;
             summary.providers[provider] += 1;
@@ -102,7 +103,7 @@ impl Journal {
         let record = serde_json::json!({
             "timestamp": crate::paths::now_rfc3339(), "kind": "lifecycle", "projects": summary.projects, "sessions": summary.sessions,
             "statuses": { "idle":summary.statuses[0], "starting":summary.statuses[1], "running":summary.statuses[2], "waiting":summary.statuses[3], "completed":summary.statuses[4], "failed":summary.statuses[5], "stopped":summary.statuses[6] },
-            "providers": { "codex":summary.providers[0], "claude":summary.providers[1], "opencode":summary.providers[2], "cursor":summary.providers[3], "grok":summary.providers[4], "antigravity":summary.providers[5], "droid":summary.providers[6], "pi":summary.providers[7], "devin":summary.providers[8] }
+            "providers": { "codex":summary.providers[0], "claude":summary.providers[1], "opencode":summary.providers[2], "cursor":summary.providers[3], "grok":summary.providers[4], "antigravity":summary.providers[5], "droid":summary.providers[6], "pi":summary.providers[7], "devin":summary.providers[8], "hermes":summary.providers[9] }
         }).to_string() + "\n";
         if fs::metadata(&current)
             .is_ok_and(|meta| meta.len().saturating_add(record.len() as u64) > MAX_BYTES)

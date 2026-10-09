@@ -199,6 +199,48 @@ pub async fn project_look_action(
     .await
 }
 
+/// Opens the native image picker and returns the picked image as a small square PNG data
+/// URL, for icons that are not a project's (project folders). `None` when cancelled.
+#[tauri::command]
+pub async fn pick_look_image(app: AppHandle) -> Result<Option<String>> {
+    let Some(path) = pick_image(&app).await else {
+        return Ok(None);
+    };
+    tokio::task::spawn_blocking(move || logo_from_file(&path))
+        .await
+        .map_err(|_| Error::new("invalid", "Could not read that image."))?
+        .map(Some)
+}
+
+/// Checks a look that arrives whole (a project folder's): known colour, emoji, Astro and
+/// line icon, and a logo that is a bounded PNG data URL like the ones made here.
+pub fn validate_look(look: &crate::models::ProjectLook) -> Result<()> {
+    if let Some(color) = &look.color {
+        valid_color(color)?;
+    }
+    if let Some(emoji) = &look.emoji {
+        valid_emoji(emoji)?;
+    }
+    if let Some(astro) = &look.astro {
+        valid_astro(astro.clone())?;
+    }
+    if look
+        .icon
+        .as_deref()
+        .is_some_and(|name| !ICONS.contains(&name))
+    {
+        return Err(Error::new("invalid", "Unknown project icon."));
+    }
+    if look
+        .logo
+        .as_deref()
+        .is_some_and(|logo| !logo.starts_with("data:image/png;base64,") || logo.len() > MAX_LOGO)
+    {
+        return Err(Error::new("invalid", "Use a PNG or JPEG image."));
+    }
+    Ok(())
+}
+
 /// Where projects keep their own icon, most specific first (ADR-072).
 const ICON_CANDIDATES: &[&str] = &[
     "public/favicon.svg",
@@ -320,7 +362,7 @@ fn ensure_project(state: &AppState, project_id: &str) -> Result<()> {
     }
 }
 
-fn valid_color(value: &str) -> Result<String> {
+pub(crate) fn valid_color(value: &str) -> Result<String> {
     let hex = value.len() == 7
         && value.starts_with('#')
         && value[1..].bytes().all(|byte| byte.is_ascii_hexdigit());
@@ -334,7 +376,7 @@ fn valid_color(value: &str) -> Result<String> {
     }
 }
 
-fn valid_astro(astro: ProjectAstroIcon) -> Result<ProjectAstroIcon> {
+pub(crate) fn valid_astro(astro: ProjectAstroIcon) -> Result<ProjectAstroIcon> {
     if crate::astros::ICONS.contains(&astro.icon.as_str())
         && crate::astros::STYLES.contains(&astro.style.as_str())
     {
@@ -345,7 +387,7 @@ fn valid_astro(astro: ProjectAstroIcon) -> Result<ProjectAstroIcon> {
 }
 
 /// A short printable symbol (an emoji, including joined sequences); no spaces or control characters.
-fn valid_emoji(value: &str) -> Result<String> {
+pub(crate) fn valid_emoji(value: &str) -> Result<String> {
     let value = value.trim();
     if value.is_empty()
         || value.len() > 32

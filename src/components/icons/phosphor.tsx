@@ -129,6 +129,7 @@ import {
   Package as PhPackage,
   Paperclip as PhPaperclip,
   Paragraph as PhParagraph,
+  ArrowBendDownLeft as PhArrowBendDownLeft,
   Pause as PhPause,
   PencilLine as PhPencilLine,
   PencilSimple as PhPencilSimple,
@@ -339,6 +340,7 @@ export const Paperclip = adapt(PhPaperclip, "Paperclip");
 export const Pause = adapt(PhPause, "Pause");
 export const Pencil = adapt(PhPencilSimple, "Pencil");
 export const Pilcrow = adapt(PhParagraph, "Pilcrow");
+export const WrapText = adapt(PhArrowBendDownLeft, "WrapText");
 export const Pin = adapt(PhPushPin, "Pin");
 export const PinOff = adapt(PhPushPinSlash, "PinOff");
 export const Pipette = adapt(PhEyedropper, "Pipette");

@@ -55,6 +55,11 @@ const KNOWN: &[KnownAgent] = &[
         name: "Devin",
         binaries: &["devin"],
     },
+    KnownAgent {
+        id: AgentProviderId::Hermes,
+        name: "Hermes",
+        binaries: &["hermes"],
+    },
 ];
 
 pub(crate) fn cli_path() -> std::ffi::OsString {
