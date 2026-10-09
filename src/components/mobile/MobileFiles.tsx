@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, LoaderCircle } from "@/components/icons/phos
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { useTranslation } from "@/i18n/use-translation";
 import { isLocalImageLink } from "@/lib/chat-markdown";
-import { fileIconFor, folderIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { formatUnknownError } from "@/lib/format-error";
 import { sortEntries } from "@/lib/mobile";
 import { useAppStore } from "@/store/app-store";
@@ -65,10 +65,8 @@ export function MobileFiles({ sessionId, navigation }: { sessionId: string; navi
       {entries === null ? <p className="mobile-empty"><LoaderCircle size={15} className="animate-spin" aria-hidden="true" /></p>
         : entries.length ? <div className="mobile-list mobile-section">
           {entries.map((entry) => {
-            const icon = entry.isDir ? folderIconFor(entry.name, false) : fileIconFor(entry.name);
-            const Icon = icon.Icon;
             return <button key={entry.path} type="button" className="mobile-file" onClick={() => entry.isDir ? setTrail([...trail, entry.path]) : void openFile(entry)}>
-              <Icon size={18} aria-hidden="true" style={{ color: icon.color }} />
+              <FileGlyph name={entry.name} directory={entry.isDir} size={18} />
               <span className="mobile-file-name">{entry.name}</span>
               {entry.isDir ? <ChevronRight size={15} className="text-text-muted" aria-hidden="true" /> : null}
             </button>;

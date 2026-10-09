@@ -129,3 +129,13 @@ test("glass terminals keep the theme color at zero alpha so reverse video is not
     assert.equal(terminalTransparent(glass, undefined), false, "unknown hosts stay opaque");
   }
 });
+
+test("terminal colors follow the Sirus palette in both palettes and keep the cursor readable", () => {
+  const supported = { translucency: true, dockIcon: true };
+  const dark = terminalAppearance(mergeSettings({ theme: "dark", darkWindowTranslucent: false }), supported, "dark");
+  assert.equal(dark.red, "#e5604d"); assert.equal(dark.green, "#5cc36b"); assert.equal(dark.magenta, "#c08cff");
+  assert.equal(dark.cursorAccent, dark.background);
+  const light = terminalAppearance(mergeSettings({ theme: "light", lightWindowTranslucent: false }), supported, "light");
+  assert.notEqual(light.green, dark.green);
+  assert.equal(light.cursor, "#18181b");
+});

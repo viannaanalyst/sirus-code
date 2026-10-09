@@ -9,7 +9,7 @@ import { CommitTitleRequest } from "@/lib/commit-title";
 import { IconButton } from "@/primitives/IconButton";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
-import { fileIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { changeRowLabel } from "@/lib/change-row-label";
 import { DiffViewer } from "./DiffViewer";
 import type { DiffComment } from "@/lib/diff-comment";
@@ -221,14 +221,13 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
           const open = selection?.entry.path === entry.path && selection.staged === group.staged;
           const slash = entry.path.lastIndexOf("/");
           const name = entry.path.slice(slash + 1), dir = slash >= 0 ? entry.path.slice(0, slash) : "";
-          const icon = fileIconFor(name);
           const kindLabel = t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`);
           return <div key={entry.path}>
             <div className="changes-row" data-open={open || undefined}>
               <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
                 aria-label={changeRowLabel({ path: entry.path, kind: kindLabel, status: entry.actionable ? undefined : t("workspaceGit.unavailable") })}
                 className="changes-row-main" title={entry.actionable ? `${entry.path} · ${kindLabel}` : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
-                <icon.Icon size={13} style={{ color: icon.color }} className="shrink-0" aria-hidden="true" />
+                <FileGlyph name={name} size={14} />
                 <span className="truncate ui-control text-text-primary">{name}</span>
                 {dir ? <span className="min-w-0 truncate ui-micro text-text-muted">{dir}</span> : null}
               </button>

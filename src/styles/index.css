@@ -462,3 +462,7 @@ html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
 .dock-tab-close { display: grid; place-items: center; flex: none; width: 20px; height: 20px; margin-right: 6px; border-radius: 6px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
 .dock-tab[data-active] .dock-tab-close, .dock-tab:hover .dock-tab-close, .dock-tab-close:focus-visible { opacity: 1; }
 .dock-tab-close:hover { background: var(--navigation-hover); color: var(--text-primary); }
+
+/* Material Icon Theme glyphs (FileGlyph): the inlined SVG fills its sized box. */
+.material-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+.material-icon svg { display: block; width: 100%; height: 100%; }

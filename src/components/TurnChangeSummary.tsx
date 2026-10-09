@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff, Folder, FolderOpen } from "@/components/icons/phosphor";
 import { buildDiffTree, diffTotals, type DiffTreeNode } from "@/lib/diff-tree";
 import type { TurnReview } from "@/client/types";
-import { fileIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
@@ -54,13 +54,12 @@ export function TurnChangeSummary({ sessionId, messageId, review }: { sessionId:
       </div>;
     }
     const file = byPath.get(node.path);
-    const { Icon, color } = fileIconFor(node.name);
     // The whole row is the control: its name carries the path, kind and +/− counts.
     const label = changeRowLabel({ action: t("review.file", { path: node.path }), path: node.path, kind: file ? t(`change.${file.kind}`) : undefined,
       additions: node.stat?.additions, deletions: node.stat?.deletions, status: file?.undoneAt ? t("undo.done") : file?.binary ? t("review.binary") : undefined });
     return <button type="button" key={`f:${node.path}`} aria-label={label} title={node.path} className="changed-files-row group" style={indent} onClick={() => openReview(sessionId, messageId, node.path)}>
       {hasFolders || depth > 0 ? <span aria-hidden="true" className="w-[13px] shrink-0" /> : null}
-      <Icon size={14} color={color} aria-hidden="true" className="shrink-0" />
+      <FileGlyph name={node.name} size={14} />
       <span className="changed-files-name text-text-secondary group-hover:text-text-primary">{node.name}</span>
       <span className="ml-auto shrink-0">{file?.undoneAt ? <span className="ui-micro text-text-muted">{t("undo.done")}</span> : file?.binary ? <span className="ui-micro text-text-muted">{t("review.binary")}</span> : node.stat ? <ChangeTally {...node.stat} /> : null}</span>
     </button>;

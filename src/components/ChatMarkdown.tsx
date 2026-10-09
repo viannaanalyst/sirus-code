@@ -5,7 +5,7 @@ import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
 import { fileReference, isLocalImageLink, parseChatInline, parseChatMarkdown, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
-import { fileIconFor, folderIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { GALLERY_EVENT } from "@/components/ImageLightbox";
@@ -89,8 +89,6 @@ function FileReference({ owner, path, line, children, fallback }: { owner: Owner
   useEffect(() => { if (!editorsRequested) { editorsRequested = true; void useAppStore.getState().loadEditors(); } }, []);
   if (!kind) return <>{fallback}</>;
   const name = path.split("/").pop() ?? path;
-  const icon = kind === "dir" ? folderIconFor(name, false) : fileIconFor(name);
-  const Icon = icon.Icon;
   const title = [t(kind === "dir" ? "fileRef.openFolder" : "fileRef.open", { path }), editor && kind === "file" ? t("fileRef.external", { editor: editor.name }) : null].filter(Boolean).join(" · ");
   const items = [
     { id: "open", label: t(kind === "dir" ? "fileRef.showFiles" : "fileRef.openHere"), icon: kind === "dir" ? <FolderOpen size={15} /> : <FileText size={15} />, onSelect: () => openReference(owner, path, kind, false) },
@@ -101,7 +99,7 @@ function FileReference({ owner, path, line, children, fallback }: { owner: Owner
   return <ContextMenu inline activation="context-only" label={t("fileRef.actions", { path })} items={items}>
     {/* A link, not a button: it wraps with the sentence instead of breaking before punctuation. */}
     <a href={`#${path}`} title={title} data-line={line ?? undefined} className="chat-file-ref" onContextMenu={() => requestAnimationFrame(() => window.getSelection()?.removeAllRanges())} onClick={(event) => { event.preventDefault(); openReference(owner, path, kind, event.metaKey && kind === "file"); }}>
-      <Icon size={13} aria-hidden="true" style={{ color: icon.color }} className="chat-file-ref-icon" />{children}
+      <FileGlyph name={name} directory={kind === "dir"} size={13} className="chat-file-ref-icon" />{children}
     </a>
   </ContextMenu>;
 }

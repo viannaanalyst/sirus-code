@@ -5,7 +5,7 @@ import { client } from "@/client";
 import type { TextSearchFile, TextSearchResult } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
-import { fileIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { literalRanges, workspaceFilePath } from "@/lib/file-tree-keys";
 import { formatUnknownError } from "@/lib/format-error";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
@@ -128,13 +128,12 @@ const ResultGroup = memo(function ResultGroup({ file, root, query, caseSensitive
   const slash = file.path.lastIndexOf("/");
   const name = file.path.slice(slash + 1);
   const folder = slash > 0 ? file.path.slice(0, slash) : "";
-  const spec = fileIconFor(name);
   const absolute = workspaceFilePath(root, file.path);
   return <div role="listitem" className="pb-0.5">
     <button type="button" data-search-result="" aria-expanded={open} title={file.path} onClick={() => onToggle(file.path)}
       className="flex h-7 w-full items-center gap-1 rounded-[6px] px-1.5 text-left ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary focus-visible:outline-offset-[-2px]">
       <ChevronRight size={12} aria-hidden="true" className={cn("shrink-0 transition-transform duration-[var(--motion-fast)]", open && "rotate-90")} />
-      <spec.Icon size={13} style={{ color: spec.color }} className="shrink-0" aria-hidden="true" />
+      <FileGlyph name={name} size={14} />
       <span className="min-w-0 flex-1 truncate">
         <span className="text-text-primary">{name}</span>
         {folder ? <span className="ml-1.5 ui-caption text-text-muted">{folder}</span> : null}

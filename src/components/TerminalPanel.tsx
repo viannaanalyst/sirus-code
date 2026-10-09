@@ -195,6 +195,106 @@ function PaneHeader({
   );
 }
 
+/**
+ * A terminal outlives its view. Collapsing the dock, switching dock tabs or sessions, or
+ * maximizing unmounts the view, but the shell keeps running (a dev server must survive a
+ * glance elsewhere) and xterm keeps its screen: the view re-attaches the same element.
+ * The shell stops only when its terminal is closed, its session is removed, or it is reopened.
+ */
+interface LiveTerminal {
+  sessionId: string;
+  term: Terminal;
+  fit: FitAddon;
+  element: HTMLDivElement;
+  started: boolean;
+  ended: boolean;
+  error: string | null;
+  attached: boolean;
+  view: { ended: (value: boolean) => void; error: (value: string | null) => void; selection: (value: string) => void } | null;
+  dispose: () => void;
+}
+const liveTerminals = new Map<string, LiveTerminal>();
+let pruning: (() => void) | null = null;
+
+function terminalListed(sessionId: string, terminalId: string) {
+  return useAppStore.getState().terminalWorkspacesBySession[sessionId]?.panes.some((pane) => pane.terminals.some((terminal) => terminal.id === terminalId)) ?? false;
+}
+
+/** Stops terminals whose tab was closed or whose session was removed while no view showed them. */
+function watchClosedTerminals() {
+  if (pruning) return;
+  let workspaces = useAppStore.getState().terminalWorkspacesBySession;
+  pruning = useAppStore.subscribe((state) => {
+    if (state.terminalWorkspacesBySession === workspaces) return;
+    workspaces = state.terminalWorkspacesBySession;
+    for (const [terminalId, live] of liveTerminals) if (!live.attached && !terminalListed(live.sessionId, terminalId)) live.dispose();
+  });
+}
+
+function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLElement): LiveTerminal {
+  watchClosedTerminals();
+  const settings = useAppStore.getState().settings;
+  const support = useAppStore.getState().hostInfo?.appearanceSupport;
+  const element = document.createElement("div");
+  element.className = "h-full w-full";
+  host.appendChild(element);
+  const term = new Terminal({
+    convertEol: true,
+    cursorBlink: true,
+    cursorInactiveStyle: "outline",
+    lineHeight: 1.15,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    // Transparency costs xterm a slower composite; only window glass needs it.
+    allowTransparency: terminalTransparent(settings, support, readSystemPalette()),
+    fontSize: settings.terminalFontSize,
+    cursorStyle: settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block",
+    scrollback: settings.terminalScrollback,
+    theme: terminalAppearance(settings, support, readSystemPalette()),
+  });
+  const fit = new FitAddon();
+  term.loadAddon(fit);
+  term.open(element);
+  let disposed = false;
+  let exited = false;
+  const unlisteners: (() => void)[] = [];
+  const live: LiveTerminal = {
+    sessionId, term, fit, element, started: false, ended: false, error: null, attached: true, view: null,
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      if (liveTerminals.get(terminalId) === live) liveTerminals.delete(terminalId);
+      input.dispose();
+      selection.dispose();
+      unlisteners.forEach((unlisten) => unlisten());
+      term.dispose();
+      element.remove();
+      void queueTerminalOperation(terminalId, () => client.stopTerminal(sessionId, terminalId)).catch((reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) }));
+    },
+  };
+  liveTerminals.set(terminalId, live);
+  const setEnded = (value: boolean) => { live.ended = value; live.view?.ended(value); };
+  const report = (reason: unknown) => { if (disposed) return; live.error = formatUnknownError(reason); live.view?.error(live.error); };
+  const selection = term.onSelectionChange(() => { if (!disposed) live.view?.selection(term.getSelection()); });
+  const input = term.onData((data) => { if (live.started) void client.writeTerminal(sessionId, terminalId, data).catch(report); });
+  void queueTerminalOperation(terminalId, async () => {
+    if (disposed) return;
+    // Register only after older cleanup has completed, before this spawn.
+    for (const subscribe of [
+      () => client.onPtyOutput((event) => { if (!disposed && event.sessionId === sessionId && event.terminalId === terminalId) term.write(event.data); }),
+      () => client.onPtyExit((event) => { if (!disposed && event.sessionId === sessionId && event.terminalId === terminalId) { exited = true; live.started = false; setEnded(true); } }),
+    ]) {
+      const unlisten = await subscribe();
+      if (disposed) { unlisten(); return; }
+      unlisteners.push(unlisten);
+    }
+    if (disposed) return;
+    await client.startTerminal(sessionId, terminalId, term.cols, term.rows);
+    live.started = !exited;
+    if (!disposed) { setEnded(exited); live.error = null; live.view?.error(null); }
+  }).catch((reason: unknown) => { report(reason); if (!disposed) setEnded(true); });
+  return live;
+}
+
 function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: string; terminalId: string; visible: boolean }) {
   const systemPalette = useSystemPalette();
   const host = useRef<HTMLDivElement>(null);
@@ -205,8 +305,6 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const terminalCursorStyle = useAppStore((state) => state.settings.terminalCursorStyle);
   const terminalScrollback = useAppStore((state) => state.settings.terminalScrollback);
   const terminalBackground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).background);
-  const terminalForeground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).foreground);
-  const terminalCursor = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).cursor);
   const terminalGlass = useAppStore((state) => terminalTransparent(state.settings, state.hostInfo?.appearanceSupport, systemPalette));
   const terminal = useRef<Terminal | null>(null);
   const refit = useRef<(() => void) | null>(null);
@@ -220,72 +318,42 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   useEffect(() => {
     const node = host.current;
     if (!node) return;
-    const settings = useAppStore.getState().settings;
     let cancelled = false;
-    let started = false;
-    let exited = false;
-    const unlisteners: (() => void)[] = [];
-    const term = new Terminal({
-      convertEol: true,
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-      // Transparency costs xterm a slower composite; only window glass needs it.
-      allowTransparency: terminalTransparent(settings, useAppStore.getState().hostInfo?.appearanceSupport, readSystemPalette()),
-      fontSize: settings.terminalFontSize,
-      cursorStyle: settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block",
-      scrollback: settings.terminalScrollback,
-      theme: terminalAppearance(settings, useAppStore.getState().hostInfo?.appearanceSupport, readSystemPalette()),
-    });
+    let existing = liveTerminals.get(terminalId);
+    if (existing && existing.sessionId !== sessionId) { existing.dispose(); existing = undefined; }
+    const live = existing ?? createLiveTerminal(sessionId, terminalId, node);
+    if (live === existing) node.appendChild(live.element);
+    live.attached = true;
+    live.view = { ended: (value) => { if (!cancelled) setEnded(value); }, error: (value) => { if (!cancelled) setError(value); }, selection: (value) => { if (!cancelled) setSelected(value); } };
+    setEnded(live.ended);
+    setError(live.error);
+    const { term, fit } = live;
     terminal.current = term;
-    const fit = new FitAddon();
-    term.loadAddon(fit);
-    term.open(node);
     const safeFit = () => {
       if (cancelled || !node.isConnected || node.clientWidth < 2 || node.clientHeight < 2) return;
       fit.fit();
     };
-    safeFit();
-    const report = (reason: unknown) => { if (!cancelled) setError(formatUnknownError(reason)); };
-    const selection = term.onSelectionChange(() => { if (!cancelled) setSelected(term.getSelection()); });
-    const input = term.onData((data) => { if (started) void client.writeTerminal(sessionId, terminalId, data).catch(report); });
-    const setup = async () => {
-      try {
-        await queueTerminalOperation(terminalId, async () => {
-          if (cancelled) return;
-          // Register only after older cleanup has completed, before this spawn.
-          for (const subscribe of [
-            () => client.onPtyOutput((event) => { if (!cancelled && event.sessionId === sessionId && event.terminalId === terminalId) term.write(event.data); }),
-            () => client.onPtyExit((event) => { if (!cancelled && event.sessionId === sessionId && event.terminalId === terminalId) { exited = true; started = false; setEnded(true); } }),
-          ]) {
-            const unlisten = await subscribe();
-            if (cancelled) { unlisten(); return; }
-            unlisteners.push(unlisten);
-          }
-          if (cancelled) return;
-          await client.startTerminal(sessionId, terminalId, term.cols, term.rows);
-          started = !exited;
-          if (!cancelled) { setEnded(exited); setError(null); }
-        });
-      } catch (reason) { report(reason); if (!cancelled) setEnded(true); }
-    };
-    void setup();
     const resize = () => {
       if (cancelled || !visibleRef.current) return;
       safeFit();
-      if (started) void client.resizeTerminal(sessionId, terminalId, term.cols, term.rows).catch(report);
+      if (live.started) void client.resizeTerminal(sessionId, terminalId, term.cols, term.rows).catch((reason: unknown) => { if (!cancelled) setError(formatUnknownError(reason)); });
     };
+    safeFit();
+    // A re-attached screen was painted while detached; draw it again in place.
+    if (live === existing) { term.refresh(0, term.rows - 1); resize(); }
     refit.current = resize;
     const observer = new ResizeObserver(resize);
     observer.observe(node);
     return () => {
       cancelled = true;
-      input.dispose();
-      selection.dispose();
       observer.disconnect();
-      unlisteners.forEach((unlisten) => unlisten());
-      term.dispose();
+      live.view = null;
+      live.attached = false;
       if (terminal.current === term) terminal.current = null;
       if (refit.current === resize) refit.current = null;
-      void queueTerminalOperation(terminalId, () => client.stopTerminal(sessionId, terminalId)).catch((reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) }));
+      // Closed tabs stop their shell; any other unmount only detaches the view.
+      if (!terminalListed(sessionId, terminalId)) live.dispose();
+      else live.element.remove();
     };
   }, [sessionId, terminalId, generation]);
 
@@ -297,7 +365,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     term.options.cursorStyle = terminalCursorStyle === "bar" ? "bar" : terminalCursorStyle === "underline" ? "underline" : "block";
     term.options.scrollback = terminalScrollback;
     term.options.allowTransparency = terminalGlass;
-    term.options.theme = { background: terminalBackground, foreground: terminalForeground, cursor: terminalCursor };
+    term.options.theme = terminalAppearance(useAppStore.getState().settings, useAppStore.getState().hostInfo?.appearanceSupport, systemPalette);
     const fit = () => { if (!cancelled && terminal.current === term) refit.current?.(); };
     const frame = requestAnimationFrame(fit);
     // Set the new family only once its face settles, so xterm measures loaded glyphs.
@@ -309,7 +377,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     };
     void document.fonts.load(`${terminalFontSize}px ${monoFontFamily(terminalFont)}`).then(applyFont).catch(applyFont);
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalForeground, terminalCursor, terminalGlass, generation]);
+  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalGlass, systemPalette, generation]);
 
   useEffect(() => {
     if (!visible) return;
@@ -326,7 +394,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     // their rows, so writes to a background terminal cost only parsing.
     <div className={cn("absolute inset-0 flex flex-col transition-opacity duration-[var(--motion-fast)]", visible ? "opacity-100" : "pointer-events-none invisible opacity-0 [content-visibility:hidden]")} aria-hidden={!visible}>
       {error ? <p role="alert" className="p-2 ui-control text-danger">{error}</p> : null}
-      {ended ? <button type="button" onClick={() => setGeneration((value) => value + 1)} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
+      {ended ? <button type="button" onClick={() => { liveTerminals.get(terminalId)?.dispose(); setGeneration((value) => value + 1); }} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
       <div ref={host} className="min-h-0 flex-1 p-2" />
       {selected.trim() && visible ? <button type="button" className="terminal-add-to-chat" onMouseDown={(event) => event.preventDefault()} onClick={() => {
         // The selection becomes a Terminal chip in this session's composer (T3-style context).

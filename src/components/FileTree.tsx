@@ -5,7 +5,7 @@ import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
 import { client } from "@/client";
 import type { FileEntry, WorkspaceEntryKind } from "@/client/types";
-import { fileIconFor, folderIconFor } from "@/lib/file-icons";
+import { FileGlyph } from "@/components/FileGlyph";
 import { formatUnknownError } from "@/lib/format-error";
 import { IconButton } from "@/primitives/IconButton";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
@@ -265,7 +265,6 @@ function TreeDir({ sessionId, path, parentPath, name, depth, selected, onSelect,
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const contentId = useId();
-  const folder = folderIconFor(name, open);
 
   useEffect(() => {
     if (!open || listing?.refresh === refresh) return;
@@ -283,7 +282,7 @@ function TreeDir({ sessionId, path, parentPath, name, depth, selected, onSelect,
     style={{ paddingLeft: 8 + depth * 12 }}
     className={`flex h-7 w-full items-center gap-1 rounded-[6px] text-left ui-control ${ROW_FOCUS} ${path && selected === path ? "bg-background-3 text-text-primary" : "text-text-secondary hover:bg-background-3 hover:text-text-primary"}`}>
     <ChevronRight size={12} aria-hidden="true" className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-    <folder.Icon size={13} style={{ color: folder.color }} className="shrink-0" aria-hidden="true" />
+    <FileGlyph name={name} directory open={open} size={14} />
     <span className="truncate">{name}</span>
   </button>;
 
@@ -313,7 +312,6 @@ const FileRow = memo(function FileRow({ entry, parentPath, depth, selected, onSe
   onSelect: (selection: Selection) => void; onOpenFile?: OpenFile; onTrash?: (entry: FileEntry) => void;
 }) {
   const t = useTranslation();
-  const spec = fileIconFor(entry.name);
   return <ContextMenu activation="context-only" label={t("File actions")} items={[
     { id: "copy-path", label: t("Copy path"), icon: <Copy size={15} />, onSelect: () => { void navigator.clipboard.writeText(entry.path).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); } },
     ...(onTrash ? [{ id: "trash", label: t("explorer.trash"), icon: <Trash2 size={15} />, destructive: true, onSelect: () => onTrash(entry) }] : []),
@@ -323,7 +321,7 @@ const FileRow = memo(function FileRow({ entry, parentPath, depth, selected, onSe
       onClick={() => { onSelect({ entry, parentPath }); onOpenFile?.(entry.path); }} title={entry.path}
       style={{ paddingLeft: 24 + depth * 12 }}
       className={`flex h-7 w-full items-center rounded-[6px] text-left ui-control ${ROW_FOCUS} ${selected ? "bg-background-3 text-text-primary" : "text-text-muted hover:bg-background-3"}`}>
-      <spec.Icon size={13} style={{ color: spec.color }} className="mr-1.5 shrink-0" aria-hidden="true" />
+      <FileGlyph name={entry.name} size={14} className="mr-1.5" />
       <span className="truncate">{entry.name}</span>
     </button>
   </ContextMenu>;
