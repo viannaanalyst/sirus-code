@@ -72,3 +72,20 @@ test("no launch splash; the opening animates only clip-path, transform and opaci
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(css, /data-animations="off"/);
 });
+
+test("the last applied look is remembered for the next launch", async () => {
+  const { rememberAppearance, APPEARANCE_SNAPSHOT_KEY } = await import("../src/lib/settings.ts");
+  const saved = new Map<string, string>();
+  const attributes: Record<string, string> = { style: "--window-opacity: 77%; --chat-background: url(blob:x); --sidebar-opacity: 72%" };
+  const root = {
+    dataset: { theme: "dark", windowGlass: "on", sidebarGlass: "off" } as DOMStringMap,
+    getAttribute: (name: string) => attributes[name] ?? null,
+    classList: { contains: (name: string) => name === "dark" },
+  } as unknown as HTMLElement;
+  rememberAppearance(root, { setItem: (key, value) => void saved.set(key, value) });
+  const snapshot = JSON.parse(saved.get(APPEARANCE_SNAPSHOT_KEY)!);
+  assert.equal(snapshot.dataset.windowGlass, "on");
+  assert.equal(snapshot.dark, true);
+  assert.ok(snapshot.style.includes("--window-opacity: 77%"));
+  assert.ok(!snapshot.style.includes("--chat-background"), "a blob URL does not survive a restart");
+});

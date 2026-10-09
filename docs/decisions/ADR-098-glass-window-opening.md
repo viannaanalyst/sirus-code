@@ -40,3 +40,7 @@ On the owner's Mac the first ready paint took longer than the 2.5 s fallback. Th
 ## 2026-10-08: the window reopens where it was left
 
 As in MonoCode, `tauri-plugin-window-state` saves the main window's size, position, and maximized and fullscreen state when the window closes or the app quits, and restores them on the next launch. Visibility is excluded (`StateFlags::all() - VISIBLE`), so the window still shows only after its glass is applied. The floating Astro chat is on the deny list because it keeps its own size.
+
+## 2026-10-08: the launch paints the last look
+
+The native glass was in place at launch, but the page painted the opaque theme background until settings arrived from Rust and `data-window-glass="on"` was set. So the logo sat on black, and the glass appeared only once the app loaded. Now `applyAppearance` keeps the applied look (dataset flags and CSS variables, without the chat background blob URL) in `localStorage` (`sirus.appearance`). `public/appearance-boot.js` restores it before the stylesheet paints. It is a file because the CSP allows only `'self'` scripts. This is how MonoCode restores its theme at launch. The very first launch after this change still paints the default once.

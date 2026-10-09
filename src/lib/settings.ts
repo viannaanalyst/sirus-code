@@ -260,6 +260,26 @@ export function applyAppearance(settings: AppSettings, support?: import("@/clien
   // Glass popups sit over the window's own translucent coat, so they stay a light tint (MonoCode-like) or the
   // desktop behind the window would barely show; blur and saturation keep text legible.
   root.style.setProperty("--popup-opacity", `${Math.max(24, Math.min(80, Math.round((material.windowGlass ? material.windowOpacity : material.sidebarOpacity) * 0.4)))}%`);
+  rememberAppearance(root);
+}
+
+/** Where the last applied look is kept, so the next launch paints it before settings arrive (index.html). */
+export const APPEARANCE_SNAPSHOT_KEY = "sirus.appearance";
+const SNAPSHOT_DATASET = ["theme", "appearance", "windowGlass", "sidebarGlass", "popupGlass", "density", "animations", "reduceMotion", "fontSmoothing"] as const;
+
+/**
+ * Keeps the applied look (theme, glass, opacities, fonts) in localStorage. At launch the
+ * inline script in index.html restores it before the stylesheet paints, so a glass window
+ * never shows the opaque theme background while settings load (as MonoCode does).
+ */
+export function rememberAppearance(root: HTMLElement, storage: Pick<Storage, "setItem"> | undefined = globalThis.localStorage) {
+  try {
+    const dataset: Record<string, string> = {};
+    for (const key of SNAPSHOT_DATASET) { const value = root.dataset[key]; if (value !== undefined) dataset[key] = value; }
+    // The chat background is a blob URL that does not survive a restart.
+    const style = (root.getAttribute("style") ?? "").split(";").filter((rule) => rule.trim() && !rule.includes("--chat-background:")).join(";");
+    storage?.setItem(APPEARANCE_SNAPSHOT_KEY, JSON.stringify({ dataset, style, dark: root.classList.contains("dark") }));
+  } catch { /* Storage can be unavailable or full; the launch then paints the default. */ }
 }
 
 function boundedInteger(value: unknown, min: number, max: number, fallback: number): number {
