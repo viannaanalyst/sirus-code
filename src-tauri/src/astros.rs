@@ -675,7 +675,11 @@ fn take_ready(data: &mut AppData, astro_id: &str, busy: &dyn Fn(&str) -> bool) -
         .sessions
         .iter()
         .find(|item| item.id == conversation_id)?;
-    if conversation.status.is_active() || busy(&conversation_id) {
+    // A conversation the person stopped hears back only after they write again (ADR-101).
+    if conversation.status.is_active()
+        || busy(&conversation_id)
+        || conversation.stopped_by_user_at.is_some()
+    {
         return None;
     }
     let batches = astro.ready_batches.clone();
@@ -962,10 +966,93 @@ fn launched_by(state: &AppState, caller: &crate::models::Session) -> Option<Laun
     })
 }
 
+/// A turn another session runs because a caller's turn started or messaged it (ADR-101).
+struct Launch {
+    caller: String,
+    caller_turn: String,
+    target: String,
+    target_turn: String,
+}
+/// Memory only: processes do not outlive the app. Bounded, oldest dropped.
+static LAUNCHES: parking_lot::Mutex<Vec<Launch>> = parking_lot::Mutex::new(Vec::new());
+const MAX_LAUNCHES: usize = 512;
+
+/// A session's current turn: its latest user message.
+fn current_turn(session: &crate::models::Session) -> Option<&str> {
+    session
+        .messages
+        .iter()
+        .rev()
+        .find(|message| message.role == MessageRole::User)
+        .map(|message| message.id.as_str())
+}
+
+/// Remembers that the caller's current turn started the target's current one, so a Stop on the
+/// caller stops it too (Astro delegation and the `sirus_*` tools).
+pub(crate) fn remember_launch(data: &AppData, caller_id: &str, target_id: &str) {
+    let turn = |id: &str| {
+        data.sessions
+            .iter()
+            .find(|session| session.id == id)
+            .and_then(current_turn)
+            .map(str::to_owned)
+    };
+    let (Some(caller_turn), Some(target_turn)) = (turn(caller_id), turn(target_id)) else {
+        return;
+    };
+    let mut launches = LAUNCHES.lock();
+    launches.retain(|launch| launch.target != target_id);
+    if launches.len() >= MAX_LAUNCHES {
+        launches.remove(0);
+    }
+    launches.push(Launch {
+        caller: caller_id.to_owned(),
+        caller_turn,
+        target: target_id.to_owned(),
+        target_turn,
+    });
+}
+
+/// Sessions the caller ever launched (to load their transcripts before `launched_running`).
+pub(crate) fn launched_by_session(caller_id: &str) -> Vec<String> {
+    LAUNCHES
+        .lock()
+        .iter()
+        .filter(|launch| launch.caller == caller_id)
+        .map(|launch| launch.target.clone())
+        .collect()
+}
+
+/// Sessions still running the turn the caller's current turn launched (ADR-101).
+pub(crate) fn launched_running(data: &AppData, caller_id: &str) -> Vec<String> {
+    let Some(caller_turn) = data
+        .sessions
+        .iter()
+        .find(|session| session.id == caller_id)
+        .and_then(current_turn)
+    else {
+        return vec![];
+    };
+    LAUNCHES
+        .lock()
+        .iter()
+        .filter(|launch| launch.caller == caller_id && launch.caller_turn == caller_turn)
+        .filter(|launch| {
+            data.sessions.iter().any(|session| {
+                session.id == launch.target
+                    && session.status.is_active()
+                    && current_turn(session) == Some(launch.target_turn.as_str())
+            })
+        })
+        .map(|launch| launch.target.clone())
+        .collect()
+}
+
 /// Lists a started session on the caller's running reply (its Sessions control, ADR-088).
 fn record_launch(app: &AppHandle, state: &AppState, caller_id: &str, launched: &str) {
     let snapshot = {
         let mut data = state.data.lock();
+        remember_launch(&data, caller_id, launched);
         let Some(caller) = data.sessions.iter_mut().find(|item| item.id == caller_id) else {
             return;
         };
@@ -1011,12 +1098,16 @@ pub(crate) fn send_from(
         },
         team: false,
     };
+    let state = app.state::<Arc<AppState>>();
     tauri::async_runtime::block_on(crate::commands::send_prompt(
         app.clone(),
-        app.state::<Arc<AppState>>(),
+        state.clone(),
         request,
     ))
-    .map(|_| json!({ "sent": true, "sessionId": target }))
+    .map(|_| {
+        remember_launch(&state.data.lock(), &caller.id, target);
+        json!({ "sent": true, "sessionId": target })
+    })
     .map_err(|error| error.to_string())
 }
 
@@ -1353,6 +1444,59 @@ mod tests {
         assert_eq!(data.astros[0].ready_batches, vec!["turn".to_string()]);
         // No conversation yet: nothing is delivered and the batch waits.
         assert!(take_ready(&mut data, &astro_id, &|_| false).is_none());
+    }
+
+    fn conversation(id: &str, status: &str, turn: &str) -> crate::models::Session {
+        serde_json::from_value(json!({
+            "id": id, "title": id, "projectId": "p", "agent": "claude", "status": status,
+            "createdAt": "t", "lastActivityAt": "t", "worktree": { "path": "/tmp", "branch": "main", "isolated": false },
+            "messages": [{ "id": turn, "sessionId": id, "role": "user", "content": "go", "createdAt": "t", "streaming": false }]
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn stop_reaches_only_sessions_still_running_the_turn_the_caller_launched() {
+        let mut data = AppData {
+            sessions: vec![
+                conversation("stop-caller", "running", "c1"),
+                conversation("stop-child", "running", "k1"),
+                conversation("stop-done", "completed", "d1"),
+                conversation("stop-moved-on", "running", "m1"),
+                conversation("stop-other", "running", "o1"),
+            ],
+            ..AppData::default()
+        };
+        for target in ["stop-child", "stop-done", "stop-moved-on"] {
+            remember_launch(&data, "stop-caller", target);
+        }
+        // The person wrote to this one since: its running turn is theirs.
+        data.sessions[3].messages.push(
+            serde_json::from_value(json!({ "id": "m2", "sessionId": "stop-moved-on", "role": "user", "content": "mine", "createdAt": "t", "streaming": false })).unwrap(),
+        );
+        assert_eq!(launched_running(&data, "stop-caller"), vec!["stop-child"]);
+        assert!(launched_by_session("stop-caller").contains(&"stop-done".to_string()));
+        // A later caller turn does not stop what an earlier one started.
+        data.sessions[0].messages.push(
+            serde_json::from_value(json!({ "id": "c2", "sessionId": "stop-caller", "role": "user", "content": "next", "createdAt": "t", "streaming": false })).unwrap(),
+        );
+        assert!(launched_running(&data, "stop-caller").is_empty());
+    }
+
+    #[test]
+    fn a_stopped_astro_conversation_hears_back_only_after_the_person_writes() {
+        let mut data = AppData::default();
+        save(&mut data, input("Órion")).unwrap();
+        let astro_id = data.astros[0].id.clone();
+        data.astros[0].session_id = Some("talk".into());
+        data.astros[0].ready_batches = vec!["turn".into()];
+        let mut talk = conversation("talk", "stopped", "u1");
+        talk.stopped_by_user_at = Some("t".into());
+        data.sessions.push(talk);
+        assert!(take_ready(&mut data, &astro_id, &|_| false).is_none());
+        assert_eq!(data.astros[0].ready_batches, vec!["turn".to_string()]);
+        data.sessions[0].stopped_by_user_at = None;
+        assert!(take_ready(&mut data, &astro_id, &|_| false).is_some());
     }
 
     #[test]

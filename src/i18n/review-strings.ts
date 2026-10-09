@@ -1,4 +1,5 @@
 export const reviewPortuguese: Record<string, string> = {
+  "diff.find": "Buscar no diff", "diff.findPrevious": "Ocorrência anterior", "diff.findNext": "Próxima ocorrência", "diff.findClose": "Fechar busca no diff",
   "review.title": "Revisão do turno",
   "review.files": "{count} arquivos alterados",
   "review.files.one": "1 arquivo alterado",
@@ -30,6 +31,7 @@ export const reviewPortuguese: Record<string, string> = {
   "review.emptyPartial": "Não há arquivos comparáveis nesta captura parcial.",
 };
 export const reviewEnglish: Record<string, string> = {
+  "diff.find": "Find in diff", "diff.findPrevious": "Previous match", "diff.findNext": "Next match", "diff.findClose": "Close diff search",
   "review.title": "Turn review",
   "review.files": "{count} changed files",
   "review.files.one": "1 changed file",

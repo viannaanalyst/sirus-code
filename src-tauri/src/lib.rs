@@ -35,11 +35,13 @@ mod editor;
 mod error;
 mod execution;
 mod fs_tree;
+mod gh_gate;
 mod git;
 mod git_workspace;
 mod github_inbox;
 mod goals;
 mod html_preview;
+mod keep_awake;
 mod local_servers;
 mod mcp_config;
 mod mcp_stdio;
@@ -51,6 +53,7 @@ mod opencode;
 mod paths;
 mod persist;
 mod pr_watch;
+mod process_tree;
 mod project_look;
 mod project_scripts;
 mod provider_accounts;
@@ -449,6 +452,10 @@ pub fn run() {
                 if let Err(error) = state.shutdown() {
                     tracing::error!(%error, "cannot persist application shutdown");
                 }
+                // Escaped agent descendants get their SIGKILL before the app exits,
+                // and the keep-awake assertion ends with the app (ADR-100).
+                process_tree::finish_pending();
+                keep_awake::release_all();
             }
         });
 }

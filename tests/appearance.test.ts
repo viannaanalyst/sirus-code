@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { APPEARANCE_SETTING_KEYS, applyAppearance, defaultSettings, mergeSettings, resetAppearanceSettings } from "../src/lib/settings.ts";
-import { resolveAppearanceMaterial, terminalAppearance } from "../src/lib/appearance.ts";
+import { resolveAppearanceMaterial, terminalAppearance, terminalTransparent } from "../src/lib/appearance.ts";
 import { UI_FONTS, MONO_FONTS, SYSTEM_UI_FONT, uiFontFamily, monoFontFamily } from "../src/lib/fonts.ts";
 import { readSystemPalette, subscribeSystemPalette } from "../src/lib/use-system-palette.ts";
 
@@ -65,7 +65,8 @@ test("palette and materials resolve independently, with native support required"
     assert.equal(native.windowGlass, palette === "dark"); assert.equal(native.sidebarGlass, true);
     assert.equal(native.windowOpacity, palette === "dark" ? 73 : 91);
     assert.equal(native.sidebarOpacity, palette === "dark" ? 72 : 38);
-    assert.equal(terminalAppearance(settings, supported, systemPalette).background, palette === "dark" ? "#00000000" : "#f4f4f5");
+    assert.equal(terminalAppearance(settings, supported, systemPalette).background, palette === "dark" ? "#0c0c0c00" : "#f4f4f5");
+    assert.equal(terminalTransparent(settings, supported, systemPalette), palette === "dark");
     const opposite = { ...settings, darkWindowTranslucent: false, lightWindowTranslucent: true };
     assert.equal(resolveAppearanceMaterial(opposite, supported, systemPalette).windowGlass, palette === "light");
   }
@@ -110,5 +111,21 @@ test("root application writes independent role fonts, density and real material 
     assert.equal(root.dataset.windowGlass, "off"); assert.equal(root.dataset.sidebarGlass, "off");
   } finally {
     if (previous) Object.defineProperty(globalThis, "document", previous); else Reflect.deleteProperty(globalThis, "document");
+  }
+});
+
+test("glass terminals keep the theme color at zero alpha so reverse video is not black", () => {
+  const supported = { translucency: true, dockIcon: true };
+  for (const palette of ["dark", "light"] as const) {
+    const glass = mergeSettings({ theme: palette, darkWindowTranslucent: true, lightWindowTranslucent: true });
+    const opaque = mergeSettings({ theme: palette, darkWindowTranslucent: false, lightWindowTranslucent: false });
+    const solid = terminalAppearance(opaque, supported).background;
+    const clear = terminalAppearance(glass, supported).background;
+    assert.match(clear, /^#[0-9a-f]{6}00$/, "fully transparent hex8");
+    assert.equal(clear.slice(0, 7), solid, "the opaque form xterm uses for reverse video is the theme background");
+    assert.notEqual(clear.slice(0, 7), "#000000");
+    assert.equal(terminalTransparent(glass, supported), true);
+    assert.equal(terminalTransparent(opaque, supported), false, "no transparency without window glass");
+    assert.equal(terminalTransparent(glass, undefined), false, "unknown hosts stay opaque");
   }
 });

@@ -24,6 +24,7 @@ import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/l
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer } from "@/lib/steering";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
+import { composerOwnsTyping, typingGoesToComposer } from "@/lib/type-to-focus";
 import { shortcutMatches } from "@/lib/shortcuts";
 import { COMPACTING_PROVIDERS, shouldCompactBeforeSend } from "@/lib/compact-before-send";
 import { HandoffCard } from "@/components/HandoffCard";
@@ -308,14 +309,17 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     return () => window.removeEventListener(QUICK_REPLY_EVENT, onQuickReply);
   }, [sessionId, draftKey, updateDraft, setContext]);
 
-  // Typing while nothing editable has focus (after clicking the conversation) writes in the composer.
+  // Typing while nothing editable has focus (after clicking the conversation) writes in the
+  // composer — only the visible main composer of the selected conversation, and never when a
+  // control (button, link, switch, tab, tree row, …) has focus (ADR-102).
+  const typingOwner = useRef({ sessionId, sideChat: Boolean(session?.sideChat) });
+  typingOwner.current = { sessionId, sideChat: Boolean(session?.sideChat) };
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const field = area.current;
-      if (!field || field.disabled || event.defaultPrevented || event.isComposing) return;
-      if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return;
-      const active = document.activeElement as HTMLElement | null;
-      if (active && (active.isContentEditable || active.closest("input, textarea, select, [contenteditable], [role=dialog], [role=menu], [role=listbox], .xterm"))) return;
+      if (!field || field.disabled) return;
+      if (!typingGoesToComposer(event, document.activeElement as HTMLElement | null, document.body)) return;
+      if (!composerOwnsTyping({ ...typingOwner.current, visible: field.getClientRects().length > 0 }, useAppStore.getState().selectedSessionId)) return;
       // Focus moves before the key's default action, so the character lands in the composer.
       field.focus({ preventScroll: true });
       const end = field.value.length;

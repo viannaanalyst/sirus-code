@@ -278,19 +278,29 @@ pub fn claude_server(session_id: &str) -> Option<Value> {
     )
 }
 
-/// Codex `-c` overrides; the app gate replaces Codex's per-call MCP prompt.
-pub fn codex_overrides(session_id: &str) -> Vec<String> {
+/// Codex `-c` overrides plus the secret environment for the Codex process; the
+/// app gate replaces Codex's per-call MCP prompt. The token never goes on the
+/// command line (visible in `ps`): Codex forwards it to the server through
+/// `env_vars` (ADR-100).
+pub fn codex_overrides(session_id: &str) -> (Vec<String>, Vec<(&'static str, String)>) {
     let Some(endpoint) = endpoint(session_id) else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
+    codex_overrides_for(&endpoint)
+}
+
+fn codex_overrides_for(endpoint: &Endpoint) -> (Vec<String>, Vec<(&'static str, String)>) {
     let prefix = format!("mcp_servers.{SERVER_NAME}");
-    vec![
-        format!("{prefix}.command={:?}", endpoint.executable),
-        format!("{prefix}.args=[\"--mcp-computer\"]"),
-        format!("{prefix}.env.{SOCKET_ENV}={:?}", endpoint.socket),
-        format!("{prefix}.env.{TOKEN_ENV}={:?}", endpoint.token),
-        format!("{prefix}.default_tools_approval_mode=\"approve\""),
-    ]
+    (
+        vec![
+            format!("{prefix}.command={:?}", endpoint.executable),
+            format!("{prefix}.args=[\"--mcp-computer\"]"),
+            format!("{prefix}.env.{SOCKET_ENV}={:?}", endpoint.socket),
+            format!("{prefix}.env_vars=[{TOKEN_ENV:?}]"),
+            format!("{prefix}.default_tools_approval_mode=\"approve\""),
+        ],
+        vec![(TOKEN_ENV, endpoint.token.clone())],
+    )
 }
 
 /// ACP (OpenCode) MCP server entry.
@@ -915,6 +925,23 @@ pub async fn computer_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn codex_overrides_keep_the_token_out_of_argv() {
+        let endpoint = Endpoint {
+            executable: "/Applications/Sirus Code.app/sirus".into(),
+            socket: "/tmp/sirus-computer.sock".into(),
+            token: "computer-secret-token".into(),
+        };
+        let (args, env) = codex_overrides_for(&endpoint);
+        assert!(args
+            .iter()
+            .all(|arg| !arg.contains("computer-secret-token")));
+        assert!(args.contains(&format!(
+            "mcp_servers.{SERVER_NAME}.env_vars=[\"{TOKEN_ENV}\"]"
+        )));
+        assert_eq!(env, vec![(TOKEN_ENV, "computer-secret-token".to_string())]);
+    }
 
     #[test]
     fn blocklist_covers_secrets_shells_and_sirus() {

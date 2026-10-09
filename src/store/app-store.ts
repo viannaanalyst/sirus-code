@@ -46,6 +46,7 @@ import type {
   WindowSnapEvent,
 } from "@/client/types";
 import { formatUnknownError } from "@/lib/format-error";
+import { insertAt, popClosed, pushClosed, rememberBrowserTab, type ClosedItem } from "@/lib/closed-items";
 import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeAt } from "@/lib/usage-limit";
 import { providerById, PROVIDERS } from "@/lib/provider-registry";
 import {
@@ -392,7 +393,8 @@ interface AppStore {
   /** Header tabs (memory-only): a per-project view over sessions; closing a tab never changes the session. */
   openTabsByProject: Record<string, string[]>;
   lastActiveTabByProject: Record<string, string>;
-  closedTabs: { projectId: string; sessionId: string; index: number }[];
+  /** Closed header tabs, dock panes and browser tabs, most recent last (bounded, memory-only). */
+  closedItems: ClosedItem[];
   /** A blank "New session" tab per project while its landing is open; the first send turns it into the session's tab. */
   draftTabByProject: Record<string, boolean>;
   closeDraftTab: (projectId: string) => void;
@@ -406,7 +408,10 @@ interface AppStore {
   closeHeaderTab: (projectId: string, sessionId: string) => void;
   closeOtherHeaderTabs: (projectId: string, sessionId: string) => void;
   closeHeaderTabsToRight: (projectId: string, sessionId: string) => void;
+  /** Reopens the most recently closed header tab. */
   reopenHeaderTab: () => void;
+  /** ⌘⇧T: reopens the most recently closed tab, dock pane or browser tab (ADR-102). */
+  reopenClosed: () => void;
   moveHeaderTab: (projectId: string, sessionId: string, targetId: string, edge?: "before" | "after") => void;
   switchProject: (projectId: string) => Promise<void>;
   setNewSessionOpen: (open: boolean) => void;
@@ -847,7 +852,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   resizeSplit: (branchId, ratio) => set((state) => ({ splitLayout: splitResize(state.splitLayout, branchId, ratio) })),
   openTabsByProject: {},
   lastActiveTabByProject: {},
-  closedTabs: [],
+  closedItems: [],
   draftTabByProject: {},
   closeDraftTab: (projectId) => {
     const state = get();
@@ -927,7 +932,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     // Move the selection in the same update, or the tab-opening subscription would reopen the closed tab.
     set({
       openTabsByProject: { ...state.openTabsByProject, [projectId]: result.tabs },
-      closedTabs: [...state.closedTabs, { projectId, sessionId, index: result.index }].slice(-20),
+      closedItems: pushClosed(state.closedItems, [{ kind: "session", projectId, sessionId, index: result.index }]),
       ...(wasActive ? { selectedSessionId: result.neighbor } : {}),
     });
     if (wasActive) {
@@ -940,7 +945,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const tabs = state.openTabsByProject[projectId] ?? [];
     set({
       openTabsByProject: { ...state.openTabsByProject, [projectId]: tabs.filter(id => id === sessionId) },
-      closedTabs: [...state.closedTabs, ...tabs.flatMap((id, index) => id === sessionId ? [] : [{ projectId, sessionId: id, index }])].slice(-20),
+      closedItems: pushClosed(state.closedItems, tabs.flatMap((id, index) => id === sessionId ? [] : [{ kind: "session" as const, projectId, sessionId: id, index }])),
       selectedSessionId: sessionId,
     });
     if (state.selectedSessionId !== sessionId) void get().selectSession(sessionId);
@@ -952,22 +957,22 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (cut <= 0) return;
     set({
       openTabsByProject: { ...state.openTabsByProject, [projectId]: tabs.slice(0, cut) },
-      closedTabs: [...state.closedTabs, ...tabs.slice(cut).map((id, offset) => ({ projectId, sessionId: id, index: cut + offset }))].slice(-20),
+      closedItems: pushClosed(state.closedItems, tabs.slice(cut).map((id, offset) => ({ kind: "session" as const, projectId, sessionId: id, index: cut + offset }))),
       ...(state.selectedSessionId && tabs.slice(cut).includes(state.selectedSessionId) ? { selectedSessionId: sessionId } : {}),
     });
     if (state.selectedSessionId && tabs.slice(cut).includes(state.selectedSessionId)) void get().selectSession(sessionId);
   },
   reopenHeaderTab: () => {
     const state = get();
-    const closed = [...state.closedTabs];
-    let entry = closed.pop();
-    while (entry && !state.sessions.some(session => session.id === entry!.sessionId)) entry = closed.pop();
-    set({ closedTabs: closed });
-    if (!entry) return;
-    const tabs = (state.openTabsByProject[entry.projectId] ?? []).filter(id => id !== entry!.sessionId);
-    tabs.splice(Math.min(entry.index, tabs.length), 0, entry.sessionId);
-    set({ openTabsByProject: { ...get().openTabsByProject, [entry.projectId]: tabs } });
-    void get().selectSession(entry.sessionId);
+    const { item, rest } = popClosed(state.closedItems, (entry) => closedItemReopenable(state, entry), "session");
+    set({ closedItems: rest });
+    if (item) reopenItem(item);
+  },
+  reopenClosed: () => {
+    const state = get();
+    const { item, rest } = popClosed(state.closedItems, (entry) => closedItemReopenable(state, entry));
+    set({ closedItems: rest });
+    if (item) reopenItem(item);
   },
   moveHeaderTab: (projectId, sessionId, targetId, edge) => {
     const tabs = get().openTabsByProject[projectId] ?? [];
@@ -1376,8 +1381,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   browserCloseTab: async (sessionId, tabId) => {
     try {
+      const closing = get().browserBySession[sessionId]?.tabs.find((tab) => tab.id === tabId);
       const browser = await client.browserCloseTab(sessionId, tabId);
-      set((state) => ({ error: null, browserBySession: { ...state.browserBySession, [browser.sessionId]: browser } }));
+      set((state) => ({ error: null, browserBySession: { ...state.browserBySession, [browser.sessionId]: browser },
+        ...(closing && rememberBrowserTab(closing.url) ? { closedItems: pushClosed(state.closedItems, [{ kind: "browser", sessionId, url: closing.url, title: closing.title }]) } : {}) }));
       return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
@@ -1960,7 +1967,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const active = state.dockActivePaneId === paneId
         ? (dockPanes[Math.min(index, dockPanes.length - 1)]?.id ?? null)
         : state.dockActivePaneId;
-      return { dockPanes, dockActivePaneId: active };
+      // Document panes depend on attachments that may be released; they are not remembered.
+      const { id, kind, sessionId, path, review } = state.dockPanes[index];
+      const closedItems = kind === "document" ? state.closedItems : pushClosed(state.closedItems, [{ kind: "dock", pane: { id, kind, sessionId, path, review }, index }]);
+      return { dockPanes, dockActivePaneId: active, closedItems };
     }),
   setActiveDockPane: (paneId) => set({ dockActivePaneId: paneId }),
   ensureTerminal: (sessionId) => {
@@ -2307,6 +2317,49 @@ async function captureBrowserAttachment(prompt: string, sessionId: string | null
   } catch {
     return null;
   }
+}
+
+/** A closed thing can come back while its session (and project tab owner) still exists. */
+function closedItemReopenable(state: AppStore, item: ClosedItem): boolean {
+  const alive = (id: string | undefined) => !!id && state.sessions.some((session) => session.id === id);
+  if (item.kind === "session") return alive(item.sessionId) && state.projects.some((project) => project.id === item.projectId);
+  if (item.kind === "browser") return alive(item.sessionId);
+  // Editor, review and side chat panes belong to their session; the others follow the selection.
+  return item.pane.kind === "editor" || item.pane.kind === "review" || item.pane.kind === "sidechat" ? alive(item.pane.sessionId) : true;
+}
+
+/** Restores one closed thing where it was (ADR-102). */
+function reopenItem(item: ClosedItem) {
+  const store = useAppStore.getState();
+  if (item.kind === "session") {
+    const tabs = (store.openTabsByProject[item.projectId] ?? []).filter((id) => id !== item.sessionId);
+    useAppStore.setState({ openTabsByProject: { ...store.openTabsByProject, [item.projectId]: insertAt(tabs, item.sessionId, item.index) } });
+    void store.selectSession(item.sessionId);
+    return;
+  }
+  if (item.kind === "browser") {
+    void (async () => {
+      if (!useAppStore.getState().browserBySession[item.sessionId]?.open && !(await useAppStore.getState().openBrowser(item.sessionId))) return;
+      if (!(await useAppStore.getState().browserNewTab(item.sessionId, item.url))) return;
+      if (useAppStore.getState().selectedSessionId === item.sessionId) useAppStore.getState().openDockPane("browser");
+    })();
+    return;
+  }
+  const closed = item.pane;
+  if (closed.kind === "sidechat" && closed.sessionId) { void store.openSideChat(closed.sessionId); return; }
+  useAppStore.setState((state) => {
+    const existing = state.dockPanes.find((pane) => pane.kind === closed.kind && (
+      closed.kind === "editor" ? pane.path === closed.path && pane.sessionId === closed.sessionId
+        : closed.kind === "review" ? pane.sessionId === closed.sessionId && pane.review?.messageId === closed.review?.messageId : true));
+    const pane: DockPane = existing ?? { ...closed, id: newId() };
+    const panes = existing ? state.dockPanes : insertAt(state.dockPanes, pane, item.index);
+    // Same bound as openDockPane: at most eight editor panes, dropping the oldest other one.
+    const editors = panes.filter((entry) => entry.kind === "editor");
+    const bounded = editors.length > 8 ? panes.filter((entry) => entry !== editors.find((editor) => editor !== pane)) : panes;
+    return { dockPanes: bounded, dockOpen: true, dockActivePaneId: pane.id, dockWidth: clampDockWidth(state.dockWidth, state) };
+  });
+  const sessionId = useAppStore.getState().selectedSessionId;
+  if (closed.kind === "terminal" && sessionId) useAppStore.getState().ensureTerminal(sessionId);
 }
 
 /**

@@ -292,7 +292,7 @@ export function HeaderTabs() {
         { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },
         { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
         { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
-        { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedTabs.length, onSelect: () => store().reopenHeaderTab() },
+        { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedItems.some(item => item.kind === "session"), onSelect: () => store().reopenHeaderTab() },
         { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "session", onSelect: () => setTabAction({ id: menuTab, kind: "rename" }) },
         { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "session", destructive: true, disabled: ["starting", "running", "waiting"].includes(tabs.find(tab => tab.id === menuTab)?.status ?? ""), onSelect: () => setTabAction({ id: menuTab, kind: "delete" }) },
       ] : []}>

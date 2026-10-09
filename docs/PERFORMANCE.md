@@ -425,6 +425,14 @@ Two patterns from MonoCode (`UnifiedDiffView.tsx`, `platform/tauri/pty.ts`, `Ter
 
 The owner's daily app was an unoptimized debug build. MonoCode ships optimized builds. `[profile.dev]` now builds the app crate at opt-level 1 and every dependency at opt-level 2, with line-table debug info only. The bundle stays at `src-tauri/target/debug/bundle/macos/Sirus Code.app`. The first build after the change recompiles everything; later rebuilds of the app crate stay quick. The full release profile (LTO, one codegen unit) is kept for distribution.
 
+## Native process hygiene (2026-10-09, ADR-100)
+
+- **Git locks.** Every native Git command sets `GIT_OPTIONAL_LOCKS=0`, and `git::status` counts lines with `git diff-index -M --numstat HEAD` instead of porcelain `diff`, so status polling never writes the index or holds `.git/index.lock` while an agent runs Git. A test checks the index bytes are unchanged after a status over a stat-dirty file.
+- **Untracked cap.** `git::status` lists at most 2000 untracked files and sets `untrackedTruncated`; a large untracked build tree no longer ships every path to the renderer.
+- **Agent priority.** Agent CLIs are reniced by +5 right after spawn (children inherit it); PTY terminals keep normal priority.
+- **GitHub reads.** One gate for every `gh` read: 5 concurrent, a 60 s fail-fast pause after any rate limit, reuse of an identical read from the last 10 s.
+- **Not measured** in the running app (no build or launch in this pass).
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.

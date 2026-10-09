@@ -31,6 +31,11 @@ test("custom shortcuts require Command and preserve system/editing shortcuts", (
     assert.equal(normalizeShortcutCombo(combo), null, combo);
   }
   assert.equal(shortcutLabel("meta+shift+b"), "⇧⌘B");
+  // ⌘⇧T is the one reserved key free with Shift: it reopens what was closed (ADR-102).
+  assert.equal(effectiveShortcut({}, "reopen-closed"), "meta+shift+t");
+  assert.equal(normalizeShortcutCombo("cmd+shift+t", "reopen-closed"), "meta+shift+t");
+  for (const combo of ["meta+t", "meta+alt+shift+t", "meta+shift+w"]) assert.equal(normalizeShortcutCombo(combo), null, combo);
+  assert.equal(validateShortcutChange({}, "palette", "meta+shift+t"), "shortcut.conflict");
 });
 test("collision validation accounts for defaults and overrides", () => {
   assert.equal(validateShortcutChange({}, "toggle-sidebar", "meta+n"), "shortcut.conflict");

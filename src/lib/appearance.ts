@@ -12,10 +12,19 @@ export function resolveAppearanceMaterial(settings: AppSettings, support?: Appea
   const sidebarGlass = windowGlass || (support?.translucency === true && (palette === "light" ? settings.lightSidebarTranslucent : settings.darkSidebarTranslucent));
   return { palette, windowGlass, sidebarGlass, windowOpacity: palette === "light" ? settings.lightWindowOpacity : settings.darkWindowOpacity, sidebarOpacity: palette === "light" ? settings.lightSidebarOpacity : settings.darkSidebarOpacity };
 }
-/** xterm accepts concrete colors rather than CSS color-mix()/color() values. */
+/**
+ * xterm accepts concrete colors rather than CSS color-mix()/color() values. On window glass
+ * the background is the theme's own color at zero alpha: xterm paints reverse video
+ * (selections, vim/less/fzf highlights) with the opaque form, which must stay the theme
+ * color rather than black (ADR-102).
+ */
 export function terminalAppearance(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
   const material = resolveAppearanceMaterial(settings, support, systemPalette);
   const light = material.palette === "light";
-  const glass = material.windowGlass;
-  return { background: glass ? "#00000000" : light ? "#f4f4f5" : "#0c0c0c", foreground: light ? "#18181b" : "#ececec", cursor: light ? "#18181b" : "#ececec" };
+  const base = light ? "#f4f4f5" : "#0c0c0c";
+  return { background: material.windowGlass ? `${base}00` : base, foreground: light ? "#18181b" : "#ececec", cursor: light ? "#18181b" : "#ececec" };
+}
+/** xterm composes transparent backgrounds only when asked; that is only needed on window glass. */
+export function terminalTransparent(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
+  return resolveAppearanceMaterial(settings, support, systemPalette).windowGlass;
 }

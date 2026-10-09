@@ -193,6 +193,7 @@ export default function App() {
         if (store.transcriptSearch?.scope === scope) store.closeTranscriptSearch();
         else store.openTranscriptSearch(scope);
       } })),
+      { id: "reopen-closed", combo: "Meta+shift+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => useAppStore.getState().reopenClosed() },
       { id: "stop-agent", combo: "Meta+.", run: () => void stopAgent() },
       { id: "toggle-sidebar", combo: "Meta+b", run: () => toggleSidebar() },
       { id: "open-project", combo: "Meta+o", run: () => void addProjectFromPicker() },

@@ -17,12 +17,15 @@ export const KEYBINDINGS = [
   { id: "toggle-side-chat", label: "Toggle side chat", combo: "meta+alt+s", group: "Session" },
   { id: "send-new-thread", label: "Send and start new thread", combo: "meta+alt+enter", group: "Session" },
   { id: "cycle-effort", label: "Cycle reasoning effort", combo: "shift+tab", group: "Session" },
+  { id: "reopen-closed", label: "Reopen closed tab", combo: "meta+shift+t", group: "View" },
 ] as const;
 export type ShortcutId = (typeof KEYBINDINGS)[number]["id"];
 export type CustomShortcuts = Partial<Record<ShortcutId, string>>;
 
 // Command is required so bindings never take over normal terminal/text input.
 const RESERVED = new Set(["q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-"]);
+/** Reserved keys that are free with these modifiers: ⌘⇧T reopens what was closed, like a browser. */
+const RESERVED_EXCEPTIONS = new Set(["meta+shift+t"]);
 /** The composer's effort cycle (Synara's ⇧⇥) may use Tab with any modifier and no ⌘. */
 const TAB_BINDINGS: readonly string[] = ["cycle-effort"];
 export function normalizeShortcutCombo(value: unknown, id?: string): string | null {
@@ -32,9 +35,10 @@ export function normalizeShortcutCombo(value: unknown, id?: string): string | nu
   const tab = key === "tab" && id !== undefined && TAB_BINDINGS.includes(id) && parts.length > 0;
   if (!key || (!tab && (!/^([a-z0-9,.;/\\[\]`']|enter)$/.test(key) || !parts.includes("meta")))) return null;
   if (new Set(parts).size !== parts.length || parts.some((part) => !["meta", "alt", "shift"].includes(part))) return null;
+  const canonical = [...["meta", "alt", "shift"].filter((part) => parts.includes(part)), key].join("+");
   // ⌘↩ alone stays the composer's own queue/steer inversion (ADR-062).
-  if (RESERVED.has(key) || (key === "enter" && parts.length === 1)) return null;
-  return [...["meta", "alt", "shift"].filter((part) => parts.includes(part)), key].join("+");
+  if ((RESERVED.has(key) && !RESERVED_EXCEPTIONS.has(canonical)) || (key === "enter" && parts.length === 1)) return null;
+  return canonical;
 }
 
 export function effectiveShortcut(custom: CustomShortcuts | undefined, id: ShortcutId): string {

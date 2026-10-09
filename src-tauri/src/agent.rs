@@ -77,16 +77,11 @@ impl AgentProcess {
         let _ = self.cancel.send(true);
         #[cfg(unix)]
         if let Some(pid) = self.pid.filter(|pid| *pid > 0) {
-            // Each agent owns a fresh process group. Cancellation also stops its tools.
-            let result = unsafe { libc::kill(-(pid as i32), libc::SIGKILL) };
-            if result != 0 {
-                let error = std::io::Error::last_os_error();
-                if error.raw_os_error() != Some(libc::ESRCH) {
-                    return Err(Error::agent(format!(
-                        "cannot stop agent process group: {error}"
-                    )));
-                }
-            }
+            // Each agent owns a fresh process group. Cancellation also stops its tools,
+            // including descendants that left the group (ADR-100).
+            crate::process_tree::stop_tree(pid).map_err(|error| {
+                Error::agent(format!("cannot stop agent process group: {error}"))
+            })?;
         }
         Ok(())
     }
@@ -406,13 +401,18 @@ impl StartedAgent {
         let _ = self.child.wait().await;
     }
     pub fn monitor(mut self, app: AppHandle, state: Arc<AppState>, session_id: String) {
+        // Every provider's turn passes here: agents yield CPU to the UI and the Mac
+        // stays awake until the turn's monitor ends (ADR-100).
+        crate::process_tree::lower_priority(self.child.id());
+        let awake = crate::keep_awake::hold();
         if let Some(run) = self.codex.take() {
-            crate::codex::monitor(self, run, app, state, session_id);
+            crate::codex::monitor(self, run, app, state, session_id, awake);
             return;
         }
         let stdout = self.child.stdout.take();
         let stderr = self.child.stderr.take();
         tokio::spawn(async move {
+            let _awake = awake;
             let out = stdout.map(|reader| {
                 spawn_reader(
                     app.clone(),

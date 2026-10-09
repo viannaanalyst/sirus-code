@@ -1060,6 +1060,7 @@ pub(crate) fn create_session_locked(
         context_usage: None,
         launched_by: None,
         usage_limit: None,
+        stopped_by_user_at: None,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -1780,6 +1781,8 @@ pub async fn send_prompt(
         session.status = SessionStatus::Starting;
         session.last_error = None;
         session.usage_limit = None;
+        // Writing again lets the app's own follow-ups (PR watch, CI auto-fix) run (ADR-101).
+        session.stopped_by_user_at = None;
         session.last_activity_at = now_rfc3339();
         if session.title == "New session" {
             session.title = prompt.chars().take(42).collect();
@@ -2184,13 +2187,43 @@ pub async fn stop_agent(
     state: State<'_, Arc<AppState>>,
     session_id: String,
 ) -> Result<()> {
-    let mut data = state.data_with_messages(&[&session_id]);
-    if let Some(process) = state.agents.lock().get(&session_id) {
-        process.interrupt()?;
+    // Sessions this turn launched (Astro delegation, `sirus_*` tools) stop with it, and the
+    // ones they launched, while they still run that turn (ADR-101).
+    let mut seen = std::collections::HashSet::new();
+    let mut queue = vec![session_id];
+    while let Some(id) = queue.pop() {
+        if !seen.insert(id.clone()) || seen.len() > 64 {
+            continue;
+        }
+        let targets = crate::astros::launched_by_session(&id);
+        let mut ids: Vec<&str> = vec![id.as_str()];
+        ids.extend(targets.iter().map(String::as_str));
+        let launched = {
+            let data = state.data_with_messages(&ids);
+            crate::astros::launched_running(&data, &id)
+        };
+        stop_one(&app, state.inner(), &id)?;
+        queue.extend(launched);
     }
+    Ok(())
+}
+
+/// The Stop button's path for one session: interrupts the turn (Claude background subagents
+/// with it), cancels its scripts and marks it stopped by the person (ADR-101).
+fn stop_one(app: &AppHandle, state: &Arc<AppState>, session_id: &str) -> Result<()> {
+    let mut data = state.data_with_messages(&[session_id]);
+    let running = if let Some(process) = state.agents.lock().get(session_id) {
+        process.interrupt()?;
+        true
+    } else {
+        false
+    };
     // A Setup or On finish script the turn waits for stops with it (ADR-078).
-    crate::project_scripts::cancel(&session_id);
-    if let Ok(session) = find_session_mut(&mut data, &session_id) {
+    crate::project_scripts::cancel(session_id);
+    if let Ok(session) = find_session_mut(&mut data, session_id) {
+        if running || session.status.is_active() {
+            session.stopped_by_user_at = Some(now_rfc3339());
+        }
         session.pending_requests.clear();
         session.status = SessionStatus::Stopped;
         crate::activity::sync(session);
@@ -2205,7 +2238,7 @@ pub async fn stop_agent(
         .iter()
         .find(|session| session.id == session_id)
     {
-        crate::transcript_view::emit(&app, session);
+        crate::transcript_view::emit(app, session);
     }
     Ok(())
 }

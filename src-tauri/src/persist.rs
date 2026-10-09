@@ -430,9 +430,12 @@ fn write_transcript(
     if file.revision == Some(revision) {
         return Ok(false);
     }
-    let bytes = serde_json::to_vec(&TranscriptRef {
-        session_id,
-        messages,
+    // The live thought (ADR-101) stays out of transcript files.
+    let bytes = crate::activity::persisting(|| {
+        serde_json::to_vec(&TranscriptRef {
+            session_id,
+            messages,
+        })
     })?;
     let hash = content_hash(&bytes);
     let wrote = file.hash != Some(hash);

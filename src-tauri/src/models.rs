@@ -339,6 +339,10 @@ pub struct Session {
     /// Set when the last turn hit the provider's usage limit; cleared by the next send.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage_limit: Option<UsageLimit>,
+    /// When the person last pressed Stop (ADR-101). Until they send again, nothing the app
+    /// runs on its own (PR watch, CI auto-fix, Astro reports) starts a turn here.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stopped_by_user_at: Option<String>,
     pub id: String,
     pub title: String,
     pub project_id: String,
@@ -410,6 +414,10 @@ pub struct HandoffOrigin {
     pub request: String,
     #[serde(default)]
     pub pending: bool,
+    /// The recap went out with a prompt the provider has not taken yet (ADR-101). A turn that
+    /// ends before taking it gives the recap back; one that took it spends it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub delivering: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -885,7 +893,7 @@ impl AppSettings {
                 "Invalid provider executable path.",
             ));
         }
-        const BINDINGS: [(&str, &str); 18] = [
+        const BINDINGS: [(&str, &str); 19] = [
             ("new-session", "meta+n"),
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
@@ -904,6 +912,7 @@ impl AppSettings {
             ("toggle-side-chat", "meta+alt+s"),
             ("send-new-thread", "meta+alt+enter"),
             ("cycle-effort", "shift+tab"),
+            ("reopen-closed", "meta+shift+t"),
         ];
         for (id, combo) in &self.custom_shortcuts {
             let mut parts = combo.split('+').collect::<Vec<_>>();
@@ -930,10 +939,12 @@ impl AppSettings {
                         || !key.chars().all(|c| {
                             c.is_ascii_lowercase() || c.is_ascii_digit() || ",.;/\\[]`'".contains(c)
                         })))
-                || [
+                || ([
                     "q", "w", "h", "m", "c", "v", "x", "a", "z", "r", "l", "t", "=", "-",
                 ]
                 .contains(&key)
+                    // ⌘⇧T reopens what was closed, like a browser (ADR-102).
+                    && canonical != "meta+shift+t")
             {
                 return Err(Error::new(
                     "invalid_settings",
@@ -1148,11 +1159,28 @@ mod settings_tests {
             ("search-conversations", "meta+alt+g"),
             ("toggle-side-chat", "meta+shift+s"),
             ("send-new-thread", "meta+shift+enter"),
+            ("reopen-closed", "meta+alt+y"),
         ] {
             settings.custom_shortcuts.clear();
             settings.custom_shortcuts.insert(id.into(), combo.into());
             assert!(settings.validate_controls().is_ok(), "{id}");
         }
+        settings.custom_shortcuts.clear();
+        settings
+            .custom_shortcuts
+            .insert("reopen-closed".into(), "meta+alt+t".into());
+        assert!(
+            settings.validate_controls().is_err(),
+            "only meta+shift+t may use the reserved T key"
+        );
+        settings.custom_shortcuts.clear();
+        settings
+            .custom_shortcuts
+            .insert("palette".into(), "meta+shift+t".into());
+        assert!(
+            settings.validate_controls().is_err(),
+            "the reopen default stays unique"
+        );
         settings.ui_font_size = 100;
         assert!(settings.validate_controls().is_err());
     }
@@ -1259,6 +1287,9 @@ pub struct GitStatus {
     pub ahead: u32,
     pub behind: u32,
     pub changes: Vec<FileChange>,
+    /// More untracked files exist than `changes` lists (capped at `git::MAX_UNTRACKED`).
+    #[serde(default)]
+    pub untracked_truncated: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

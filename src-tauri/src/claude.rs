@@ -335,6 +335,10 @@ struct Limits {
 struct Background {
     /// Task ids the CLI still reports as running.
     running: std::collections::BTreeSet<String>,
+    /// Each tracked task's description, for the marker where it finishes (ADR-101).
+    labels: HashMap<String, String>,
+    /// Tasks that settled on the last frame, with their reported status, to be marked.
+    finished: Vec<(String, Value)>,
     /// Any background subagent was seen this turn.
     seen: bool,
     /// When our prompt's answer arrived while background work remained.
@@ -353,6 +357,10 @@ impl Background {
             Some("task_started") if crate::activity::is_background_task(value) => {
                 if let Some(id) = value["task_id"].as_str() {
                     self.running.insert(id.to_owned());
+                    if self.labels.len() < 256 {
+                        let label = value["description"].as_str().unwrap_or("");
+                        self.labels.insert(id.to_owned(), label.to_owned());
+                    }
                     self.seen = true;
                 }
                 false
@@ -364,9 +372,13 @@ impl Background {
                     .as_str()
                     .unwrap_or("");
                 let done = !matches!(status, "" | "running" | "pending" | "in_progress");
-                done && value["task_id"]
-                    .as_str()
-                    .is_some_and(|id| self.running.remove(id))
+                match value["task_id"].as_str() {
+                    Some(id) if done && self.running.remove(id) => {
+                        self.finished.push((id.to_owned(), json!(status)));
+                        true
+                    }
+                    _ => false,
+                }
             }
             // The CLI's own list of what still runs is authoritative.
             Some("background_tasks_changed") => {
@@ -378,7 +390,17 @@ impl Background {
                     .filter_map(|task| task["task_id"].as_str())
                     .collect();
                 let before = self.running.len();
-                self.running.retain(|id| listed.contains(id.as_str()));
+                let gone: Vec<String> = self
+                    .running
+                    .iter()
+                    .filter(|id| !listed.contains(id.as_str()))
+                    .cloned()
+                    .collect();
+                for id in gone {
+                    self.running.remove(&id);
+                    // Settled without a status: the marker says it ended.
+                    self.finished.push((id, Value::Null));
+                }
                 self.running.len() < before
             }
             _ => false,
@@ -387,6 +409,16 @@ impl Background {
             self.expect_follow_up();
         }
         settled
+    }
+    /// Markers for the tasks that settled on the last frame (ADR-101).
+    fn take_finished(&mut self) -> Vec<crate::activity::ActivityItem> {
+        std::mem::take(&mut self.finished)
+            .into_iter()
+            .map(|(id, status)| {
+                let label = self.labels.get(&id).map_or("", String::as_str);
+                crate::activity::background_finished(&id, label, &status)
+            })
+            .collect()
     }
     fn expect_follow_up(&mut self) {
         self.follow_up = Some((tokio::time::Instant::now(), false));
@@ -491,6 +523,8 @@ async fn run_turn(
         .map(|identity| identity.thread_id.as_str())
         .unwrap_or("default");
     wire.send(json!({"type":"user","message":{"role":"user","content":crate::attachments::claude_input(&run.prompt, &run.attachments)?},"parent_tool_use_id":null,"session_id":native,"uuid":turn,"client_composed":true})).await?;
+    // The CLI took the prompt: a handoff recap it carried is spent (ADR-101).
+    emit(Event::Activity(vec![crate::activity::delivered()]))?;
     let mut pending: HashMap<String, (String, PendingRequest)> = HashMap::new();
     // Whether the CLI echoed this turn's prompt, and whether it ran a prompt of its own first.
     let mut prompt_seen = false;
@@ -617,6 +651,11 @@ async fn run_turn(
             emit(Event::Activity(items))?;
         }
         background.observe(&value);
+        // Where each background subagent finished, so its follow-up reads as its own answer.
+        let finished = background.take_finished();
+        if !finished.is_empty() {
+            emit(Event::Activity(finished))?;
+        }
         background.turn_began(&value);
         // A manual compaction's result reports the summarizer call, not the rebuilt context.
         if !(value["type"] == "result" && crate::codex::is_compact(&run.prompt)) {
@@ -1032,8 +1071,15 @@ else:
                     replies,
                 };
                 let mut wire = Wire::new(child.stdin.take().unwrap(), child.stdout.take().unwrap());
-                let result = execute(&mut wire, &mut run, &mut cancel, &mut |_| Ok(())).await;
+                let mut delivered = false;
+                let result = execute(&mut wire, &mut run, &mut cancel, &mut |event| {
+                    delivered |= matches!(&event, Event::Activity(items) if items.iter().any(|item| item.delivered));
+                    Ok(())
+                })
+                .await;
                 assert_eq!(result.is_ok(), accepted);
+                // A rejected mode never sent the prompt: a handoff recap stays (ADR-101).
+                assert_eq!(delivered, accepted);
                 drop(wire);
                 assert!(tokio::time::timeout(Duration::from_secs(3), child.wait())
                     .await
@@ -1323,7 +1369,29 @@ assert sys.stdin.read()==''
         let (outcome, events) = background_turn(body, quick(), None, None).await;
         assert!(!outcome.unwrap(), "the turn completes, not interrupted");
         assert_eq!(reply(&events), "Launched.\n\nAll three audits are in.");
+        // The prompt was taken (a handoff recap is spent), and the marker where the child
+        // finished comes before its follow-up reply, once (ADR-101).
+        let position = |found: &dyn Fn(&Event) -> bool| events.iter().position(found).unwrap();
+        let delivered = position(
+            &|event| matches!(event, Event::Activity(items) if items.iter().any(|item| item.delivered)),
+        );
+        let marker = position(
+            &|event| matches!(event, Event::Activity(items) if items.iter().any(|item| item.finished_task)),
+        );
+        let follow_up =
+            position(&|event| matches!(event, Event::Delta(text) if text.contains("All three")));
+        assert!(delivered < marker && marker < follow_up);
         let activity = turn_activity(events);
+        let markers: Vec<_> = activity
+            .items
+            .iter()
+            .filter(|item| item.finished_task)
+            .collect();
+        assert_eq!(markers.len(), 1);
+        assert_eq!(
+            (markers[0].label.as_str(), &markers[0].state),
+            ("Audit queries", &crate::activity::ItemState::Completed)
+        );
         let child = activity
             .items
             .iter()
@@ -1366,6 +1434,11 @@ assert sys.stdin.read()==''
         let mut activity = turn_activity(events);
         activity.sync_at(SessionStatus::Stopped, i64::MAX);
         assert_eq!(activity.items[0].state, crate::activity::ItemState::Stopped);
+        assert!(
+            activity.items[0].background,
+            "shown as interrupted, not finished"
+        );
+        assert!(!activity.items.iter().any(|item| item.finished_task));
         // A turn that ends any other way while a background child runs also interrupted it.
         let mut activity = crate::activity::TurnActivity::new(AgentProviderId::Claude, None);
         activity.observe(

@@ -276,7 +276,7 @@ fn update(state: &AppState, session_id: &str, edit: impl FnOnce(&mut FixState)) 
 }
 
 async fn round(app: &AppHandle, state: &Arc<AppState>, session_id: &str) -> Result<()> {
-    let (is_busy, current) = {
+    let (is_busy, held, current) = {
         let data = state.data.lock();
         let session = data
             .sessions
@@ -285,6 +285,7 @@ async fn round(app: &AppHandle, state: &Arc<AppState>, session_id: &str) -> Resu
             .ok_or_else(|| Error::not_found("session not found"))?;
         (
             busy(state, session),
+            session.stopped_by_user_at.is_some(),
             data.ci_auto_fix
                 .iter()
                 .find(|item| item.session_id == session_id)
@@ -300,6 +301,10 @@ async fn round(app: &AppHandle, state: &Arc<AppState>, session_id: &str) -> Resu
     {
         // The fix turn ended (no live process): commit and push its work.
         return finish(app, state, session_id).await;
+    }
+    // After the person pressed Stop, no fix turn starts until they write again (ADR-101).
+    if held {
+        return Ok(());
     }
     let probe_state = state.clone();
     let probe_id = session_id.to_string();

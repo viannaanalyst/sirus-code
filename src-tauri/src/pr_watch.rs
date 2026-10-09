@@ -665,6 +665,8 @@ fn gate(state: &AppState, session_id: &str) -> Gate {
         None => Gate::Gone,
         Some(session) if data.settings.archived_session_ids.contains(&session.id) => Gate::Busy,
         Some(session) if busy(state, session) => Gate::Busy,
+        // After the person pressed Stop, nothing wakes the session until they write (ADR-101).
+        Some(session) if session.stopped_by_user_at.is_some() => Gate::Busy,
         Some(_) => Gate::Ready,
     }
 }

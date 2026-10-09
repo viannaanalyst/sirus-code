@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
+import { Bot, Box, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -10,7 +10,7 @@ import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { foldBoundary, liveFoldBoundary, groupSentence, isSecretRow, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { foldBoundary, liveFoldBoundary, groupSentence, isSecretRow, markerSentence, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
 import { cascadeIndex } from "@/lib/cascade";
 import { backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
@@ -141,6 +141,17 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
   </>;
 }
 
+/** Where a background subagent finished (ADR-101): its name and outcome; the reply below is its answer. */
+function FinishedMarker({ item }: { item: ActivityItem }) {
+  const t = useTranslation();
+  const Icon = item.state === "completed" ? Check : item.state === "failed" ? X : item.state === "stopped" ? Square : CircleHelp;
+  return <div className="tl-line tl-marker" data-state={item.state} data-finished-task="">
+    <span className="tl-icon"><Zap size={14} aria-hidden="true" /></span>
+    <span className="tl-label">{markerSentence(item, t)}</span>
+    <Icon size={item.state === "stopped" ? 10 : 12} className="tl-marker-state" aria-hidden="true" />
+  </div>;
+}
+
 /** Back-to-back steps: one sentence that opens into its rows; the step still running stays on its own live row. */
 function WorkGroup({ items, cwd, live, active, modelLabel, now, moving }: { items: ActivityItem[]; cwd?: string; live: boolean; active: boolean; modelLabel: (id: string) => string; now: number; moving: boolean }) {
   const t = useTranslation();
@@ -241,6 +252,8 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   const earlierTexts = earlier.filter(part => part.kind === "text").length;
   const folded = !active && !view.expanded;
   const foldable = !active && boundary > 0;
+  // The live row's latest thought (ADR-101): what the agent reasons about right now.
+  const thought = active && !waiting && activity.thought?.trim() ? maskSecrets(activity.thought.trim()) : null;
   const lastWork = parts.reduce((last, part, index) => part.kind === "work" ? index : last, -1);
   // Background subagents (ADR-097): counted while they run, and offered again once interrupted.
   const backgroundRunning = active ? runningBackground(activity).length : 0;
@@ -271,10 +284,15 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
         const hidden = (folded && index < boundary) || (liveFolded && index < liveBoundary);
         if (part.kind === "text") return hidden ? null : <Fragment key={`t${part.start}`}>{renderText?.(part.start, part.end)}</Fragment>;
         if (part.kind === "steer") return hidden ? null : <Fragment key={`s${index}`}>{renderSteer?.(part.text)}</Fragment>;
+        if (part.kind === "marker") return hidden ? null : <FinishedMarker key={part.item.id} item={part.item} />;
         // A folded turn still shows the steps that failed.
         const items = hidden ? part.items.filter(item => item.state === "failed") : part.items;
         return items.length ? <WorkGroup key={`w${index}`} items={items} cwd={cwd} live={active && index === lastWork} active={active} modelLabel={modelLabel} now={clock.now} moving={live} /> : null;
       })}
+      {thought ? <div className="tl-line tl-thought" data-thought="">
+        <span className="tl-icon"><Lightbulb size={14} aria-hidden="true" /></span>
+        <span className={`tl-label${live ? " tl-shine" : ""}`} title={thought}>{t("timeline.thought", { thought })}</span>
+      </div> : null}
       {activity.truncated && !folded ? <p className="ui-micro text-text-muted">{t("Showing the first 128 activity items. Later updates to these items are retained.")}</p> : null}
     </div>
   </div>;

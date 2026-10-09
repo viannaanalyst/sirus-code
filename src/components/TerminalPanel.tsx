@@ -1,6 +1,6 @@
 import { monoFontFamily } from "@/lib/fonts";
 import { composerContextForOwner, MAX_SNIPPET } from "@/lib/composer-context";
-import { terminalAppearance } from "@/lib/appearance";
+import { terminalAppearance, terminalTransparent } from "@/lib/appearance";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
@@ -207,6 +207,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const terminalBackground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).background);
   const terminalForeground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).foreground);
   const terminalCursor = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).cursor);
+  const terminalGlass = useAppStore((state) => terminalTransparent(state.settings, state.hostInfo?.appearanceSupport, systemPalette));
   const terminal = useRef<Terminal | null>(null);
   const refit = useRef<(() => void) | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -227,7 +228,8 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     const term = new Terminal({
       convertEol: true,
       fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-      allowTransparency: true,
+      // Transparency costs xterm a slower composite; only window glass needs it.
+      allowTransparency: terminalTransparent(settings, useAppStore.getState().hostInfo?.appearanceSupport, readSystemPalette()),
       fontSize: settings.terminalFontSize,
       cursorStyle: settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block",
       scrollback: settings.terminalScrollback,
@@ -294,6 +296,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     term.options.fontSize = terminalFontSize;
     term.options.cursorStyle = terminalCursorStyle === "bar" ? "bar" : terminalCursorStyle === "underline" ? "underline" : "block";
     term.options.scrollback = terminalScrollback;
+    term.options.allowTransparency = terminalGlass;
     term.options.theme = { background: terminalBackground, foreground: terminalForeground, cursor: terminalCursor };
     const fit = () => { if (!cancelled && terminal.current === term) refit.current?.(); };
     const frame = requestAnimationFrame(fit);
@@ -306,7 +309,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     };
     void document.fonts.load(`${terminalFontSize}px ${monoFontFamily(terminalFont)}`).then(applyFont).catch(applyFont);
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalForeground, terminalCursor, generation]);
+  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalForeground, terminalCursor, terminalGlass, generation]);
 
   useEffect(() => {
     if (!visible) return;

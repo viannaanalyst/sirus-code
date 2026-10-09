@@ -1,10 +1,47 @@
 //! Read-only turn presentation. Never grants authority. Each row keeps a short, bounded
 //! `detail` (file path, command line, search query, skill name) and the reply length when it
 //! started, so the transcript can place it between the text it interleaves with. Tool output
-//! and reasoning are never retained.
+//! is never retained, and reasoning only as the live first sentence of the latest thought
+//! (`TurnActivity::thought`, ADR-101), which never reaches a transcript file.
 use crate::models::{AgentProviderId, MessageRole, Session, SessionStatus};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::cell::Cell;
+
+/// Longest live thought shown (characters), and the reasoning read to find its first sentence.
+const THOUGHT_CHARS: usize = 140;
+const THOUGHT_BUFFER: usize = 2048;
+
+thread_local! {
+    static PERSISTING: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Runs `serialize` as a transcript write: live-only fields (the latest thought) are left out.
+pub fn persisting<R>(serialize: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            PERSISTING.with(|flag| flag.set(self.0));
+        }
+    }
+    let _restore = Restore(PERSISTING.with(|flag| flag.replace(true)));
+    serialize()
+}
+
+fn skip_thought(thought: &Option<String>) -> bool {
+    thought.is_none() || PERSISTING.with(Cell::get)
+}
+
+/// Live reasoning signals (ADR-101). They never become rows and are never persisted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Thought {
+    /// A new reasoning block begins.
+    Start,
+    /// Reasoning text: a streamed chunk, or a whole block (`fresh`) that replaces the last one.
+    Text { text: String, fresh: bool },
+    /// The agent started answering: the thought is no longer what it is doing.
+    End,
+}
 
 const MAX_ITEMS: usize = 128;
 /// Newest steps kept per child; older ones only count toward `hidden_steps`.
@@ -66,6 +103,16 @@ pub struct ActivityItem {
     /// Background child stopped because it outlived the turn's background limit (ADR-097).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub timed_out: bool,
+    /// A marker where a background subagent finished (ADR-101): `label` names it, `state` is
+    /// its outcome, `offset` the reply length then; the reply after it is its own answer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub finished_task: bool,
+    /// Live reasoning signal only (ADR-101); never kept as a row.
+    #[serde(skip)]
+    pub thought: Option<Thought>,
+    /// Signal only: the provider took the turn's prompt, so a handoff recap it carried is spent.
+    #[serde(skip)]
+    pub delivered: bool,
     /// Live routing only: the native delegation call that owns this child (Claude tool use).
     #[serde(skip)]
     pub source: Option<String>,
@@ -116,8 +163,15 @@ pub struct TurnActivity {
     pub truncated: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<crate::turn_review::TurnReview>,
+    /// First sentence (at most 140 characters) of the agent's latest reasoning while the turn
+    /// runs (ADR-101). Sent to the renderer, left out of transcript files, cleared at the end.
+    #[serde(default, skip_deserializing, skip_serializing_if = "skip_thought")]
+    pub thought: Option<String>,
     #[serde(skip)]
     pending: Vec<ActivityItem>,
+    /// The open reasoning block: what was read so far, and whether its first sentence is known.
+    #[serde(skip)]
+    thinking: Option<(String, bool)>,
 }
 impl TurnActivity {
     pub fn new(provider: AgentProviderId, model: Option<String>) -> Self {
@@ -132,7 +186,9 @@ impl TurnActivity {
             items: vec![],
             truncated: false,
             review: None,
+            thought: None,
             pending: vec![],
+            thinking: None,
         }
     }
     pub(crate) fn sync_at(&mut self, status: SessionStatus, at: i64) {
@@ -166,12 +222,57 @@ impl TurnActivity {
                 }
             }
             self.pending.clear();
+            // Reasoning is live only: nothing of it outlives the turn.
+            self.thought = None;
+            self.thinking = None;
         }
         self.status = status;
     }
-    pub fn observe(&mut self, mut item: ActivityItem) -> bool {
-        if self.ended_at.is_some() || item.id.is_empty() || item.id.len() > 256 {
+    /// Reads a reasoning signal; true when the shown thought changed.
+    fn think(&mut self, signal: Thought) -> bool {
+        let text = match signal {
+            Thought::Start => {
+                self.thinking = Some((String::new(), false));
+                return false;
+            }
+            Thought::End => {
+                self.thinking = None;
+                return self.thought.take().is_some();
+            }
+            Thought::Text { text, fresh } => {
+                if fresh {
+                    self.thinking = None;
+                }
+                let (buffer, known) = self.thinking.get_or_insert_with(Default::default);
+                if *known {
+                    return false;
+                }
+                buffer.push_str(head(&text, THOUGHT_BUFFER.saturating_sub(buffer.len())));
+                let (line, complete) = thought_line(buffer);
+                *known = complete || fresh || buffer.len() >= THOUGHT_BUFFER;
+                line
+            }
+        };
+        let text = crate::redact::mask(&text).into_owned();
+        if text.is_empty() || self.thought.as_deref() == Some(text.as_str()) {
             return false;
+        }
+        self.thought = Some(text);
+        true
+    }
+    pub fn observe(&mut self, mut item: ActivityItem) -> bool {
+        if self.ended_at.is_some() {
+            return false;
+        }
+        if let Some(signal) = item.thought.take() {
+            return self.think(signal);
+        }
+        if item.delivered || item.id.is_empty() || item.id.len() > 256 {
+            return false;
+        }
+        // Work closes the open reasoning block; the next reasoning is a new thought.
+        if item.parent.is_none() {
+            self.thinking = None;
         }
         item.label = short(&item.label, 100);
         // Credentials are masked before anything is kept (ADR-077).
@@ -236,6 +337,7 @@ impl TurnActivity {
             item.hidden_steps = old.hidden_steps;
             item.background |= old.background;
             item.timed_out |= old.timed_out;
+            item.finished_task |= old.finished_task;
             item.started_at = old.started_at;
             if item.kind == ItemKind::Agent {
                 // Children can work again; only a settled native state closes the window.
@@ -455,9 +557,94 @@ fn item(
         hidden_steps: 0,
         background: false,
         timed_out: false,
+        finished_task: false,
+        thought: None,
+        delivered: false,
         source: None,
         parent: None,
     }
+}
+/// The provider took the turn's prompt (ADR-101): a handoff recap it carried is spent.
+pub fn delivered() -> ActivityItem {
+    let mut row = item(
+        "delivered".into(),
+        ItemKind::Tool,
+        "",
+        ItemState::Unknown,
+        None,
+    );
+    row.delivered = true;
+    row
+}
+/// Where a background subagent finished (ADR-101): its name and outcome at the reply's length.
+pub fn background_finished(task_id: &str, label: &str, status: &Value) -> ActivityItem {
+    let mut row = item(
+        format!("done:{}", short(task_id, 192)),
+        ItemKind::Tool,
+        if label.trim().is_empty() {
+            "Subagent"
+        } else {
+            label
+        },
+        native_state(status),
+        None,
+    );
+    row.finished_task = true;
+    row
+}
+/// A live reasoning signal carried on the activity channel (ADR-101).
+fn thought(signal: Thought) -> ActivityItem {
+    let mut row = item(
+        "thought".into(),
+        ItemKind::Tool,
+        "",
+        ItemState::Unknown,
+        None,
+    );
+    row.thought = Some(signal);
+    row
+}
+/// The first sentence of reasoning, as T3 Code's live row shows it: a bold opening line (a
+/// Codex summary heading) wins; markdown marks are dropped; at most 140 characters. The flag
+/// says whether that sentence is complete, so later text cannot change it.
+pub fn thought_line(markdown: &str) -> (String, bool) {
+    static HEADING: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"^\s*\*\*([^*\r\n]+)\*\*[ \t]*\r?(\n|$)").unwrap()
+    });
+    static LINK: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"!?\[([^\]]*)\]\([^)]*\)").unwrap());
+    static MARKER: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?m)^[ \t]*(?:#{1,6}|[-*+]|\d+\.)[ \t]+").unwrap()
+    });
+    static MARKS: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"`+|\*\*|~~|__").unwrap());
+    static END: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r#"[.?!]["'”’)]?\s"#).unwrap());
+    let heading = HEADING.captures(markdown);
+    let source = heading
+        .as_ref()
+        .and_then(|captures| captures.get(1))
+        .map_or(markdown, |found| found.as_str());
+    let text = LINK.replace_all(source, "$1");
+    let text = MARKER.replace_all(&text, "");
+    let text = MARKS.replace_all(&text, "");
+    let text = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace('*', "");
+    let (sentence, complete) = match (heading.is_some(), END.find(&text)) {
+        (true, _) => (text.clone(), true),
+        // A sentence end needs the space after it, so a streamed "3." is not cut early.
+        (false, Some(end)) => (text[..end.end()].trim().to_owned(), true),
+        _ => (text.clone(), false),
+    };
+    let count = sentence.chars().count();
+    if count > THOUGHT_CHARS {
+        let cut: String = sentence.chars().take(THOUGHT_CHARS - 1).collect();
+        return (format!("{}…", cut.trim_end()), true);
+    }
+    (short(&sentence, THOUGHT_CHARS), complete)
 }
 fn native_state(v: &Value) -> ItemState {
     match v.as_str() {
@@ -472,7 +659,11 @@ pub fn sync(session: &mut Session) {
     let status = session.status.clone();
     session.last_activity_at = chrono::Utc::now().to_rfc3339();
     if let Some(activity) = current(session) {
-        activity.sync_at(status, now());
+        activity.sync_at(status.clone(), now());
+    }
+    // A turn that ended keeps or spends the handoff recap it carried (ADR-101).
+    if !status.is_active() {
+        crate::transcript::settle_handoff(session);
     }
 }
 fn current(session: &mut Session) -> Option<&mut TurnActivity> {
@@ -495,6 +686,10 @@ pub fn recover(session: &mut Session) {
     }
 }
 pub fn observe(session: &mut Session, observation: ActivityItem) -> bool {
+    if observation.delivered {
+        crate::transcript::handoff_delivered(session);
+        return false;
+    }
     // Claude completion frames can describe shell tasks; only an observed local_agent start owns a child row.
     if session.agent == AgentProviderId::Claude
         && observation.kind == ItemKind::Agent
@@ -504,6 +699,9 @@ pub fn observe(session: &mut Session, observation: ActivityItem) -> bool {
         return false;
     }
     let mut observation = observation;
+    if let Some(Thought::Text { text, .. }) = observation.thought.as_mut() {
+        *text = crate::secrets::scrub(&session.id, std::mem::take(text));
+    }
     // A value the person provided privately this turn never lands in a row.
     observation.detail =
         crate::secrets::scrub(&session.id, std::mem::take(&mut observation.detail));
@@ -526,11 +724,32 @@ pub fn model(session: &mut Session, model: &str) {
         }
     }
 }
-/// Caller already checked parent thread AND active turn. Ignore all raw args, output and reasoning.
+/// Caller already checked parent thread AND active turn. Ignore all raw args and output; a
+/// finished reasoning item only feeds the live thought (ADR-101).
 pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
     let Some(id) = identifier(&v["id"]) else {
         return vec![];
     };
+    match v["type"].as_str() {
+        Some("reasoning") if !started => {
+            // The latest summary paragraph, else the raw reasoning, when the provider shares it.
+            let last = |key: &str| {
+                v[key]
+                    .as_array()?
+                    .iter()
+                    .rev()
+                    .filter_map(Value::as_str)
+                    .find(|text| !text.trim().is_empty())
+                    .map(str::to_owned)
+            };
+            return last("summary")
+                .or_else(|| last("content"))
+                .map(|text| vec![thought(Thought::Text { text, fresh: true })])
+                .unwrap_or_default();
+        }
+        Some("agentMessage") if started => return vec![thought(Thought::End)],
+        _ => {}
+    }
     let state = if started {
         ItemState::Running
     } else {
@@ -663,13 +882,39 @@ fn tool_kind(name: &str) -> (ItemKind, &'static str) {
         _ => (ItemKind::Tool, "Tool call"),
     }
 }
-/// Parent tools, local agent tasks and their children's tool steps. Text, reasoning and raw
-/// tool arguments are excluded; only a delegation call's model choice is read.
+/// Parent tools, local agent tasks and their children's tool steps. Text and raw tool arguments
+/// are excluded; only a delegation call's model choice is read. The main agent's streamed
+/// thinking feeds the live thought only (ADR-101).
 pub fn claude(v: &Value) -> Vec<ActivityItem> {
     // Child messages carry the delegation call that spawned them; their tools become that child's steps.
     let parent = v["parent_tool_use_id"].as_str();
     if parent.is_some() && identifier(&v["parent_tool_use_id"]).is_none() {
         return vec![];
+    }
+    if parent.is_none() && v["type"] == "stream_event" {
+        let event = &v["event"];
+        match (
+            event["type"].as_str(),
+            event["content_block"]["type"].as_str(),
+        ) {
+            (Some("content_block_start"), Some("thinking")) => {
+                return vec![thought(Thought::Start)]
+            }
+            (Some("content_block_start"), Some("text")) => return vec![thought(Thought::End)],
+            (Some("content_block_delta"), _) if event["delta"]["type"] == "thinking_delta" => {
+                return event["delta"]["thinking"]
+                    .as_str()
+                    .filter(|text| !text.is_empty())
+                    .map(|text| {
+                        vec![thought(Thought::Text {
+                            text: text.to_owned(),
+                            fresh: false,
+                        })]
+                    })
+                    .unwrap_or_default();
+            }
+            _ => {}
+        }
     }
     if parent.is_none()
         && v["type"] == "system"
@@ -818,7 +1063,7 @@ pub fn codex_child(v: &Value, started: bool, thread: &str) -> Vec<ActivityItem> 
     };
     codex(v, started)
         .into_iter()
-        .filter(|observed| observed.kind != ItemKind::Agent)
+        .filter(|observed| observed.kind != ItemKind::Agent && observed.thought.is_none())
         .map(|mut observed| {
             observed.parent = Some(format!("agent:{thread}"));
             observed
@@ -826,6 +1071,23 @@ pub fn codex_child(v: &Value, started: bool, thread: &str) -> Vec<ActivityItem> 
         .collect()
 }
 pub fn opencode(v: &Value) -> Vec<ActivityItem> {
+    // Thought chunks feed the live thought only (ADR-101); the answer starting ends it.
+    match v["sessionUpdate"].as_str() {
+        Some("agent_thought_chunk") => {
+            return v["content"]["text"]
+                .as_str()
+                .filter(|text| !text.is_empty())
+                .map(|text| {
+                    vec![thought(Thought::Text {
+                        text: text.to_owned(),
+                        fresh: false,
+                    })]
+                })
+                .unwrap_or_default();
+        }
+        Some("agent_message_chunk") => return vec![thought(Thought::End)],
+        _ => {}
+    }
     if !matches!(
         v["sessionUpdate"].as_str(),
         Some("tool_call" | "tool_call_update")
@@ -1120,6 +1382,112 @@ mod tests {
             observe(&mut s, i);
         }
         assert!(s.messages[0].activity.as_ref().unwrap().items.is_empty());
+    }
+
+    #[test]
+    fn the_live_thought_is_the_first_sentence_of_the_latest_reasoning_and_never_saved() {
+        assert_eq!(
+            thought_line("I'll check the **config** first. Then run tests."),
+            ("I'll check the config first.".to_string(), true)
+        );
+        assert_eq!(
+            thought_line("**Inspecting the parser**\n\nLong body."),
+            ("Inspecting the parser".to_string(), true)
+        );
+        // A streamed "3." with nothing after it is not a sentence end yet.
+        assert_eq!(
+            thought_line("Version 3."),
+            ("Version 3.".to_string(), false)
+        );
+        let (long, done) = thought_line(&"word ".repeat(80));
+        assert!(done && long.chars().count() <= THOUGHT_CHARS && long.ends_with('…'));
+        assert_eq!(thought_line("keep snake_case").0, "keep snake_case");
+
+        let mut a = TurnActivity::new(AgentProviderId::Claude, None);
+        let frames = [
+            json!({"type":"stream_event","event":{"type":"content_block_start","content_block":{"type":"thinking"}}}),
+            json!({"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"Let me read"}}}),
+            json!({"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":" the README. Then I"}}}),
+            json!({"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":" will edit."}}}),
+        ];
+        for frame in &frames {
+            for observed in claude(frame) {
+                a.observe(observed);
+            }
+        }
+        assert_eq!(a.thought.as_deref(), Some("Let me read the README."));
+        assert!(a.items.is_empty(), "reasoning never becomes a row");
+        // Child thinking is not the main agent's thought.
+        let mut child = frames[1].clone();
+        child["parent_tool_use_id"] = json!("call");
+        assert!(claude(&child).is_empty());
+        // Sent to the renderer, left out of transcript files.
+        assert!(serde_json::to_string(&a).unwrap().contains("Let me read"));
+        assert!(!persisting(|| serde_json::to_string(&a).unwrap()).contains("Let me read"));
+        let loaded: TurnActivity =
+            serde_json::from_str(&serde_json::to_string(&a).unwrap()).unwrap();
+        assert!(loaded.thought.is_none());
+        // The answer starting ends it; a new block replaces it.
+        a.observe(claude(&json!({"type":"stream_event","event":{"type":"content_block_start","content_block":{"type":"text"}}})).remove(0));
+        assert!(a.thought.is_none());
+        // Codex: a finished reasoning item's latest summary; OpenCode: thought chunks.
+        for observed in codex(
+            &json!({"id":"r","type":"reasoning","summary":["**Old**","**Planning the fix**\n\nbody"]}),
+            false,
+        ) {
+            a.observe(observed);
+        }
+        assert_eq!(a.thought.as_deref(), Some("Planning the fix"));
+        assert!(codex_child(
+            &json!({"id":"r","type":"reasoning","summary":["x."]}),
+            false,
+            "c"
+        )
+        .is_empty());
+        let mut o = TurnActivity::new(AgentProviderId::OpenCode, None);
+        for text in ["Checking", " the tests. More"] {
+            for observed in opencode(
+                &json!({"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":text}}),
+            ) {
+                o.observe(observed);
+            }
+        }
+        assert_eq!(o.thought.as_deref(), Some("Checking the tests."));
+        // Cleared when the turn ends.
+        a.sync_at(SessionStatus::Completed, a.started_at + 1);
+        assert!(a.thought.is_none());
+    }
+
+    #[test]
+    fn a_finished_background_task_is_a_marker_with_its_outcome() {
+        let mut a = TurnActivity::new(AgentProviderId::Claude, None);
+        let mut marker = background_finished("bg1", "Audit queries", &json!("failed"));
+        marker.offset = Some(9);
+        assert!(a.observe(marker));
+        let row = &a.items[0];
+        assert_eq!(
+            (
+                row.id.as_str(),
+                row.label.as_str(),
+                &row.state,
+                row.offset,
+                row.finished_task
+            ),
+            (
+                "done:bg1",
+                "Audit queries",
+                &ItemState::Failed,
+                Some(9),
+                true
+            )
+        );
+        assert!(serde_json::to_string(row)
+            .unwrap()
+            .contains("\"finishedTask\":true"));
+        assert_eq!(background_finished("x", "", &Value::Null).label, "Subagent");
+        // The delivery signal never becomes a row.
+        assert!(!a.observe(delivered()));
+        assert_eq!(a.items.len(), 1);
     }
 
     #[test]

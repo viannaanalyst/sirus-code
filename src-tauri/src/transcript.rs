@@ -125,6 +125,7 @@ pub fn fork_snapshot(
         context_usage: None,
         launched_by: None,
         usage_limit: None,
+        stopped_by_user_at: None,
         goal: source.goal.clone(),
         import_origin: None,
         handoff: None,
@@ -279,6 +280,7 @@ pub fn handoff_snapshot(
         context_usage: None,
         launched_by: None,
         usage_limit: None,
+        stopped_by_user_at: None,
         goal: source.goal.clone(),
         pinned_message_ids: vec![],
         fork_origin: None,
@@ -288,6 +290,7 @@ pub fn handoff_snapshot(
             brief,
             request: handoff_request(slice),
             pending: true,
+            delivering: false,
         }),
         account_bindings: HashMap::from([(agent.clone(), provider_account_id.clone())]),
         id: id.into(),
@@ -336,7 +339,7 @@ pub fn arm_in_session_handoff(session: &mut Session, previous: AgentProviderId) 
         return;
     }
     let from = match &session.handoff {
-        Some(pending) if pending.pending => pending.from.clone(),
+        Some(pending) if pending.pending || pending.delivering => pending.from.clone(),
         _ => previous,
     };
     session.handoff = Some(HandoffOrigin {
@@ -344,19 +347,68 @@ pub fn arm_in_session_handoff(session: &mut Session, previous: AgentProviderId) 
         brief,
         request: handoff_request(&session.messages),
         pending: true,
+        delivering: false,
     });
 }
 
-/// Wraps the first prompt of a pending handoff with its recap and consumes it.
+/// Wraps the first prompt of a pending handoff with its recap. The recap stays on the session
+/// as `delivering` until the provider takes the prompt (ADR-101): a turn that fails before
+/// that gives it back (`settle_handoff`), so the next turn still carries it. One left
+/// `delivering` by a quit or crash is sent again.
 pub fn consume_handoff(session: &mut Session, prompt: String) -> String {
-    match session.handoff.take() {
-        Some(handoff) if handoff.pending => {
+    match session.handoff.as_mut() {
+        Some(handoff) if handoff.pending || handoff.delivering => {
+            handoff.pending = false;
+            handoff.delivering = true;
             wrap_handoff_prompt(&handoff.from, &handoff.brief, &prompt)
         }
-        other => {
-            session.handoff = other;
-            prompt
-        }
+        _ => prompt,
+    }
+}
+
+/// The provider took the prompt that carried the recap: the handoff is spent.
+pub fn handoff_delivered(session: &mut Session) {
+    if session
+        .handoff
+        .as_ref()
+        .is_some_and(|handoff| handoff.delivering)
+    {
+        session.handoff = None;
+    }
+}
+
+/// A turn ended while its recap was still being delivered. Providers that report taking the
+/// prompt (Claude) already spent it; for the others, a turn that completed or left any reply
+/// or work took it. Otherwise (init timeout, rejected mode, spawn failure, a stop before the
+/// prompt went out) the recap goes back to pending for the next send.
+pub fn settle_handoff(session: &mut Session) {
+    if !session
+        .handoff
+        .as_ref()
+        .is_some_and(|handoff| handoff.delivering)
+    {
+        return;
+    }
+    let reply = session
+        .messages
+        .iter()
+        .rev()
+        .find(|message| message.role == MessageRole::Agent);
+    let worked = reply.is_some_and(|reply| {
+        !reply.content.trim().is_empty()
+            || reply.activity.as_ref().is_some_and(|activity| {
+                activity
+                    .items
+                    .iter()
+                    .any(|item| item.kind != crate::activity::ItemKind::Skill)
+            })
+    });
+    let reported = session.agent == AgentProviderId::Claude;
+    if session.status == SessionStatus::Completed || (worked && !reported) {
+        session.handoff = None;
+    } else if let Some(handoff) = session.handoff.as_mut() {
+        handoff.delivering = false;
+        handoff.pending = true;
     }
 }
 
@@ -536,8 +588,69 @@ mod tests {
         assert!(first.contains("<handoff>") && first.ends_with("</handoff>"));
         assert!(first.contains("Assistant: first answer"));
         assert!(first.ends_with("</handoff>") && first.contains("\n\ncontinue\n\n"));
+        // Kept, not pending, until the provider takes the prompt.
+        assert!(handoff
+            .handoff
+            .as_ref()
+            .is_some_and(|handoff| handoff.delivering && !handoff.pending));
+        handoff_delivered(&mut handoff);
         assert!(handoff.handoff.is_none());
         assert_eq!(consume_handoff(&mut handoff, "next".into()), "next");
+    }
+
+    fn turn(session: &mut Session, content: &str, status: SessionStatus) {
+        let reply = serde_json::json!({"id":format!("r{}", session.messages.len()),"sessionId":session.id,"role":"agent","content":content,"createdAt":"now","streaming":false});
+        session
+            .messages
+            .push(serde_json::from_value(reply).unwrap());
+        session.status = status;
+        crate::activity::sync(session);
+    }
+
+    #[test]
+    fn a_turn_that_fails_before_taking_the_prompt_keeps_the_handoff() {
+        for agent in [AgentProviderId::Claude, AgentProviderId::Codex] {
+            let mut session = source();
+            session.agent = agent.clone();
+            session.native_thread = None;
+            arm_in_session_handoff(&mut session, AgentProviderId::Grok);
+            // Init timeout, rejected approval mode or a failed spawn: no reply, no work.
+            assert!(consume_handoff(&mut session, "go".into()).contains("<handoff>"));
+            turn(&mut session, "", SessionStatus::Failed);
+            let kept = session.handoff.as_ref().unwrap();
+            assert!(kept.pending && !kept.delivering, "{agent:?}");
+            // A stop before the prompt went out keeps it too.
+            assert!(consume_handoff(&mut session, "again".into()).contains("<handoff>"));
+            turn(&mut session, "", SessionStatus::Stopped);
+            assert!(session.handoff.as_ref().unwrap().pending);
+            // The next turn carries it; once taken it is spent.
+            assert!(consume_handoff(&mut session, "third".into()).contains("<handoff>"));
+            if agent == AgentProviderId::Claude {
+                // Claude reports taking the prompt; a later failure keeps nothing.
+                crate::activity::observe(&mut session, crate::activity::delivered());
+                turn(&mut session, "", SessionStatus::Failed);
+            } else {
+                // Others: a turn that left a reply took it.
+                turn(&mut session, "partial", SessionStatus::Failed);
+            }
+            assert!(session.handoff.is_none(), "{agent:?}");
+            assert_eq!(consume_handoff(&mut session, "plain".into()), "plain");
+        }
+        // Claude without the report: even a partial reply means the CLI never took the prompt.
+        let mut session = source();
+        session.agent = AgentProviderId::Claude;
+        arm_in_session_handoff(&mut session, AgentProviderId::Codex);
+        consume_handoff(&mut session, "go".into());
+        turn(
+            &mut session,
+            "Claude initialization timed out",
+            SessionStatus::Failed,
+        );
+        assert!(session.handoff.as_ref().unwrap().pending);
+        // A completed turn always spent it.
+        consume_handoff(&mut session, "go".into());
+        turn(&mut session, "", SessionStatus::Completed);
+        assert!(session.handoff.is_none());
     }
 
     #[test]
@@ -549,6 +662,7 @@ mod tests {
         let first = consume_handoff(&mut session, "continue".into());
         assert!(first.contains("handed off from Codex") && first.contains("later answer"));
         assert!(!first.contains("private diagnostic"));
+        handoff_delivered(&mut session);
         assert_eq!(consume_handoff(&mut session, "next".into()), "next");
 
         // A second switch before sending keeps the original source provider.

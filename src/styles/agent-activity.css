@@ -122,6 +122,14 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .tl-shine), html[d
 .tl-line[data-state="failed"], .tl-line[data-state="failed"] .tl-icon { color: var(--danger); }
 .tl-failed { flex-shrink: 0; color: var(--danger); }
 .tl-stopped { flex-shrink: 0; color: var(--text-muted); }
+/* Where a background subagent finished (ADR-101): a quiet divider line above its reply. */
+.tl-marker { margin: 6px 0 4px; }
+.tl-marker .tl-label { color: var(--text-secondary); }
+.tl-marker-state { flex-shrink: 0; color: var(--text-muted); }
+.tl-marker[data-state="completed"] .tl-marker-state { color: var(--success); }
+.tl-marker[data-state="failed"], .tl-marker[data-state="failed"] .tl-icon, .tl-marker[data-state="failed"] .tl-marker-state { color: var(--danger); }
+/* The latest thought on the live row (ADR-101). */
+.tl-thought { margin-top: 2px; }
 .tl-detail-chevron { flex-shrink: 0; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
 /* Output aligns with the label (past the 24px icon slot) and scrolls past a few lines. */
 .tl-output { margin: 2px 0 6px 30px; max-height: 240px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); color: var(--text-secondary); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }

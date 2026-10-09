@@ -32,6 +32,10 @@ fn git_command(cwd: &Path) -> Command {
         .env_remove("GIT_CONFIG")
         // A native command has no stdin UI; fail instead of waiting on a prompt.
         .env("GIT_TERMINAL_PROMPT", "0")
+        // Sirus polls status and diffs while agents run Git in the same tree. Never
+        // take the optional `.git/index.lock` a stat refresh would (ADR-100), so an
+        // agent's `git add`/`commit` cannot fail on a lock Sirus holds.
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .args([
             "-c",
             "core.hooksPath=/dev/null",
@@ -77,7 +81,7 @@ fn capture_git(cwd: &Path, args: &[&str], duration: std::time::Duration) -> Resu
 fn refuse_external_filters(cwd: &Path, args: &[&str]) -> Result<()> {
     let affected = matches!(
         args.first(),
-        Some(&"status" | &"diff" | &"add" | &"checkout" | &"apply" | &"stash")
+        Some(&"status" | &"diff" | &"diff-index" | &"add" | &"checkout" | &"apply" | &"stash")
     ) || (args.first() == Some(&"worktree")
         && matches!(args.get(1), Some(&"add" | &"remove")));
     if !affected {
@@ -567,6 +571,9 @@ pub fn sum_numstat(text: &str) -> (u32, u32) {
     })
 }
 
+/// Untracked files listed in one status; the rest are counted out (`untracked_truncated`).
+pub const MAX_UNTRACKED: usize = 2000;
+
 pub fn status(path: &Path) -> Result<GitStatus> {
     let identity = identity(path)?;
     if !identity.is_repo {
@@ -576,6 +583,7 @@ pub fn status(path: &Path) -> Result<GitStatus> {
             ahead: 0,
             behind: 0,
             changes: vec![],
+            untracked_truncated: false,
         });
     }
 
@@ -599,10 +607,13 @@ pub fn status(path: &Path) -> Result<GitStatus> {
     if !porcelain.status.success() {
         return Err(Error::git(String::from_utf8_lossy(&porcelain.stderr)));
     }
+    // Plumbing: porcelain `git diff` still rewrites the index to refresh stat
+    // data even with GIT_OPTIONAL_LOCKS=0. `-M` keeps porcelain's rename detection.
     let numstat = run(
         path,
         &[
-            "diff",
+            "diff-index",
+            "-M",
             "--no-ext-diff",
             "--no-textconv",
             "--numstat",
@@ -642,6 +653,8 @@ pub fn status(path: &Path) -> Result<GitStatus> {
     let text = String::from_utf8_lossy(&porcelain.stdout);
     let mut rows = text.split('\0');
     let mut changes = Vec::new();
+    let mut untracked = 0usize;
+    let mut untracked_truncated = false;
     while let Some(row) = rows.next() {
         if row.len() < 4 {
             continue;
@@ -663,6 +676,15 @@ pub fn status(path: &Path) -> Result<GitStatus> {
         let Ok(relative) = Path::new(&path_name).strip_prefix(scope) else {
             continue;
         };
+        if kind == ChangeKind::Untracked {
+            // A build output or vendored tree left untracked can list hundreds of
+            // thousands of files; the UI gets a bounded list and a flag (ADR-100).
+            untracked += 1;
+            if untracked > MAX_UNTRACKED {
+                untracked_truncated = true;
+                continue;
+            }
+        }
         let path_name = relative.to_string_lossy().into_owned();
         #[cfg(windows)]
         let path_name = path_name.replace('\\', "/");
@@ -681,6 +703,7 @@ pub fn status(path: &Path) -> Result<GitStatus> {
         ahead,
         behind,
         changes,
+        untracked_truncated,
     })
 }
 
@@ -1235,6 +1258,66 @@ pub(crate) mod tests {
         run_ok(&repo.cwd(), &["rm", "-r", "--", "nested"]).unwrap();
         let diff = diff_file(&repo.cwd(), "nested/file.txt").unwrap();
         assert!(diff.contains("-removed text"));
+    }
+    #[test]
+    fn status_reads_never_rewrite_the_index() {
+        let command = git_command(Path::new("."));
+        assert!(command
+            .get_envs()
+            .any(|(key, value)| key == "GIT_OPTIONAL_LOCKS"
+                && value == Some(std::ffi::OsStr::new("0"))));
+        let repo = Repo::new();
+        let index = repo.cwd().join(".git/index");
+        // Same content, new mtime: porcelain status would refresh and rewrite the index.
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .open(repo.cwd().join("file.txt"))
+            .unwrap();
+        file.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))
+            .unwrap();
+        drop(file);
+        fs::write(repo.cwd().join("other.txt"), "changed\n").unwrap();
+        let before = fs::read(&index).unwrap();
+        let status = status(&repo.cwd()).unwrap();
+        assert_eq!(fs::read(&index).unwrap(), before);
+        assert!(!repo.cwd().join(".git/index.lock").exists());
+        assert!(status.changes.iter().any(|c| c.path == "other.txt"));
+        assert!(
+            !status.changes.iter().any(|c| c.path == "file.txt"),
+            "a stat-only change is not a change"
+        );
+    }
+    #[test]
+    fn status_counts_lines_through_diff_index() {
+        let repo = Repo::new();
+        fs::write(repo.cwd().join("file.txt"), "after\nmore\n").unwrap();
+        let status = status(&repo.cwd()).unwrap();
+        let change = status
+            .changes
+            .iter()
+            .find(|c| c.path == "file.txt")
+            .unwrap();
+        assert_eq!((change.additions, change.deletions), (2, 1));
+        assert!(!status.untracked_truncated);
+    }
+    #[test]
+    fn status_caps_the_untracked_listing() {
+        let repo = Repo::new();
+        fs::create_dir(repo.cwd().join("build")).unwrap();
+        for index in 0..(MAX_UNTRACKED + 25) {
+            fs::write(repo.cwd().join(format!("build/{index}.o")), "").unwrap();
+        }
+        fs::write(repo.cwd().join("file.txt"), "after\n").unwrap();
+        let status = status(&repo.cwd()).unwrap();
+        let untracked = status
+            .changes
+            .iter()
+            .filter(|c| c.kind == ChangeKind::Untracked)
+            .count();
+        assert_eq!(untracked, MAX_UNTRACKED);
+        assert!(status.untracked_truncated);
+        assert!(status.dirty);
+        assert!(status.changes.iter().any(|c| c.path == "file.txt"));
     }
     #[test]
     fn status_preserves_spaces_quotes_unicode_and_newlines() {

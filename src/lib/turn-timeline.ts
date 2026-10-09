@@ -14,7 +14,9 @@ export function isSecretRow(item: Pick<ActivityItem, "id" | "kind" | "label">): 
 export type TimelinePart =
   | { kind: "text"; start: number; end: number }
   | { kind: "steer"; text: string }
-  | { kind: "work"; items: ActivityItem[] };
+  | { kind: "work"; items: ActivityItem[] }
+  /** Where a background subagent finished (ADR-101); the text after it is that subagent's answer. */
+  | { kind: "marker"; item: ActivityItem };
 
 export function timelineParts(content: string, items: readonly ActivityItem[], steers: readonly { offset: number; text: string }[] = []): TimelinePart[] {
   type Event = { at: number; order: number; item?: ActivityItem; steer?: string };
@@ -32,7 +34,9 @@ export function timelineParts(content: string, items: readonly ActivityItem[], s
   };
   for (const event of events) {
     text(event.at);
-    if (event.item) {
+    if (event.item?.finishedTask) {
+      parts.push({ kind: "marker", item: event.item });
+    } else if (event.item) {
       const last = parts.at(-1);
       if (last?.kind === "work") last.items.push(event.item);
       else parts.push({ kind: "work", items: [event.item] });
@@ -46,19 +50,37 @@ export function timelineParts(content: string, items: readonly ActivityItem[], s
   return parts;
 }
 
-/** The parts a finished turn folds away: everything before its final answer (the text after the last work). */
+/** The first background-completion marker, or the end when there is none. */
+function firstMarker(parts: readonly TimelinePart[]): number {
+  const index = parts.findIndex((part) => part.kind === "marker");
+  return index < 0 ? parts.length : index;
+}
+
 /**
  * While a turn runs (after MonoCode): everything before its newest paragraph folds away, so
  * only that paragraph and the work after it stay in view. 0 when there is nothing to fold.
+ * Once a background subagent finished (ADR-101), the fold stops at the turn's own answer:
+ * each reply after a marker stays in view.
  */
 export function liveFoldBoundary(parts: readonly TimelinePart[]): number {
-  for (let index = parts.length - 1; index > 0; index -= 1) if (parts[index].kind === "text") return index;
-  return 0;
+  let newest = 0;
+  for (let index = parts.length - 1; index > 0; index -= 1) if (parts[index].kind === "text") { newest = index; break; }
+  return firstMarker(parts) < parts.length ? Math.min(newest, foldBoundary(parts)) : newest;
 }
 
+/**
+ * The parts a finished turn folds away: everything before its final answer (the text after
+ * the last work). With background-completion markers (ADR-101), only what came before the
+ * turn's own answer folds; the markers and each subagent's reply after them stay visible.
+ */
 export function foldBoundary(parts: readonly TimelinePart[]): number {
-  let index = parts.length;
+  const end = firstMarker(parts);
+  let index = end;
   while (index > 0 && parts[index - 1].kind === "text") index -= 1;
+  if (index === end && end < parts.length) {
+    // The answer came before the work that launched the subagents: it still stays in view.
+    for (let last = end - 1; last >= 0; last -= 1) if (parts[last].kind === "text") return last;
+  }
   return index;
 }
 
@@ -92,11 +114,20 @@ export function stepSentence(item: ActivityItem, t: Translate, cwd?: string): st
   const category = stepCategory(item);
   const detail = stepDetail(item.detail, cwd);
   const live = item.state === "running";
+  if (item.finishedTask) return markerSentence(item, t);
   if (category === "skill") return t("timeline.done.skill");
   if (category === "agent") return item.label || t("Subagent");
   if (isSecretRow(item)) return t("timeline.secretProvided", { label: item.detail ?? "" });
   if (!detail) return t(`timeline.${live ? "plainLive" : "plain"}.${category}`);
   return t(`timeline.${live ? "live" : "done"}.${category}`, { detail });
+}
+
+/** A background-completion marker (ADR-101): "Subagente Auditoria concluído", or failed or stopped. */
+export function markerSentence(item: Pick<ActivityItem, "label" | "state">, t: Translate): string {
+  const outcome = item.state === "completed" || item.state === "failed" || item.state === "stopped" ? item.state : "ended";
+  // The native side names an unlabeled task "Subagent"; the sentence then reads without a name.
+  const name = item.label.trim() === "Subagent" ? "" : item.label.trim();
+  return t(`timeline.marker.${outcome}`, { name }).replace(/\s+/g, " ").trim();
 }
 
 /** Back-to-back steps as one sentence, T3's way: at most two counted kinds (skills, edits and commands first), then the rest. */

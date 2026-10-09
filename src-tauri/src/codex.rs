@@ -152,6 +152,37 @@ pub enum Event {
     UsageLimit(Option<i64>),
 }
 
+/// `-c` overrides for the integrated browser MCP server, and the environment the
+/// Codex process needs for them. Every `-c` value is visible to any local user in
+/// `ps`, so the session token is set in Codex's environment and forwarded to the
+/// server with `env_vars` (ADR-100); the socket path is not a secret.
+fn browser_overrides(
+    executable: &str,
+    socket: &str,
+    token: &str,
+    sirus_tools: Option<(&'static str, &'static str)>,
+) -> (Vec<String>, Vec<(&'static str, String)>) {
+    const PREFIX: &str = "mcp_servers.sirus_browser";
+    let mut args = vec![
+        format!("{PREFIX}.command={executable:?}"),
+        format!("{PREFIX}.args=[\"--mcp-browser\"]"),
+        format!("{PREFIX}.env.{}={socket:?}", crate::browser_mcp::SOCKET_ENV),
+        format!("{PREFIX}.env_vars=[{:?}]", crate::browser_mcp::TOKEN_ENV),
+        // Integrated browser tools are fixed and bounded; no per-call
+        // prompt (the app already interrupts on human page input).
+        format!("{PREFIX}.default_tools_approval_mode=\"approve\""),
+        // A private secret card waits up to five minutes for the person (ADR-077).
+        format!("{PREFIX}.tool_timeout_sec=330"),
+    ];
+    if let Some((key, value)) = sirus_tools {
+        args.push(format!("{PREFIX}.env.{key}={value:?}"));
+    }
+    (
+        args,
+        vec![(crate::browser_mcp::TOKEN_ENV, token.to_string())],
+    )
+}
+
 /// Each turn owns one server process. Follow-ups resume the exact persisted thread.
 /// No idle process remains after a completed turn; pending callbacks are generation-local.
 pub async fn start(
@@ -174,44 +205,21 @@ pub async fn start(
     crate::provider_accounts::apply(&mut cmd, &session.agent, account_home.as_deref());
     if let Some(endpoint) = crate::browser_mcp::ensure_endpoint(&session.id) {
         if let Ok(exe) = std::env::current_exe() {
-            let values = [
-                (
-                    "mcp_servers.sirus_browser.command",
-                    format!("{:?}", exe.to_string_lossy()),
-                ),
-                (
-                    "mcp_servers.sirus_browser.args",
-                    "[\"--mcp-browser\"]".to_string(),
-                ),
-                (
-                    "mcp_servers.sirus_browser.env.SIRUS_BROWSER_SOCKET",
-                    format!("{:?}", endpoint.socket.to_string_lossy()),
-                ),
-                (
-                    "mcp_servers.sirus_browser.env.SIRUS_BROWSER_TOKEN",
-                    format!("{:?}", endpoint.token),
-                ),
-                // Integrated browser tools are fixed and bounded; no per-call
-                // prompt (the app already interrupts on human page input).
-                (
-                    "mcp_servers.sirus_browser.default_tools_approval_mode",
-                    "\"approve\"".to_string(),
-                ),
-                // A private secret card waits up to five minutes for the person (ADR-077).
-                (
-                    "mcp_servers.sirus_browser.tool_timeout_sec",
-                    "330".to_string(),
-                ),
-            ];
-            for (key, value) in values {
-                cmd.arg("-c").arg(format!("{key}={value}"));
-            }
-            if let Some((key, value)) = crate::sirus_tools::child_env() {
-                cmd.arg("-c")
-                    .arg(format!("mcp_servers.sirus_browser.env.{key}={value:?}"));
-            }
-            for value in crate::computer_mcp::codex_overrides(&session.id) {
+            let (mut args, mut env) = browser_overrides(
+                &exe.to_string_lossy(),
+                &endpoint.socket.to_string_lossy(),
+                &endpoint.token,
+                crate::sirus_tools::child_env(),
+            );
+            let (computer_args, computer_env) = crate::computer_mcp::codex_overrides(&session.id);
+            args.extend(computer_args);
+            env.extend(computer_env);
+            for value in args {
                 cmd.arg("-c").arg(value);
+            }
+            // Tokens reach the MCP servers through Codex's environment, never argv.
+            for (key, value) in env {
+                cmd.env(key, value);
             }
         }
     }
@@ -853,6 +861,7 @@ pub fn monitor(
     app: tauri::AppHandle,
     state: std::sync::Arc<crate::commands::AppState>,
     session_id: String,
+    awake: crate::keep_awake::Hold,
 ) {
     use tauri::Emitter;
     let Some(input) = started.child.stdin.take() else {
@@ -877,6 +886,8 @@ pub fn monitor(
         }
     });
     tokio::spawn(async move {
+        // Held until the turn's monitor ends: the Mac stays awake (ADR-100).
+        let _awake = awake;
         let mut wire = Wire::new(input, output);
         let mut cursor = crate::agent::OutputCursor::default();
         let mut emit = |event| -> Result<()> {
@@ -1086,6 +1097,25 @@ async fn cleanup(child: &mut Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_mcp_token_stays_out_of_argv() {
+        let (args, env) = browser_overrides(
+            "/Applications/Sirus Code.app/Contents/MacOS/sirus-code",
+            "/tmp/sirus-browser.sock",
+            "browser-secret-token",
+            Some(("SIRUS_TOOLS", "1")),
+        );
+        assert!(args.iter().all(|arg| !arg.contains("browser-secret-token")));
+        assert!(args
+            .contains(&"mcp_servers.sirus_browser.env_vars=[\"SIRUS_BROWSER_TOKEN\"]".to_string()));
+        assert!(args.iter().any(|arg| arg
+            == "mcp_servers.sirus_browser.env.SIRUS_BROWSER_SOCKET=\"/tmp/sirus-browser.sock\""));
+        assert_eq!(
+            env,
+            vec![("SIRUS_BROWSER_TOKEN", "browser-secret-token".to_string())]
+        );
+    }
 
     #[test]
     fn usage_limits_and_their_reset_come_from_codex_reports() {

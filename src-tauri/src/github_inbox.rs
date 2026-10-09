@@ -505,15 +505,20 @@ async fn rest_capture(
         let flag = if *key == "draft" { "-F" } else { "-f" };
         command.arg(flag).arg(format!("{key}={value}"));
     }
-    let output = crate::cli_output::capture_command(command, Duration::from_secs(30))
-        .await
-        .map_err(|error| {
-            lookup_error(if error.kind() == std::io::ErrorKind::NotFound {
-                LookupStatus::CliMissing
-            } else {
-                LookupStatus::Unavailable
-            })
-        })?;
+    let output = if method == "GET" {
+        crate::gh_gate::read(command, Duration::from_secs(30)).await
+    } else {
+        let output = crate::cli_output::capture_command(command, Duration::from_secs(30)).await;
+        crate::gh_gate::wrote(&output);
+        output
+    }
+    .map_err(|error| {
+        lookup_error(if error.kind() == std::io::ErrorKind::NotFound {
+            LookupStatus::CliMissing
+        } else {
+            LookupStatus::Unavailable
+        })
+    })?;
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout)
             .trim()
@@ -631,15 +636,21 @@ pub(crate) async fn graphql(
     for (key, value) in ints {
         command.arg("-F").arg(format!("{key}={value}"));
     }
-    let output = crate::cli_output::capture_command(command, Duration::from_secs(20))
-        .await
-        .map_err(|error| {
-            if error.kind() == std::io::ErrorKind::NotFound {
-                LookupStatus::CliMissing
-            } else {
-                LookupStatus::Unavailable
-            }
-        })?;
+    // Queries share the GitHub read gate (ADR-100); mutations run directly.
+    let output = if query.trim_start().starts_with("mutation") {
+        let output = crate::cli_output::capture_command(command, Duration::from_secs(20)).await;
+        crate::gh_gate::wrote(&output);
+        output
+    } else {
+        crate::gh_gate::read(command, Duration::from_secs(20)).await
+    }
+    .map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            LookupStatus::CliMissing
+        } else {
+            LookupStatus::Unavailable
+        }
+    })?;
     if !output.status.success() {
         return Err(status_of(&output.stderr));
     }
@@ -681,15 +692,15 @@ async fn rest(binary: &OsStr, method: &str, endpoint: &str, fields: &[(&str, &st
     for (key, value) in fields {
         command.arg("-f").arg(format!("{key}={value}"));
     }
-    let output = crate::cli_output::capture_command(command, Duration::from_secs(30))
-        .await
-        .map_err(|error| {
-            lookup_error(if error.kind() == std::io::ErrorKind::NotFound {
-                LookupStatus::CliMissing
-            } else {
-                LookupStatus::Unavailable
-            })
-        })?;
+    let output = crate::cli_output::capture_command(command, Duration::from_secs(30)).await;
+    crate::gh_gate::wrote(&output);
+    let output = output.map_err(|error| {
+        lookup_error(if error.kind() == std::io::ErrorKind::NotFound {
+            LookupStatus::CliMissing
+        } else {
+            LookupStatus::Unavailable
+        })
+    })?;
     if output.status.success() {
         return Ok(());
     }
@@ -1039,7 +1050,7 @@ async fn diff(binary: &OsStr, repo: &str, number: u32) -> Result<(String, bool)>
         "Accept: application/vnd.github.diff",
         &format!("/repos/{repo}/pulls/{number}"),
     ]);
-    let output = crate::cli_output::capture_command(command, Duration::from_secs(30)).await;
+    let output = crate::gh_gate::read(command, Duration::from_secs(30)).await;
     match output {
         Ok(output) if output.status.success() => {
             let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
@@ -1155,7 +1166,7 @@ async fn job_log(binary: &OsStr, repo: &str, job: u64) -> Option<String> {
         "GET",
         &format!("/repos/{repo}/actions/jobs/{job}/logs"),
     ]);
-    let output = crate::cli_output::capture_command(command, Duration::from_secs(20))
+    let output = crate::gh_gate::read(command, Duration::from_secs(20))
         .await
         .ok()?;
     output

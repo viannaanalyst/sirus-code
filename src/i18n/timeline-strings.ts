@@ -10,6 +10,13 @@ const strings: Record<string, [string, string]> = {
   "timeline.waiting": ["Waiting for your response", "Aguardando sua resposta"],
   "timeline.starting": ["Starting", "Iniciando"],
   "timeline.thinking": ["Thinking", "Pensando"],
+  // The live row's latest thought (ADR-101).
+  "timeline.thought": ["Thinking: {thought}", "Pensando: {thought}"],
+  // Where a background subagent finished (ADR-101); its reply follows.
+  "timeline.marker.completed": ["Subagent {name} finished", "Subagente {name} concluído"],
+  "timeline.marker.failed": ["Subagent {name} failed", "Subagente {name} falhou"],
+  "timeline.marker.stopped": ["Subagent {name} stopped", "Subagente {name} parado"],
+  "timeline.marker.ended": ["Subagent {name} ended", "Subagente {name} encerrado"],
   "timeline.and": ["and", "e"],
   "timeline.more": ["and performed {count} other actions", "e realizou mais {count} ações"],
   "timeline.more.one": ["and performed 1 other action", "e realizou mais 1 ação"],

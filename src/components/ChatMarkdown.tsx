@@ -119,7 +119,8 @@ export function openLink(url: string, external: boolean) {
 }
 
 function openGallery(button: HTMLElement, url: string) {
-  const scope = button.closest("[data-message-id]") ?? document.body;
+  // A message (or another gallery scope, like a PR description) opens its own images together.
+  const scope = button.closest("[data-message-id], [data-gallery-scope]") ?? document.body;
   const images = [...scope.querySelectorAll<HTMLImageElement>("img.chat-image")].map((image) => ({ src: image.src, name: image.alt || image.src }));
   window.dispatchEvent(new CustomEvent(GALLERY_EVENT, { detail: { images, index: Math.max(0, images.findIndex((image) => image.src === url || image.src === new URL(url, location.href).href)) } }));
 }

@@ -66,7 +66,9 @@ export interface ActivityStep { id: string; kind: ActivityKind; label: string; s
 /** `detail` names what the step touched (path, command line, query, skill); `offset` is the reply length when it began (UTF-16), placing it in the text. */
 export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; detail?: string; offset?: number; output?: string; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number;
   /** Claude subagent launched with `run_in_background` (ADR-097); `timedOut` when the turn's limit stopped it. */
-  background?: boolean; timedOut?: boolean; }
+  background?: boolean; timedOut?: boolean;
+  /** A marker where a background subagent finished (ADR-101): `label` names it, `state` is its outcome; the reply after it is its own answer. */
+  finishedTask?: boolean; }
 export interface TurnReview {
   files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null })[];
   partial: boolean;
@@ -80,6 +82,8 @@ export interface TurnActivity {
   review?: TurnReview | null;
   provider: AgentProviderId; model: string | null; startedAt: number; endedAt: number | null;
   waitingSince: number | null; pausedMs: number; status: SessionStatus; items: ActivityItem[]; truncated: boolean;
+  /** First sentence of the agent's latest reasoning while the turn runs (ADR-101); live only, never in transcript files. */
+  thought?: string | null;
 }
 
 export interface Message {
@@ -234,6 +238,8 @@ export interface HandoffOrigin {
   brief: string;
   request: string;
   pending: boolean;
+  /** The recap went out with a prompt the provider has not taken yet (ADR-101). */
+  delivering?: boolean;
 }
 
 export interface Session {
@@ -264,6 +270,8 @@ export interface Session {
   contextUsage?: { used: number; window: number | null } | null;
   /** The last turn hit the provider's usage limit; `resetsAt` in UTC ms when reported. */
   usageLimit?: { resetsAt: number | null } | null;
+  /** When the person last pressed Stop (ADR-101); cleared by their next send. */
+  stoppedByUserAt?: string | null;
   execution?: ExecutionOptions;
   pendingRequests?: PendingRequest[];
   /** Coordinator sessions own a team plan and its progress (ADR-043). */

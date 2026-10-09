@@ -257,8 +257,8 @@ async fn api(
     binary: &OsStr,
     endpoint: &str,
 ) -> std::result::Result<serde_json::Value, LookupStatus> {
-    let result =
-        crate::cli_output::capture_command(command(binary, endpoint), Duration::from_secs(8)).await;
+    // Shared GitHub read gate: concurrency, rate-limit pause, reuse (ADR-100).
+    let result = crate::gh_gate::read(command(binary, endpoint), Duration::from_secs(8)).await;
     match result {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(LookupStatus::CliMissing),
         Err(_) => Err(LookupStatus::Unavailable),

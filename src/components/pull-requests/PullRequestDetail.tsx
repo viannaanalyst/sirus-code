@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { DiffViewer } from "@/components/DiffViewer";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import { PrWatchList } from "@/components/PrWatch";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { formatUnknownError } from "@/lib/format-error";
 import { agentDraft, mergeBlocker, splitDiff } from "@/lib/github-inbox";
 import { watchesFor } from "@/lib/pull-requests";
+import { prBodyMarkdown } from "@/lib/pr-body";
 import { relativeTime } from "@/lib/session-board";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
@@ -166,7 +168,7 @@ function Summary({ detail, onFixChecks, fixing }: { detail: GithubDetail; onFixC
   const latest = new Map<string, string>();
   for (const review of detail.reviews) if (review.author && review.state !== "COMMENTED") latest.set(review.author, review.state);
   return <div className="flex flex-col gap-5">
-    <div className="whitespace-pre-wrap ui-body text-text-secondary [overflow-wrap:anywhere] selectable">{detail.body.trim() || <span className="text-text-muted">{t("pulls.noDescription")}</span>}</div>
+    <PullRequestBody body={detail.body} />
     {detail.item.labels.length ? <div className="flex flex-wrap gap-1">{detail.item.labels.map((label) => <span key={label.name} className="pulls-label ui-caption" style={label.color ? { borderColor: `#${label.color}` } : undefined}>{label.name}</span>)}</div> : null}
     {detail.checks.length ? <Block title={t("pulls.checksTitle", { passed: detail.checks.filter((check) => check.status === "passed").length, total: detail.checks.length })} action={onFixChecks && detail.checks.some((check) => check.status === "failed") ? <button type="button" className="pulls-fix-checks ui-caption" disabled={fixing} onClick={onFixChecks}><Wrench size={12} />{t(fixing ? "pulls.fixingChecks" : "pulls.fixChecks")}</button> : null}>
       {detail.checks.map((check, index) => { const Icon = CHECK_ICON[check.status]; return <div key={`${check.name}:${index}`} className="flex items-center gap-2 py-1 ui-control">
@@ -184,6 +186,15 @@ function Summary({ detail, onFixChecks, fixing }: { detail: GithubDetail; onFixC
       {detail.files.map((file) => <div key={file.path} className="flex items-center gap-2 py-0.5 ui-caption"><span className="min-w-0 flex-1 truncate font-mono text-text-secondary">{file.path}</span><span className="pulls-add">+{file.additions}</span><span className="pulls-del">−{file.deletions}</span></div>)}
       {detail.filesTruncated ? <p className="pt-1 ui-caption text-text-muted">{t("pulls.filesTruncated")}</p> : null}
     </Block> : null}
+  </div>;
+}
+
+/** The PR description as chat Markdown: images open in the app gallery, links via openLink (ADR-102). */
+export function PullRequestBody({ body }: { body: string }) {
+  const t = useTranslation();
+  const markdown = useMemo(() => prBodyMarkdown(body), [body]);
+  return <div data-gallery-scope="" className="ui-body text-text-secondary [overflow-wrap:anywhere] selectable">
+    {markdown ? <ChatMarkdown text={markdown} /> : <span className="text-text-muted">{t("pulls.noDescription")}</span>}
   </div>;
 }
 
