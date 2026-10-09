@@ -22,3 +22,7 @@ Measured in WebKit (Playwright's WebKit, same engine as the app's WKWebView): `@
 - Popovers whose content changes while typing (model picker, composer suggestions, landing pickers) do not cascade unless they opt in. Even then, only direct children would animate, never the results inside a list.
 - A row still animating when the switcher gets a query or closes jumps to its final state. Exits never cascade.
 - `scripts/verify-cascade.mjs` renders the switcher, Environment card and Settings menu in SSR, with Radix portals rendered in place. It checks the attributes, the capped indices and the shared CSS.
+
+## 2026-10-08: sending a message
+
+The owner found sending abrupt: the message only faded in. Now a message just sent rises 30 px from the composer out of a 6 px blur (450 ms, `--ease-out`), and the reply's header follows 200 ms later (8 px). Only rows whose message was created within 1.5 s of mounting play it (`isFreshMessage`, `data-fresh`), so loading a transcript or switching sessions never animates history. It is off with animations off or reduced motion.

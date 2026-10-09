@@ -53,6 +53,7 @@ import { AstroHeader } from "@/components/astros/AstroHeader";
 import { AstroCards } from "@/components/astros/AstroCard";
 import type { ExecutionOptions, Message, Session } from "@/client/types";
 import { client } from "@/client";
+import { isFreshMessage } from "@/lib/fresh-message";
 import type { AgentInstall, AgentProviderId } from "@/client/types";
 import { selectCurrentProject, selectCurrentSession, selectCurrentSessionMeta, useAppStore } from "@/store/app-store";
 
@@ -351,6 +352,8 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   last?: boolean;
 }) {
   const t = useTranslation();
+  // A message just sent (or a reply just started) rises in once; history never animates.
+  const [fresh] = useState(() => isFreshMessage(message.createdAt));
   const register = useCallback((node: HTMLElement | null) => {
     if (node) nodes.current.set(message.id, node); else nodes.current.delete(message.id);
   }, [nodes, message.id]);
@@ -402,7 +405,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
     });
   };
   return (
-    <article data-message-id={message.id} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
+    <article data-message-id={message.id} data-fresh={fresh ? message.role : undefined} ref={register} tabIndex={-1} style={messageSizeStyle(message)} className={`selectable min-w-0 rounded-[7px] outline-none ${message.role === "user" ? "group/user flex max-w-[85%] flex-col items-end self-end" : "w-full self-start"}`}>
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
