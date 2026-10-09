@@ -29,7 +29,7 @@ try {
     useAppStore.setState({ sessions: [session], activityNotifications: [notice] });
     const activity = renderToString(createElement(ActivityNotifications));
     assert.ok(activity.includes(translate(locale, "Open session")));
-    assert.ok(activity.includes('data-variant="info"'), "requests are not success messages");
+    assert.ok(activity.includes('data-kind="question"'), "requests are not success messages");
     Object.assign(snapshot, { activityNotifications: [{ ...notice, createdAt: 0 }] });
     useAppStore.setState({ activityNotifications: [{ ...notice, createdAt: 0 }] });
     assert.ok(!renderToString(createElement(ActivityNotifications)).includes("Answer needed"), "expired notices never replay on remount");

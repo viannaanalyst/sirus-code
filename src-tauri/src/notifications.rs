@@ -254,6 +254,16 @@ fn bounded_label(value: &str) -> String {
 /// on bootstrap, metadata edits or renderer snapshots.
 /// A native-originated status alert that is not tied to a pending request
 /// (CI auto-fix green/paused). It honours the person's channel preferences.
+/// "Project · Session", or the name once when the session is titled like its project.
+fn notice_body(project: &str, session: &str) -> String {
+    let (project, session) = (bounded_label(project), bounded_label(session));
+    if session.trim().is_empty() || session.trim().eq_ignore_ascii_case(project.trim()) {
+        project
+    } else {
+        format!("{project} · {session}")
+    }
+}
+
 pub fn announce(app: &AppHandle, state: &Arc<AppState>, title: String, body: String) {
     let (prefs, foreground) = {
         let data = state.data.lock();
@@ -313,11 +323,7 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
         };
         let current = candidates(session);
         let prefs = data.settings.notifications.clone();
-        let body = format!(
-            "{} · {}",
-            bounded_label(&project.name),
-            bounded_label(&session.title)
-        );
+        let body = notice_body(&project.name, &session.title);
         let portuguese = data.settings.locale == "pt-BR";
         let foreground = app
             .get_webview_window("main")
@@ -534,6 +540,15 @@ pub async fn notification_action(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_session_named_like_its_project_shows_the_name_once() {
+        assert_eq!(notice_body("dp-inchurch", "dp-inchurch"), "dp-inchurch");
+        assert_eq!(
+            notice_body("dp-inchurch", "Ajustes do rateio"),
+            "dp-inchurch · Ajustes do rateio"
+        );
+    }
     fn session() -> Session {
         serde_json::from_value(serde_json::json!({
             "id": "session", "title": "Work", "projectId":"project", "agent":"codex", "status":"running",
