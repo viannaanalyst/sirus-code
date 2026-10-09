@@ -272,6 +272,10 @@ export interface Session {
   usageLimit?: { resetsAt: number | null } | null;
   /** When the person last pressed Stop (ADR-101); cleared by their next send. */
   stoppedByUserAt?: string | null;
+  /** RFC 3339 instant a snoozed conversation returns (ADR-103); hidden from tabs and lists until then. */
+  snoozedUntil?: string | null;
+  /** When a snooze reminder fired (ADR-103); the conversation reads as unread until opened. */
+  snoozeReminderAt?: string | null;
   execution?: ExecutionOptions;
   pendingRequests?: PendingRequest[];
   /** Coordinator sessions own a team plan and its progress (ADR-043). */
@@ -322,7 +326,7 @@ export interface NotificationPreferences {
 }
 export type NotificationPermission = "prompt" | "granted" | "denied" | "unsupported";
 export type NotificationAction = { type: "status" | "request" | "test" | "settings" } | { type: "preview"; sound: NotificationSound };
-export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion" | "failure"; title: string; body: string; createdAt: number; }
+export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion" | "failure" | "reminder"; title: string; body: string; createdAt: number; }
 
 export interface SkillOwner { projectId: string | null; sessionId: string | null }
 export interface WorkspaceFileSuggestion { path: string; isDir: boolean }

@@ -40,6 +40,26 @@ try {
   assert.ok([...switcher.matchAll(/<button[^>]*class="header-switcher-footer[^"]*"[^>]*>/g)].every(match => /data-cascade-item=""[^>]*--cascade-index:10/.test(match[0])), "footer actions follow the rows");
   assert.ok(tag(switcher, 'class="header-switcher-title"').includes('data-cascade-item=""'), "the session column title leads its rows");
   assert.deepEqual([...switcher.matchAll(/class="header-switcher-session"[^>]*>/g)].map(match => Number(match[0].match(/--cascade-index:(\d+)/)?.[1])), [1, 2, 3], "session rows follow the column title");
+
+  // Snoozed conversations (ADR-103) leave the session rows for a group at the end of the column:
+  // its toggle and rows follow the rows in the cascade, each with a moon, the title and a countdown.
+  // A turn that starts in a snoozed conversation brings it back to the rows.
+  const rowsBefore = snapshot.sessions;
+  const later = new Date(Date.now() + (2 * 60 + 10) * 60_000 - 30_000).toISOString();
+  snapshot.sessions = [...rowsBefore, { ...rowsBefore[0], id: "four", title: "Session four", status: "completed", snoozedUntil: later }, { ...rowsBefore[0], id: "five", title: "Session five", status: "running", snoozedUntil: later }];
+  const withSnoozed = render(createElement(HeaderTabs));
+  assert.deepEqual([...withSnoozed.matchAll(/class="header-switcher-session"[^>]*>/g)].map(match => match[0].match(/data-session-row="(\w+)"/)?.[1]), ["one", "two", "three", "five"], "a snoozed conversation leaves the rows; a running one stays");
+  const group = tag(withSnoozed, 'class="header-switcher-snoozed"');
+  assert.ok(group.includes('role="group"') && /aria-label="(Snoozed|Adiadas) \(1\)"/.test(group), "the group names its count");
+  const toggle = tag(withSnoozed, 'class="header-switcher-snoozed-toggle"');
+  assert.ok(toggle.includes('aria-expanded="true"') && /--cascade-index:5/.test(toggle), "the group toggle follows the rows");
+  const snoozedRow = withSnoozed.slice(withSnoozed.indexOf('class="header-switcher-session header-switcher-snoozed-row"'));
+  assert.ok(/data-session-row="four"[^>]*--cascade-index:6/.test(tag(withSnoozed, 'class="header-switcher-session header-switcher-snoozed-row"')), "snoozed rows follow the toggle");
+  assert.ok(/Session four/.test(snoozedRow) && /(back in|volta em) 2 h 10 min/.test(snoozedRow), "the row shows its title and a live countdown");
+  assert.ok(/aria-label="(Return now|Voltar agora)"/.test(snoozedRow) && /aria-label="(Change time|Mudar horário)"/.test(snoozedRow), "the row offers Return now and Change time");
+  assert.ok(!/class="header-tab"[^>]*data-tab="four"/.test(withSnoozed), "a snoozed conversation has no header tab");
+  snapshot.sessions = rowsBefore;
+
   snapshot.projectSwitcherOpen = false;
   assert.ok(!render(createElement(HeaderTabs)).includes("data-cascade"), "a closed switcher renders no cascade");
 
@@ -72,5 +92,5 @@ try {
   assert.ok(CASCADE_WINDOW_MS >= 40 + CASCADE_CAP * 22 + 320, "the cascade window outlasts the last row");
   for (const file of ["src/components/arc/popover/popover.module.css", "src/components/arc/dropdown-menu/dropdown-menu.module.css"]) assert.ok(!readFileSync(file, "utf8").includes("@starting-style"), `${file} leaves the entrance to the shared keyframes`);
   assert.ok(!readFileSync("src/styles/sidebar.css", "utf8").includes("@keyframes sidebar-cascade-in"), "the sidebar uses the shared cascade");
-  console.log("Cascade: switcher, Environment card and Settings menu cascade on open with capped indices; popups enter on shared keyframes and respect motion settings");
+  console.log("Cascade: switcher (with its Snoozed group), Environment card and Settings menu cascade on open with capped indices; popups enter on shared keyframes and respect motion settings");
 } finally { await server.close(); }

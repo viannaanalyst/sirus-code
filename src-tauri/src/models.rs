@@ -343,6 +343,14 @@ pub struct Session {
     /// runs on its own (PR watch, CI auto-fix, Astro reports) starts a turn here.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stopped_by_user_at: Option<String>,
+    /// RFC 3339 instant the conversation returns from snooze (ADR-103); it is hidden from
+    /// session lists and tabs until then, and the native timer brings it back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snoozed_until: Option<String>,
+    /// When a snooze reminder fired (ADR-103): the conversation reads as unread until it
+    /// is opened, which clears this through `snooze_session` with no time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snooze_reminder_at: Option<String>,
     pub id: String,
     pub title: String,
     pub project_id: String,

@@ -9,6 +9,7 @@ import { mobileEnglish, mobilePortuguese } from "./mobile-strings";
 import { mcpEnglish, mcpPortuguese } from "./mcp-strings";
 import { secretEnglish, secretPortuguese } from "./secret-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
+import { snoozeEnglish, snoozePortuguese } from "./snooze-strings";
 import { astroEnglish, astroPortuguese } from "./astro-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
@@ -43,6 +44,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...mcpPortuguese,
     ...secretPortuguese,
     ...tabsPortuguese,
+    ...snoozePortuguese,
     ...astroPortuguese,
     ...timelinePortuguese,
     ...teamPortuguese,
@@ -112,6 +114,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...mcpEnglish,
     ...secretEnglish,
     ...tabsEnglish,
+    ...snoozeEnglish,
     ...astroEnglish,
     ...timelineEnglish,
     ...teamEnglish,

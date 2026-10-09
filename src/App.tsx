@@ -16,6 +16,7 @@ import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { WindowSnapToast } from "@/components/WindowSnapToast";
 import { WorktreeReleaseToast } from "@/components/WorktreeReleaseToast";
+import { SnoozeToast } from "@/components/SnoozeToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -348,6 +349,7 @@ export default function App() {
           <ErrorToast />
           <WindowSnapToast />
           <WorktreeReleaseToast />
+          <SnoozeToast />
           <ActivityNotifications />
           <ProviderUpdateToast />
           <ImageGalleryHost />

@@ -17,6 +17,7 @@
 .icon { display: inline-flex; width: 17px; color: var(--text-secondary); }
 .item > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .destructive .icon { color: currentColor; }
+.hint { display: block; padding-bottom: 5px; overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .item, .highlight { transition: none; } }
 
 }

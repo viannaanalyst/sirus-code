@@ -1,9 +1,11 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, ChevronDown, FolderPlus, GitCompareArrows, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw } from "@/components/icons/phosphor";
+import { Archive, ChevronDown, Clock3, FolderPlus, GitCompareArrows, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
 import type { Project, Session } from "@/client/types";
 import { ProjectActions } from "@/components/ProjectActions";
 import { SessionActionDialog } from "@/components/SessionActions";
+import { SnoozeCountdown, SnoozePicker } from "@/components/SnoozePicker";
+import { canSnooze, snoozeDeadline } from "@/lib/snooze";
 import { ProjectEditDialog } from "@/components/SidebarRows";
 import { relativeTime } from "@/lib/session-board";
 import { moveSidebarProject, sidebarGroups, toggleSidebarId } from "@/lib/sidebar-layout";
@@ -15,7 +17,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
-import { selectCurrentProject, useAppStore, selectListedSessions } from "@/store/app-store";
+import { selectCurrentProject, useAppStore, selectListedSessions, selectSnoozedSessions } from "@/store/app-store";
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import { cascadeIndex, useCascade } from "@/lib/cascade";
 import "@/styles/header-tabs.css";
@@ -37,6 +39,17 @@ function StatusDot({ status, label }: { status: TabStatus; label?: string }) {
   return status === "idle" ? null : <span className="header-tab-status" data-status={status} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} />;
 }
 
+/** "Snooze…" for a session's menus (ADR-103); running or waiting ones say why they cannot. */
+function snoozeItem(t: (key: string) => string, session: Session, onSelect: () => void, group?: string) {
+  const allowed = canSnooze(session);
+  return { id: "snooze", label: t("snooze.menu"), icon: <Moon size={15} />, group, disabled: !allowed, hint: allowed ? undefined : t("snooze.activeHint"), onSelect };
+}
+
+/** The element a menu's session row or tab occupies, so the snooze picker opens beside it. */
+function sessionAnchor(selector: string) {
+  return document.querySelector<HTMLElement>(selector);
+}
+
 function useWaitingSets() {
   const unseen = useAppStore(state => state.unseenSessionIds);
   const requests = useAppStore(state => state.computer?.requests);
@@ -54,6 +67,7 @@ function ProjectSwitcher() {
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
+  const snoozed = useAppStore(selectSnoozedSessions);
   const settings = useAppStore(state => state.settings);
   const diffs = useAppStore(state => state.projectDiffs);
   const open = useAppStore(state => state.projectSwitcherOpen);
@@ -64,6 +78,8 @@ function ProjectSwitcher() {
   const [focus, setFocus] = useState<string | null>(null);
   const [editing, setEditing] = useState<Project | null>(null);
   const [sessionAction, setSessionAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
+  const [snoozing, setSnoozing] = useState<{ session: Session; anchor: HTMLElement } | null>(null);
+  const [snoozedOpen, setSnoozedOpen] = useState(true);
   const list = useRef<HTMLDivElement>(null);
   // Projects reorder by dragging, as they did in the sidebar (pinned and unpinned apart).
   const reorder = usePointerReorder({
@@ -85,6 +101,10 @@ function ProjectSwitcher() {
   const focused = rows.find(row => row.id === focus) ?? rows.find(row => row.id === project?.id) ?? rows[0] ?? null;
   const pinned = new Set(settings.pinnedSessionIds);
   const shown = focused ? ordered.filter(session => session.projectId === focused.id && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
+  // Snoozed conversations wait under their own group at the end of the column (ADR-103).
+  const archived = new Set(settings.archivedSessionIds);
+  const snoozedHere = focused ? snoozed.filter(session => session.projectId === focused.id && !archived.has(session.id) && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
+  const snoozeFrom = (session: Session) => { const anchor = sessionAnchor(`[data-session-row="${session.id}"]`); if (anchor) setSnoozing({ session, anchor }); };
   // A waiting session in another project is never invisible.
   const elsewhere = projects.some(row => row.id !== project?.id && projectStatus(row.id, sessions, unseen, computer) === "waiting");
   const close = () => { setOpen(false); setQuery(""); setFocus(null); };
@@ -168,8 +188,9 @@ function ProjectSwitcher() {
               { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, onSelect: () => { close(); setSessionAction({ session, kind: "rename" }); } },
               { id: "pin", label: t(isPinned ? "Unpin session" : "Pin session"), icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onSelect: () => togglePin(session.id) },
               { id: "archive", label: t("Archive session"), icon: <Archive size={15} />, onSelect: () => { close(); useAppStore.getState().requestArchive(session.id); } },
+              snoozeItem(t, session, () => snoozeFrom(session)),
               { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: active, onSelect: () => { close(); setSessionAction({ session, kind: "delete" }); } },
-            ]}><div className="header-switcher-session" data-cascade-item="" style={cascadeIndex(index + 1)} data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
+            ]}><div className="header-switcher-session" data-session-row={session.id} data-cascade-item="" style={cascadeIndex(index + 1)} data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
               <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
                 <ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" />
                 <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
@@ -186,8 +207,34 @@ function ProjectSwitcher() {
             </div></ContextMenu>;
           })}
           {!shown.length && <p className="header-switcher-empty">{t(needle ? "tabs.noSessionsMatch" : "Sessions you start will show up here")}</p>}
+          {snoozedHere.length ? <div className="header-switcher-snoozed" role="group" aria-label={t("snooze.group", { count: snoozedHere.length })}>
+            <button type="button" className="header-switcher-snoozed-toggle" data-cascade-item="" style={cascadeIndex(shown.length + 1)} aria-expanded={snoozedOpen} onClick={() => setSnoozedOpen(value => !value)}>
+              <ChevronDown size={12} aria-hidden="true" data-open={snoozedOpen || undefined} />{t("snooze.group", { count: snoozedHere.length })}
+            </button>
+            {snoozedOpen ? snoozedHere.map((session, index) => <ContextMenu key={session.id} activation="context-only" label={t("session.actions")} items={[
+              { id: "return", label: t("snooze.returnNow"), icon: <Undo2 size={15} />, onSelect: () => void useAppStore.getState().snoozeSession(session.id, null) },
+              { id: "change", label: t("snooze.changeTime"), icon: <Clock3 size={15} />, onSelect: () => snoozeFrom(session) },
+            ]}><div className="header-switcher-session header-switcher-snoozed-row" data-session-row={session.id} data-cascade-item="" style={cascadeIndex(shown.length + 2 + index)}
+              title={t("snooze.snoozedRow", { when: snoozeDeadline(new Date(session.snoozedUntil!), new Date(), settings.locale, t) })}>
+              <span className="header-switcher-session-open">
+                <Moon size={13} aria-hidden="true" className="shrink-0 text-text-muted" />
+                <span className="header-switcher-snoozed-text">
+                  <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
+                  <span className="header-switcher-countdown"><SnoozeCountdown until={session.snoozedUntil!} /></span>
+                </span>
+              </span>
+              <span className="header-switcher-trail">
+                <span className="header-switcher-actions header-switcher-snoozed-actions">
+                  <button type="button" aria-label={t("snooze.returnNow")} title={t("snooze.returnNow")} onClick={() => void useAppStore.getState().snoozeSession(session.id, null)}><Undo2 size={13} /></button>
+                  <button type="button" aria-label={t("snooze.changeTime")} title={t("snooze.changeTime")} onClick={() => snoozeFrom(session)}><Clock3 size={13} /></button>
+                </span>
+              </span>
+            </div></ContextMenu>) : null}
+          </div> : null}
         </div>
       </div> : null}
+      {/* Inside the switcher's tree, so choosing a time does not dismiss the switcher. */}
+      <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
     </PopoverContent>
   </Popover>
   {editing ? <ProjectEditDialog project={editing} open onOpenChange={value => { if (!value) setEditing(null); }} /> : null}
@@ -241,6 +288,7 @@ export function HeaderTabs() {
   const [leaving, setLeaving] = useState<string | null>(null);
   const [menuTab, setMenuTab] = useState<string | null>(null);
   const [tabAction, setTabAction] = useState<{ id: string; kind: "rename" | "delete" } | null>(null);
+  const [tabSnooze, setTabSnooze] = useState<{ session: Session; anchor: HTMLElement } | null>(null);
   const tabActionSession = tabAction ? sessions.find(session => session.id === tabAction.id) ?? null : null;
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -294,6 +342,10 @@ export function HeaderTabs() {
         { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
         { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedItems.some(item => item.kind === "session"), onSelect: () => store().reopenHeaderTab() },
         { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "session", onSelect: () => setTabAction({ id: menuTab, kind: "rename" }) },
+        ...(() => {
+          const session = tabs.find(tab => tab.id === menuTab);
+          return session ? [snoozeItem(t, session, () => { const anchor = sessionAnchor(`[data-tab="${session.id}"]`); if (anchor) setTabSnooze({ session, anchor }); }, "session")] : [];
+        })(),
         { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "session", destructive: true, disabled: ["starting", "running", "waiting"].includes(tabs.find(tab => tab.id === menuTab)?.status ?? ""), onSelect: () => setTabAction({ id: menuTab, kind: "delete" }) },
       ] : []}>
       <div ref={list} className="header-tabs-list" data-reorder-scope="" role="tablist" aria-label={t("tabs.label")}
@@ -345,5 +397,6 @@ export function HeaderTabs() {
       <button type="button" onClick={() => { setToast(null); store().reopenHeaderTab(); }}>{t("tabs.undo")}</button>
     </motion.div>}</AnimatePresence>
     {tabActionSession ? <SessionActionDialog session={tabActionSession} action={tabAction?.kind ?? null} onClose={() => setTabAction(null)} /> : null}
+    <SnoozePicker session={tabSnooze?.session ?? null} anchor={tabSnooze?.anchor ?? null} onClose={() => setTabSnooze(null)} />
   </div>;
 }

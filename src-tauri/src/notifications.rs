@@ -84,6 +84,9 @@ pub enum Kind {
     Completion,
     /// A turn ended in an error (ADR-086); follows the completion switch and sound.
     Failure,
+    /// A snoozed conversation came back (ADR-103). The person asked for it, so no event
+    /// switch hides it; the channels (toasts, system, sounds, foreground) still apply.
+    Reminder,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,6 +182,7 @@ fn choice(prefs: &Preferences, kind: Kind) -> (bool, Sound) {
         Kind::Permission => (prefs.permissions, prefs.permission_sound),
         Kind::Question => (prefs.questions, prefs.question_sound),
         Kind::Completion | Kind::Failure => (prefs.completion, prefs.completion_sound),
+        Kind::Reminder => (true, prefs.completion_sound),
     }
 }
 fn copy(kind: Kind, portuguese: bool) -> &'static str {
@@ -191,6 +195,8 @@ fn copy(kind: Kind, portuguese: bool) -> &'static str {
         (Kind::Completion, false) => "Task completed",
         (Kind::Failure, true) => "A tarefa falhou",
         (Kind::Failure, false) => "Task failed",
+        (Kind::Reminder, true) => "Lembrete",
+        (Kind::Reminder, false) => "Reminder",
     }
 }
 /// What a phone alert adds under the title (ADR-086): the command or files awaiting
@@ -239,6 +245,7 @@ fn detail(session: &Session, key: &str, kind: Kind, portuguese: bool) -> Option<
             .find(|message| message.role == MessageRole::Agent)
             .and_then(|message| line(&message.content)),
         Kind::Failure => session.last_error.as_deref().and_then(line),
+        Kind::Reminder => None,
     }
 }
 
@@ -295,6 +302,85 @@ pub fn announce(app: &AppHandle, state: &Arc<AppState>, title: String, body: Str
     }
     #[cfg(not(target_os = "macos"))]
     let _ = foreground;
+}
+
+/// The identity of one snooze reminder (ADR-103): a session returns once per wake.
+fn reminder_key(session: &Session) -> Option<String> {
+    let at = session.snooze_reminder_at.as_deref()?;
+    session
+        .snoozed_until
+        .is_none()
+        .then(|| format!("{}:reminder:{at}", session.id))
+}
+
+/// "Reminder" with the conversation's title, when a snoozed session comes back (ADR-103).
+/// Called by the native snooze timer, also while the window is hidden; a click opens the
+/// session like any activity alert.
+pub fn remind(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
+    let app = app.clone();
+    let dispatcher = app.clone();
+    let state = state.clone();
+    let id = session_id.to_string();
+    let _ = dispatcher.run_on_main_thread(move || {
+        let data = state.data.lock();
+        if state.closing.load(std::sync::atomic::Ordering::Acquire) {
+            return;
+        }
+        let Some(session) = data.sessions.iter().find(|session| session.id == id) else {
+            return;
+        };
+        let Some(project) = data
+            .projects
+            .iter()
+            .find(|project| project.id == session.project_id)
+        else {
+            return;
+        };
+        let Some(key) = reminder_key(session) else {
+            return;
+        };
+        let prefs = data.settings.notifications.clone();
+        let portuguese = data.settings.locale == "pt-BR";
+        let notice = Notice {
+            created_at: chrono::Utc::now().timestamp_millis(),
+            id: key,
+            session_id: id.clone(),
+            kind: Kind::Reminder,
+            title: copy(Kind::Reminder, portuguese).into(),
+            body: notice_body(&project.name, &session.title),
+        };
+        drop(data);
+        if !remember(
+            &mut app.state::<NotificationState>().seen.lock(),
+            &notice.id,
+        ) {
+            return;
+        }
+        let foreground = app
+            .get_webview_window("main")
+            .is_some_and(|window| window.is_focused().unwrap_or(true));
+        let eligible = !foreground || prefs.foreground;
+        crate::remote::notify(&notice.title, &notice.body, &notice.session_id);
+        if prefs.toasts {
+            let _ = app.emit("notification-activity", &notice);
+        }
+        #[cfg(target_os = "macos")]
+        {
+            if prefs.sounds && eligible {
+                let _ = platform::play(choice(&prefs, Kind::Reminder).1);
+            }
+            if prefs.system && eligible {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(error) = platform::show(&app, &notice).await {
+                        tracing::debug!(%error, "system reminder unavailable");
+                    }
+                });
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = eligible;
+    });
 }
 
 pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
@@ -428,7 +514,11 @@ fn current_notice(data: &crate::models::AppData, notice: &Notice, foreground: bo
     data.projects
         .iter()
         .any(|project| project.id == session.project_id)
-        && candidates(session).contains(&(notice.id.clone(), notice.kind))
+        && if notice.kind == Kind::Reminder {
+            reminder_key(session).as_deref() == Some(notice.id.as_str())
+        } else {
+            candidates(session).contains(&(notice.id.clone(), notice.kind))
+        }
         && prefs.system
         && choice(prefs, notice.kind).0
         && (!foreground || prefs.foreground)
@@ -686,6 +776,43 @@ mod tests {
         assert!(!current_notice(&data, &notice, false));
         data.sessions.clear();
         assert!(!current_notice(&data, &notice, false));
+    }
+    #[test]
+    fn a_reminder_is_current_until_the_session_is_snoozed_again_or_opened() {
+        let mut data = crate::models::AppData::default();
+        data.projects.push(crate::models::Project {
+            id: "project".into(),
+            name: "Project".into(),
+            path: "/workspace".into(),
+            added_at: "time".into(),
+            last_opened_at: "time".into(),
+            look: Default::default(),
+            scripts: Default::default(),
+        });
+        let mut session = session();
+        session.status = SessionStatus::Completed;
+        assert_eq!(reminder_key(&session), None);
+        session.snooze_reminder_at = Some("2026-10-09T09:00:00Z".into());
+        let id = reminder_key(&session).unwrap();
+        data.sessions.push(session);
+        let notice = Notice {
+            id,
+            kind: Kind::Reminder,
+            session_id: "session".into(),
+            title: "Lembrete".into(),
+            body: "Project · Work".into(),
+            created_at: 0,
+        };
+        // Reminders follow the channels, not the completion switch.
+        data.settings.notifications.completion = false;
+        assert!(current_notice(&data, &notice, false));
+        assert!(!current_notice(&data, &notice, true));
+        data.sessions[0].snoozed_until = Some("2026-10-10T09:00:00Z".into());
+        assert!(!current_notice(&data, &notice, false));
+        data.sessions[0].snoozed_until = None;
+        data.sessions[0].snooze_reminder_at = None;
+        assert!(!current_notice(&data, &notice, false));
+        assert_eq!(copy(Kind::Reminder, true), "Lembrete");
     }
     #[test]
     fn closed_preferences_migrate_and_round_trip() {

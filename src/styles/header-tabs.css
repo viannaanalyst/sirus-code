@@ -97,4 +97,32 @@
 
   html:is([data-animations="off"], [data-reduce-motion="on"]) :is(.header-tab, .header-tab-status, .header-tabs-toast, .header-tab-title > span) { animation: none !important; }
   @media (prefers-reduced-motion: reduce) { .header-tab, .header-tab-status, .header-tabs-toast, .header-tab-title > span { animation: none !important; } .header-tabs-glider { transition: opacity var(--motion-fast); } }
+  /* Snoozed conversations (ADR-103): a collapsible group at the end of the session column. */
+  .header-switcher-snoozed { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
+  .header-switcher-snoozed-toggle { display: flex; align-items: center; gap: 6px; width: 100%; height: 26px; padding: 0 9px; border-radius: var(--radius-md); color: var(--text-muted); font-size: 11px; font-weight: 500; text-align: left; }
+  .header-switcher-snoozed-toggle:hover { background: var(--navigation-hover); color: var(--text-secondary); }
+  .header-switcher-snoozed-toggle svg { rotate: -90deg; transition: rotate var(--motion-fast) var(--ease-out); }
+  .header-switcher-snoozed-toggle svg[data-open] { rotate: 0deg; }
+  .header-switcher-snoozed-row .header-switcher-session-open { height: 40px; cursor: default; }
+  .header-switcher-snoozed-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+  .header-switcher-countdown { overflow: hidden; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+  .header-switcher-snoozed-row:is(:hover, :focus-within) .header-switcher-snoozed-actions { visibility: visible; }
+
+  /* Snooze picker: presets, then a date and time (ADR-103). */
+  .snooze-picker { width: 260px; padding: 5px; border-radius: 12px; font-size: var(--text-ui-12); }
+  .snooze-picker-title { margin: 0; padding: 5px 9px 6px; overflow: hidden; color: var(--text-muted); font-size: 11px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .snooze-picker-row { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 9px; border-radius: var(--radius-md); color: var(--text-secondary); text-align: left; }
+  .snooze-picker-row:hover, .snooze-picker-row:focus-visible { background: var(--navigation-hover); color: var(--text-primary); outline: none; }
+  .snooze-picker-row svg { flex-shrink: 0; color: var(--text-muted); }
+  .snooze-picker-hint { flex-shrink: 0; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .snooze-picker-custom { overflow: hidden; }
+  .snooze-picker-fields { display: grid; grid-template-columns: 1fr 96px; gap: 6px; padding: 6px 4px 4px; }
+  .snooze-picker-fields label { display: flex; min-width: 0; flex-direction: column; gap: 3px; color: var(--text-muted); font-size: 11px; }
+  .snooze-picker-fields input { min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: var(--text-ui-12); font-variant-numeric: tabular-nums; outline: none; }
+  .snooze-picker-fields input:focus-visible { border-color: var(--focus-ring); }
+  .snooze-picker-confirm { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 3px; }
+  .snooze-picker-confirm .snooze-picker-hint { min-width: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .snooze-picker-confirm button { flex-shrink: 0; height: 26px; padding: 0 12px; border-radius: 999px; background: var(--navigation-selected); color: var(--text-primary); font-weight: 500; }
+  .snooze-picker-confirm button:disabled { opacity: .45; }
+  @media (prefers-reduced-motion: reduce) { .header-switcher-snoozed-toggle svg { transition: none; } }
 }

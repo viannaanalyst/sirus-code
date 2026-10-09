@@ -15,7 +15,7 @@ function openSession(notice: ActivityNotification) {
   dismiss(notice.id);
 }
 
-const badge: Record<ActivityNotification["kind"], string> = { completion: "✓", failure: "!", permission: "?", question: "?" };
+const badge: Record<ActivityNotification["kind"], string> = { completion: "✓", failure: "!", permission: "?", question: "?", reminder: "☾" };
 
 /** "agora", "2 min": when the notice arrived, kept short like a macOS notification. */
 function useAge(createdAt: number) {

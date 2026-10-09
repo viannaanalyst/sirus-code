@@ -20,7 +20,8 @@ export function resetNotificationSettings(settings: AppSettings): AppSettings {
   return { ...settings, notifications: { ...defaultNotifications } };
 }
 export function notificationLifetime(notice: ActivityNotification) { return notice.kind === "completion" ? 6500 : 12000; }
+/** Snooze reminders (ADR-103) were asked for, so only the toasts channel hides them. */
 export function retainActivityNotifications(notices: ActivityNotification[], prefs: NotificationPreferences, now = Date.now()) {
-  return notices.filter(notice => prefs.toasts && (notice.kind === "permission" ? prefs.permissions : notice.kind === "question" ? prefs.questions : prefs.completion)
+  return notices.filter(notice => prefs.toasts && (notice.kind === "permission" ? prefs.permissions : notice.kind === "question" ? prefs.questions : notice.kind === "reminder" || prefs.completion)
     && Number.isFinite(notice.createdAt) && now < notice.createdAt + notificationLifetime(notice)).slice(-8);
 }

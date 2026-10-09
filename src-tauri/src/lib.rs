@@ -72,6 +72,7 @@ mod side_chat;
 mod sidebar;
 mod sirus_tools;
 mod skills;
+mod snooze;
 mod tasks;
 mod team;
 mod text_search;
@@ -238,6 +239,7 @@ pub fn run() {
             notifications::install(app.handle());
             memory::watch_pressure(app.handle());
             automations::start(app.handle().clone());
+            snooze::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
             pr_watch::start(app.handle().clone());
             {
@@ -359,6 +361,7 @@ pub fn run() {
             commands::set_message_pinned,
             commands::set_session_agent,
             commands::rename_session,
+            snooze::snooze_session,
             commands::delete_session,
             commands::send_prompt,
             commands::stop_agent,

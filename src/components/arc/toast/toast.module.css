@@ -68,6 +68,31 @@
   line-height: var(--leading-body);
 }
 
+.action {
+  flex: 0 0 auto;
+  align-self: center;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .action:hover { background: var(--surface-muted); }
+}
+
+.action:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .close {
   display: grid;
   width: 2rem;

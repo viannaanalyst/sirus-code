@@ -19,6 +19,8 @@ export interface ContextMenuItem {
   checked?: boolean;
   /** Items of different groups are separated by a rule; destructive actions get their own group. */
   group?: string;
+  /** A short line under the label, such as why a disabled item is unavailable. */
+  hint?: string;
 }
 
 export interface ContextMenuProps {
@@ -151,7 +153,7 @@ export function ContextMenu({ children, items, label = "Context menu", activatio
         initial={reduced ? { opacity: 0 } : { opacity: 0, scale: .96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, transition: { duration: POPUP_EXIT, ease: [...motionTokens.ease.enter] } }} transition={{ duration: reduced ? motionTokens.duration.instant : POPUP_ENTER, ease: [...motionTokens.ease.enter] }}>
         <motion.span className={styles.highlight} data-tone={highlight?.danger ? "danger" : undefined} aria-hidden="true" initial={false} animate={highlight ? { y: highlight.top, height: highlight.height, opacity: 1 } : { opacity: 0 }} transition={{ default: highlight?.glide && !reduced ? motionTokens.spring.snappy : { duration: 0 }, opacity: { duration: reduced ? 0 : .08 } }}/>
         {items.map((item, index) => <Fragment key={item.id}>{index > 0 && (item.group ?? (item.destructive ? "danger" : "")) !== (items[index - 1].group ?? (items[index - 1].destructive ? "danger" : "")) ? <div role="separator" className={styles.separator} /> : null}<button type="button" role="menuitem" tabIndex={-1} data-index={index} data-tone={item.destructive ? "danger" : undefined} disabled={item.disabled} className={[styles.item, item.destructive ? styles.destructive : ""].filter(Boolean).join(" ")} onPointerMove={event => { if (!live.current) return; window.clearTimeout(clearTimer.current); if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }); if (highlight?.index !== index) place(event.currentTarget, true); }} onPointerLeave={() => { if (live.current) menuRef.current?.focus({ preventScroll: true }); }} onClick={() => { if (!live.current) return; live.current = false; item.onSelect?.(); setOpen(false); (restoreFocus.current?.isConnected ? restoreFocus.current : targetRef.current)?.focus(); }}>
-          <span className={styles.icon} aria-hidden="true">{item.icon ?? (item.checked ? <Check size={15} /> : null)}</span><span>{item.label}</span>
+          <span className={styles.icon} aria-hidden="true">{item.icon ?? (item.checked ? <Check size={15} /> : null)}</span><span>{item.label}{item.hint ? <span className={styles.hint}>{item.hint}</span> : null}</span>
         </button></Fragment>)}
       </motion.div>}
     </AnimatePresence>;

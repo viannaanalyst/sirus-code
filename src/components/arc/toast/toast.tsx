@@ -5,7 +5,9 @@ import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { AlertCircle, Info, X } from "@/components/icons/phosphor";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./toast.module.css";
-export interface ToastProps { title: string; description?: string; open?: boolean; onOpenChange?: (open: boolean) => void; duration?: number; variant?: "success" | "error" | "info"; dismissLabel?: string; }
+export interface ToastProps { title: string; description?: string; open?: boolean; onOpenChange?: (open: boolean) => void; duration?: number; variant?: "success" | "error" | "info"; dismissLabel?: string;
+  /** One inline action, such as Undo; choosing it also dismisses the toast. */
+  action?: { label: string; onSelect: () => void }; }
 
 const subscribeHydration = () => () => {};
 const exitFast: Transition = { duration: motionTokens.duration.fast, ease: [...motionTokens.ease.standard] };
@@ -55,7 +57,7 @@ function HeightFrame({ reduce, morphKey, children }: { reduce: boolean | null; m
   </motion.div>;
 }
 
-export default function Toast({ title, description, open = true, onOpenChange, duration = 4500, variant = "success", dismissLabel = "Dismiss notification" }: ToastProps) {
+export default function Toast({ title, description, open = true, onOpenChange, duration = 4500, variant = "success", dismissLabel = "Dismiss notification", action }: ToastProps) {
   const reduce = useReducedMotion();
   // Toasts that mount after hydration rise in from their edge; server-rendered ones start settled.
   const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
@@ -142,6 +144,7 @@ export default function Toast({ title, description, open = true, onOpenChange, d
           <strong className={styles.title}><AnimatePresence mode="popLayout" initial={false}><Swap key={title} className={styles.line} {...swap}>{title}</Swap></AnimatePresence></strong>
           <AnimatePresence mode="popLayout" initial={false}>{description ? <Swap key={description} className={styles.description} {...swap}>{description}</Swap> : null}</AnimatePresence>
         </HeightFrame>
+        {action ? <button className={styles.action} type="button" onClick={() => { action.onSelect(); dismiss(0); }}>{action.label}</button> : null}
         <button
           className={styles.close}
           type="button"

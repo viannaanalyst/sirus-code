@@ -4,6 +4,7 @@ import { acknowledgeEditorSave, editorKey } from "@/lib/editor-state";
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openTab as openTabRule, TAB_LIMIT, visibleTabSessions } from "@/lib/header-tabs";
 import { retainActivityNotifications } from "@/lib/notifications";
+import { isSnoozed } from "@/lib/snooze";
 import { initialSplit, leafShowing, splitDrop, splitLeaves, splitRemove, splitResize, splitSync, type SplitEdge, type SplitLayout, type SplitTarget } from "@/lib/split-layout";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
@@ -331,6 +332,13 @@ interface AppStore {
   /** ⌥⌘S: shows the selected session's side chat, or hides it when it is showing. */
   toggleSideChat: () => void;
   renameSession: (sessionId: string, title: string) => Promise<boolean>;
+  /**
+   * Snoozes a conversation until `until` (RFC 3339) or, with null, returns it now (ADR-103).
+   * Snoozing closes its tab (moving the selection like closing it would) and raises the undo toast.
+   */
+  snoozeSession: (sessionId: string, until: string | null) => Promise<boolean>;
+  /** The undo toast of the latest snooze (ADR-103). */
+  snoozeNotice: { id: number; sessionId: string; until: string; wasSelected: boolean } | null;
   deleteSession: (sessionId: string, removeWorktree: boolean) => Promise<boolean>;
   respondAgentRequest: (request: import("@/client/types").RespondAgentRequest) => Promise<boolean>;
   stopAgent: (sessionId?: string) => Promise<void>;
@@ -474,6 +482,10 @@ function clampDockWidth(width: number, state: Pick<AppStore, "sidebarCollapsed" 
 let navApplying = false;
 let previousStatuses = new Map<string, Session["status"]>();
 let previousSessionIds = new Set<string>();
+/** Snooze reminders already counted as unread, and those acknowledged by opening the session (ADR-103). */
+const noticedReminders = new Set<string>();
+const acknowledgedReminders = new Set<string>();
+let snoozeSequence = 0;
 let lastNavKey: string | null = null;
 
 function navKeyOf(fields: NavEntry): string {
@@ -885,6 +897,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
   worktreeReleaseNotice: null,
+  snoozeNotice: null,
   saveProjectScripts: async (projectId, setup, onFinish) => {
     try {
       const updated = await client.projectScriptsAction({ type: "save", projectId, setup: setup.trim() || null, onFinish: onFinish.trim() || null });
@@ -1646,6 +1659,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
+  snoozeSession: async (sessionId, until) => {
+    try {
+      const updated = await client.snoozeSession(sessionId, until);
+      const before = get();
+      const wasSelected = before.mainView === "session" && before.selectedSessionId === sessionId;
+      set((state) => ({ sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, snoozedUntil: updated.snoozedUntil ?? null, snoozeReminderAt: updated.snoozeReminderAt ?? null } : session) }));
+      const session = get().sessions.find((item) => item.id === sessionId);
+      if (!until || !session?.snoozedUntil) return true;
+      // The tab closes like any other; the neighbour is a tab that is still shown.
+      const state = get();
+      const tabs = state.openTabsByProject[session.projectId] ?? [];
+      const listed = new Set(selectListedSessions(state).map((item) => item.id));
+      const neighbor = closeTabRule(tabs.filter((id) => id === sessionId || listed.has(id)), sessionId).neighbor;
+      set({
+        openTabsByProject: tabs.includes(sessionId) ? { ...state.openTabsByProject, [session.projectId]: tabs.filter((id) => id !== sessionId) } : state.openTabsByProject,
+        snoozeNotice: { id: ++snoozeSequence, sessionId, until: session.snoozedUntil, wasSelected },
+        ...(wasSelected ? { selectedSessionId: neighbor } : {}),
+      });
+      if (wasSelected) {
+        if (neighbor) void get().selectSession(neighbor);
+        else get().requestNewSession();
+      }
+      return true;
+    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
+  },
   deleteSession: async (sessionId, removeWorktree) => {
     try {
       await client.deleteSession(sessionId, removeWorktree, true);
@@ -2286,13 +2324,29 @@ useAppStore.subscribe((state, previous) => {
     if (active[selected.projectId] !== selected.id) active = { ...active, [selected.projectId]: selected.id };
   }
   if (known && state.mainView === "session" && !state.selectedSessionId && !drafts[projectId!]) drafts = { ...drafts, [projectId!]: true };
+  // A conversation back from snooze (ADR-103) is unread and gets its tab back; opening it
+  // acknowledges the reminder natively, so it is unread again after a restart until then.
+  const returned: string[] = [];
+  for (const session of state.sessions) {
+    if (!session.snoozeReminderAt || session.snoozedUntil) continue;
+    const key = `${session.id}:${session.snoozeReminderAt}`;
+    if (selected?.id === session.id) {
+      if (!acknowledgedReminders.has(key)) { acknowledgedReminders.add(key); void useAppStore.getState().snoozeSession(session.id, null); }
+      continue;
+    }
+    if (noticedReminders.has(key)) continue;
+    noticedReminders.add(key);
+    returned.push(session.id);
+    if (!firstLoad && !session.astro && !session.sideChat) tabs = { ...tabs, [session.projectId]: openTabRule(tabs[session.projectId] ?? [], session.id, selected?.id ?? null) };
+  }
   const seen = !!selected && state.unseenSessionIds.includes(selected.id);
-  if (tabs === state.openTabsByProject && drafts === state.draftTabByProject && active === state.lastActiveTabByProject && !finished.length && !seen) return;
+  const unread = [...finished, ...returned];
+  if (tabs === state.openTabsByProject && drafts === state.draftTabByProject && active === state.lastActiveTabByProject && !unread.length && !seen) return;
   useAppStore.setState((current) => ({
     openTabsByProject: tabs,
     draftTabByProject: drafts,
     lastActiveTabByProject: active,
-    unseenSessionIds: finished.length || seen ? [...new Set([...current.unseenSessionIds, ...finished])].filter(id => id !== selected?.id) : current.unseenSessionIds,
+    unseenSessionIds: unread.length || seen ? [...new Set([...current.unseenSessionIds, ...unread])].filter(id => id !== selected?.id) : current.unseenSessionIds,
   }));
 });
 
@@ -2701,14 +2755,28 @@ export const selectSessionsMeta = (state: AppStore): Session[] => {
 
 let listedFrom: Session[] | null = null;
 let listed: Session[] = [];
-/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049), Astro conversations on the rail (ADR-069) and sessions an Astro hides in its replies (ADR-088). */
+/** Sessions shown in lists (sidebar, tabs, board, search): side chats live beside their parent (ADR-049), Astro conversations on the rail (ADR-069), sessions an Astro hides in its replies (ADR-088) and snoozed ones under "Snoozed" (ADR-103). */
 export const selectListedSessions = (state: AppStore): Session[] => {
   const meta = selectSessionsMeta(state);
   if (meta !== listedFrom) {
     listedFrom = meta;
-    listed = meta.some((session) => session.sideChat || session.astro || session.launchedBy?.hidden) ? meta.filter((session) => !session.sideChat && !session.astro && !session.launchedBy?.hidden) : meta;
+    listed = meta.some((session) => session.sideChat || session.astro || session.launchedBy?.hidden || isSnoozed(session)) ? meta.filter((session) => !session.sideChat && !session.astro && !session.launchedBy?.hidden && !isSnoozed(session)) : meta;
   }
   return listed;
+};
+
+let snoozedFrom: Session[] | null = null;
+let snoozed: Session[] = [];
+/** Snoozed conversations (ADR-103), soonest back first; a turn that starts in one brings it back to the lists. */
+export const selectSnoozedSessions = (state: AppStore): Session[] => {
+  const meta = selectSessionsMeta(state);
+  if (meta !== snoozedFrom) {
+    snoozedFrom = meta;
+    const next = meta.filter((session) => isSnoozed(session) && !session.sideChat && !session.astro && !session.launchedBy?.hidden)
+      .sort((a, b) => Date.parse(a.snoozedUntil ?? "") - Date.parse(b.snoozedUntil ?? ""));
+    snoozed = next.length === snoozed.length && next.every((session, index) => session === snoozed[index]) ? snoozed : next;
+  }
+  return snoozed;
 };
 
 let currentMeta: Session | null = null;

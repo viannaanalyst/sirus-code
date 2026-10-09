@@ -1061,6 +1061,8 @@ pub(crate) fn create_session_locked(
         launched_by: None,
         usage_limit: None,
         stopped_by_user_at: None,
+        snoozed_until: None,
+        snooze_reminder_at: None,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,

@@ -402,6 +402,11 @@ export class SirusClient {
     return this.transport.invoke<Session>("rename_session", { sessionId, title });
   }
 
+  /** Snoozes until `until` (RFC 3339), or returns the session now and clears its reminder with null (ADR-103). */
+  snoozeSession(sessionId: string, until: string | null) {
+    return this.transport.invoke<Session>("snooze_session", { sessionId, until });
+  }
+
   forkSession(sessionId: string, messageId: string) {
     return this.transport.invoke<Session>("fork_session", { sessionId, messageId });
   }
