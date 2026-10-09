@@ -12,6 +12,9 @@ pub fn support() -> AppearanceSupport {
     }
 }
 
+/// Bounds for kept terminal lines (the settings offer 2000, 5000 and 10000).
+pub const TERMINAL_SCROLLBACK: (u32, u32) = (1000, 10_000);
+
 pub fn validate(settings: &AppSettings) -> Result<()> {
     if settings.theme == ThemePref::Translucent {
         return Err(Error::new(
@@ -33,6 +36,13 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
         ("uiFontSize", settings.ui_font_size, 11, 18),
         ("codeFontSize", settings.code_font_size, 10, 22),
         ("terminalFontSize", settings.terminal_font_size, 10, 22),
+        // xterm keeps every scrollback line in memory, per terminal.
+        (
+            "terminalScrollback",
+            settings.terminal_scrollback,
+            TERMINAL_SCROLLBACK.0,
+            TERMINAL_SCROLLBACK.1,
+        ),
     ] {
         if !(min..=max).contains(&value) {
             return Err(Error::new(
@@ -56,6 +66,12 @@ pub fn normalize(settings: &mut AppSettings) {
         (&mut settings.ui_font_size, 11, 18, 13),
         (&mut settings.code_font_size, 10, 22, 13),
         (&mut settings.terminal_font_size, 10, 22, 13),
+        (
+            &mut settings.terminal_scrollback,
+            TERMINAL_SCROLLBACK.0,
+            TERMINAL_SCROLLBACK.1,
+            2000,
+        ),
     ] {
         if !(min..=max).contains(value) {
             *value = fallback;
@@ -390,6 +406,7 @@ mod tests {
             ("uiFontSize", 11, 18, 13),
             ("codeFontSize", 10, 22, 13),
             ("terminalFontSize", 10, 22, 13),
+            ("terminalScrollback", 1000, 10_000, 2000),
         ] {
             for value in [min, max] {
                 let settings: AppSettings =

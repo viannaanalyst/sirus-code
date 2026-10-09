@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { startTransition, useEffect, useId, useMemo, useRef, useState } from "react";
 import { FileDiff, MessageSquarePlus, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import type { FileChange } from "@/client/types";
@@ -11,6 +11,7 @@ import { useAppStore } from "@/store/app-store";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
+import { DIFF_HIGHLIGHT_LIMIT, DIFF_ROOT_MARGIN, diffCountFor, initialDiffCount, nextDiffCount, reservedDiffHeight } from "@/lib/diff-window";
 
 export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage, onComment, hideFileList = false }: { changes: FileChange[]; selected: FileChange | null; diff: string | null; onSelect: (change: FileChange) => void; emptyDiffMessage?: string; hideFileList?: boolean; onComment?: (selection: DiffComment) => boolean }) {
   // Chat behavior: wrap long lines instead of scrolling sideways.
@@ -22,6 +23,30 @@ export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage
   const [comment, setComment] = useState("");
   const [error, setError] = useState(false);
   const activeRange = range?.path === selected?.path && range?.diff === diff ? range : null;
+  // Large diffs mount in chunks (MonoCode-style): a sentinel below the last mounted row
+  // mounts the next chunk once it nears the viewport. A new diff starts from one chunk.
+  const scroller = useRef<HTMLDivElement>(null);
+  const sentinel = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState<{ diff: string | null; count: number }>({ diff: null, count: 0 });
+  const grown = shown.diff === diff ? shown.count : 0;
+  // A selected range is always mounted, so its rows stay highlighted.
+  const mounted = Math.max(grown, initialDiffCount(lines.length), activeRange ? diffCountFor(activeRange.to, lines.length) : 0);
+  const untracked = diff?.startsWith("+++ untracked\n") ?? false;
+  const highlighted = untracked && !onComment && lines.length <= DIFF_HIGHLIGHT_LIMIT;
+  const more = !highlighted && mounted < lines.length;
+  useEffect(() => {
+    const root = scroller.current, target = sentinel.current;
+    if (!more || !root || !target || typeof IntersectionObserver === "undefined") return;
+    // One observer per list; it is recreated per chunk, so a sentinel that is still near
+    // after a chunk mounts reports again and the next chunk follows.
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      startTransition(() => setShown({ diff, count: nextDiffCount(mounted, lines.length) }));
+    }, { root, rootMargin: DIFF_ROOT_MARGIN });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [more, diff, mounted, lines.length]);
   const choose = (from: number, to = from, extend = false) => {
     if (!selected || diff === null || !onComment) return;
     const anchor = extend && activeRange ? activeRange.anchor : from;
@@ -40,7 +65,7 @@ export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage
     {!selected ? <EmptyState title={t("Review changes")} description={t("Select a file to view its diff.")} icon={<FileDiff size={22} />} className="p-4" /> : diff === null ? <p role="status" className="p-3 ui-control text-text-muted">{t("Loading diff…")}</p> : <>
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border-subtle px-3 py-2"><span className="min-w-0 truncate font-mono ui-caption" title={selected.path}>{selected.path}</span><CopyButton value={diff} label={t("Copy diff")} /></div>
       {onComment && diff.length ? <p className="shrink-0 px-3 py-1 ui-micro text-text-muted">{t("review.commentHint")}</p> : null}
-      <div className="selectable scroll-thin min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label={t("diff.label", { path: selected.path })}
+      <div ref={scroller} className="selectable scroll-thin min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label={t("diff.label", { path: selected.path })}
         onPointerUp={event => {
           if (!onComment || (event.target as Element).closest("button")) return;
           const selection = window.getSelection();
@@ -50,10 +75,11 @@ export function DiffViewer({ changes, selected, diff, onSelect, emptyDiffMessage
           const start = row(picked.startContainer), end = row(picked.endContainer);
           if (start && end && event.currentTarget.contains(start) && event.currentTarget.contains(end)) choose(Number(start.dataset.diffIndex), Number(end.dataset.diffIndex));
         }}>
-        {diff.startsWith("+++ untracked\n") && !onComment ? <div className="p-2"><CodeBlock code={diff.slice("+++ untracked\n".length)} filename={selected.path} language={selected.path.split(".").at(-1) ?? "text"} animateChanges={false} /></div> : diff.length === 0 ? <p className="p-3 ui-control text-text-muted">{emptyDiffMessage ?? t("No textual diff available.")}</p> : <div className={cn("diff-code py-2 leading-5", !wrap && "min-w-max")}>
-          {lines.map((line, index) => <div key={index} data-diff-index={index} className={cn("flex pr-3", activeRange && index >= activeRange.from && index <= activeRange.to ? "bg-accent/20" : line.kind === "addition" ? "bg-success/10" : line.kind === "deletion" ? "bg-danger/10" : line.kind === "header" ? "bg-background-2" : "", line.kind === "addition" ? "text-success" : line.kind === "deletion" ? "text-danger" : line.kind === "header" ? "text-text-muted" : "text-text-secondary")}>
+        {highlighted ? <div className="p-2"><CodeBlock code={diff.slice("+++ untracked\n".length)} filename={selected.path} language={selected.path.split(".").at(-1) ?? "text"} animateChanges={false} /></div> : diff.length === 0 ? <p className="p-3 ui-control text-text-muted">{emptyDiffMessage ?? t("No textual diff available.")}</p> : <div className={cn("diff-code py-2 leading-5", !wrap && "min-w-max")}>
+          {lines.slice(0, mounted).map((line, index) => <div key={index} data-diff-index={index} className={cn("flex pr-3", activeRange && index >= activeRange.from && index <= activeRange.to ? "bg-accent/20" : line.kind === "addition" ? "bg-success/10" : line.kind === "deletion" ? "bg-danger/10" : line.kind === "header" ? "bg-background-2" : "", line.kind === "addition" ? "text-success" : line.kind === "deletion" ? "text-danger" : line.kind === "header" ? "text-text-muted" : "text-text-secondary")}>
             {onComment && line.kind !== "header" ? <button type="button" aria-label={t("review.selectLine", { old: line.oldLine ?? "—", new: line.newLine ?? "—" })} aria-pressed={!!activeRange && index >= activeRange.from && index <= activeRange.to} onClick={event => choose(index, index, event.shiftKey)} className="mr-2 flex w-[72px] shrink-0 select-none border-r border-border-subtle text-text-muted hover:bg-accent/20 focus-visible:outline-2 focus-visible:outline-accent"><span className="w-9 pr-1 text-right">{line.oldLine ?? ""}</span><span className="w-9 pr-2 text-right">{line.newLine ?? ""}</span></button> : <><span aria-hidden="true" className="w-9 shrink-0 select-none pr-1 text-right text-text-muted">{line.oldLine ?? ""}</span><span aria-hidden="true" className="mr-2 w-9 shrink-0 select-none border-r border-border-subtle pr-2 text-right text-text-muted">{line.newLine ?? ""}</span></>}<span className={wrap ? "min-w-0 whitespace-pre-wrap break-all" : "whitespace-pre"}>{line.content}</span>
           </div>)}
+          {more ? <div ref={sentinel} aria-hidden="true" data-diff-pending={lines.length - mounted} style={{ height: reservedDiffHeight(mounted, lines.length) }} /> : null}
         </div>}
       </div>
       {activeRange && onComment ? <form className="shrink-0 space-y-2 border-t border-border-subtle p-3" onSubmit={event => {

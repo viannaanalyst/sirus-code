@@ -79,8 +79,24 @@ try {
   // This response's retained data stays usable even when current git_status has unrelated files.
   useAppStore.setState({ gitStatus: { changes: [{ path: "unrelated.ts", kind: "modified", additions: 999, deletions: 999 }] } });
   assert.deepEqual(store().sessions[0].messages[0].activity.review.files.map((f) => f.path), review.files.map((f) => f.path));
+  // Large diffs mount one chunk first and reserve the rest behind a sentinel.
+  const { DiffViewer } = await server.ssrLoadModule("/src/components/DiffViewer.tsx");
+  const { DIFF_CHUNK } = await server.ssrLoadModule("/src/lib/diff-window.ts");
+  const bigDiff = `--- a/big.ts\n+++ b/big.ts\n@@ -0,0 +1,1000 @@\n${Array.from({ length: 1000 }, (_, i) => `+line ${i}`).join("\n")}\n`;
+  const big = { path: "big.ts", kind: "modified", additions: 1000, deletions: 0 };
+  const bigHtml = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: bigDiff, onSelect: () => {} }));
+  assert.equal(bigHtml.match(/data-diff-index=/g)?.length, DIFF_CHUNK, "only the first chunk is mounted");
+  assert.ok(bigHtml.includes(`data-diff-index="${DIFF_CHUNK - 1}"`) && !bigHtml.includes(`data-diff-index="${DIFF_CHUNK}"`));
+  const { reviewDiffLines } = await server.ssrLoadModule("/src/lib/diff-comment.ts");
+  assert.ok(bigHtml.includes(`data-diff-pending="${reviewDiffLines(bigDiff).length - DIFF_CHUNK}"`), "the remaining rows are reserved behind the sentinel");
+  const smallHtml = renderToString(createElement(DiffViewer, { changes: [file], selected: file, diff: file.diff, onSelect: () => {} }));
+  assert.ok(!smallHtml.includes("data-diff-pending"), "short diffs mount whole");
+  const untracked = (count) => `+++ untracked\n${Array.from({ length: count }, (_, i) => `const v${i} = ${i};`).join("\n")}\n`;
+  assert.ok(!renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(10), onSelect: () => {} })).includes("data-diff-index"), "short untracked files keep the highlighted block");
+  const longUntracked = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(DIFF_CHUNK * 3), onSelect: () => {} }));
+  assert.equal(longUntracked.match(/data-diff-index=/g)?.length, DIFF_CHUNK, "long untracked files use the chunked plain rows");
   useAppStore.setState({ selectedSessionId: "another", dockPanes: [] });
   store().openTurnReview("s", "m");
   assert.equal(store().dockPanes.length, 0);
-  console.log("Turn review: compact/localized/escaped historical summaries, owner-scoped dock and acknowledgment races verified.");
+  console.log("Turn review: compact/localized/escaped historical summaries, chunked large diffs, owner-scoped dock and acknowledgment races verified.");
 } finally { await server.close(); }

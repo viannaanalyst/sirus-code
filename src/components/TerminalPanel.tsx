@@ -33,8 +33,9 @@ export function TerminalTabsPane({ sessionId }: { sessionId: string }) {
   };
   const splitTerminalPane = useAppStore((state) => state.splitTerminalPane);
   const moveTerminalToOwnPane = useAppStore((state) => state.moveTerminalToOwnPane);
-  const settings = useAppStore((state) => state.settings);
-  const t = (key: string, params?: Record<string, string | number>) => translate(settings.locale, key, params);
+  // Only the locale: unrelated settings changes must not re-render terminals.
+  const locale = useAppStore((state) => state.settings.locale);
+  const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
 
   const bootstrapped = useRef(false);
   useEffect(() => {
@@ -117,8 +118,9 @@ function PaneHeader({
   onSelectTerminal: (terminalId: string) => void;
   onCloseTab: (terminalId: string) => void;
 }) {
-  const settings = useAppStore((state) => state.settings);
-  const t = (key: string, params?: Record<string, string | number>) => translate(settings.locale, key, params);
+  // Only the locale: unrelated settings changes must not re-render terminals.
+  const locale = useAppStore((state) => state.settings.locale);
+  const t = (key: string, params?: Record<string, string | number>) => translate(locale, key, params);
   return (
     <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border-subtle px-1.5">
       <div className="scroll-thin flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
@@ -196,11 +198,15 @@ function PaneHeader({
 function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: string; terminalId: string; visible: boolean }) {
   const systemPalette = useSystemPalette();
   const host = useRef<HTMLDivElement>(null);
-  const settings = useAppStore((state) => state.settings);
-  const appearanceSupport = useAppStore(state => state.hostInfo?.appearanceSupport);
-  const { background: terminalBackground, foreground: terminalForeground, cursor: terminalCursor } = terminalAppearance(settings, appearanceSupport, systemPalette);
-  const options = useRef(settings);
-  options.current = settings;
+  // Select only what the terminal reads, so other settings changes leave it alone.
+  const locale = useAppStore((state) => state.settings.locale);
+  const terminalFont = useAppStore((state) => state.settings.terminalFont);
+  const terminalFontSize = useAppStore((state) => state.settings.terminalFontSize);
+  const terminalCursorStyle = useAppStore((state) => state.settings.terminalCursorStyle);
+  const terminalScrollback = useAppStore((state) => state.settings.terminalScrollback);
+  const terminalBackground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).background);
+  const terminalForeground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).foreground);
+  const terminalCursor = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).cursor);
   const terminal = useRef<Terminal | null>(null);
   const refit = useRef<(() => void) | null>(null);
   const [generation, setGeneration] = useState(0);
@@ -209,11 +215,11 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const [selected, setSelected] = useState("");
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
-  const t = (key: string) => translate(settings.locale, key);
+  const t = (key: string) => translate(locale, key);
   useEffect(() => {
     const node = host.current;
     if (!node) return;
-    const settings = options.current;
+    const settings = useAppStore.getState().settings;
     let cancelled = false;
     let started = false;
     let exited = false;
@@ -285,9 +291,9 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     const term = terminal.current;
     if (!term) return;
     let cancelled = false;
-    term.options.fontSize = settings.terminalFontSize;
-    term.options.cursorStyle = settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block";
-    term.options.scrollback = settings.terminalScrollback;
+    term.options.fontSize = terminalFontSize;
+    term.options.cursorStyle = terminalCursorStyle === "bar" ? "bar" : terminalCursorStyle === "underline" ? "underline" : "block";
+    term.options.scrollback = terminalScrollback;
     term.options.theme = { background: terminalBackground, foreground: terminalForeground, cursor: terminalCursor };
     const fit = () => { if (!cancelled && terminal.current === term) refit.current?.(); };
     const frame = requestAnimationFrame(fit);
@@ -295,12 +301,12 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     // The public font option triggers measurement without restarting the owned PTY.
     const applyFont = () => {
       if (cancelled || terminal.current !== term) return;
-      term.options.fontFamily = monoFontFamily(settings.terminalFont);
+      term.options.fontFamily = monoFontFamily(terminalFont);
       fit();
     };
-    void document.fonts.load(`${settings.terminalFontSize}px ${monoFontFamily(settings.terminalFont)}`).then(applyFont).catch(applyFont);
+    void document.fonts.load(`${terminalFontSize}px ${monoFontFamily(terminalFont)}`).then(applyFont).catch(applyFont);
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [settings.terminalFont, settings.terminalFontSize, settings.terminalCursorStyle, settings.terminalScrollback, terminalBackground, terminalForeground, terminalCursor, generation]);
+  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalForeground, terminalCursor, generation]);
 
   useEffect(() => {
     if (!visible) return;
@@ -312,7 +318,10 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   }, [visible]);
 
   return (
-    <div className={cn("absolute inset-0 flex flex-col transition-opacity duration-[var(--motion-fast)]", visible ? "opacity-100" : "pointer-events-none opacity-0")} aria-hidden={!visible}>
+    // Inactive tabs stay mounted (their shell and history live in xterm) but are skipped:
+    // `visibility` + `content-visibility: hidden` stop layout, paint and compositing of
+    // their rows, so writes to a background terminal cost only parsing.
+    <div className={cn("absolute inset-0 flex flex-col transition-opacity duration-[var(--motion-fast)]", visible ? "opacity-100" : "pointer-events-none invisible opacity-0 [content-visibility:hidden]")} aria-hidden={!visible}>
       {error ? <p role="alert" className="p-2 ui-control text-danger">{error}</p> : null}
       {ended ? <button type="button" onClick={() => setGeneration((value) => value + 1)} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
       <div ref={host} className="min-h-0 flex-1 p-2" />

@@ -177,6 +177,8 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     uiFontSize: boundedInteger(value?.uiFontSize, 11, 18, 13),
     codeFontSize: boundedInteger(value?.codeFontSize, 10, 22, 13),
     terminalFontSize: boundedInteger(value?.terminalFontSize, 10, 22, 13),
+    // Each terminal keeps its scrollback lines in memory; the native side applies the same bounds.
+    terminalScrollback: boundedInteger(value?.terminalScrollback, 1000, 10_000, 2000),
     fontSmoothing: booleanPreference(value?.fontSmoothing, true),
     dockIcon: value?.dockIcon === "smokedGlass" || value?.dockIcon === "white" ? value.dockIcon : "default",
     locale: value?.locale === "en" ? "en" : "pt-BR",

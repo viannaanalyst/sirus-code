@@ -26,7 +26,7 @@ test("partial/legacy Appearance uses closed modes and independent, bounded prefe
   assert.equal(legacy.theme, "system");
   assert.equal(legacy.darkSidebarTranslucent, false);
   assert.equal(legacy.glass, true, "legacy compatibility does not enable native glass");
-  for (const [key, min, max, fallback] of [["darkWindowOpacity", 25, 100, 85], ["lightWindowOpacity", 25, 100, 85], ["uiFontSize", 11, 18, 13], ["codeFontSize", 10, 22, 13], ["terminalFontSize", 10, 22, 13], ["darkSidebarOpacity", 25, 100, 72], ["lightSidebarOpacity", 25, 100, 38], ["translucentOpacity", 25, 100, 85]] as const) {
+  for (const [key, min, max, fallback] of [["darkWindowOpacity", 25, 100, 85], ["lightWindowOpacity", 25, 100, 85], ["uiFontSize", 11, 18, 13], ["codeFontSize", 10, 22, 13], ["terminalFontSize", 10, 22, 13], ["darkSidebarOpacity", 25, 100, 72], ["lightSidebarOpacity", 25, 100, 38], ["translucentOpacity", 25, 100, 85], ["terminalScrollback", 1000, 10_000, 2000]] as const) {
     for (const invalid of [min - 1, max + 1, min + .5, NaN, Infinity, "13", null]) assert.equal(mergeSettings({ [key]: invalid } as never)[key], fallback);
     for (const valid of [min, max]) assert.equal(mergeSettings({ [key]: valid })[key], valid);
   }

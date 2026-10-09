@@ -409,6 +409,18 @@ Three renderer patterns from MonoCode (`AgentTranscript.tsx`, `sessionCache.ts`)
 
 **Not measured** in the running app (no build or launch in this pass).
 
+## MonoCode comparison: diffs and terminals (2026-10-08)
+
+Two patterns from MonoCode (`UnifiedDiffView.tsx`, `platform/tauri/pty.ts`, `TerminalView.tsx`).
+
+- **Large diffs mount in chunks.** `DiffViewer` (Changes pane, turn review, pull request detail) mounted one row per diff line. It now mounts the first 400 rows; a sentinel below the last row, watched by one `IntersectionObserver` per list (root: the diff's scroll area, 800 px bottom margin), mounts 400 more in a `startTransition`. The observer is recreated per chunk, so a sentinel still in range reports again. The sentinel reserves the height of the unmounted rows (20 px each), so the scrollbar reflects the whole diff. Row indices are positions in the full parsed diff, so line numbers, the comment range and "Copy diff" (the whole text) are unchanged; a selected comment range is always mounted. The diff rows themselves are not syntax-highlighted. Untracked files used the highlighted `CodeBlock` whole; now only files up to 400 lines do, longer ones use the chunked rows. The viewers show one file at a time, so there is no multi-file body to defer, and there is no jump-to-line in diffs yet (`diffCountFor` mounts up to a target row for one). Native find (⌘F in WebKit) sees only mounted rows. Covered in `tests/diff-window.test.ts` and `scripts/verify-turn-review.mjs`.
+- **Hidden terminals are skipped.** Inactive tabs were `opacity-0`, so they still laid out and composited and redrew on every write. They are now also `visibility: hidden` and `content-visibility: hidden`; they stay mounted because their shell lives with the xterm instance (an unmounted terminal stops its PTY). xterm still parses writes in the background, so terminal queries (cursor reports) keep working. Whether xterm's own render loop pauses depends on WebKit reporting skipped content as not intersecting to its observer; this was not measured.
+- **Terminals read only their settings.** Each `TerminalInstance`, pane header and tabs pane subscribed to the whole `settings` object, so any settings save re-rendered every terminal. They now select the locale, terminal font, size, cursor style, scrollback and the three resolved colours.
+- **Bounded scrollback.** Sirus has no native replay buffer: the PTY reader emits and forgets, and a terminal is never re-attached (closing it stops the shell). The kept history is xterm's scrollback, which was unbounded in stored settings. `terminalScrollback` is now bounded to 1000–10000 lines in `mergeSettings` and in Rust (`appearance::validate` / `normalize`, `TERMINAL_SCROLLBACK`), fallback 2000. Covered in `tests/appearance.test.ts` and the Rust range test.
+- **No terminal polling to pause.** Sirus runs no periodic process or cwd poll for terminals (the only `ps` in `pty_term.rs` is in a test), so MonoCode's hidden-document skip has no counterpart.
+
+**Not measured** in the running app (no build or launch in this pass).
+
 ## Optimized daily build (2026-10-08)
 
 The owner's daily app was an unoptimized debug build. MonoCode ships optimized builds. `[profile.dev]` now builds the app crate at opt-level 1 and every dependency at opt-level 2, with line-table debug info only. The bundle stays at `src-tauri/target/debug/bundle/macos/Sirus Code.app`. The first build after the change recompiles everything; later rebuilds of the app crate stay quick. The full release profile (LTO, one codegen unit) is kept for distribution.
