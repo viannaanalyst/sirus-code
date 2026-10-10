@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
 use tauri::State;
-use tokio::process::Command;
 
 use crate::commands::AppState;
 use crate::detect;
@@ -45,6 +44,29 @@ fn npm_managed(path: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The npm that owns an npm-installed binary: `<prefix>/bin/npm` for the prefix whose
+/// `lib/node_modules` holds the package, else npm beside the binary's link, else npm on the
+/// CLI search path. Another npm (for example Homebrew's beside a `~/.local` install) would
+/// install the update into its own prefix and leave this binary as it was.
+fn npm_for(path: &str) -> Option<std::path::PathBuf> {
+    let executable = |candidate: std::path::PathBuf| candidate.is_file().then_some(candidate);
+    let canonical = std::fs::canonicalize(path).ok();
+    let prefix = canonical.as_deref().and_then(|canonical| {
+        canonical
+            .ancestors()
+            .find(|dir| dir.ends_with("lib/node_modules"))
+            .and_then(|dir| dir.parent()?.parent().map(std::path::Path::to_path_buf))
+    });
+    prefix
+        .and_then(|prefix| executable(prefix.join("bin").join("npm")))
+        .or_else(|| {
+            std::path::Path::new(path)
+                .parent()
+                .and_then(|dir| executable(dir.join("npm")))
+        })
+        .or_else(|| which::which_in("npm", Some(crate::detect::cli_path()), "/").ok())
+}
+
 /// The binary sits in `~/.opencode/bin`, where OpenCode's install script puts it.
 fn curl_installed_opencode(path: &str) -> bool {
     let Some(home) = std::env::var_os("HOME") else {
@@ -58,7 +80,8 @@ fn curl_installed_opencode(path: &str) -> bool {
 }
 
 enum UpdatePlan {
-    Npm(&'static str),
+    /// The package, and the npm of the prefix the binary was installed in.
+    Npm(&'static str, Option<std::path::PathBuf>),
     Command(String, Vec<String>),
 }
 
@@ -72,7 +95,7 @@ fn update_plan(install: &crate::models::AgentInstall) -> Option<UpdatePlan> {
     let path = install.path.as_deref()?;
     if npm_managed(path) {
         if let Some(package) = npm_package(&install.id) {
-            return Some(UpdatePlan::Npm(package));
+            return Some(UpdatePlan::Npm(package, npm_for(path)));
         }
     }
     if install.id == AgentProviderId::Claude {
@@ -270,13 +293,14 @@ pub async fn update_providers(
     if selected.is_empty() {
         return Err(Error::new("invalid", "No providers selected."));
     }
-    let npm = which::which("npm").ok();
     let mut results = Vec::new();
     for (provider, plan) in selected {
         let run = match plan {
-            UpdatePlan::Npm(package) => match &npm {
+            UpdatePlan::Npm(package, npm) => match &npm {
                 Some(npm) => {
-                    let mut command = Command::new(npm);
+                    // The CLI search path, so npm's `#!/usr/bin/env node` finds node when the
+                    // app was opened from Finder.
+                    let mut command = crate::detect::command(npm);
                     command.args([
                         "install",
                         "-g",
@@ -292,7 +316,7 @@ pub async fn update_providers(
                 )),
             },
             UpdatePlan::Command(binary, args) => {
-                let mut command = Command::new(&binary);
+                let mut command = crate::detect::command(&binary);
                 command.args(&args);
                 crate::cli_output::capture_command(command, UPDATE_TIMEOUT).await
             }
@@ -310,4 +334,28 @@ pub async fn update_providers(
     }
     *CACHE.lock() = None;
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn npm_comes_from_the_prefix_that_installed_the_binary() {
+        let root = std::env::temp_dir().join(format!("sirus-npm-{}", uuid::Uuid::new_v4()));
+        let package = root.join("lib/node_modules/@openai/codex/bin");
+        std::fs::create_dir_all(&package).unwrap();
+        std::fs::create_dir_all(root.join("bin")).unwrap();
+        std::fs::write(package.join("codex.js"), "").unwrap();
+        std::fs::write(root.join("bin/npm"), "").unwrap();
+        std::os::unix::fs::symlink(package.join("codex.js"), root.join("bin/codex")).unwrap();
+        let link = root.join("bin/codex");
+        let npm = npm_for(&link.to_string_lossy()).unwrap();
+        assert_eq!(
+            npm.canonicalize().unwrap(),
+            root.join("bin/npm").canonicalize().unwrap()
+        );
+        let _ = std::fs::remove_dir_all(root);
+    }
 }
