@@ -1,6 +1,6 @@
 /**
  * The composer runner: while an agent works, the working model's brand mark runs along the
- * composer's top edge (after MonoCode's composer runner). Pure motion so the component only
+ * composer's top edge. Pure motion so the component only
  * writes a transform per frame.
  */
 

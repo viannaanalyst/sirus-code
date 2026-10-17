@@ -5,7 +5,7 @@
 
 ## Context
 
-While an agent worked, a soft light travelled the composer's border (`composer-working-light`). It said "busy" but not who was busy. MonoCode shows a pixel mascot running along its composer's top edge (its "composer runner"); the owner wanted the same idea with the mark of the model actually working, and chose it over a comet trail and a resting mark in a preview, without the smoke puffs, after rejecting pixel-art versions of the marks.
+While an agent worked, a soft light travelled the composer's border (`composer-working-light`). It said "busy" but not who was busy. Another app showed a pixel mascot running along its composer's top edge; the owner wanted the same idea with the mark of the model actually working, and chose it over a comet trail and a resting mark in a preview, without the smoke puffs, after rejecting pixel-art versions of the marks.
 
 ## Decision
 

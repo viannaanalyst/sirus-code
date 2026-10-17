@@ -120,6 +120,9 @@ pub async fn start(
         // The browser tools are fixed and bounded; approve them up front so the
         // stdio permission bridge never sees an unsupported MCP prompt.
         command.args(["--allowedTools", "mcp__sirus_browser"]);
+        // Its tools are deferred behind tool search: name the visual tool so answers that
+        // compare, measure or plan reach for it (ADR-123). Fixed text, never the renderer's.
+        command.args(["--append-system-prompt", crate::visuals::CLAUDE_HINT]);
         // Computer tools are gated by the app's per-app approval, not per call.
         if crate::computer_mcp::endpoint(&session.id).is_some() {
             command.args(["--allowedTools", "mcp__sirus_computer"]);
