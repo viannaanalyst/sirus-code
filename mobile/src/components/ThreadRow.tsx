@@ -36,7 +36,7 @@ export function StatusLabel(props: { readonly status: keyof typeof THREAD_STATUS
   }, [props.since]);
   return <View className="flex-row items-center gap-1">
     <SymbolView name={label.icon as never} size={13} weight="semibold" tintColorClassName={label.iconTintClassName as never} />
-    <AppText className={`font-t3-bold text-xs ${label.className}`}>{label.label}</AppText>
+    <AppText className={`font-app-bold text-xs ${label.className}`}>{label.label}</AppText>
     {props.since !== null ? <AppText className={`text-xs tabular-nums ${label.className}`}>{shortDuration(now - props.since)}</AppText> : null}
   </View>;
 }
@@ -103,7 +103,7 @@ export const ThreadRow = memo(function ThreadRow(props: { readonly row: SessionR
         </View>
         <View className="min-w-0 flex-1 gap-0.5">
           <View className="flex-row items-center gap-2">
-            <AppText numberOfLines={1} className="flex-1 font-t3-medium text-base">{session.title || "Nova conversa"}</AppText>
+            <AppText numberOfLines={1} className="flex-1 font-app-medium text-base">{session.title || "Nova conversa"}</AppText>
             {pinned ? <SymbolView name="pin.fill" size={11} tintColorClassName="accent-foreground-tertiary" /> : null}
             <AppText className="text-xs tabular-nums text-foreground-tertiary">{status && statusSince(status, turn) !== null ? "" : time === "now" ? "agora" : time}</AppText>
           </View>

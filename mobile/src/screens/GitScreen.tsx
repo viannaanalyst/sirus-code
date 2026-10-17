@@ -139,7 +139,7 @@ export function GitScreen() {
           <AppText numberOfLines={1} className="text-base">{item.path.split("/").pop()}</AppText>
           <AppText numberOfLines={1} className="text-xs text-foreground-muted">{item.path}</AppText>
         </View>
-        <AppText className={`font-t3-medium text-xs ${item.conflicted ? "text-danger-foreground" : KIND[item.kind].className}`}>{item.conflicted ? "!" : KIND[item.kind].letter}</AppText>
+        <AppText className={`font-app-medium text-xs ${item.conflicted ? "text-danger-foreground" : KIND[item.kind].className}`}>{item.conflicted ? "!" : KIND[item.kind].letter}</AppText>
       </Pressable>}
       contentContainerStyle={{ paddingBottom: 40 }}
     />}

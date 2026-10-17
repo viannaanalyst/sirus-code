@@ -133,7 +133,7 @@ export function TerminalScreen() {
         <ScrollView horizontal keyboardShouldPersistTaps="always" showsHorizontalScrollIndicator={false} contentContainerClassName="gap-1.5 px-2 py-2">
           {KEYS.map((key) => <Pressable key={key.label} disabled={!running} onPress={() => { void Haptics.selectionAsync(); write(key.data); }}
             className="h-9 min-w-[44px] items-center justify-center rounded-lg bg-card px-3 active:opacity-60 disabled:opacity-40">
-            <AppText className="font-t3-medium text-sm">{key.label}</AppText>
+            <AppText className="font-app-medium text-sm">{key.label}</AppText>
           </Pressable>)}
         </ScrollView>
       </View>

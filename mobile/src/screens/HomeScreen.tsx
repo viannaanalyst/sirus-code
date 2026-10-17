@@ -85,7 +85,7 @@ export function HomeScreen() {
         unstable_headerLeftItems: () => [],
         headerTitle: () => <View className="flex-row items-center gap-2">
           <Image source={SIRUS_GLYPH} style={{ width: 22, height: 22, tintColor: theme["--color-foreground"] }} />
-          <AppText className="font-t3-bold text-[18px]">Sirus</AppText>
+          <AppText className="font-app-bold text-[18px]">Sirus</AppText>
         </View>,
       }}
     />
@@ -94,7 +94,7 @@ export function HomeScreen() {
     </NativeHeaderToolbar>
     <ScrollView className="flex-1 bg-screen" contentInsetAdjustmentBehavior="automatic" contentContainerClassName="gap-6 px-4 pb-10 pt-2">
       <View className="gap-1.5 px-1">
-        <AppText className="font-t3-bold text-3xl">{greeting(now).part}</AppText>
+        <AppText className="font-app-bold text-3xl">{greeting(now).part}</AppText>
         <AppText className="text-sm text-foreground-muted">{greeting(now).date}</AppText>
         {status ? <View className="flex-row items-center gap-1.5">
           <View className={`size-2 rounded-full ${away.length === computers.length ? "bg-danger-foreground" : away.length || online.length < computers.length ? "bg-adaptive-amber-700-400" : "bg-adaptive-emerald-600-400"}`} />
@@ -115,12 +115,12 @@ export function HomeScreen() {
 
       <View className="gap-3 rounded-[24px] border-continuous bg-grouped-card px-4 py-3.5">
         <View className="flex-row items-center justify-between">
-          <AppText className="text-xs font-t3-medium text-foreground-muted">Seu dia</AppText>
+          <AppText className="text-xs font-app-medium text-foreground-muted">Seu dia</AppText>
           <AppText className="text-xs text-foreground-tertiary">últimas {HOURS} horas</AppText>
         </View>
         <AppText className="text-base leading-6 text-foreground-secondary">
           {today.length
-            ? <>Hoje você mexeu em <AppText className="font-t3-bold text-foreground">{today.length} {today.length === 1 ? "conversa" : "conversas"}</AppText> em <AppText className="font-t3-bold text-foreground">{todayProjects} {todayProjects === 1 ? "projeto" : "projetos"}</AppText>{counts.working ? <>, e <AppText className="font-t3-bold text-foreground">{counts.working} {counts.working === 1 ? "agente está" : "agentes estão"}</AppText> trabalhando agora</> : null}.</>
+            ? <>Hoje você mexeu em <AppText className="font-app-bold text-foreground">{today.length} {today.length === 1 ? "conversa" : "conversas"}</AppText> em <AppText className="font-app-bold text-foreground">{todayProjects} {todayProjects === 1 ? "projeto" : "projetos"}</AppText>{counts.working ? <>, e <AppText className="font-app-bold text-foreground">{counts.working} {counts.working === 1 ? "agente está" : "agentes estão"}</AppText> trabalhando agora</> : null}.</>
             : "Nenhuma conversa hoje ainda. Toque no lápis para começar."}
         </AppText>
         <View className="h-9 flex-row items-end gap-1">
@@ -134,7 +134,7 @@ export function HomeScreen() {
         {requests.map(({ row, request }) => <Animated.View key={`${row.computerId}:${row.session.id}:${request.requestId}`} entering={FadeIn.duration(220)} exiting={FadeOut.duration(160)} layout={LinearTransition.springify().damping(20)}
           className="overflow-hidden rounded-[24px] border-continuous bg-grouped-card">
           <Pressable onPress={() => thread(row.computerId, row.session.id)} className="flex-row items-center gap-2 px-4 pt-3 active:opacity-70">
-            <AppText numberOfLines={1} className="flex-1 font-t3-bold text-sm">{row.session.title || "Nova conversa"}</AppText>
+            <AppText numberOfLines={1} className="flex-1 font-app-bold text-sm">{row.session.title || "Nova conversa"}</AppText>
             <AppText numberOfLines={1} className="max-w-[40%] text-xs text-foreground-muted">{row.project?.name}</AppText>
             <SymbolView name="chevron.right" size={11} weight="semibold" tintColorClassName="accent-chevron" />
           </Pressable>
@@ -157,11 +157,11 @@ export function HomeScreen() {
 
 function SectionHeader(props: { readonly title: string; readonly count?: number; readonly action?: { label: string; onPress: () => void } }) {
   return <View className="flex-row items-center gap-1.5 px-2">
-    <AppText className="text-sm font-t3-medium text-foreground-muted">{props.title}</AppText>
+    <AppText className="text-sm font-app-medium text-foreground-muted">{props.title}</AppText>
     {props.count ? <AppText className="text-sm text-foreground-tertiary">{props.count}</AppText> : null}
     <View className="flex-1" />
     {props.action ? <Pressable onPress={props.action.onPress} hitSlop={8} className="active:opacity-60">
-      <AppText className="text-sm font-t3-medium text-adaptive-blue-600-400">{props.action.label}</AppText>
+      <AppText className="text-sm font-app-medium text-adaptive-blue-600-400">{props.action.label}</AppText>
     </Pressable> : null}
   </View>;
 }
@@ -181,9 +181,9 @@ function Tile(props: { readonly icon: string; readonly tint: string; readonly va
         <View className="size-8 items-center justify-center rounded-full" style={{ backgroundColor: `${props.tint}22` }}>
           <SymbolView name={props.icon as AppSymbolName} size={16} weight="semibold" tintColor={props.tint} />
         </View>
-        <AppText className="font-t3-bold text-[26px] leading-[30px] tabular-nums">{props.value}</AppText>
+        <AppText className="font-app-bold text-[26px] leading-[30px] tabular-nums">{props.value}</AppText>
       </View>
-      <AppText numberOfLines={1} className="font-t3-medium text-sm text-foreground-secondary">{props.label}</AppText>
+      <AppText numberOfLines={1} className="font-app-medium text-sm text-foreground-secondary">{props.label}</AppText>
     </Pressable>
   </Animated.View>;
 }

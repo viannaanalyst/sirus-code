@@ -96,12 +96,12 @@ export function ProjectsScreen() {
             <View className="flex-row items-center gap-3 px-4 py-3">
               <ProjectTile computerId={item.computerId} project={item.project} size={30} />
               <View className="min-w-0 flex-1 gap-0.5">
-                <AppText numberOfLines={1} className="font-t3-bold text-base">{item.project.name}</AppText>
+                <AppText numberOfLines={1} className="font-app-bold text-base">{item.project.name}</AppText>
                 <View className="flex-row flex-wrap items-center gap-x-2.5 gap-y-0.5">
                   {item.branch ? <Meta icon="arrow.triangle.branch" text={item.branch} /> : null}
                   <DiffText diff={diffs[`${item.computerId}:${item.project.id}`]} />
-                  {waiting ? <AppText className="font-t3-medium text-xs text-warning-foreground">{waiting === 1 ? "1 aprovação" : `${waiting} esperando`}</AppText> : null}
-                  {working ? <AppText className="font-t3-medium text-xs text-adaptive-sky-600-400">{working} trabalhando</AppText> : null}
+                  {waiting ? <AppText className="font-app-medium text-xs text-warning-foreground">{waiting === 1 ? "1 aprovação" : `${waiting} esperando`}</AppText> : null}
+                  {working ? <AppText className="font-app-medium text-xs text-adaptive-sky-600-400">{working} trabalhando</AppText> : null}
                   {pulls ? <Meta icon="arrow.triangle.pull" text={pulls === 1 ? "1 PR" : `${pulls} PRs`} /> : null}
                 </View>
               </View>
@@ -159,7 +159,7 @@ export function ProjectScreen() {
       <View className="flex-row items-center gap-3.5 px-1">
         <ProjectTile computerId={computerId} project={project} size={44} />
         <View className="min-w-0 flex-1 gap-0.5">
-          <AppText numberOfLines={1} className="font-t3-bold text-2xl">{project.name}</AppText>
+          <AppText numberOfLines={1} className="font-app-bold text-2xl">{project.name}</AppText>
           <AppText numberOfLines={1} className="text-sm text-foreground-muted">{several && computer ? `${computerName(computer)} · ` : ""}{project.path.replace(/^\/(Users|home)\/[^/]+/, "~")}</AppText>
           {summary.branch ? <View className="mt-0.5"><Meta icon="arrow.triangle.branch" text={summary.branch} /></View> : null}
         </View>
@@ -180,7 +180,7 @@ export function ProjectScreen() {
         {rows.length ? rows.map((row, index) => <ThreadRow key={row.session.id} row={row} grouped separated={index > 0} computerLabel={null}
           onPress={() => navigation.navigate("Thread", { computerId, sessionId: row.session.id })} />)
           : <Pressable onPress={() => navigation.navigate("NewThread", { projectKey: `${computerId}:${projectId}` })} className="bg-grouped-card px-4 py-4 active:bg-row-hover">
-            <AppText className="font-t3-medium text-base text-adaptive-blue-600-400">Começar uma conversa</AppText>
+            <AppText className="font-app-medium text-base text-adaptive-blue-600-400">Começar uma conversa</AppText>
           </Pressable>}
       </ListSection>
     </ScrollView>
@@ -189,7 +189,7 @@ export function ProjectScreen() {
 
 function Counter(props: { readonly value: React.ReactNode; readonly label: string; readonly onPress?: () => void }) {
   return <Pressable disabled={!props.onPress} onPress={props.onPress} className="flex-1 gap-0.5 rounded-[20px] border-continuous bg-grouped-card px-3.5 py-3 active:opacity-70">
-    {typeof props.value === "string" ? <AppText className="font-t3-bold text-xl tabular-nums">{props.value}</AppText> : props.value}
+    {typeof props.value === "string" ? <AppText className="font-app-bold text-xl tabular-nums">{props.value}</AppText> : props.value}
     <AppText numberOfLines={1} className="text-xs text-foreground-muted">{props.label}</AppText>
   </Pressable>;
 }

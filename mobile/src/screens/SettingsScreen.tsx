@@ -86,7 +86,7 @@ export function SettingsScreen() {
           <Image source={SIRUS_GLYPH} style={{ width: 32, height: 32, tintColor: theme["--color-screen"] }} />
         </View>
         <View className="min-w-0 flex-1 gap-0.5">
-          <AppText className="font-t3-bold text-xl">Sirus Code</AppText>
+          <AppText className="font-app-bold text-xl">Sirus Code</AppText>
           <AppText numberOfLines={1} className="text-sm text-foreground-muted">
             {computers.length === 1 ? computerName(computers[0]!) : `${computers.length} computadores`} · {online === computers.length ? "conectado" : `${online} de ${computers.length} conectado${online === 1 ? "" : "s"}`} · {Application.nativeApplicationVersion ?? ""}
           </AppText>
@@ -147,7 +147,7 @@ function ComputerRow(props: { readonly computerId: string; readonly separated?: 
         <View className="flex-row items-center gap-2">
           <View className={`size-2 rounded-full ${state === "open" ? "bg-adaptive-emerald-600-400" : state === "lost" ? "bg-danger-foreground" : "bg-warning"}`} />
           <SymbolView name={(computer.kind === "server" ? "server.rack" : "laptopcomputer") as AppSymbolName} size={13} tintColorClassName="accent-foreground-muted" />
-          <AppText numberOfLines={1} className="shrink font-t3-bold text-base">{computerName(computer)}</AppText>
+          <AppText numberOfLines={1} className="shrink font-app-bold text-base">{computerName(computer)}</AppText>
         </View>
         <AppText numberOfLines={1} className="text-sm text-foreground-muted">{computer.baseUrl}</AppText>
         <AppText className="text-sm text-foreground-muted">{label}</AppText>

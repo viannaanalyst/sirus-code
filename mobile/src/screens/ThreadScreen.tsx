@@ -255,7 +255,7 @@ function ModelButton(props: { readonly computerId: string; readonly sessionId: s
   return <Pressable onPress={() => navigation.navigate("ThreadSettings", { computerId: props.computerId, sessionId: props.sessionId })} accessibilityLabel={`Modelo: ${name}`}
     className="h-[38px] max-w-[190px] flex-row items-center gap-1.5 rounded-full px-2.5 active:bg-row-hover">
     <ProviderIcon provider={provider} size={16} />
-    <AppText numberOfLines={1} className="shrink font-t3-medium text-sm">{name}</AppText>
+    <AppText numberOfLines={1} className="shrink font-app-medium text-sm">{name}</AppText>
     <SymbolView name="chevron.down" size={10} weight="semibold" tintColorClassName="accent-foreground-muted" />
   </Pressable>;
 }

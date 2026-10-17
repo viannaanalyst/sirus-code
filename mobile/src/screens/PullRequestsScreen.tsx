@@ -93,11 +93,11 @@ export function PullRequestsScreen() {
       <View className="flex-row gap-3 px-4 py-3">
         <View className="pt-0.5"><SymbolView name={icon as AppSymbolName} size={18} tintColor={tint} /></View>
         <View className="min-w-0 flex-1 gap-1">
-          <AppText numberOfLines={2} className="font-t3-medium text-base">{item.title}</AppText>
+          <AppText numberOfLines={2} className="font-app-medium text-base">{item.title}</AppText>
           <View className="flex-row flex-wrap items-center gap-x-2 gap-y-0.5">
             {checks ? <View className="flex-row items-center gap-1">
               <SymbolView name={checks.icon as AppSymbolName} size={11} tintColorClassName={checks.className.replace("text-", "accent-") as never} />
-              <AppText className={`font-t3-medium text-xs ${checks.className}`}>{checks.text}</AppText>
+              <AppText className={`font-app-medium text-xs ${checks.className}`}>{checks.text}</AppText>
             </View> : null}
             <AppText numberOfLines={1} className="shrink text-xs text-foreground-muted">
               #{item.number}{repositories && repositories.length < 2 ? "" : ` · ${item.repository.split("/").pop()}`}{review ? ` · ${review}` : ""}{item.isDraft ? " · rascunho" : ""} · {item.author ?? "?"} · {when(item.updatedAt)}
@@ -195,9 +195,9 @@ export function PullRequestScreen() {
         <View className="gap-2.5 px-1">
           {badge ? <View className="flex-row items-center gap-1.5 self-start rounded-full px-2.5 py-1" style={{ backgroundColor: `${badge.tint}26` }}>
             <SymbolView name={badge.icon as AppSymbolName} size={12} tintColor={badge.tint} />
-            <AppText className="font-t3-bold text-xs" style={{ color: badge.tint }}>{badge.text}</AppText>
+            <AppText className="font-app-bold text-xs" style={{ color: badge.tint }}>{badge.text}</AppText>
           </View> : null}
-          <AppText className="font-t3-bold text-2xl" selectable>{item!.title}</AppText>
+          <AppText className="font-app-bold text-2xl" selectable>{item!.title}</AppText>
           <AppText className="text-sm text-foreground-muted">{item!.author ?? "?"} · {when(item!.createdAt)}{item!.labels.length ? ` · ${item!.labels.map((label) => label.name).join(", ")}` : ""}</AppText>
         </View>
         <ListSection>
@@ -225,7 +225,7 @@ export function PullRequestScreen() {
           </Pressable>)}
         </ListSection> : null}
         <View className="gap-2 px-1">
-          <AppText className="text-sm font-t3-medium text-foreground-muted">Descrição</AppText>
+          <AppText className="text-sm font-app-medium text-foreground-muted">Descrição</AppText>
           {detail.body.trim() ? <Markdown markdown={detail.body} onLinkPress={(url) => void Linking.openURL(url)} /> : <AppText className="text-sm text-foreground-muted">Sem descrição.</AppText>}
         </View>
       </>}
@@ -236,7 +236,7 @@ export function PullRequestScreen() {
           <Pressable disabled={blocked || merging} onPress={() => merge(methods[0]!)} accessibilityRole="button" accessibilityLabel={METHODS[methods[0]!]}
             className="h-14 flex-1 flex-row items-center justify-center gap-2 active:opacity-70">
             {merging ? <ActivityIndicator /> : <SymbolView name="arrow.triangle.merge" size={17} tintColorClassName="accent-foreground" />}
-            <AppText className="font-t3-bold text-base">{item?.isDraft ? "Rascunho: sem merge" : item?.mergeable === "CONFLICTING" ? "Resolva os conflitos" : !detail.viewerCanUpdate ? "Sem permissão para merge" : "Fazer merge"}</AppText>
+            <AppText className="font-app-bold text-base">{item?.isDraft ? "Rascunho: sem merge" : item?.mergeable === "CONFLICTING" ? "Resolva os conflitos" : !detail.viewerCanUpdate ? "Sem permissão para merge" : "Fazer merge"}</AppText>
           </Pressable>
           {methods.length > 1 && !blocked ? <ControlPillMenu actions={methods.map((method) => ({ id: method, title: METHODS[method] }))} onPressAction={({ nativeEvent }) => merge(nativeEvent.event as GithubMergeMethod)}>
             <Pressable accessibilityRole="button" accessibilityLabel="Escolher o tipo de merge" className="h-14 w-14 items-center justify-center border-l border-border-subtle active:opacity-70">

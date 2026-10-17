@@ -36,7 +36,7 @@ export function ConnectScreen(props: { readonly title?: string; readonly onDone?
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, justifyContent: "center", gap: 24, paddingHorizontal: 24 }}>
       <View className="items-center gap-3">
         <SymbolView name="desktopcomputer" size={44} tintColorClassName="accent-icon" />
-        <AppText className="font-t3-bold text-2xl">{props.title ?? "Conectar ao seu Mac"}</AppText>
+        <AppText className="font-app-bold text-2xl">{props.title ?? "Conectar ao seu Mac"}</AppText>
         <AppText className="text-center text-sm text-foreground-muted">No Mac, abra Ajustes → Conexões. Digite o endereço seguro e o código embaixo do QR code.</AppText>
       </View>
       <View className="gap-3">
@@ -49,7 +49,7 @@ export function ConnectScreen(props: { readonly title?: string; readonly onDone?
       </View>
       {error ? <AppText className="text-center text-sm text-danger-foreground">{error}</AppText> : null}
       <Pressable disabled={!ready || busy} onPress={() => void connect()} className="h-12 items-center justify-center rounded-full bg-foreground active:opacity-80 disabled:opacity-30">
-        {busy ? <ActivityIndicator /> : <AppText className="font-t3-medium text-base text-screen">Conectar</AppText>}
+        {busy ? <ActivityIndicator /> : <AppText className="font-app-medium text-base text-screen">Conectar</AppText>}
       </Pressable>
     </KeyboardAvoidingView>
   </View>;

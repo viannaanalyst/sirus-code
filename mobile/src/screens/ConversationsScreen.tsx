@@ -127,7 +127,7 @@ function FilterChip(props: { readonly icon: string; readonly label: string; read
   return <Pressable onPress={props.onClear} accessibilityRole="button" accessibilityLabel={`Remover filtro ${props.label}`}
     className="flex-row items-center gap-1.5 rounded-full border-continuous bg-grouped-card px-3 py-1.5 active:opacity-70">
     <SymbolView name={props.icon as never} size={12} tintColorClassName="accent-foreground-muted" />
-    <AppText className="font-t3-medium text-sm">{props.label}</AppText>
+    <AppText className="font-app-medium text-sm">{props.label}</AppText>
     <SymbolView name="xmark" size={10} weight="bold" tintColorClassName="accent-foreground-tertiary" />
   </Pressable>;
 }

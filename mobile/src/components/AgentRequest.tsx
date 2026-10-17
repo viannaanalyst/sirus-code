@@ -51,7 +51,7 @@ export function AgentRequest(props: { readonly computerId: string; readonly sess
       {questions.length > 1 ? <AppText className="text-[13px] text-foreground-muted">{step + 1}/{questions.length}</AppText> : null}
     </View>
     {kind.type === "userInput" ? question ? <View className="gap-2">
-      <AppText className="font-t3-medium text-base">{question.question}</AppText>
+      <AppText className="font-app-medium text-base">{question.question}</AppText>
       {question.header ? <AppText className="text-[13px] text-foreground-muted">{question.header}</AppText> : null}
       {question.options?.map((option) => {
         const chosen = answers[question.id] === option.label;
@@ -73,7 +73,7 @@ export function AgentRequest(props: { readonly computerId: string; readonly sess
     </View> : null : <>
       {kind.reason ? <AppText className="text-[15px] text-foreground-secondary">{maskSecrets(kind.reason)}</AppText> : null}
       {kind.type === "command" ? <Code text={maskSecrets(kind.command)} caption={kind.cwd ?? undefined} />
-        : kind.type === "tool" ? <><AppText className="font-t3-medium text-[15px]">{kind.name}</AppText><Code text={JSON.stringify(maskInput(kind.input), null, 2)} /></>
+        : kind.type === "tool" ? <><AppText className="font-app-medium text-[15px]">{kind.name}</AppText><Code text={JSON.stringify(maskInput(kind.input), null, 2)} /></>
         : <View className="gap-1.5">
           <AppText className="text-[15px] text-foreground-secondary">{t("Allow this file change?")}</AppText>
           {kind.changes.map((change, index) => <AppText key={`${change.path}:${index}`} className="font-mono text-[13px]">{change.kind}: {change.path}{change.movePath ? ` → ${change.movePath}` : ""}</AppText>)}
@@ -102,7 +102,7 @@ function Button(props: { readonly label: string; readonly onPress: () => void; r
   return <Pressable onPress={props.onPress} disabled={props.disabled} accessibilityRole="button"
     className={`h-10 flex-row items-center justify-center gap-2 rounded-full px-4 active:opacity-70 disabled:opacity-40 ${tone}`}>
     {props.busy ? <ActivityIndicator size="small" /> : null}
-    <AppText className={`font-t3-medium text-[15px] ${props.primary ? "text-screen" : ""}`}>{props.label}</AppText>
+    <AppText className={`font-app-medium text-[15px] ${props.primary ? "text-screen" : ""}`}>{props.label}</AppText>
   </Pressable>;
 }
 
@@ -126,7 +126,7 @@ export function PromptQueue(props: { readonly computerId: string; readonly sessi
         {item.failed ? <AppText numberOfLines={2} className="text-[12px] text-danger-foreground">{item.failed}</AppText> : null}
       </View>
       {steerable && item.prompt && !item.attachmentIds.length ? <Pressable onPress={() => act(item, true)} hitSlop={6} className="px-1.5 py-1 active:opacity-60">
-        <AppText className="text-[13px] font-t3-medium">Instruir agora</AppText>
+        <AppText className="text-[13px] font-app-medium">Instruir agora</AppText>
       </Pressable> : null}
       <Pressable onPress={() => act(item, false)} hitSlop={6} accessibilityLabel="Cancelar" className="size-7 items-center justify-center rounded-full active:bg-row-hover">
         <SymbolView name="xmark" size={10} weight="semibold" tintColorClassName="accent-foreground-muted" />

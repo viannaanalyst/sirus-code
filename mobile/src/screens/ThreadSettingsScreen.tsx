@@ -142,11 +142,11 @@ function MainPage() {
     <View className="flex-row items-center gap-3 rounded-[24px] bg-grouped-card p-4">
       <View className="size-11 items-center justify-center rounded-2xl bg-sheet"><ProviderIcon provider={draft.provider} size={24} /></View>
       <View className="min-w-0 flex-1">
-        <AppText numberOfLines={1} className="font-t3-medium text-lg">{summary.name ?? t("models.select")}</AppText>
+        <AppText numberOfLines={1} className="font-app-medium text-lg">{summary.name ?? t("models.select")}</AppText>
         <AppText numberOfLines={1} className="text-sm text-foreground-muted">{definition.name}{summary.note ? ` · ${t(summary.note === "switch" ? "phoneChat.switchesAgent" : "phoneChat.default")}` : ""}</AppText>
       </View>
       <Pressable onPress={go("ThreadSettingsModel")} disabled={locked} className="h-9 justify-center rounded-full bg-sheet px-4 active:opacity-60 disabled:opacity-40">
-        <AppText className="font-t3-medium text-sm">{t("phoneChat.change")}</AppText>
+        <AppText className="font-app-medium text-sm">{t("phoneChat.change")}</AppText>
       </Pressable>
     </View>
     {locked ? <AppText className="-mt-2 px-2 text-sm text-foreground-muted">{t("phoneChat.modelLocked")}</AppText> : null}

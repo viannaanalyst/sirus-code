@@ -200,13 +200,13 @@ function MainPage() {
       <ScrollView style={{ flex: 1 }} contentInsetAdjustmentBehavior="automatic" keyboardDismissMode="interactive" keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ flexGrow: 1, alignItems: "center", paddingHorizontal: 24, paddingTop: 4 }} showsVerticalScrollIndicator={false}>
         {target ? <View className="w-full items-center gap-1.5">
-          <AppText className="text-center font-t3-medium text-2xl tracking-tight">{chosen ? "O que vamos construir" : "O que vamos fazer?"}</AppText>
+          <AppText className="text-center font-app-medium text-2xl tracking-tight">{chosen ? "O que vamos construir" : "O que vamos fazer?"}</AppText>
           {chosen ? <View className="max-w-full flex-row items-center justify-center">
-            <AppText className="font-t3-medium text-2xl tracking-tight">em </AppText>
+            <AppText className="font-app-medium text-2xl tracking-tight">em </AppText>
             <Pressable onPress={() => navigation.navigate("NewThreadProject")} accessibilityLabel="Escolher projeto" className="min-w-0 max-w-[240px] border-b border-foreground-muted active:opacity-60">
-              <AppText numberOfLines={1} className="font-t3-medium text-2xl tracking-tight">{chosen.project.name}</AppText>
+              <AppText numberOfLines={1} className="font-app-medium text-2xl tracking-tight">{chosen.project.name}</AppText>
             </Pressable>
-            <AppText className="font-t3-medium text-2xl tracking-tight">?</AppText>
+            <AppText className="font-app-medium text-2xl tracking-tight">?</AppText>
           </View> : <Pressable onPress={() => navigation.navigate("NewThreadProject")} className="border-b border-foreground-muted active:opacity-60">
             <AppText className="text-base text-foreground-muted">Sem projeto</AppText>
           </Pressable>}
@@ -256,7 +256,7 @@ function MainPage() {
             }} accessibilityLabel="Agente e modelo">
               <View className="h-[38px] max-w-[180px] flex-row items-center gap-1.5 rounded-full px-2.5">
                 <ProviderIcon provider={provider} size={15} />
-                <AppText numberOfLines={1} className="shrink font-t3-medium text-sm">{modelName}</AppText>
+                <AppText numberOfLines={1} className="shrink font-app-medium text-sm">{modelName}</AppText>
                 <SymbolView name="chevron.down" size={10} weight="semibold" tintColorClassName="accent-foreground-muted" />
               </View>
             </ControlPillMenu>
@@ -321,7 +321,7 @@ function ProjectPage() {
         <View className="flex-row items-center gap-3 px-4 py-3">
           <View className="size-7 items-center justify-center"><SymbolView name={"bubble.left" as AppSymbolName} size={17} tintColorClassName="accent-foreground-muted" /></View>
           <View className="min-w-0 flex-1">
-            <AppText numberOfLines={1} className="font-t3-bold text-base">Sem projeto</AppText>
+            <AppText numberOfLines={1} className="font-app-bold text-base">Sem projeto</AppText>
             <AppText numberOfLines={1} className="text-sm text-foreground-muted">{computers.length > 1 ? `No ${computerName(computer)} · ` : ""}Começar uma conversa sem projeto</AppText>
           </View>
           {selected === scratchKey(computer.id) ? <SymbolView name="checkmark" size={14} weight="semibold" tintColorClassName="accent-foreground" /> : <SymbolView name="chevron.right" size={12} tintColorClassName="accent-chevron" />}
@@ -334,7 +334,7 @@ function ProjectPage() {
         <View className="flex-row items-center gap-3 px-4 py-3">
           <View className="size-7 items-center justify-center"><ProjectIcon computerId={row.computer.id} projectId={row.project.id} /></View>
           <View className="min-w-0 flex-1">
-            <AppText numberOfLines={1} className="font-t3-bold text-base">{row.project.name}</AppText>
+            <AppText numberOfLines={1} className="font-app-bold text-base">{row.project.name}</AppText>
             <AppText numberOfLines={1} ellipsizeMode="middle" className="text-sm text-foreground-muted">{computers.length > 1 ? `${computerName(row.computer)} · ` : ""}{row.project.path}</AppText>
           </View>
           {row.key === selected ? <SymbolView name="checkmark" size={14} weight="semibold" tintColorClassName="accent-foreground" /> : <SymbolView name="chevron.right" size={12} tintColorClassName="accent-chevron" />}
