@@ -2265,6 +2265,17 @@ pub async fn steer_turn(
         {
             return Err(Error::agent("This reply cannot take instructions now."));
         }
+        // Compacting takes no instructions; the composer queues the message instead.
+        let request = session
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == MessageRole::User);
+        if request.is_some_and(|message| crate::codex::is_compact(&message.content)) {
+            return Err(Error::agent(
+                "The conversation is being compacted. Send the message after it finishes.",
+            ));
+        }
         let agents = state.agents.lock();
         let process = agents
             .get(&session_id)
@@ -2796,10 +2807,39 @@ async fn ensure_model_catalog(state: &Arc<AppState>, session_id: &str) {
         return;
     }
     let catalog = crate::provider_models::list_for_provider(agent.clone(), &overrides).await;
-    state
-        .catalogs
-        .lock()
-        .insert(agent.clone(), (overrides.get(&agent).cloned(), catalog));
+    remember_catalog(state, &agent, overrides.get(&agent).cloned(), catalog);
+}
+
+/// Keeps a provider's model catalog, unless a read that failed (a fallback list, or none)
+/// would replace one the CLI itself reported for the same executable: losing it would turn
+/// away every turn with an effort or Fast choice. Returns the catalog kept.
+fn remember_catalog(
+    state: &AppState,
+    agent: &AgentProviderId,
+    path: Option<String>,
+    catalog: crate::provider_models::ProviderModelList,
+) -> crate::provider_models::ProviderModelList {
+    let mut catalogs = state.catalogs.lock();
+    if let Some((_, previous)) = catalogs
+        .get(agent)
+        .filter(|(known, previous)| keeps_previous(known, previous, &path, &catalog))
+    {
+        return previous.clone();
+    }
+    catalogs.insert(agent.clone(), (path, catalog.clone()));
+    catalog
+}
+
+fn keeps_previous(
+    known: &Option<String>,
+    previous: &crate::provider_models::ProviderModelList,
+    path: &Option<String>,
+    next: &crate::provider_models::ProviderModelList,
+) -> bool {
+    let reported = |list: &crate::provider_models::ProviderModelList| {
+        list.source == "cli" && !list.models.is_empty()
+    };
+    known == path && reported(previous) && !reported(next)
 }
 
 #[cfg_attr(feature = "desktop", tauri::command)]
@@ -2809,16 +2849,63 @@ pub async fn list_provider_models(
 ) -> Result<crate::provider_models::ProviderModelList> {
     let overrides = state.data.lock().settings.provider_paths.clone();
     let catalog = crate::provider_models::list_for_provider(id.clone(), &overrides).await;
-    state
-        .catalogs
-        .lock()
-        .insert(id.clone(), (overrides.get(&id).cloned(), catalog.clone()));
-    Ok(catalog)
+    Ok(remember_catalog(
+        &state,
+        &id,
+        overrides.get(&id).cloned(),
+        catalog,
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_catalog_read_keeps_the_one_the_cli_reported() {
+        let list = |source: &str, models: usize| {
+            crate::provider_models::ProviderModelList {
+            provider: AgentProviderId::Claude,
+            source: source.into(),
+            note: String::new(),
+            models: (0..models)
+                .map(|_| serde_json::from_value(serde_json::json!({"id":"opus","displayName":"Opus","availability":"available"})).unwrap())
+                .collect(),
+        }
+        };
+        let here = Some("/bin/claude".to_string());
+        assert!(keeps_previous(
+            &None,
+            &list("cli", 2),
+            &None,
+            &list("adapter-docs", 4)
+        ));
+        assert!(keeps_previous(
+            &None,
+            &list("cli", 2),
+            &None,
+            &list("cli", 0)
+        ));
+        assert!(!keeps_previous(
+            &None,
+            &list("cli", 2),
+            &None,
+            &list("cli", 3)
+        ));
+        assert!(!keeps_previous(
+            &None,
+            &list("adapter-docs", 4),
+            &None,
+            &list("adapter-docs", 4)
+        ));
+        // Another executable's catalog says nothing about this one.
+        assert!(!keeps_previous(
+            &None,
+            &list("cli", 2),
+            &here,
+            &list("adapter-docs", 4)
+        ));
+    }
 
     #[test]
     fn only_the_same_turn_still_starting_is_stopped_by_the_start_watch() {

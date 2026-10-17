@@ -108,6 +108,8 @@ const reloaders = new Map<string, () => Promise<void>>();
 let summaryTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useEnvironments = create<EnvironmentsState>()((set, get) => {
+  /** Counts switches: only the latest may clear the busy state (a slow one can finish after it). */
+  let activation = 0;
   const saveSummaries = () => {
     if (summaryTimer) clearTimeout(summaryTimer);
     summaryTimer = setTimeout(() => { summaryTimer = null; writeSummaries(window.localStorage, get().summaries); }, 1000);
@@ -273,16 +275,19 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
       if (id === state.activeId && id === state.storeId) return true;
       const environment = state.environments.find((item) => item.id === id);
       if (!environment?.token || state.connection[id] === "unauthorized") return false;
-      snapshotStore();
+      // Mid-switch the store holds part of the next computer's data: nothing to keep.
+      if (!state.switchingTo) snapshotStore();
       const previous = state.activeId;
       unwatch(id);
       if (!switchEnvironment(id)) return false;
+      const run = ++activation;
       set({ activeId: id, switchingTo: id });
       watch(previous);
       try {
         await useAppStore.getState().bootstrap();
       } finally {
-        set({ storeId: id, switchingTo: null });
+        // A switch made meanwhile owns the store and the busy state now.
+        if (run === activation) set({ storeId: id, switchingTo: null });
       }
       return true;
     },

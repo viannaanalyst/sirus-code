@@ -488,6 +488,8 @@ function clampDockWidth(width: number, state: Pick<AppStore, "sidebarCollapsed">
   return Math.min(max, Math.max(280, width));
 }
 
+/** Counts `bootstrap` runs so a slower earlier one cannot overwrite a newer one's state. */
+let bootstrapRun = 0;
 let navApplying = false;
 let previousStatuses = new Map<string, Session["status"]>();
 let previousSessionIds = new Set<string>();
@@ -1106,6 +1108,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   diffText: null,
 
   bootstrap: async () => {
+    // A newer bootstrap (a quick second computer switch) wins: this one's late results are dropped.
+    const run = ++bootstrapRun;
+    const stale = () => run !== bootstrapRun;
     try {
       // CLI version probes and other projects' Git identities fill in after the first paint.
       const detection = client.detectAgents().then((agents) => ({ agents }), (error: unknown) => ({ error }));
@@ -1126,6 +1131,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       };
       const selectedProject = projects.find((project) => project.id === selectedProjectId);
       const identities = selectedProject ? [await identify(selectedProject)] : [];
+      if (stale()) return;
       set({
         ready: true,
         hostInfo,
@@ -1147,9 +1153,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
         providerAccounts: data.providerAccounts ?? [],
         selectedProviderAccounts: data.selectedProviderAccounts ?? {},
       });
-      void detection.then((result) => set("agents" in result ? { agents: result.agents } : { error: formatUnknownError(result.error) }));
+      void detection.then((result) => { if (!stale()) set("agents" in result ? { agents: result.agents } : { error: formatUnknownError(result.error) }); });
       scheduleProjectDiffs();
-      void Promise.all(projects.filter((project) => project !== selectedProject).map(identify)).then((rest) => set((state) => ({
+      void Promise.all(projects.filter((project) => project !== selectedProject).map(identify)).then((rest) => !stale() && set((state) => ({
         gitByPath: { ...Object.fromEntries(rest.filter((item) => item !== null)), ...state.gitByPath },
       })));
       if (settings.enableProviderUpdateChecks) void get().checkProviderUpdates();
@@ -1157,6 +1163,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         await get().refreshGitStatus();
       }
     } catch (error) {
+      if (stale()) return;
       set({
         ready: true,
         error: formatUnknownError(error),

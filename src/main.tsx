@@ -13,6 +13,7 @@ import { MOBILE_QUERY } from "./lib/mobile";
 import { syncViewport } from "./lib/mobile-viewport";
 import { beginWindowOpening, endWindowOpening } from "./lib/window-opening";
 import { isNewerBuild } from "./lib/remote-resume";
+import { keepsNativeMenu } from "./lib/native-menu";
 
 configureDynamicStyleNonce(document);
 
@@ -60,6 +61,13 @@ for (const type of ["dragover", "drop"] as const) {
     if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
   });
 }
+
+// Right-click on empty window space would open WebKit's menu with only Reload. Menus the app
+// draws prevent the default themselves; text, editors, links and media keep the native one.
+window.addEventListener("contextmenu", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!event.defaultPrevented && !keepsNativeMenu(target, window.getSelection()?.toString() ?? "")) event.preventDefault();
+});
 
 // Each shell is its own chunk: a phone never downloads the Mac layout, and the reverse.
 const App = lazy(() => import("./App"));

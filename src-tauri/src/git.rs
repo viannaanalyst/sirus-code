@@ -23,6 +23,13 @@ pub(crate) fn git_binary() -> &'static Path {
     })
 }
 
+/// The PATH Git runs its helpers with: the provider CLIs' one, which adds the usual
+/// install locations to the app's own. Read once; it does not change while the app runs.
+fn git_path() -> &'static std::ffi::OsStr {
+    static PATH: OnceLock<std::ffi::OsString> = OnceLock::new();
+    PATH.get_or_init(crate::detect::cli_path)
+}
+
 /// GIT_CONFIG selects an alternate source only for `git config`, so retaining
 /// it would make inspectors observe different configuration from operations.
 /// All native Git commands share the same cwd, environment and safe overrides.
@@ -36,11 +43,20 @@ fn git_command(cwd: &Path) -> Command {
         // take the optional `.git/index.lock` a stat refresh would (ADR-100), so an
         // agent's `git add`/`commit` cannot fail on a lock Sirus holds.
         .env("GIT_OPTIONAL_LOCKS", "0")
+        // Opened from Finder or the Dock, the app's PATH lacks Homebrew: Git could not
+        // start helpers such as `git-lfs` in an LFS repository.
+        .env("PATH", git_path())
         .args([
             "-c",
             "core.hooksPath=/dev/null",
             "-c",
             "core.fsmonitor=false",
+            // Patches Sirus applies or parses keep their `a/` `b/` headers whatever the
+            // person's own diff settings say.
+            "-c",
+            "diff.noprefix=false",
+            "-c",
+            "diff.mnemonicPrefix=false",
             "--literal-pathspecs",
         ])
         .current_dir(cwd);
@@ -977,6 +993,17 @@ pub(crate) mod tests {
         fs::write(repo.cwd().join("new.md"), "a\nb\nc").unwrap();
         fs::write(repo.cwd().join("logo.bin"), [0u8, 1, 2]).unwrap();
         assert_eq!(diff_totals(&repo.cwd()).unwrap(), (5, 1));
+    }
+    #[test]
+    fn patches_keep_their_prefixes_and_helpers_find_homebrew() {
+        let repo = Repo::new();
+        run_ok(&repo.cwd(), &["config", "diff.noprefix", "true"]).unwrap();
+        run_ok(&repo.cwd(), &["config", "diff.mnemonicPrefix", "true"]).unwrap();
+        fs::write(repo.cwd().join("file.txt"), "after\n").unwrap();
+        let patch = run_ok(&repo.cwd(), &["diff"]).unwrap();
+        assert!(patch.contains("--- a/file.txt") && patch.contains("+++ b/file.txt"));
+        #[cfg(unix)]
+        assert!(std::env::split_paths(git_path()).any(|dir| dir == Path::new("/opt/homebrew/bin")));
     }
     pub(crate) struct Repo(pub(crate) std::path::PathBuf);
     impl Repo {

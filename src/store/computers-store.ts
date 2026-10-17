@@ -84,6 +84,8 @@ function clientOf(id: string): SirusClient | null {
 }
 
 export const useComputers = create<ComputersState>()((set, get) => {
+  /** Counts switches: only the latest may clear the busy state (a slow one can finish after it). */
+  let activation = 0;
   const saveList = (computers: Environment[]) => {
     writeEnvironments(storage(), computers);
     set({ computers });
@@ -185,10 +187,12 @@ export const useComputers = create<ComputersState>()((set, get) => {
       if (id === state.activeId) return true;
       const computer = state.computers.find((item) => item.id === id);
       if (!computer || (id !== HOME_ENVIRONMENT && (!computer.token || state.connection[id] === "unauthorized"))) return false;
-      snapshotStore();
+      // Mid-switch the window holds part of the next computer's data: nothing to keep.
+      if (!state.switchingTo) snapshotStore();
       const previous = state.activeId;
       unwatch(id);
       if (!switchEnvironment(id)) return false;
+      const run = ++activation;
       set({ activeId: id, switchingTo: id });
       watch(previous);
       // Per-computer state the bootstrap does not reset: editor apps are detected again there.
@@ -196,7 +200,8 @@ export const useComputers = create<ComputersState>()((set, get) => {
       try {
         await useAppStore.getState().bootstrap();
       } finally {
-        set({ switchingTo: null });
+        // A switch made meanwhile owns the busy state now.
+        if (run === activation) set({ switchingTo: null });
       }
       return true;
     },

@@ -968,11 +968,7 @@ async fn run_turn(
                     emit(Event::Answered(opaque))?;
                 }
             }
-            Some("rate_limit_event") => {
-                let info = &value["rate_limit_info"];
-                usage_limit = (info["status"] == "rejected" && info["isUsingOverage"] != true)
-                    .then(|| epoch_ms(&info["resetsAt"]));
-            }
+            Some("rate_limit_event") => usage_limit = refused_until(&value["rate_limit_info"]),
             Some("user") if value["parent_tool_use_id"].is_null() => {
                 let echoed = echoed_text(&value);
                 if value["uuid"].as_str() == Some(turn.as_str())
@@ -1008,6 +1004,8 @@ async fn run_turn(
                 if !interrupted && answers_other_prompt(&value, &turn, foreign_prompt) =>
             {
                 foreign_prompt = false;
+                // A limit reported for that prompt is not this turn's.
+                usage_limit = None;
             }
             // An instruction that arrived as the turn ended runs as its continuation.
             Some("result")
@@ -1073,6 +1071,15 @@ fn answers_other_prompt(value: &Value, turn: &str, foreign_prompt: bool) -> bool
         || value["origin"]["kind"]
             .as_str()
             .is_some_and(|kind| !matches!(kind, "human" | "user"))
+}
+
+/// A `rate_limit_event` that refused the request: its reset, when reported. Running out of
+/// fast-mode credits (`overage`) is not a limit: the CLI carries on at standard speed.
+fn refused_until(info: &Value) -> Option<Option<i64>> {
+    (info["status"] == "rejected"
+        && info["isUsingOverage"] != true
+        && info["rateLimitType"] != "overage")
+        .then(|| epoch_ms(&info["resetsAt"]))
 }
 
 /// Claude also ends a limited turn with the limit as its error text.
@@ -1242,6 +1249,17 @@ mod tests {
         assert!(!usage_limit_text(
             &json!({"is_error":true,"result":"Tool failed"})
         ));
+        assert_eq!(
+            refused_until(&json!({"status":"rejected","resetsAt":1790000000})),
+            Some(Some(1_790_000_000_000))
+        );
+        assert_eq!(
+            refused_until(
+                &json!({"status":"rejected","rateLimitType":"overage","resetsAt":1790000000})
+            ),
+            None
+        );
+        assert_eq!(refused_until(&json!({"status":"allowed"})), None);
         assert_eq!(epoch_ms(&json!(1790000000)), Some(1_790_000_000_000));
         assert_eq!(epoch_ms(&json!(1790000000123_i64)), Some(1_790_000_000_123));
         assert_eq!(

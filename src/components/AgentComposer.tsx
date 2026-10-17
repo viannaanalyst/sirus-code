@@ -23,7 +23,7 @@ import { ComposerMcpCard, ComposerStatusCard, ComposerUsageCard, RenameSessionDi
 import { ScriptRunNotice } from "@/components/ScriptRunNotice";
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
-import { canSteer } from "@/lib/steering";
+import { canSteer, compactingTurn } from "@/lib/steering";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { composerOwnsTyping, typingGoesToComposer } from "@/lib/type-to-focus";
 import { shortcutMatches } from "@/lib/shortcuts";
@@ -230,7 +230,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     const submitted = value;
     const teamOwner = context.team ? draftKey : null;
     // Steering (opt-in): plain text goes into the running reply instead of the queue.
-    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
+    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !compactingTurn(useAppStore.getState().sessions.find(item => item.id === session.id)?.messages) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
       try {
         const steered = await useAppStore.getState().steerTurn(session.id, submitted.trim());
         if (steered && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");

@@ -1461,7 +1461,16 @@ fn merge_one(target: &Path, pending: &Pending) -> Result<MergeState> {
     }
     let patch = crate::git::run(
         worker,
-        &["diff", "--cached", "--no-renames", "--binary", "HEAD"],
+        &[
+            "diff",
+            "--cached",
+            "--no-renames",
+            "--binary",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "HEAD",
+        ],
     )?;
     if !patch.status.success() {
         return Err(Error::git("Cannot read the worker's changes."));

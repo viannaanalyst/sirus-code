@@ -328,3 +328,21 @@ test("removing a transferred attachment releases its original native owner only 
   useAppStore.getState().setComposerContext("project:attachment-project", { ...attached, attachments: [] });
   assert.deepEqual(released, [{ owner: "project:attachment-project", ids: [file.id] }]);
 });
+
+test("a slower earlier bootstrap cannot overwrite the computer switched to after it", async (context) => {
+  const project = (id: string): Project => ({ id, name: id, path: `/tmp/${id}`, addedAt: "time", lastOpenedAt: "time" });
+  const answers: ((value: unknown) => void)[] = [];
+  context.mock.method(client, "loadState", () => new Promise(resolve => answers.push(resolve)));
+  context.mock.method(client, "hostInfo", async () => null);
+  context.mock.method(client, "detectAgents", async () => []);
+  context.mock.method(client, "gitIdentity", async () => status("main").identity);
+  const state = (id: string) => ({ projects: [project(id)], sessions: [], composerDrafts: {}, settings: { ...defaultSettings, openLastProject: false } });
+  const first = useAppStore.getState().bootstrap();
+  const second = useAppStore.getState().bootstrap();
+  await new Promise(resolve => setImmediate(resolve));
+  answers[1](state("newer"));
+  await second;
+  answers[0](state("older"));
+  await first;
+  assert.deepEqual(useAppStore.getState().projects.map(item => item.id), ["newer"]);
+});
