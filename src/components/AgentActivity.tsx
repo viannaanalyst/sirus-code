@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity, WorkflowProgress } from "@/client/types";
-import { workflowGroups } from "@/lib/workflow-groups";
+import { memberAnswer, workflowGroups } from "@/lib/workflow-groups";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { modelDisplayName, readableModelId } from "@/lib/model-registry";
@@ -159,13 +159,21 @@ function WorkflowPhases({ workflow, modelLabel }: { workflow: WorkflowProgress; 
         <span className="workflow-phase-state">{t(`workflow.state.${group.state}`)}</span>
       </div>
       <ul className="workflow-members">
-        {group.members.map(agent => <li key={agent.index} className="workflow-member ui-micro" data-state={agent.state} title={agent.result ?? undefined}>
-          <span className="workflow-member-dot" aria-hidden="true" />
-          <span className="workflow-member-label">{agent.label}</span>
-          {agent.model ? <span className="workflow-member-meta">{modelLabel(agent.model)}</span> : null}
-          {agent.durationMs ? <span className="workflow-member-meta activity-duration">{formatActivityDuration(Math.round(agent.durationMs / 1000))}</span> : null}
-          <span className="sr-only">{t(`workflow.member.${agent.state}`)}</span>
-        </li>)}
+        {group.members.map(agent => {
+          const answer = memberAnswer(agent);
+          return <li key={agent.index} className="workflow-member ui-micro" data-state={agent.state} title={agent.result ?? undefined}>
+            <span className="workflow-member-dot" aria-hidden="true" />
+            <span className="workflow-member-label">{agent.label}</span>
+            {agent.model ? <span className="workflow-member-meta">{modelLabel(agent.model)}</span> : null}
+            {agent.durationMs ? <span className="workflow-member-meta activity-duration">{formatActivityDuration(Math.round(agent.durationMs / 1000))}</span> : null}
+            <span className="sr-only">{t(`workflow.member.${agent.state}`)}</span>
+            {/* Its answer so far while it runs, replaced in place by the result (ADR-115). */}
+            {answer ? <p className="workflow-member-answer" data-final={answer.final ? "" : undefined}>
+              {answer.final ? null : <span className="workflow-member-so-far">{t("workflow.member.soFar")} · </span>}
+              {answer.text}
+            </p> : null}
+          </li>;
+        })}
       </ul>
     </li>)}
   </ol>;

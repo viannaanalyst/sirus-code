@@ -1114,7 +1114,19 @@ pub fn monitor(
             Ok(())
         };
         let outcome = if run.session.agent == AgentProviderId::Claude {
-            crate::claude::execute(&mut wire, &mut run, &mut started.cancel, &mut emit).await
+            let config_dir = crate::provider_accounts::claude_config_dir(
+                &state,
+                &run.session.provider_account_id,
+                &run.cwd,
+            );
+            crate::claude::execute_in(
+                &mut wire,
+                &mut run,
+                config_dir,
+                &mut started.cancel,
+                &mut emit,
+            )
+            .await
         } else if run.session.agent == AgentProviderId::OpenCode {
             crate::opencode::execute(
                 &mut wire,

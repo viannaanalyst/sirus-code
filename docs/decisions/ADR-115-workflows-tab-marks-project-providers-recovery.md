@@ -49,5 +49,9 @@ The owner chose:
 
 ## Consequences
 
-- Workflow members do not get their own transcript views; their results show on hover.
+- Workflow members do not get their own transcript views; a running member shows its answer so far and a finished one its result under its row (addendum below).
 - The Team coordinator's model catalogue still follows the app-wide provider setting only.
+
+## Addendum (2026-10-17): a running member's answer so far
+
+A running workflow member streams nothing, so Sirus reads its answer so far from its own transcript (after T3 Code). The run's `transcriptDir` comes from the Workflow launch acknowledgement (`tool_use_result`) and the member's `agentId` from the snapshot; the file is `agent-<id>.jsonl`, read only when it resolves to a regular `.jsonl` file inside `<Claude config folder>/projects` (the session account's `CLAUDE_CONFIG_DIR` profile, else the app's `CLAUDE_CONFIG_DIR`, else `~/.claude`). Reads happen only when a `workflow_progress` snapshot arrives: at most once every 10 s per running member and 8 per snapshot, a new attempt starts a fresh window, and reading stops when the member settles or the turn ends. Only the last 64 KiB is read; the latest assistant answer is masked, cut to its last 600 characters and attached as `WorkflowAgent.partial`, live only (never saved) and cleared when the member settles, restarts or the turn ends. The member row shows it as "So far · …"; a finished member shows its result in the same place instead of only on hover.

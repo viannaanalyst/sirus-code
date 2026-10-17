@@ -6,6 +6,7 @@ import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { openLink } from "@/components/ChatMarkdown";
+import { terminalLinkTarget } from "@/lib/terminal-links";
 import { Terminal } from "@xterm/xterm";
 import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { useEffect, useRef, useState } from "react";
@@ -254,6 +255,16 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
     cursorStyle: settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block",
     scrollback: settings.terminalScrollback,
     theme: terminalAppearance(settings, support, readSystemPalette()),
+    // OSC 8 hyperlinks (`ls --hyperlink`, CLIs that print link text) open like plain addresses.
+    linkHandler: {
+      allowNonHttpProtocols: false,
+      activate: (event, uri) => {
+        const target = terminalLinkTarget(uri);
+        if (!target) return;
+        event.preventDefault();
+        openLink(target, event.metaKey);
+      },
+    },
   });
   const fit = new FitAddon();
   term.loadAddon(fit);

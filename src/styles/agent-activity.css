@@ -349,7 +349,7 @@ html:is([data-animations="off"], [data-reduce-motion="on"]) .inline-visual { ani
 .workflow-phase[data-state="failed"] .workflow-phase-state { color: var(--danger); }
 .workflow-phase[data-state="done"] .workflow-phase-state { color: var(--success); }
 .workflow-members { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
-.workflow-member { display: flex; align-items: center; gap: 7px; min-height: 20px; color: var(--text-secondary); }
+.workflow-member { display: flex; flex-wrap: wrap; align-items: center; gap: 0 7px; min-height: 20px; color: var(--text-secondary); }
 .workflow-member-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--text-muted); opacity: 0.5; }
 .workflow-member[data-state="running"] .workflow-member-dot { background: #6ea8fe; opacity: 1; animation: header-status-pulse 1.6s steps(6) infinite; }
 html[data-ambient="off"] .workflow-member-dot { animation-play-state: paused; }
@@ -357,4 +357,8 @@ html[data-ambient="off"] .workflow-member-dot { animation-play-state: paused; }
 .workflow-member[data-state="failed"] .workflow-member-dot { background: var(--danger); opacity: 1; }
 .workflow-member-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workflow-member-meta { flex-shrink: 0; color: var(--text-muted); }
+/* A running member's answer so far (muted, "So far ·"), replaced in place by its result. */
+.workflow-member-answer { flex-basis: 100%; min-width: 0; margin: 0 0 3px 13px; color: var(--text-muted); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.workflow-member-answer[data-final] { color: var(--text-secondary); }
+.workflow-member-so-far { font-style: italic; }
 @media (prefers-reduced-motion: reduce) { .workflow-member-dot { animation: none !important; } }

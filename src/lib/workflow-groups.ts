@@ -27,6 +27,20 @@ export function workflowGroups(workflow: WorkflowProgress): PhaseGroup[] {
   return groups;
 }
 
+/**
+ * The text shown under a member: its answer so far while it runs, read from its
+ * transcript, which the final result replaces once it settles (ADR-115).
+ */
+export function memberAnswer(agent: WorkflowAgent): { text: string; final: boolean } | null {
+  if (agent.state === "queued") return null;
+  if (agent.state === "running") {
+    const text = agent.partial?.trim();
+    return text ? { text, final: false } : null;
+  }
+  const text = agent.result?.trim();
+  return text ? { text, final: true } : null;
+}
+
 function summary(members: WorkflowAgent[]): { state: PhaseState; settled: number } {
   const done = members.filter(settled).length;
   const state: PhaseState = !members.length ? "pending"

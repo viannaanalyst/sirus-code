@@ -74,6 +74,7 @@ const strings: Record<string, [string, string]> = {
   "workflow.member.running": ["Running", "Rodando"],
   "workflow.member.completed": ["Done", "Concluído"],
   "workflow.member.failed": ["Failed", "Falhou"],
+  "workflow.member.soFar": ["So far", "Até agora"],
   "reply.launched": ["Sessions · {count}", "Sessões · {count}"],
   "reply.sessionGone": ["This session was removed.", "Esta sessão foi removida."],
   // Task hand-off controls (ADR-052), kept from the retired habits strings.

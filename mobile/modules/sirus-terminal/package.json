@@ -2,5 +2,5 @@
   "name": "sirus-terminal-native",
   "version": "0.0.0",
   "private": true,
-  "expo-module": { "ios": { "modules": ["SirusTerminalModule"] } }
+  "expo-module": { "ios": { "modules": ["SirusTerminalModule", "SirusNativeControlsModule"] } }
 }

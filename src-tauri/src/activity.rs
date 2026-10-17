@@ -32,6 +32,12 @@ fn skip_thought(thought: &Option<String>) -> bool {
     thought.is_none() || PERSISTING.with(Cell::get)
 }
 
+/// A live-only text field (a workflow member's answer so far): sent to the renderer, never
+/// written to a transcript file.
+pub(crate) fn live_only(text: &Option<String>) -> bool {
+    skip_thought(text)
+}
+
 /// Live reasoning signals (ADR-101). They never become rows and are never persisted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Thought {
@@ -227,6 +233,12 @@ impl TurnActivity {
                 if item.kind == ItemKind::Agent {
                     item.ended_at.get_or_insert(at);
                     close_steps(&mut item.steps, stopped || item.background);
+                }
+                // A workflow member's answer so far is live only (ADR-115).
+                if let Some(workflow) = item.workflow.as_mut() {
+                    for agent in &mut workflow.agents {
+                        agent.partial = None;
+                    }
                 }
             }
             self.pending.clear();

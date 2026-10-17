@@ -13,37 +13,14 @@ import { html } from "@codemirror/lang-html";
 import { markdown } from "@codemirror/lang-markdown";
 import { rust } from "@codemirror/lang-rust";
 import { python } from "@codemirror/lang-python";
+import { sass, sassLanguage } from "@codemirror/lang-sass";
+import { less, lessLanguage } from "@codemirror/lang-less";
+import { vue } from "@codemirror/lang-vue";
+import { envLanguage } from "@/lib/env-language";
+import type { EditorLanguage } from "@/lib/editor-language";
 import { useEffect, useRef } from "react";
 
-export type EditorLanguage = "javascript" | "typescript" | "json" | "css" | "html" | "markdown" | "rust" | "python";
-
-const EXTENSION_LANGUAGES: Record<string, EditorLanguage> = {
-  js: "javascript",
-  jsx: "javascript",
-  mjs: "javascript",
-  cjs: "javascript",
-  ts: "typescript",
-  tsx: "typescript",
-  json: "json",
-  jsonc: "json",
-  css: "css",
-  scss: "css",
-  less: "css",
-  html: "html",
-  htm: "html",
-  vue: "html",
-  svelte: "html",
-  md: "markdown",
-  markdown: "markdown",
-  mdx: "markdown",
-  rs: "rust",
-  py: "python",
-};
-
-export function languageForPath(path: string): EditorLanguage | null {
-  const extension = path.split(".").pop()?.toLowerCase() ?? "";
-  return EXTENSION_LANGUAGES[extension] ?? null;
-}
+export { languageForPath, type EditorLanguage } from "@/lib/editor-language";
 
 /** Palette-aware code colors, with the same fonts and sizes as Appearance. */
 const highlight = HighlightStyle.define([
@@ -77,11 +54,30 @@ const languageExtensions: Record<EditorLanguage, () => Extension> = {
   typescript: () => javascript({ jsx: true, typescript: true }),
   json: () => json(),
   css: () => css(),
+  scss: () => sass(),
+  sass: () => sass({ indented: true }),
+  less: () => less(),
   html: () => html(),
+  vue: () => vue({ base: componentHtml() }),
+  // No official Svelte grammar: HTML with TypeScript scripts and Sass/Less styles.
+  svelte: () => componentHtml(),
   markdown: () => markdown(),
   rust: () => rust(),
   python: () => python(),
+  env: () => envLanguage,
 };
+
+/** Single-file components: `<style lang="scss|sass|less">` blocks get their own grammar. */
+function componentHtml() {
+  const style = (lang: string, parser: typeof sassLanguage.parser) => ({ tag: "style", attrs: (attrs: Record<string, string>) => attrs.lang === lang, parser });
+  return html({
+    nestedLanguages: [
+      style("scss", sassLanguage.parser),
+      style("sass", sassLanguage.parser.configure({ dialect: "indented" })),
+      style("less", lessLanguage.parser),
+    ],
+  });
+}
 
 function theme(dark: boolean): Extension {
   return EditorView.theme(

@@ -14,7 +14,10 @@ import {
   Smartphone,
   SquareTerminal,
   X,
+  XCircle,
 } from "@/components/icons/phosphor";
+import { ContextMenu } from "@/components/arc/context-menu/context-menu";
+import { dockCloseAllPrompt, planDockCloseAll, type DockCloseAllPlan } from "@/lib/dock-close-all";
 import { useTranslation } from "@/i18n/use-translation";
 import { useHostFeatures } from "@/components/mobile/use-phone-host";
 import { selectCurrentProject, useAppStore, type DockPane, type DockPaneKind, selectCurrentSessionMeta } from "@/store/app-store";
@@ -96,6 +99,9 @@ export function RightDock() {
   const dirtySet = useMemo(() => new Set(dirtyKeys ? dirtyKeys.split("\u0000") : []), [dirtyKeys]);
   const editorSaving = useAppStore((state) => state.editorSaving);
   const [pendingClose, setPendingClose] = useState<DockPane | null>(null);
+  const [pendingCloseAll, setPendingCloseAll] = useState<DockCloseAllPlan | null>(null);
+  // The tab under the pointer when the tab strip's context menu opened; null for the empty strip.
+  const [menuPaneId, setMenuPaneId] = useState<string | null>(null);
 
   const isDirty = (pane: DockPane) => {
     if (pane.kind !== "editor" || !pane.path || !pane.sessionId) return false;
@@ -120,13 +126,45 @@ export function RightDock() {
     closeDockPane(pane.id);
   };
 
+  // Close all tabs: every pane the strip shows, behind one confirmation for all unsaved files.
+  const closePanes = (ids: readonly string[]) => {
+    for (const id of ids) {
+      const state = useAppStore.getState();
+      const pane = state.dockPanes.find((item) => item.id === id);
+      if (!pane) continue;
+      if (pane.kind === "editor" && pane.path && pane.sessionId) {
+        const key = editorKey(pane.sessionId, pane.path);
+        if (state.editorSaving[key]) continue;
+        discardEditorBuffer(key);
+      }
+      closeDockPane(id);
+    }
+  };
+  const requestCloseAll = () => {
+    const plan = planDockCloseAll(visible.map((pane) => ({
+      id: pane.id,
+      dirty: isDirty(pane),
+      saving: !!(pane.kind === "editor" && pane.sessionId && pane.path && editorSaving[editorKey(pane.sessionId, pane.path)]),
+    })));
+    if (dockCloseAllPrompt(plan)) setPendingCloseAll(plan);
+    else closePanes(plan.close);
+  };
+  const closeAllPrompt = pendingCloseAll ? dockCloseAllPrompt(pendingCloseAll) : null;
+  const menuPane = menuPaneId ? visible.find((pane) => pane.id === menuPaneId) ?? null : null;
+
   return (
     <aside className={cn("flex h-full min-w-0 flex-col border-l border-border-subtle", conversationStarted ? "sidebar-material" : "main-material")} aria-label={t("Right panel")}>
       {/* Maximized, the panel takes the main header's place: its tabs start after the window
           buttons and the sidebar and history controls, like the header does. */}
       <div data-tauri-drag-region className={cn("flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 px-1.5",
         maximized && (sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"))}>
-        <div className="dock-tabs flex min-w-0 flex-1 items-center gap-1" data-reorder-scope="">
+        <div className="flex h-full min-w-0 flex-1 [&>div]:h-full [&>div]:w-full [&>div]:min-w-0">
+        <ContextMenu activation="context-only" label={t("dock.tabActions")} items={[
+          ...(menuPane ? [{ id: "close", label: t("Close panel"), icon: <X size={15} />, onSelect: () => requestClose(menuPane) }] : []),
+          { id: "close-all", label: t("dock.closeAll"), icon: <XCircle size={15} />, disabled: visible.length === 0, onSelect: requestCloseAll },
+        ]}>
+        <div className="dock-tabs flex h-full min-w-0 flex-1 items-center gap-1" data-reorder-scope=""
+          onContextMenuCapture={(event) => setMenuPaneId((event.target as HTMLElement).closest<HTMLElement>("[data-dock-pane]")?.dataset.dockPane ?? null)}>
           {visible.map((pane) => (
             <DockTab
               key={pane.id}
@@ -139,6 +177,8 @@ export function RightDock() {
               onClose={() => requestClose(pane)}
             />
           ))}
+        </div>
+        </ContextMenu>
         </div>
         <Dropdown>
           <DropdownTrigger asChild>
@@ -231,6 +271,18 @@ export function RightDock() {
           setPendingClose(null);
         }}
       />
+      <ConfirmDialog
+        open={pendingCloseAll !== null}
+        onOpenChange={(open) => { if (!open) setPendingCloseAll(null); }}
+        title={t("Discard changes?")}
+        description={closeAllPrompt ? t(closeAllPrompt.key, closeAllPrompt.params) : ""}
+        cancelLabel={t("Keep editing")}
+        confirmLabel={t("dock.closeAllConfirm")}
+        onConfirm={() => {
+          if (pendingCloseAll) closePanes(pendingCloseAll.close);
+          setPendingCloseAll(null);
+        }}
+      />
     </aside>
   );
 }
@@ -241,7 +293,7 @@ function DockTab({ pane, active, dirty, reorder, dragging, onSelect, onClose }: 
   const meta = paneMeta[pane.kind];
   const label = pane.document?.name ?? (pane.kind === "editor" && pane.path ? pane.path.split("/").at(-1) ?? meta.label : meta.label);
   return (
-    <div {...reorder} data-active={active || undefined} data-dragging={dragging || undefined} className="dock-tab group">
+    <div {...reorder} data-dock-pane={pane.id} data-active={active || undefined} data-dragging={dragging || undefined} className="dock-tab group">
       <button type="button" className="dock-tab-open" aria-pressed={active} onClick={onSelect} title={t(label)}>
         <span className="dock-tab-icon" aria-hidden="true"><meta.icon size={14} /><span className="dock-tab-grip">⠿</span></span>
         <span className="dock-tab-label ui-control">{dirty ? `• ${t(label)}` : t(label)}</span>

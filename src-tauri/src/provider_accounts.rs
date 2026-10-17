@@ -154,6 +154,35 @@ pub(crate) fn scope(
         home,
     })
 }
+/// The Claude config folder a session's CLI uses: a named account's private profile (the
+/// `CLAUDE_CONFIG_DIR` `apply` sets), else the app's own `CLAUDE_CONFIG_DIR` (relative to the
+/// workspace, as the CLI reads it), else `~/.claude`. `None` when it cannot be known.
+pub(crate) fn claude_config_dir(state: &AppState, account: &str, cwd: &str) -> Option<PathBuf> {
+    config_dir_in(
+        state.data_path.parent()?,
+        account,
+        cwd,
+        std::env::var_os("CLAUDE_CONFIG_DIR"),
+        crate::new_project::home_dir(),
+    )
+}
+fn config_dir_in(
+    root: &Path,
+    account: &str,
+    cwd: &str,
+    env: Option<std::ffi::OsString>,
+    user_home: Option<PathBuf>,
+) -> Option<PathBuf> {
+    if account != "default" {
+        // Only a well-formed account id names a folder (never `..` or a path).
+        uuid::Uuid::parse_str(account).ok()?;
+        return home(root, &AgentProviderId::Claude, account, false).ok();
+    }
+    match env.filter(|dir| !dir.is_empty()) {
+        Some(dir) => Some(Path::new(cwd).join(dir)).filter(|dir| dir.is_absolute()),
+        None => user_home.map(|home| home.join(".claude")),
+    }
+}
 pub(crate) fn apply(command: &mut Command, provider: &AgentProviderId, home: Option<&Path>) {
     if let Some(home) = home {
         match provider {
@@ -407,6 +436,55 @@ pub fn cancel_provider_account_login(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn claude_config_folder_follows_the_session_account() {
+        let root = tempfile::tempdir().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let profile = home(root.path(), &AgentProviderId::Claude, &id, true).unwrap();
+        let user = Some(PathBuf::from("/Users/me"));
+        assert_eq!(
+            config_dir_in(
+                root.path(),
+                &id,
+                "/w",
+                Some("/elsewhere".into()),
+                user.clone()
+            ),
+            Some(profile),
+            "a named account reads its own profile, never the app's folder"
+        );
+        assert_eq!(
+            config_dir_in(root.path(), "../../x", "/w", None, user.clone()),
+            None
+        );
+        let missing = uuid::Uuid::new_v4().to_string();
+        assert_eq!(
+            config_dir_in(root.path(), &missing, "/w", None, user.clone()),
+            None
+        );
+        assert_eq!(
+            config_dir_in(root.path(), "default", "/w", None, user.clone()),
+            Some(PathBuf::from("/Users/me/.claude"))
+        );
+        assert_eq!(
+            config_dir_in(
+                root.path(),
+                "default",
+                "/w",
+                Some("cfg".into()),
+                user.clone()
+            ),
+            Some(PathBuf::from("/w/cfg"))
+        );
+        assert_eq!(
+            config_dir_in(root.path(), "default", "/w", Some("/c".into()), user),
+            Some(PathBuf::from("/c"))
+        );
+        assert_eq!(
+            config_dir_in(root.path(), "default", "/w", None, None),
+            None
+        );
+    }
     #[cfg(unix)]
     #[test]
     fn shutdown_kills_a_login_without_waiting_for_an_async_cancellation_turn() {

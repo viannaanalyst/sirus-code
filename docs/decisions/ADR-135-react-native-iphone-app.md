@@ -59,3 +59,10 @@ The Capacitor shell (ADR-134) runs the phone web UI in a web view. Native touche
 - **Projetos** lists each computer's projects with the branch, uncommitted lines (`project_diff_stats`), agents working, approvals and open pull requests. A project's page has the counters, the project's tools (changes and commits, pull requests, files, terminal, through its latest conversation in the project's own checkout) and its conversations; the compose button starts a conversation already in that project.
 - **Pull requests** come from the computer's GitHub inbox (`pull_request_action`, ADR-125): open ones grouped into ready to merge, review requested from you, and waiting; merged and closed in their own segments. A pull request's page has a grouped summary (branch, changes, conflicts, reviews, checks), its files and checks, the description, and "Fazer merge" pinned in glass at the bottom with the method in a menu.
 - **Ajustes** moved from a sheet to the fourth tab, with the Sirus card on top and each row's symbol white on a coloured square, as iOS Settings draws them.
+
+## Addendum (2026-10-17): runtime 4
+
+- **Runtime 4** (`RUNTIME_VERSION` "4"): the phone needs a new native install; JavaScript updates for runtime 3 builds stop at the previous one.
+- **Segmented controls** (Conversas, Pull requests) are a native `UISegmentedControl` in the theme's colours (`SirusNativeControls`, in the `sirus-terminal` module's pod, after T3 Code); a build without that view falls back to the untinted `@expo/ui` control.
+- **Enriched markdown 1.2.0-sirus.15** (T3's 1.2.0-t3.15 repacked) and `expo-glass-effect` 58.0.4, which made our patch for it unnecessary.
+- **Pull request search** in the header with GitHub-style filters (`label:`, `-label:`, `author:` with `@me`, `draft:`, `review:`, `status:`; links and `owner/repo#n` match too), parsed on the phone by `src/lib/pull-request-query.ts`.

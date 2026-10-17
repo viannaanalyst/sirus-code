@@ -1,6 +1,6 @@
 import { useNavigation, useRoute, type NavigationProp, type ParamListBase, type RouteProp } from "@react-navigation/native";
-import SegmentedControl from "@expo/ui/community/segmented-control";
 import type { GithubDetail, GithubItem, GithubItemState, GithubMergeMethod, PullRequestResponse } from "@sirus/client/types";
+import { matchesPullRequestQuery, parsePullRequestQuery } from "@sirus/lib/pull-request-query";
 import { relativeTime } from "@sirus/lib/session-board";
 import * as Haptics from "expo-haptics";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import { ControlPillMenu } from "../components/ControlPillMenu";
 import { GlassSurface } from "../components/GlassSurface";
 import { ListSection } from "../components/ListSection";
 import { Markdown } from "../components/Markdown";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { prKey, projectRepositories, usePullRequests } from "../data/pull-requests";
 import { useSirus } from "../data/store";
 import { NativeHeaderToolbar, NativeStackScreenOptions } from "../native/StackHeader";
@@ -76,10 +77,15 @@ export function PullRequestsScreen() {
   const openEntry = usePullRequests((store) => store.entries[prKey(computerId)]);
   const project = useSirus((store) => projectId ? store.data[computerId]?.projects.find((item) => item.id === projectId) : undefined);
   const [refreshing, setRefreshing] = useState(false);
+  /** The header search, with GitHub's `label:`, `author:`, `draft:`, `review:` and `status:` qualifiers. */
+  const [query, setQuery] = useState("");
+  const parsedQuery = useMemo(() => parsePullRequestQuery(query.trim()), [query]);
+  const searching = !!query.trim();
   useEffect(() => { void usePullRequests.getState().load(computerId, state); }, [computerId, state]);
   const repositories = projectId ? projectRepositories(openEntry?.inbox ?? entry?.inbox, projectId) : null;
-  const items = useMemo(() => (entry?.inbox?.items ?? []).filter((item) => !repositories || repositories.includes(item.repository)), [entry, repositories]);
   const viewer = entry?.inbox?.viewer ?? null;
+  const projectItems = useMemo(() => (entry?.inbox?.items ?? []).filter((item) => !repositories || repositories.includes(item.repository)), [entry, repositories]);
+  const items = useMemo(() => searching ? projectItems.filter((item) => matchesPullRequestQuery(item, parsedQuery, viewer)) : projectItems, [projectItems, parsedQuery, searching, viewer]);
   const failure = entry?.inbox?.failures.find((item) => !repositories || repositories.includes(item.repository));
 
   const row = (item: GithubItem, index: number) => {
@@ -116,15 +122,20 @@ export function PullRequestsScreen() {
     : [{ id: state, title: "", items }];
 
   return <>
-    <NativeStackScreenOptions options={{ title: "Pull requests", headerSubtitle: project?.name } as never} />
+    <NativeStackScreenOptions options={{
+      title: "Pull requests",
+      headerSubtitle: project?.name,
+      headerSearchBarOptions: { placeholder: "Buscar, label:, author:, draft:", autoCapitalize: "none", onChangeText: (event: { nativeEvent: { text: string } }) => setQuery(event.nativeEvent.text), onCancelButtonPress: () => setQuery("") },
+    } as never} />
     <ScrollView className="flex-1 bg-screen" contentInsetAdjustmentBehavior="automatic" contentContainerClassName="gap-6 px-4 pb-10 pt-2"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void usePullRequests.getState().load(computerId, state, true).finally(() => setRefreshing(false)); }} />}>
-      <SegmentedControl values={STATES.map((item) => item.label)} selectedIndex={STATES.findIndex((item) => item.id === state)}
-        onChange={({ nativeEvent }) => { void Haptics.selectionAsync().catch(() => undefined); setState(STATES[nativeEvent.selectedSegmentIndex]?.id ?? "open"); }} />
+      <SegmentedControl options={STATES.map((item) => ({ value: item.id, label: item.label }))} selected={state}
+        onSelect={(value) => { void Haptics.selectionAsync().catch(() => undefined); setState(value); }} />
       {entry?.loading && !entry.inbox ? <ActivityIndicator className="mt-10" />
         : entry?.error && !entry.inbox ? <EmptyState icon="exclamationmark.triangle" text={`Não foi possível ler o GitHub: ${entry.error}`} />
-        : failure && !items.length ? <EmptyState icon="person.crop.circle.badge.exclamationmark" text={failure.status === "authRequired" ? "Entre no GitHub CLI (gh auth login) no computador para ver os pull requests." : failure.status === "cliMissing" ? "Instale o GitHub CLI (gh) no computador para ver os pull requests." : "O GitHub não respondeu para este repositório."} />
+        : failure && !projectItems.length ? <EmptyState icon="person.crop.circle.badge.exclamationmark" text={failure.status === "authRequired" ? "Entre no GitHub CLI (gh auth login) no computador para ver os pull requests." : failure.status === "cliMissing" ? "Instale o GitHub CLI (gh) no computador para ver os pull requests." : "O GitHub não respondeu para este repositório."} />
         : repositories && !repositories.length && entry?.inbox ? <EmptyState icon="arrow.triangle.pull" text="Este projeto não aponta para um repositório do GitHub." />
+        : !items.length && entry?.inbox && searching && projectItems.length ? <EmptyState icon="magnifyingglass" text="Nenhum pull request combina com a busca." />
         : !items.length && entry?.inbox ? <EmptyState icon="arrow.triangle.pull" text={state === "open" ? "Nenhum pull request aberto." : state === "merged" ? "Nenhum pull request com merge." : "Nenhum pull request fechado."} />
         : sections.map((section) => <ListSection key={section.id} title={section.title ? `${section.title} · ${section.items.length}` : undefined}>{section.items.map(row)}</ListSection>)}
     </ScrollView>

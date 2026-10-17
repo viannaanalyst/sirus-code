@@ -79,7 +79,7 @@ export interface ActivityItem { id: string; kind: ActivityKind; label: string; s
   /** Child rows: a Claude workflow's phases and members (ADR-115). */
   workflow?: WorkflowProgress; }
 export interface WorkflowProgress { name?: string; phases: { index: number; title: string }[]; agents: WorkflowAgent[] }
-export interface WorkflowAgent { index: number; label: string; state: "queued" | "running" | "completed" | "failed"; phaseIndex?: number; model?: string; attempt?: number; tokens?: number; toolCalls?: number; durationMs?: number; result?: string }
+export interface WorkflowAgent { index: number; label: string; state: "queued" | "running" | "completed" | "failed"; phaseIndex?: number; model?: string; attempt?: number; tokens?: number; toolCalls?: number; durationMs?: number; result?: string; /** While it runs: the end of its answer so far (live only, never saved). */ partial?: string }
 export interface TurnReview {
   /** `committedAt`: included in a commit made through Sirus; it leaves the review (ADR-108). */
   files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null; committedAt?: string | null })[];

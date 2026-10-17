@@ -1,11 +1,11 @@
 import { useNavigation, type NavigationProp, type ParamListBase } from "@react-navigation/native";
-import SegmentedControl from "@expo/ui/community/segmented-control";
 import * as Haptics from "expo-haptics";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native";
 
 import { SymbolView } from "../components/AppSymbol";
 import { AppText } from "../components/AppText";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { ThreadRow } from "../components/ThreadRow";
 import { computerName } from "../data/computers";
 import { useSirus } from "../data/store";
@@ -71,11 +71,11 @@ export function ConversationsScreen(props: { readonly mode?: "tab" | "search" })
   const open = (row: ConversationRow) => navigation.navigate("Thread", { computerId: row.computerId, sessionId: row.session.id });
   const header = search ? null : <View className="gap-3 px-4 pb-2 pt-2">
     <SegmentedControl
-      values={FILTERS.map((item) => item.label)}
-      selectedIndex={FILTERS.findIndex((item) => item.id === filter)}
-      onChange={({ nativeEvent }) => {
+      options={FILTERS.map((item) => ({ value: item.id, label: item.label }))}
+      selected={filter}
+      onSelect={(value) => {
         void Haptics.selectionAsync().catch(() => undefined);
-        setFilter(FILTERS[nativeEvent.selectedSegmentIndex]?.id ?? "all");
+        setFilter(value);
       }}
     />
     {computerLabel || projectName ? <View className="flex-row flex-wrap gap-2">

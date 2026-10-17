@@ -648,9 +648,22 @@ impl Background {
     }
 }
 
+#[cfg(test)]
 pub(crate) async fn execute(
     wire: &mut Wire,
     run: &mut Run,
+    cancel: &mut watch::Receiver<bool>,
+    emit: &mut impl FnMut(Event) -> Result<()>,
+) -> Result<bool> {
+    execute_in(wire, run, None, cancel, emit).await
+}
+
+/// Runs one turn. `config_dir` is the Claude config folder of the session's account, where a
+/// running workflow member's transcript is read for its answer so far (ADR-115).
+pub(crate) async fn execute_in(
+    wire: &mut Wire,
+    run: &mut Run,
+    config_dir: Option<std::path::PathBuf>,
     cancel: &mut watch::Receiver<bool>,
     emit: &mut impl FnMut(Event) -> Result<()>,
 ) -> Result<bool> {
@@ -663,6 +676,7 @@ pub(crate) async fn execute(
             background: BACKGROUND_LIMIT,
             grace: FOLLOW_UP_GRACE,
         },
+        crate::workflow::LiveTranscripts::new(config_dir),
     )
     .await
 }
@@ -673,6 +687,7 @@ async fn run_turn(
     cancel: &mut watch::Receiver<bool>,
     emit: &mut impl FnMut(Event) -> Result<()>,
     limits: Limits,
+    mut transcripts: crate::workflow::LiveTranscripts,
 ) -> Result<bool> {
     // A kept process was initialized by its first turn (agent_pool).
     if !wire.initialized {
@@ -867,7 +882,9 @@ async fn run_turn(
             emit(Event::Delta(format!("{lead}{update}\n\n")))?;
             wrote_text = true;
         }
-        let items = crate::activity::claude(&value);
+        let mut items = crate::activity::claude(&value);
+        // A running workflow member's answer so far, from its transcript (ADR-115).
+        transcripts.refresh(&value, &mut items).await;
         if !items.is_empty() {
             emit(Event::Activity(items))?;
         }
@@ -1649,7 +1666,14 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
                 events.push(event);
                 Ok(())
             };
-            let turn = run_turn(&mut wire, &mut run, &mut cancel, &mut callback, limits);
+            let turn = run_turn(
+                &mut wire,
+                &mut run,
+                &mut cancel,
+                &mut callback,
+                limits,
+                crate::workflow::LiveTranscripts::new(None),
+            );
             match cancel_after {
                 Some(after) => {
                     tokio::pin!(turn);

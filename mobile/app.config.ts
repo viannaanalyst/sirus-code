@@ -18,7 +18,7 @@ const dmSans = {
  * `RUNTIME_VERSION` whenever native code changes, so an update never runs on the wrong build.
  */
 const UPDATE_URL = process.env.SIRUS_UPDATE_URL;
-const RUNTIME_VERSION = "3";
+const RUNTIME_VERSION = "4";
 
 const config: ExpoConfig = {
   name: "Sirus",
