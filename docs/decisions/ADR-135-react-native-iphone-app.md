@@ -49,7 +49,7 @@ The Capacitor shell (ADR-134) runs the phone web UI in a web view. Native touche
 - **The conversation** shows the agent's approvals and questions as the desktop's request cards (`respond_agent_request`). A message sent while the agent works joins a queue above the composer, kept while the app runs, with "Instruir agora" (`steer_turn`) for Claude and Codex; it goes when the reply ends.
 - **Links:** web addresses in sent messages are blue; `/commands` and `@files` are highlighted; inline code naming a file of the conversation's folder is a blue link that opens the file.
 - **Pages:** a conversation opens with its newest 40 light messages and loads older ones as the list nears the top (ADR-048 addendum: 3.4 MB → 192 KB, still after 4.6 s → 1.6 s).
-- **Native modules** added since runtime 1 (`@expo/ui` for the native slider, enriched markdown t3.13 with the code-block wrap button) made it runtime 2.
+- **Native modules** added since runtime 1 (`@expo/ui` for the native slider, enriched markdown 1.2.0-sirus.13 with the code-block wrap button) made it runtime 2.
 
 ## Addendum (2026-10-16): tabs, projects and pull requests
 
