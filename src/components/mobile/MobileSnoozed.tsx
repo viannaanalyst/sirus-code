@@ -6,6 +6,7 @@ import { isSnoozed } from "@/lib/snooze";
 import type { MobileNavigation } from "./MobileApp";
 import { MobileSessionItem } from "./MobileSessionRow";
 import { EnvironmentFilterBar, EnvironmentMarker, useMergedHome, useOpenOnEnvironment } from "./MobileEnvironments";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * Snoozed conversations (ADR-103, ADR-124), soonest back first: open one, or slide it to return now or change the time.
@@ -19,7 +20,7 @@ export function MobileSnoozed({ navigation }: { navigation: MobileNavigation }) 
   const [filter, setFilter] = useState<EnvironmentFilter>("all");
   const all = useMemo(() => {
     const archived = new Set(merged.archivedSessionIds);
-    return merged.sessions.filter((session) => isSnoozed(session) && !session.sideChat && !archived.has(session.id))
+    return merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session) && !archived.has(session.id))
       .sort((a, b) => Date.parse(a.snoozedUntil ?? "") - Date.parse(b.snoozedUntil ?? ""));
   }, [merged]);
   const list = useMemo(() => filterByEnvironment(all, merged.environmentOf, filter, merged.storeId), [all, merged, filter]);

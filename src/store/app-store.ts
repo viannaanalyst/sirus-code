@@ -1,4 +1,5 @@
 import { hostFeatures } from "@/lib/phone-host";
+import { githubSeenFloor } from "@/lib/github-seen";
 import { appendDiffComment } from "@/lib/diff-comment";
 import { startRecording, stopRecording } from "@/lib/browser-recordings";
 import { promptWantsBrowserCapture } from "@/lib/browser-url";
@@ -8,6 +9,7 @@ import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openTab as openTabRule, TAB_LIMIT, visibleTabSessions } from "@/lib/header-tabs";
 import { retainActivityNotifications } from "@/lib/notifications";
 import { isSnoozed } from "@/lib/snooze";
+import { isAuxiliarySession, pullAskContext, pullAskKey } from "@/lib/pull-ask";
 import { moveItem } from "@/lib/queue-order";
 import { initialSplit, leafShowing, splitDrop, splitLeaves, splitRemove, splitResize, splitSync, type SplitEdge, type SplitLayout, type SplitTarget } from "@/lib/split-layout";
 import { activeProviderAccount } from "@/lib/provider-accounts";
@@ -328,6 +330,10 @@ interface AppStore {
   openSideChat: (parentSessionId: string, quote?: string) => Promise<boolean>;
   /** ⌥⌘S: shows the selected session's side chat, or hides it when it is showing. */
   toggleSideChat: () => void;
+  /** Whether the Pull requests detail shows its Ask panel (ADR-050); memory-only. */
+  pullAskOpen: boolean;
+  /** Opens (or reuses) the item's read-only Ask conversation; failures land in `error` and resolve null. */
+  openPullAsk: (item: import("@/client/types").GithubItem, body: string) => Promise<Session | null>;
   renameSession: (sessionId: string, title: string) => Promise<boolean>;
   /**
    * Snoozes a conversation until `until` (RFC 3339) or, with null, returns it now (ADR-103).
@@ -914,6 +920,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   unseenSessionIds: [],
   githubInbox: {},
   pullsSelection: null,
+  pullAskOpen: false,
   archivePrompt: null,
   requestArchive: (sessionId, confirmed = false) => {
     const state = get();
@@ -1121,7 +1128,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const sessions = data.sessions;
       const selectedSessionId =
         settings.restorePreviousSessions && selectedProjectId
-          ? (sessions.find((session) => session.projectId === selectedProjectId && !session.sideChat && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
+          ? (sessions.find((session) => session.projectId === selectedProjectId && !isAuxiliarySession(session) && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
           : null;
       // Only the selected transcript loads before the first paint (ADR-048).
       const initialTranscript = selectedSessionId ? await client.loadTranscript(selectedSessionId).catch(() => null) : null;
@@ -1155,6 +1162,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       });
       void detection.then((result) => { if (!stale()) set("agents" in result ? { agents: result.agents } : { error: formatUnknownError(result.error) }); });
       scheduleProjectDiffs();
+      // One read of the open pull requests after start-up, so the rail's unread dot is right
+      // before the page is opened (no polling).
+      if (!settings.hiddenRailItems?.includes("pulls")) {
+        const timer = setTimeout(() => { if (!stale()) void get().loadGithubInbox("pullRequest", "open"); }, 4000);
+        (timer as { unref?: () => void }).unref?.();
+      }
       void Promise.all(projects.filter((project) => project !== selectedProject).map(identify)).then((rest) => !stale() && set((state) => ({
         gitByPath: { ...Object.fromEntries(rest.filter((item) => item !== null)), ...state.gitByPath },
       })));
@@ -1192,7 +1205,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       projects: state.projects.some((item) => item.id === project.id) ? state.projects.map((item) => item.id === project.id ? project : item) : [project, ...state.projects],
       selectedProjectId: project.id,
-      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !isAuxiliarySession(session) && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
       gitStatus: null, selectedDiff: null, diffText: null,
       gitByPath: { ...state.gitByPath, [project.path]: identity },
     }));
@@ -1217,7 +1230,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const sequence = ++projectRequestSequence;
     const project = await client.openProject(projectId);
     if (sequence !== projectRequestSequence) return;
-    const sessions = get().sessions.filter((session) => session.projectId === projectId && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id));
+    const sessions = get().sessions.filter((session) => session.projectId === projectId && !isAuxiliarySession(session) && !get().settings.archivedSessionIds.includes(session.id));
     set({
       selectedProjectId: projectId,
       selectedSessionId: sessions[0]?.id ?? null,
@@ -1264,7 +1277,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       contextTextStatus: Object.fromEntries(Object.entries(get().contextTextStatus).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       composerContexts: Object.fromEntries(Object.entries(get().composerContexts).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       selectedProjectId: nextProject,
-      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !session.sideChat && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !isAuxiliarySession(session) && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
       terminalWorkspacesBySession,
       localServersBySession,
       selectedFileBySession,
@@ -1323,6 +1336,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     if (session.sideChat) {
       await get().selectSession(session.sideChat.parentSessionId);
       void get().openSideChat(session.sideChat.parentSessionId);
+      return;
+    }
+    // An Ask conversation lives beside its pull request or issue (ADR-050).
+    if (session.pullAsk) {
+      set({ pullsSelection: pullAskKey(session.pullAsk), pullAskOpen: true });
+      get().setMainView("pulls");
       return;
     }
     set({ mainView: "session", selectedSessionId: sessionId, selectedProjectId: session.projectId, gitStatus: null, selectedDiff: null, diffText: null });
@@ -1762,7 +1781,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
         const loadedTranscripts = { ...state.loadedTranscripts }; delete loadedTranscripts[sessionId];
         return { sessions, promptQueues, loadedTranscripts, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
-          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !session.sideChat && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !isAuxiliarySession(session) && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
       });
@@ -1791,6 +1810,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const response = await client.pullRequestAction({ type: "list", kind, state });
       const data = response.type === "inbox" ? response : null;
       set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data, loading: false, error: null } } }));
+      // The first list that loads marks everything already there as seen (no flood of unread dots).
+      const { ready, settings, saveSettings } = get();
+      if (data && ready && settings.githubSeenFloor === null && !data.failures.some((failure) => failure.status === "cliMissing" || failure.status === "authRequired"))
+        void saveSettings({ ...settings, githubSeenFloor: githubSeenFloor(data.items, null) });
     } catch (error) {
       set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data: current.githubInbox[key]?.data ?? null, loading: false, error: formatUnknownError(error) } } }));
     }
@@ -1820,6 +1843,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
   pullRequestAction: async (action) => {
     try { return await client.pullRequestAction(action); }
     catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  openPullAsk: async (item, body) => {
+    try {
+      const session = await client.pullAskAction({ type: "open", repository: item.repository, number: item.number, kind: item.kind, context: pullAskContext(item, body) });
+      const owner = `session:${session.id}`;
+      set((state) => ({
+        sessions: state.sessions.some((row) => row.id === session.id) ? state.sessions.map((row) => row.id === session.id ? { ...row, pullAsk: session.pullAsk } : row) : [session, ...state.sessions],
+        // Every turn runs read-only natively; the composer shows planning where the provider has it.
+        composerContexts: state.composerContexts[owner] ? state.composerContexts : { ...state.composerContexts, [owner]: { ...emptyComposerContext, planning: supportsPlanning(session.agent, session.model ?? null) } },
+      }));
+      void get().ensureTranscript(session.id);
+      return get().sessions.find((row) => row.id === session.id) ?? session;
+    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
   },
 
   openSideChat: async (parentSessionId, quote) => {
@@ -2327,7 +2364,7 @@ useAppStore.subscribe((state, previous) => {
     if (noticedReminders.has(key)) continue;
     noticedReminders.add(key);
     returned.push(session.id);
-    if (!firstLoad && !session.sideChat) tabs = { ...tabs, [session.projectId]: openTabRule(tabs[session.projectId] ?? [], session.id, selected?.id ?? null) };
+    if (!firstLoad && !isAuxiliarySession(session)) tabs = { ...tabs, [session.projectId]: openTabRule(tabs[session.projectId] ?? [], session.id, selected?.id ?? null) };
   }
   const seen = !!selected && state.unseenSessionIds.includes(selected.id);
   const unread = [...finished, ...returned];
@@ -2803,7 +2840,7 @@ export const selectListedSessions = (state: AppStore): Session[] => {
   const meta = selectSessionsMeta(state);
   if (meta !== listedFrom) {
     listedFrom = meta;
-    listed = meta.some((session) => session.sideChat || isSnoozed(session)) ? meta.filter((session) => !session.sideChat && !isSnoozed(session)) : meta;
+    listed = meta.some((session) => isAuxiliarySession(session) || isSnoozed(session)) ? meta.filter((session) => !isAuxiliarySession(session) && !isSnoozed(session)) : meta;
   }
   return listed;
 };
@@ -2815,7 +2852,7 @@ export const selectSnoozedSessions = (state: AppStore): Session[] => {
   const meta = selectSessionsMeta(state);
   if (meta !== snoozedFrom) {
     snoozedFrom = meta;
-    const next = meta.filter((session) => isSnoozed(session) && !session.sideChat)
+    const next = meta.filter((session) => isSnoozed(session) && !isAuxiliarySession(session))
       .sort((a, b) => Date.parse(a.snoozedUntil ?? "") - Date.parse(b.snoozedUntil ?? ""));
     snoozed = next.length === snoozed.length && next.every((session, index) => session === snoozed[index]) ? snoozed : next;
   }

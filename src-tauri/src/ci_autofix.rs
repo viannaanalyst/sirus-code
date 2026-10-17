@@ -220,7 +220,7 @@ fn candidates(state: &AppState) -> Vec<String> {
     let mut sessions: Vec<&Session> = data
         .sessions
         .iter()
-        .filter(|session| session.side_chat.is_none() && !archived.contains(&session.id))
+        .filter(|session| !session.is_auxiliary() && !archived.contains(&session.id))
         .filter(|session| {
             tracked(&session.id)
                 || DateTime::parse_from_rfc3339(&session.last_activity_at)

@@ -77,7 +77,7 @@ fn resumable(data: &AppData, interrupted: &[String], now: DateTime<Utc>) -> Vec<
         .iter()
         .filter(|session| interrupted.contains(&session.id))
         .filter(|session| {
-            session.side_chat.is_none()
+            !session.is_auxiliary()
                 && session.delegated_by.is_none()
                 && session.team_worker.is_none()
         })

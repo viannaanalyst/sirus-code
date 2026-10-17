@@ -2,6 +2,7 @@ import { client } from "@/client";
 import { useAppStore } from "@/store/app-store";
 import { formatUnknownError } from "@/lib/format-error";
 import { translate } from "@/i18n";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /** All project actions retain the clicked project ID across asynchronous work. */
 export async function sidebarProjectAction(projectId: string, action: "new" | "terminal" | "review") {
@@ -12,7 +13,7 @@ export async function sidebarProjectAction(projectId: string, action: "new" | "t
     if (action === "new") { state.requestNewSession(); return; }
     const selectedSessionId = state.selectedSessionId;
     const mainView = state.mainView;
-    let session = action === "review" ? state.sessions.find((row) => row.projectId === projectId && !row.sideChat && !row.worktree.isolated && !state.settings.archivedSessionIds.includes(row.id)) : undefined;
+    let session = action === "review" ? state.sessions.find((row) => row.projectId === projectId && !isAuxiliarySession(row) && !row.worktree.isolated && !state.settings.archivedSessionIds.includes(row.id)) : undefined;
     if (!session) {
       const agent = state.agents.find((row) => row.id === state.settings.defaultAgent && !state.settings.disabledProviders.includes(row.id))?.id
         ?? state.agents.find((row) => !state.settings.disabledProviders.includes(row.id))?.id;

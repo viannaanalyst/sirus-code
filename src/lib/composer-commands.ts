@@ -1,4 +1,5 @@
 import type { AgentProviderId, Message, Session } from "@/client/types";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /** App commands offered at a leading `/` (they act on the app and are never sent as text). */
 export type ComposerCommandId = "review" | "compact" | "status" | "usage" | "mcp" | "fast" | "rename" | "fork" | "export" | "side" | "new";
@@ -20,7 +21,7 @@ const COMMANDS: ComposerCommand[] = [
 ];
 
 export interface CommandContext {
-  session: Pick<Session, "status" | "sideChat" | "messages"> | null;
+  session: Pick<Session, "status" | "sideChat" | "pullAsk" | "messages"> | null;
   agent: AgentProviderId;
   fastAvailable: boolean;
 }
@@ -36,9 +37,9 @@ export function availableCommands(context: CommandContext): ComposerCommand[] {
       case "fast": return context.fastAvailable;
       case "compact": return Boolean(session) && (context.agent === "codex" || context.agent === "claude");
       case "status": case "mcp": case "rename": case "export": return Boolean(session);
-      case "fork": return Boolean(session && !session.sideChat && idle && settledReply);
-      case "side": return Boolean(session && !session.sideChat);
-      case "new": return Boolean(session && !session.sideChat);
+      case "fork": return Boolean(session && !isAuxiliarySession(session) && idle && settledReply);
+      case "side": return Boolean(session && !isAuxiliarySession(session));
+      case "new": return Boolean(session && !isAuxiliarySession(session));
     }
   });
 }

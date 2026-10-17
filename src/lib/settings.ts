@@ -7,6 +7,7 @@ import { AGENT_PROVIDER_IDS } from "@/client/types";
 import { SIDEBAR_USAGE_LIMIT, USAGE_PROVIDER_IDS } from "./provider-usage";
 import { RAIL_ITEMS } from "./rail";
 import { normalizeConnectors } from "./connectors";
+import { normalizeGithubSeen, normalizeGithubSeenFloor } from "./github-seen";
 
 export const defaultSettings: AppSettings = {
   notifications: defaultNotifications,
@@ -32,6 +33,8 @@ export const defaultSettings: AppSettings = {
   windowSnapEnabled: false,
   windowSnapShortcut: "controlOptionCommandS",
   githubPins: [],
+  githubSeen: {},
+  githubSeenFloor: null,
   railItemOrder: [],
   hiddenRailItems: [],
   railProjectShortcuts: [],
@@ -184,6 +187,8 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     hiddenRailItems: [...new Set((value?.hiddenRailItems ?? []).filter((id) => id !== "home" && (RAIL_ITEMS as readonly string[]).includes(id)))],
     railProjectShortcuts: [...new Set((value?.railProjectShortcuts ?? []).filter((id) => typeof id === "string" && id.length > 0 && id.length <= 128))].slice(0, 12),
     githubPins: [...new Set((value?.githubPins ?? []).filter((pin) => typeof pin === "string" && /^[A-Za-z0-9-]{1,100}\/[A-Za-z0-9._-]{1,100}#[1-9]\d{0,7}$/.test(pin)))].slice(0, 200),
+    githubSeenFloor: normalizeGithubSeenFloor(value?.githubSeenFloor),
+    githubSeen: normalizeGithubSeen(value?.githubSeen, normalizeGithubSeenFloor(value?.githubSeenFloor)),
     disabledProviders: value?.disabledProviders ?? [],
     providerPaths: value?.providerPaths ?? {},
     modelExecution: value?.modelExecution ?? {},

@@ -156,6 +156,7 @@ pub fn fork_snapshot(
         team: None,
         team_worker: None,
         side_chat: None,
+        pull_ask: None,
         scripts: Default::default(),
     })
 }
@@ -321,6 +322,7 @@ pub fn handoff_snapshot(
         team: None,
         team_worker: None,
         side_chat: None,
+        pull_ask: None,
         scripts: Default::default(),
     })
 }

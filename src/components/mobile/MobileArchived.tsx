@@ -7,6 +7,7 @@ import type { MobileNavigation } from "./MobileApp";
 import { MobileSessionItem } from "./MobileSessionRow";
 import { EnvironmentFilterBar, EnvironmentMarker, useMergedHome, useOpenOnEnvironment } from "./MobileEnvironments";
 import "@/styles/mobile-settings.css";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * Archived conversations (ADR-086): open one, or slide it to restore or delete. A floating
@@ -22,7 +23,7 @@ export function MobileArchived({ navigation }: { navigation: MobileNavigation })
   const [filter, setFilter] = useState<EnvironmentFilter>("all");
   const all = useMemo(() => {
     const archived = new Set(merged.archivedSessionIds);
-    return merged.sessions.filter((session) => archived.has(session.id) && !session.sideChat).sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
+    return merged.sessions.filter((session) => archived.has(session.id) && !isAuxiliarySession(session)).sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
   }, [merged]);
   const list = useMemo(() => filterByEnvironment(all, merged.environmentOf, filter, merged.storeId), [all, merged, filter]);
   const byId = useMemo(() => new Map(merged.projects.map((project) => [project.id, project])), [merged]);

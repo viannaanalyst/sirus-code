@@ -1247,6 +1247,7 @@ pub(crate) fn create_session_locked(
         team: None,
         team_worker: None,
         side_chat: None,
+        pull_ask: None,
         // A new isolated worktree runs the project's Setup script before its first turn.
         scripts: crate::project_scripts::SessionScripts::new(request.isolated_worktree),
     };
@@ -1272,6 +1273,10 @@ fn fork_session_native(state: &AppState, session_id: &str, message_id: &str) -> 
         .iter()
         .find(|session| session.id == session_id)
         .ok_or_else(|| Error::not_found("session not found"))?;
+    // Ask conversations stay read-only beside their pull request (ADR-050).
+    if source.pull_ask.is_some() {
+        return Err(Error::agent("An Ask conversation cannot be forked."));
+    }
     if state.agents.lock().contains_key(session_id) {
         return Err(Error::agent(
             "Stop or finish the source session before forking.",
@@ -1388,6 +1393,9 @@ fn handoff_session_native(
         .find(|session| session.id == session_id)
         .cloned()
         .ok_or_else(|| Error::not_found("session not found"))?;
+    if source.pull_ask.is_some() {
+        return Err(Error::agent("An Ask conversation cannot be handed off."));
+    }
     if state.agents.lock().contains_key(session_id) || source.status.is_active() {
         return Err(Error::agent(
             "Stop or finish the source session before handing it off.",
@@ -1598,6 +1606,12 @@ pub(crate) fn delete_session_native(
             "A side chat uses its main session's workspace; it cannot remove it.",
         ));
     }
+    // An Ask conversation runs in the project checkout (ADR-050).
+    if remove_worktree && session.pull_ask.is_some() {
+        return Err(Error::agent(
+            "An Ask conversation uses the project's checkout; it cannot remove it.",
+        ));
+    }
     let side_chats = crate::side_chat::children(&data.sessions, &session_id);
     {
         let agents = state.agents.lock();
@@ -1772,6 +1786,20 @@ pub async fn send_prompt(
             .find(|session| session.id == request.session_id)
             .ok_or_else(|| Error::not_found("session not found"))?;
         crate::execution::validate_queued_context(snapshot, request.queued_after.as_ref())?;
+        // An Ask conversation about a pull request is read-only on every turn (ADR-050).
+        let pull_ask = snapshot.pull_ask.clone();
+        if pull_ask.is_some() {
+            if request.team || request.debugging {
+                return Err(Error::agent(
+                    "An Ask conversation cannot coordinate a team or debug.",
+                ));
+            }
+            request.execution = crate::pull_ask::read_only(
+                &snapshot.agent,
+                snapshot.model.as_deref(),
+                &request.execution,
+            )?;
+        }
         let cwd = session_cwd(&data, snapshot)?;
         if let Some((context, _, _)) = &skill_input {
             if context.cwd.as_ref() != Some(&cwd)
@@ -1865,6 +1893,10 @@ pub async fn send_prompt(
         let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
         let process_prompt = match &side_recap {
             Some(recap) => crate::side_chat::wrap(recap, &process_prompt),
+            None => process_prompt,
+        };
+        let process_prompt = match &pull_ask {
+            Some(origin) => crate::pull_ask::wrap(origin, &process_prompt),
             None => process_prompt,
         };
         let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);

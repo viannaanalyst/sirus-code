@@ -2,6 +2,7 @@ import { REMOTE_TOKEN_KEY } from "@/client/remote-pairing";
 import type { RemoteConnection } from "@/client/remote-transport";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { archiveSidebarSession, toggleSidebarId } from "@/lib/sidebar-layout";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * One phone app, several computers (ADR-132). The page the app was installed from is the
@@ -156,7 +157,7 @@ export function chooseActive(environments: readonly Environment[], stored: strin
 /** A computer's data, trimmed for the Home of another computer and the offline cache. */
 export function summarize(data: { sessions: readonly Session[]; projects: readonly Project[]; archivedSessionIds?: readonly string[]; pinnedSessionIds?: readonly string[] }, now = Date.now()): EnvironmentSummary {
   const sessions = data.sessions
-    .filter((session) => !session.sideChat)
+    .filter((session) => !isAuxiliarySession(session))
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
     .slice(0, SUMMARY_LIMIT)
     .map((session) => ({ ...session, messages: [] }));
@@ -172,7 +173,7 @@ export function summarize(data: { sessions: readonly Session[]; projects: readon
 
 /** A session update from another computer, applied to its summary (new ones go first). */
 export function applySessionUpdate(summary: EnvironmentSummary, session: Session, now = Date.now()): EnvironmentSummary {
-  if (session.sideChat) return summary;
+  if (isAuxiliarySession(session)) return summary;
   const trimmed = { ...session, messages: [] };
   const known = summary.sessions.some((item) => item.id === session.id);
   return {

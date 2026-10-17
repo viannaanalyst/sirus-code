@@ -11,6 +11,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useAppStore } from "@/store/app-store";
 import { ComputerError, computerLabel, useComputers } from "@/store/computers-store";
 import "@/styles/computers.css";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * "Move to <computer>" items for a conversation's menus (ADR-133): one per other paired
@@ -23,7 +24,7 @@ export function useMoveMenu(group = "move") {
   const connection = useComputers((state) => state.connection);
   useComputers((state) => state.hostInfo);
   return (session: Session | null | undefined) => {
-    if (!session || session.sideChat || computers.length < 2) return [];
+    if (!session || isAuxiliarySession(session) || computers.length < 2) return [];
     return computers.filter((computer) => computer.id !== activeId).map((computer) => ({
       id: `move:${computer.id}`,
       group,

@@ -24,6 +24,8 @@ import { activityEnglish, activityPortuguese } from "./activity-strings";
 import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
 import { connectorsEnglish, connectorsPortuguese } from "./connectors-strings";
 import { reviewInboxEnglish, reviewInboxPortuguese } from "./review-inbox-strings";
+import { pullChecksEnglish, pullChecksPortuguese } from "./pull-checks-strings";
+import { pullAskEnglish, pullAskPortuguese } from "./pull-ask-strings";
 import { workspacePagesEnglish, workspacePagesPortuguese } from "./workspace-pages-strings";
 import { queueEnglish, queuePortuguese } from "./queue-strings";
 import { splitEnglish, splitPortuguese } from "./split-strings";
@@ -68,6 +70,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...backgroundPortuguese,
     ...connectorsPortuguese,
     ...reviewInboxPortuguese,
+    ...pullChecksPortuguese,
+    ...pullAskPortuguese,
     ...workspacePagesPortuguese,
     ...splitPortuguese,
     ...flowPortuguese,
@@ -152,6 +156,8 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...backgroundEnglish,
     ...connectorsEnglish,
     ...reviewInboxEnglish,
+    ...pullChecksEnglish,
+    ...pullAskEnglish,
     ...workspacePagesEnglish,
     ...splitEnglish,
     ...flowEnglish,

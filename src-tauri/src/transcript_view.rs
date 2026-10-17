@@ -474,7 +474,7 @@ pub fn search((sessions, projects, skipped): SearchSnapshot, query: &str) -> Res
 pub fn search_snapshot(data: &AppData) -> SearchSnapshot {
     // Side chats are hidden from session lists, so search does not open them.
     let mut owned = owned(data)
-        .filter(|session| session.side_chat.is_none())
+        .filter(|session| !session.is_auxiliary())
         .enumerate()
         .collect::<Vec<_>>();
     let skipped = owned.len() > MAX_SEARCHED_SESSIONS;

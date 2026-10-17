@@ -527,10 +527,10 @@ pub async fn set(
             .iter()
             .find(|session| session.id == session_id)
             .ok_or_else(|| Error::not_found("session not found"))?;
-        if session.side_chat.is_some() {
+        if session.is_auxiliary() {
             return Err(Error::new(
                 "pr_watch_side_chat",
-                "A side chat cannot watch a pull request; use its main session.",
+                "A side chat or Ask conversation cannot watch a pull request; use a main session.",
             ));
         }
     }

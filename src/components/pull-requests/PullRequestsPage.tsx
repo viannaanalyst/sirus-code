@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence } from "motion/react";
 import { ArrowUpDown, Check, ChevronDown, Ellipsis, Eye, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons/phosphor";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import type { GithubInbox, GithubItem, GithubItemKind, GithubItemState } from "@/client/types";
 import { PullRequestDetail } from "@/components/pull-requests/PullRequestDetail";
+import { PullAskPanel } from "@/components/pull-requests/PullAskPanel";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { watchesFor } from "@/lib/pull-requests";
 import { defaultInboxFilters, filterInbox, inboxSections, itemKey, labelCounts, type InboxFilters, type Involvement } from "@/lib/github-inbox";
+import { githubSeenFloor, hasUnreadGithubItems, isGithubItemUnread, markGithubItemSeen, normalizeGithubSeen } from "@/lib/github-seen";
 import { relativeTime } from "@/lib/session-board";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { useAppStore } from "@/store/app-store";
@@ -52,6 +55,8 @@ export function PullRequestsPage() {
   const load = useAppStore((store) => store.loadGithubInbox);
   const projects = useAppStore((store) => store.projects);
   const pins = useAppStore((store) => store.settings.githubPins);
+  const seenMarks = useAppStore((store) => store.settings.githubSeen);
+  const seenFloor = useAppStore((store) => store.settings.githubSeenFloor);
   const issueState: GithubItemState = state === "merged" ? "closed" : state;
   const pulls = inboxes[`pullRequest:${state}`];
   const issues = inboxes[`issue:${issueState}`];
@@ -82,6 +87,26 @@ export function PullRequestsPage() {
   const sections = useMemo(() => inboxSections(items, all?.viewer ?? null, pins), [items, all?.viewer, pins]);
   const labels = useMemo(() => all ? labelCounts(all.items) : [], [all]);
   const selectedItem = selected ? all?.items.find((item) => itemKey(item) === selected) ?? null : null;
+  const selectedProjects = selectedItem ? all?.repositories.find((repo) => repo.repository.toLowerCase() === selectedItem.repository.toLowerCase())?.projectIds ?? [] : [];
+  // Ask (read-only conversation about the item) stays open across items; its context needs the loaded description.
+  const askOpen = useAppStore((store) => store.pullAskOpen);
+  const [askBody, setAskBody] = useState<{ key: string; body: string } | null>(null);
+  const reportBody = useCallback((key: string, body: string) => setAskBody((prev) => prev?.key === key && prev.body === body ? prev : { key, body }), []);
+  const showAsk = askOpen && !!selectedItem && selectedProjects.length > 0;
+  // Opening an item marks it read at its current updatedAt; a later update makes it unread again.
+  useEffect(() => {
+    if (!selectedItem) return;
+    const store = useAppStore.getState();
+    const next = markGithubItemSeen(store.settings.githubSeen, store.settings.githubSeenFloor, selectedItem);
+    if (next) void store.saveSettings({ ...store.settings, githubSeen: next });
+  }, [selectedItem]);
+  const loadedItems = useMemo(() => Object.values(inboxes).flatMap((list) => list.data?.items ?? []), [inboxes]);
+  const anyUnread = useMemo(() => hasUnreadGithubItems(loadedItems, seenMarks, seenFloor), [loadedItems, seenMarks, seenFloor]);
+  const markAllRead = () => {
+    const store = useAppStore.getState();
+    const floor = githubSeenFloor(loadedItems, store.settings.githubSeenFloor);
+    void store.saveSettings({ ...store.settings, githubSeenFloor: floor, githubSeen: normalizeGithubSeen(store.settings.githubSeen, floor) });
+  };
   const activeFilters = (filters.involvement !== "anyone" ? 1 : 0) + filters.projectIds.length + filters.labels.length + (state !== "open" ? 1 : 0);
   const togglePin = (item: GithubItem) => {
     const store = useAppStore.getState();
@@ -124,6 +149,7 @@ export function PullRequestsPage() {
             <DropdownTrigger asChild><button type="button" className="pulls-icon-button" aria-label={t("pulls.more")} title={t("pulls.more")}><Ellipsis size={16} /></button></DropdownTrigger>
             <DropdownContent align="end" side="bottom">
               <DropdownItem icon={<RefreshCw size={15} />} disabled={loading} onSelect={reload}>{t("pulls.refresh")}</DropdownItem>
+              <DropdownItem icon={<Check size={15} />} disabled={!anyUnread} onSelect={markAllRead}>{t("activity.markAllRead")}</DropdownItem>
               <DropdownItem icon={<Eraser size={15} />} disabled={!activeFilters && !filters.query} onSelect={clear}>{t("pulls.clearFilters")}</DropdownItem>
             </DropdownContent>
           </Dropdown>
@@ -155,19 +181,24 @@ export function PullRequestsPage() {
           <button type="button" className="pulls-section-label ui-caption" aria-expanded={!collapsed[section.key]} onClick={() => setCollapsed((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}>
             <ChevronDown size={12} className={cn("transition-transform", collapsed[section.key] && "-rotate-90")} />{t(section.label)}<span className="tabular-nums">{section.items.length}</span>
           </button>
-          {!collapsed[section.key] ? section.items.map((item) => <Row key={itemKey(item)} item={item} active={selected === itemKey(item)} pinned={pins.includes(itemKey(item))} onSelect={() => setSelected(itemKey(item))} onPin={() => togglePin(item)} />) : null}
+          {!collapsed[section.key] ? section.items.map((item) => <Row key={itemKey(item)} item={item} active={selected === itemKey(item)} pinned={pins.includes(itemKey(item))} unread={isGithubItemUnread(item, seenMarks, seenFloor)} onSelect={() => setSelected(itemKey(item))} onPin={() => togglePin(item)} />) : null}
         </div>)}
         {unavailable ? <p role="status" className="pulls-banner pulls-banner-warning ui-control"><TriangleAlert size={14} className="shrink-0" />{t(unavailable === 1 ? "pulls.unavailableOne" : "pulls.unavailableMany", { count: unavailable })}</p> : null}
       </div>
     </div>
     <div className="pulls-detail-column">
-      {selectedItem ? <PullRequestDetail key={itemKey(selectedItem)} item={selectedItem} projectIds={all?.repositories.find((repo) => repo.repository.toLowerCase() === selectedItem.repository.toLowerCase())?.projectIds ?? []} onChanged={reload} />
+      {selectedItem ? <PullRequestDetail key={itemKey(selectedItem)} item={selectedItem} projectIds={selectedProjects} onChanged={reload}
+        askOpen={showAsk} onAsk={() => useAppStore.setState({ pullAskOpen: !showAsk })} onBody={reportBody} />
         : <div className="pulls-pick">
           <GitPullRequest size={26} strokeWidth={1.5} className="text-text-muted" />
           <p className="ui-control text-text-primary">{t("pulls.pickTitle")}</p>
           <p className="ui-description text-text-muted">{t("pulls.pickHint")}</p>
         </div>}
     </div>
+    <AnimatePresence initial={false}>
+      {showAsk && selectedItem ? <PullAskPanel key="ask" item={selectedItem} body={askBody?.key === itemKey(selectedItem) ? askBody.body : null}
+        onClose={() => { useAppStore.setState({ pullAskOpen: false }); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>("[data-pull-ask-toggle]")?.focus()); }} /> : null}
+    </AnimatePresence>
   </section>;
 }
 
@@ -184,15 +215,18 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return <span className="pulls-chip ui-caption">{label}<button type="button" aria-label={t("pulls.removeFilter", { filter: label })} onClick={onRemove}><X size={11} /></button></span>;
 }
 
-function Row({ item, active, pinned, onSelect, onPin }: { item: GithubItem; active: boolean; pinned: boolean; onSelect: () => void; onPin: () => void }) {
+function Row({ item, active, pinned, unread, onSelect, onPin }: { item: GithubItem; active: boolean; pinned: boolean; unread: boolean; onSelect: () => void; onPin: () => void }) {
   const t = useTranslation();
   const time = relativeTime(item.updatedAt);
   const watched = useAppStore((store) => item.kind === "pullRequest" && watchesFor(store.prWatches, item.repository, item.number).some((watch) => watch.status === "watching"));
-  return <div role="listitem" className={cn("pulls-row group", active && "pulls-row-active")}>
+  return <div role="listitem" className={cn("pulls-row group", active && "pulls-row-active", unread && "pulls-row-unread")}>
     <button type="button" className="pulls-row-open" aria-current={active || undefined} onClick={onSelect}>
       <span className="pulls-row-icon"><ItemStateIcon item={item} /></span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate ui-control text-text-primary">{item.title}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="pulls-row-title min-w-0 flex-1 truncate ui-control text-text-primary">{item.title}</span>
+          {unread ? <span className="pulls-unread-dot" role="img" aria-label={t("pulls.unread")} title={t("pulls.unread")} /> : null}
+        </span>
         <span className="flex items-center gap-1.5 truncate ui-caption text-text-muted">
           <span className="truncate">{item.repository.split("/")[1]} #{item.number}</span>
           {item.author ? <span className="truncate">· {item.author}</span> : null}

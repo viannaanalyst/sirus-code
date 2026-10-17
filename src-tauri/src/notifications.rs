@@ -490,7 +490,7 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
             .sessions
             .iter()
             .filter(|session| {
-                session.side_chat.is_none()
+                !session.is_auxiliary()
                     && !data.settings.archived_session_ids.contains(&session.id)
                     && (session.status == SessionStatus::Waiting
                         || !session.pending_requests.is_empty())

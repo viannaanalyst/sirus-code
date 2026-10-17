@@ -14,6 +14,7 @@ import type { MobileNavigation } from "./MobileApp";
 import { MobileSessionItem } from "./MobileSessionRow";
 import { EnvironmentMarker, EnvironmentSessionRow, EnvironmentStatus, useEnvironmentLabel, useMergedHome, useOpenOnEnvironment } from "./MobileEnvironments";
 import { MobileListOptions } from "./MobileListOptions";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * Home: one inbox for every agent — what needs the person, what runs, then the rest. Settings open from the top corner and the bottom dock holds the list options (filter
@@ -56,11 +57,11 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
     ? openOn(merged.environmentOf.get(filteredProject.id) ?? merged.storeId, { kind: "new", projectId: filteredProject.id })
     : navigation.open({ kind: "choose-project" });
   // Snoozed and archived conversations of every computer (ADR-132 addendum).
-  const snoozedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => isSnoozed(session) && !session.sideChat && !merged.archivedSessionIds.includes(session.id)).length : snoozed.filter((session) => !archived.includes(session.id)).length, [merged, snoozed, archived]);
+  const snoozedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session) && !merged.archivedSessionIds.includes(session.id)).length : snoozed.filter((session) => !archived.includes(session.id)).length, [merged, snoozed, archived]);
   const macOrder = useAppStore((state) => state.settings.sidebarThreadSortOrder);
   const order = usePhonePrefs((state) => state.prefs.threadOrder) ?? macOrder;
   const sections = useMemo(() => homeSections(listed, merged.projects, query, merged.pinnedSessionIds, order), [listed, merged, query, order]);
-  const archivedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => merged.archivedSessionIds.includes(session.id) && !session.sideChat).length : sessions.filter((session) => archived.includes(session.id) && !session.sideChat).length, [merged, sessions, archived]);
+  const archivedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => merged.archivedSessionIds.includes(session.id) && !isAuxiliarySession(session)).length : sessions.filter((session) => archived.includes(session.id) && !isAuxiliarySession(session)).length, [merged, sessions, archived]);
   const byId = useMemo(() => new Map(merged.projects.map((project) => [project.id, project])), [merged]);
   const groups = [
     { key: "needsYou", title: t("mobile.needsYou"), items: sections.needsYou },

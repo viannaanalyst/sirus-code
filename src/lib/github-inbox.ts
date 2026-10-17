@@ -126,8 +126,9 @@ function failureLines(failures: { checks: GithubFailedCheck[]; truncated: boolea
 }
 
 /** Draft text for an agent working on an item; the person reviews and sends it.
- * For `fix`, `failures` carries what GitHub reported for every failing check. */
-export function agentDraft(detail: GithubDetail, purpose: "work" | "fix" | "conflicts", failures?: { checks: GithubFailedCheck[]; truncated: boolean } | null): string {
+ * For `fix`, `failures` carries what GitHub reported for every failing check, and
+ * `selected` (check names), when given, keeps only the checks the person picked. */
+export function agentDraft(detail: GithubDetail, purpose: "work" | "fix" | "conflicts", failures?: { checks: GithubFailedCheck[]; truncated: boolean } | null, selected?: readonly string[] | null): string {
   const item = detail.item;
   const lines = [
     `${item.kind === "pullRequest" ? "Pull request" : "Issue"} ${item.repository}#${item.number}: ${item.title}`,
@@ -135,7 +136,9 @@ export function agentDraft(detail: GithubDetail, purpose: "work" | "fix" | "conf
   ];
   if (item.headRef) lines.push(`Branch: ${item.headRef} → ${item.baseRef ?? "?"}`);
   if (purpose === "fix") {
-    const failing = detail.checks.filter((check) => check.status === "failed").map((check) => `- ${check.name}`);
+    const picked = (name: string) => !selected || selected.includes(name);
+    const failing = detail.checks.filter((check) => check.status === "failed" && picked(check.name)).map((check) => `- ${check.name}`);
+    if (failures) failures = { ...failures, checks: failures.checks.filter((check) => picked(check.name)) };
     const requested = detail.reviews.filter((review) => review.state === "CHANGES_REQUESTED" && review.body.trim()).map((review) => `- ${review.author ?? "reviewer"}: ${review.body.trim().slice(0, 1200)}`);
     lines.push("", "Fix the findings on this pull request.");
     if (failures?.checks.length) lines.push(...failureLines(failures));

@@ -2,6 +2,7 @@ import type { HostInfo, Project, Session } from "@/client/types";
 import { HOME_ENVIRONMENT, type Environment, type EnvironmentSummary } from "@/lib/environments";
 import { cloneParent } from "@/lib/phone-projects";
 import { hostKind } from "@/lib/phone-host";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * The desktop app's computers (ADR-133): this Mac (the `home` computer, through Tauri's IPC)
@@ -113,7 +114,7 @@ export function mergeComputerProjects(
     const projects = [...summary.projects].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
     for (const project of projects) {
       const sessions = summary.sessions
-        .filter((session) => session.projectId === project.id && !archived.has(session.id) && !session.sideChat && !session.snoozedUntil)
+        .filter((session) => session.projectId === project.id && !archived.has(session.id) && !isAuxiliarySession(session) && !session.snoozedUntil)
         .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
       const member = { computerId: computer.id, label: label(computer), kind: computer.kind, status, project, sessions };
       const match = here.get(key(project.name));
@@ -138,7 +139,7 @@ export function moveBranch(sessionId: string): string {
 export type MoveRefusal = "same" | "offline" | "running" | "sideChat" | "noRemote";
 
 export function moveRefusal(input: {
-  session: Pick<Session, "status" | "sideChat">;
+  session: Pick<Session, "status" | "sideChat" | "pullAsk">;
   sourceId: string;
   targetId: string;
   targetConnection: string | undefined;
@@ -147,7 +148,7 @@ export function moveRefusal(input: {
 }): MoveRefusal | null {
   if (input.sourceId === input.targetId) return "same";
   if (input.targetId !== HOME_ENVIRONMENT && input.targetConnection !== "open") return "offline";
-  if (input.session.sideChat) return "sideChat";
+  if (isAuxiliarySession(input.session)) return "sideChat";
   if (["starting", "running", "waiting"].includes(input.session.status)) return "running";
   if (input.remoteUrl === null) return "noRemote";
   return null;

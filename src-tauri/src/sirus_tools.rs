@@ -108,7 +108,7 @@ fn task_list(data: &AppData, include_done: bool, project: Option<&str>) -> Value
 }
 
 fn visible(session: &Session) -> bool {
-    session.side_chat.is_none()
+    !session.is_auxiliary()
 }
 
 fn project_name(data: &AppData, id: &str) -> Option<String> {
@@ -298,7 +298,8 @@ pub fn execute(
             | "sirus_create_task"
             | "sirus_update_task"
     );
-    if mutating && caller.execution.planning {
+    // Planning, and an Ask conversation about a pull request (ADR-050), are read-only.
+    if mutating && (caller.execution.planning || caller.pull_ask.is_some()) {
         return Err("planning is read-only: sessions cannot be started or messaged".into());
     }
     match tool {

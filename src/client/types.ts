@@ -326,6 +326,8 @@ export interface Session {
   teamWorker?: TeamWorker | null;
   /** A side chat answers about this main session and is hidden from session lists (ADR-049). */
   sideChat?: { parentSessionId: string } | null;
+  /** An "Ask" conversation about a GitHub pull request or issue: hidden from session lists, read-only on every turn (ADR-050). */
+  pullAsk?: PullAskOrigin | null;
   /** The session that delegated this one (`sirus_delegate`) or started it (`sirus_create_session`), ADR-111. */
   delegatedBy?: { sessionId: string; turn: string; notify: boolean; settled: boolean; delivered: boolean } | null;
   /** Project script runs in this session's worktree; `setupPending` until its first turn (ADR-078). */
@@ -344,6 +346,12 @@ export interface TeamWorker { coordinatorSessionId: string; taskId: string; }
 export interface TeamTaskEdit { id: string; title: string; provider: AgentProviderId; model: string | null; }
 /** Closed `side_chat_action`: open (or reuse) the parent's side chat. */
 export type SideChatAction = { type: "open"; parentSessionId: string };
+/** What an Ask conversation is about; the URL is built natively from the repository and number. */
+export type PullAskState = "open" | "draft" | "closed" | "merged";
+export interface PullAskContext { title: string; state: PullAskState; author: string | null; headRef: string | null; baseRef: string | null; description: string }
+export interface PullAskOrigin extends PullAskContext { repository: string; number: number; kind: GithubItemKind }
+/** Closed `pull_ask_action`: open (or reuse) the item's Ask conversation in the project that owns its repository. */
+export type PullAskAction = { type: "open"; repository: string; number: number; kind: GithubItemKind; context: PullAskContext };
 
 export type TeamAction =
   | { type: "start"; sessionId: string; tasks: TeamTaskEdit[]; approval: Exclude<ApprovalMode, "full"> }
@@ -436,6 +444,10 @@ export interface AppSettings {
   windowSnapShortcut: WindowSnapShortcut;
   /** Pinned review-inbox items as `owner/repo#number` (ADR-050). */
   githubPins: string[];
+  /** Unread tracking on the Pull requests page: `owner/repo#number` → the `updatedAt` last seen (at most 500),
+   * and the RFC 3339 time before which everything counts as seen (null until the first load). */
+  githubSeen: Record<string, string>;
+  githubSeenFloor: string | null;
   /** Rail customization (ADR-052): item order, hidden items and project shortcuts. */
   railItemOrder: string[];
   hiddenRailItems: string[];
@@ -988,7 +1000,7 @@ export interface GithubDetail {
   changedFiles: number;
   viewerCanUpdate: boolean;
   mergeMethods: GithubMergeMethod[];
-  checks: { name: string; status: "passed" | "failed" | "pending" | "skipped" | "unknown"; url: string | null }[];
+  checks: GithubCheck[];
   reviewers: string[];
   reviews: { author: string | null; state: string; body: string; submittedAt: string | null }[];
   comments: { author: string | null; body: string; createdAt: string }[];
@@ -1005,6 +1017,12 @@ export type PullRequestAction =
   | { type: "setDraft"; repository: string; number: number; draft: boolean; confirm: true }
   | { type: "setOpen"; repository: string; number: number; kind: GithubItemKind; open: boolean; confirm: true }
   | { type: "comment"; repository: string; number: number; body: string; confirm: true }
+  /** Inline review conversations of a pull request (bounded). */
+  | { type: "reviewThreads"; repository: string; number: number }
+  | { type: "replyThread"; repository: string; number: number; threadId: string; body: string; confirm: true }
+  | { type: "resolveThread"; repository: string; number: number; threadId: string; resolved: boolean; confirm: true }
+  /** A GitHub image upload by ID (`<uuid>` or `<number>/<uuid>`), read natively into a bounded data URL. */
+  | { type: "attachment"; repository: string; number: number; asset: string }
   /** Pushes the session branch and opens a pull request into the default branch. */
   | { type: "create"; sessionId: string; title: string; body: string; draft: boolean; confirm: true };
 export type PullRequestResponse =
@@ -1013,7 +1031,26 @@ export type PullRequestResponse =
   | { type: "diff"; text: string; truncated: boolean }
   | { type: "failures"; checks: GithubFailedCheck[]; truncated: boolean }
   | { type: "created"; url: string }
+  | { type: "threads"; threads: GithubReviewThread[]; truncated: boolean }
+  | { type: "attachment"; dataUrl: string }
   | { type: "done" };
+export interface GithubCheck { name: string; status: "passed" | "failed" | "pending" | "skipped" | "unknown"; url: string | null; startedAt?: string | null; completedAt?: string | null }
+/** An inline review conversation (ADR-050): `line` is null once the thread is outdated. */
+export interface GithubReviewThread {
+  id: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  originalLine: number | null;
+  isResolved: boolean;
+  isOutdated: boolean;
+  viewerCanReply: boolean;
+  viewerCanResolve: boolean;
+  viewerCanUnresolve: boolean;
+  diffHunk: string | null;
+  comments: { author: string | null; body: string; createdAt: string }[];
+  commentCount: number;
+}
 /** One failing check with its annotations and an error-focused job log excerpt. */
 export interface GithubFailedCheck { name: string; url: string | null; summary: string | null; annotations: string[]; log: string | null }
 

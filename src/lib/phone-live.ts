@@ -1,5 +1,6 @@
 import type { Session } from "@/client/types";
 import { isWorking, needsYou } from "@/lib/mobile";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * Live state the phone app shows outside the transcript (ADR-124): the home-screen icon's
@@ -9,7 +10,7 @@ import { isWorking, needsYou } from "@/lib/mobile";
 /** Conversations waiting on the person (an approval, a question or their reply), archived ones aside. */
 export function needsYouCount(sessions: readonly Session[], archived: readonly string[]): number {
   const hidden = new Set(archived);
-  return sessions.filter((session) => !session.sideChat && !hidden.has(session.id) && needsYou(session)).length;
+  return sessions.filter((session) => !isAuxiliarySession(session) && !hidden.has(session.id) && needsYou(session)).length;
 }
 
 type BadgeNavigator = { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };

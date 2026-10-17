@@ -37,6 +37,8 @@
   .pulls-pin { display: inline-flex; margin-right: 6px; padding: 4px; border-radius: 6px; color: var(--text-muted); opacity: 0; }
   .pulls-row:hover .pulls-pin, .pulls-pin:focus-visible, .pulls-pin-on { opacity: 1; }
   .pulls-pin:hover { color: var(--text-primary); background: var(--background-3); }
+  .pulls-unread-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--info); }
+  .pulls-row-unread .pulls-row-title { font-weight: 600; }
   .pulls-check-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--text-muted); }
   .pulls-check-success { background: var(--success); }
   .pulls-check-failure, .pulls-check-error { background: var(--danger); }

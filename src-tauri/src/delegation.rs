@@ -274,7 +274,7 @@ fn delegate(
             .unwrap_or_default()
             .to_string()
     };
-    if caller.execution.planning {
+    if caller.execution.planning || caller.pull_ask.is_some() {
         return Err("planning is read-only: tasks cannot be delegated".into());
     }
     let task = arg("task");

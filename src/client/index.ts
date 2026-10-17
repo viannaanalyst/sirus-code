@@ -616,6 +616,9 @@ export class SirusClient {
   sideChatAction(action: import("./types").SideChatAction) {
     return this.transport.invoke<Session>("side_chat_action", { action });
   }
+  pullAskAction(action: import("./types").PullAskAction) {
+    return this.transport.invoke<Session>("pull_ask_action", { action });
+  }
 
   teamAction(action: import("./types").TeamAction) {
     return this.transport.invoke<import("./types").TeamActionResponse>("team_action", { action });

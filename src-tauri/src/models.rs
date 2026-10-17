@@ -429,6 +429,10 @@ pub struct Session {
     /// A side chat points back to the main session it answers about (ADR-049).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub side_chat: Option<crate::side_chat::SideChatOrigin>,
+    /// An "Ask" conversation about a GitHub pull request or issue (ADR-050): hidden from
+    /// session lists and always read-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull_ask: Option<crate::pull_ask::PullAskOrigin>,
     /// The session that delegated this one with `sirus_delegate` or started it with
     /// `sirus_create_session` (ADR-111): its breadcrumb, and whether the parent hears back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -439,6 +443,14 @@ pub struct Session {
         skip_serializing_if = "crate::project_scripts::SessionScripts::is_empty"
     )]
     pub scripts: crate::project_scripts::SessionScripts,
+}
+
+impl Session {
+    /// A side chat (ADR-049) or a pull request Ask conversation (ADR-050): shown only
+    /// beside what it answers about, never in session lists.
+    pub fn is_auxiliary(&self) -> bool {
+        self.side_chat.is_some() || self.pull_ask.is_some()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -627,6 +639,10 @@ pub struct AppSettings {
     pub window_snap_shortcut: WindowSnapShortcut,
     /// Pinned pull requests/issues in the review inbox, as `owner/repo#number` (ADR-050).
     pub github_pins: Vec<String>,
+    /// Unread tracking on the Pull requests page: `owner/repo#number` → the RFC 3339 `updatedAt`
+    /// last seen (at most 500), and the time before which everything counts as seen.
+    pub github_seen: std::collections::BTreeMap<String, String>,
+    pub github_seen_floor: Option<String>,
     /// Rail item order and hidden items (closed IDs; Home cannot be hidden).
     pub rail_item_order: Vec<String>,
     pub hidden_rail_items: Vec<String>,
@@ -808,6 +824,8 @@ impl Default for AppSettings {
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),
             github_pins: Vec::new(),
+            github_seen: std::collections::BTreeMap::new(),
+            github_seen_floor: None,
             rail_item_order: Vec::new(),
             hidden_rail_items: Vec::new(),
             rail_project_shortcuts: Vec::new(),
@@ -904,6 +922,17 @@ impl Default for AppSettings {
 /// The Kanban board was retired on 2026-10-11 (ADR-110); saved settings drop its id.
 pub const RAIL_ITEMS: [&str; 5] = ["home", "inbox", "tasks", "archived", "pulls"];
 
+/// Most unread markers kept for the Pull requests page; the renderer drops the oldest.
+pub const GITHUB_SEEN_LIMIT: usize = 500;
+
+/// A strict RFC 3339 time as GitHub and `toISOString` write it.
+fn valid_seen_time(value: &str) -> bool {
+    value.len() <= 40
+        && value.is_ascii()
+        && value.as_bytes().get(10) == Some(&b'T')
+        && chrono::DateTime::parse_from_rfc3339(value).is_ok()
+}
+
 /// `owner/repo#number`, with the same repository charset as GitHub web URLs.
 fn valid_github_pin(pin: &str) -> bool {
     let Some((repo, number)) = pin.split_once('#') else {
@@ -985,6 +1014,21 @@ impl AppSettings {
             return Err(Error::new(
                 "invalid_settings",
                 "Invalid pinned pull requests.",
+            ));
+        }
+        if self.github_seen.len() > GITHUB_SEEN_LIMIT
+            || self
+                .github_seen
+                .iter()
+                .any(|(key, at)| !valid_github_pin(key) || !valid_seen_time(at))
+            || self
+                .github_seen_floor
+                .as_deref()
+                .is_some_and(|at| !valid_seen_time(at))
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid read pull requests.",
             ));
         }
         let unique = |items: &[String]| {
@@ -1144,6 +1188,51 @@ mod settings_tests {
             ..AppSettings::default()
         };
         assert!(settings.validate_controls().is_err());
+    }
+
+    #[test]
+    fn github_seen_is_bounded_with_valid_keys_and_times() {
+        let with = |entries: &[(&str, &str)], floor: Option<&str>| AppSettings {
+            github_seen: entries
+                .iter()
+                .map(|(key, at)| (key.to_string(), at.to_string()))
+                .collect(),
+            github_seen_floor: floor.map(str::to_string),
+            ..AppSettings::default()
+        };
+        let parsed = serde_json::from_str::<AppSettings>("{}").unwrap();
+        assert!(parsed.github_seen.is_empty() && parsed.github_seen_floor.is_none());
+        assert!(with(
+            &[
+                ("owner/repo#1", "2026-10-17T12:00:00Z"),
+                ("my-org/a.b_c#9", "2026-10-17T12:00:00.123+02:00"),
+            ],
+            Some("2026-10-01T00:00:00.000Z"),
+        )
+        .validate_controls()
+        .is_ok());
+        for (key, at) in [
+            ("owner/repo", "2026-10-17T12:00:00Z"),
+            ("o/../x#1", "2026-10-17T12:00:00Z"),
+            ("owner/repo#1", "yesterday"),
+            ("owner/repo#1", "2026-10-17 12:00:00Z"),
+            ("owner/repo#1", ""),
+        ] {
+            assert!(
+                with(&[(key, at)], None).validate_controls().is_err(),
+                "{key} {at}"
+            );
+        }
+        assert!(with(&[], Some("2026-10-01")).validate_controls().is_err());
+        let keys: Vec<String> = (1..=GITHUB_SEEN_LIMIT + 1)
+            .map(|n| format!("owner/repo#{n}"))
+            .collect();
+        let entries: Vec<(&str, &str)> = keys
+            .iter()
+            .map(|key| (key.as_str(), "2026-10-17T12:00:00Z"))
+            .collect();
+        assert!(with(&entries, None).validate_controls().is_err());
+        assert!(with(&entries[1..], None).validate_controls().is_ok());
     }
 
     #[test]

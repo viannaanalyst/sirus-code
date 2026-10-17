@@ -1,5 +1,5 @@
 import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons/phosphor";
-import { Fragment, memo, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, Fragment, memo, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { client, isRemoteUi } from "@/client";
 import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
@@ -164,8 +164,15 @@ async function openReplyImages(anchor: HTMLElement, owner: Owner, url: string) {
   window.dispatchEvent(new CustomEvent(GALLERY_EVENT, { detail: { images: images.map(({ src, name }) => ({ src, name })), index: Math.max(0, images.findIndex((image) => image.link === url)) } }));
 }
 
+/**
+ * Lets a surface show some image URLs from another source (GitHub uploads read natively,
+ * ADR-050): a string replaces the source, null shows a link instead, undefined keeps the URL.
+ */
+export const ChatImageSource = createContext<((url: string) => string | null | undefined) | null>(null);
+
 /** `fade` reaches only the last node (and, inside emphasis, its last child): the streaming tail. */
 function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Owner | null; fade?: StreamFade | null }): ReactNode {
+  const imageSource = useContext(ChatImageSource);
   return nodes.map((node, index) => {
     const tail = fade && index === nodes.length - 1 ? fade : null;
     switch (node.kind) {
@@ -178,11 +185,15 @@ function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Own
         const code = <code className="chat-inline-code">{node.text}</code>;
         return reference && owner ? <FileReference key={index} owner={owner} path={reference.path} line={reference.line} fallback={code}>{node.text}</FileReference> : <Fragment key={index}>{code}</Fragment>;
       }
-      case "image":
+      case "image": {
+        const source = imageSource?.(node.url);
+        if (source === null) return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}>{node.alt || node.url}</a>;
+        const src = source ?? node.url;
         // Images in a reply open together in the gallery, in the order they appear in the message.
-        return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, node.url)}>
-          <img src={node.url} alt={node.alt} loading="lazy" decoding="async" className="chat-image" draggable={false} />
+        return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, src)}>
+          <img src={src} alt={node.alt} loading="lazy" decoding="async" className="chat-image" draggable={false} />
         </button>;
+      }
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {
           return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}><Inline nodes={node.children} owner={owner} /></a>;

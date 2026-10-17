@@ -36,6 +36,8 @@ const strings: Record<string, [string, string]> = {
   "providers.executableCustom": ["Chosen", "Escolhido"],
   "providers.executableNoVersion": ["Version unknown", "Versão desconhecida"],
   "providers.executableChoose": ["Choose file…", "Escolher arquivo…"],
+  "providers.accounts": ["{name} accounts", "Contas do {name}"],
+  "providers.accountsCount": ["Accounts: {count}", "Contas: {count}"],
   "providers.executableAutomatic": ["Use automatic", "Usar automático"],
   "providers.executableMissing": ["Chosen executable not found", "Executável escolhido não encontrado"],
   "providers.executableFailed": ["This file did not answer as a CLI: {message}", "Este arquivo não respondeu como uma CLI: {message}"],

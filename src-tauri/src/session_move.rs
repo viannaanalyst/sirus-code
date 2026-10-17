@@ -276,6 +276,12 @@ pub async fn prepare_session_move(
         if session.side_chat.is_some() {
             return Err(Error::new("invalid", "Side chats move with their conversation."));
         }
+        if session.pull_ask.is_some() {
+            return Err(Error::new(
+                "invalid",
+                "Ask conversations about a pull request stay on this computer.",
+            ));
+        }
         let Some(remote_url) = crate::git::remote_web_url(&cwd)? else {
             return Err(Error::new(
                 "no_remote",

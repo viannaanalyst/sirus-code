@@ -1,5 +1,6 @@
 import type { FileEntry, Project, Session } from "@/client/types";
 import type { LinkedDraft } from "@/lib/phone-prompt-link";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
  * The phone app (ADR-081) is a separate shell over the same store. Its screens form
@@ -28,7 +29,7 @@ export const MOBILE_QUERY = "(max-width: 820px)";
 /** Sessions the person sees in lists: no side chats, Astro chats or archived ones. */
 export function listedSessions(sessions: readonly Session[], archived: readonly string[]): Session[] {
   const hidden = new Set(archived);
-  return sessions.filter((session) => !session.sideChat && !hidden.has(session.id));
+  return sessions.filter((session) => !isAuxiliarySession(session) && !hidden.has(session.id));
 }
 
 /** Waiting on an approval, a question or the person's next message. */

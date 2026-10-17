@@ -15,9 +15,11 @@ import { useAppStore } from "@/store/app-store";
 import { ComposerImageAttachment } from "@/components/ComposerImageAttachment";
 import { ComposerSkillPicker } from "@/components/ComposerSkillPicker";
 
-export function ComposerAddMenu({ owner, disabled, context, onChange, planningAvailable, teamAvailable = false, boundaryRef }: {
+export function ComposerAddMenu({ owner, disabled, context, onChange, planningAvailable, teamAvailable = false, readOnly = false, boundaryRef }: {
   boundaryRef: RefObject<HTMLElement | null>;
   owner: string; disabled: boolean; context: ComposerContext; onChange: (context: ComposerContext) => void; planningAvailable: boolean; teamAvailable?: boolean;
+  /** A pull request Ask conversation (ADR-050): planning stays on and debugging is off. */
+  readOnly?: boolean;
 }) {
   // On a server (ADR-133) files come from the browser's own picker and are uploaded, as on the phone.
   const remoteComputer = useRemoteComputerActive();
@@ -64,8 +66,8 @@ export function ComposerAddMenu({ owner, disabled, context, onChange, planningAv
         </>}
         <button type="button" className={item} disabled={disabled || picking} onClick={() => setPage("skills")}><Box size={15} className="shrink-0" /><span>{t("skills.use")}</span></button>
         <button type="button" className={item} disabled={disabled || picking} onClick={() => { setGoal(context.goal); setPage("goal"); }}><Target size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.goal")}</span><span className="min-w-0 truncate text-text-muted">{context.goal || t("composer.goalHint")}</span></button>
-        <button type="button" className={item} aria-pressed={context.planning} disabled={disabled || picking || !planningAvailable} onClick={() => { onChange(composerPlanning(context, !context.planning)); setOpen(false); }}><Lightbulb size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.planning")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(planningAvailable ? context.planning ? "composer.planningOffHint" : "composer.planningHint" : "composer.planningUnavailable")}</span>{context.planning && planningAvailable ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>
-        <button type="button" className={item} aria-pressed={Boolean(context.debugging)} disabled={disabled || picking} onClick={() => { onChange(composerDebugging(context, !context.debugging)); setOpen(false); }}><Bug size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.debugging")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(context.debugging ? "composer.debugOffHint" : "composer.debugHint")}</span>{context.debugging ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>
+        <button type="button" className={item} aria-pressed={context.planning} disabled={disabled || picking || !planningAvailable || (readOnly && context.planning)} onClick={() => { onChange(composerPlanning(context, !context.planning)); setOpen(false); }}><Lightbulb size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.planning")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(planningAvailable ? context.planning ? "composer.planningOffHint" : "composer.planningHint" : "composer.planningUnavailable")}</span>{context.planning && planningAvailable ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>
+        <button type="button" className={item} aria-pressed={Boolean(context.debugging)} disabled={disabled || picking || readOnly} onClick={() => { onChange(composerDebugging(context, !context.debugging)); setOpen(false); }}><Bug size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("composer.debugging")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(context.debugging ? "composer.debugOffHint" : "composer.debugHint")}</span>{context.debugging ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>
         <button type="button" className={item} aria-pressed={Boolean(context.team)} disabled={disabled || picking || !teamAvailable} onClick={() => { onChange(composerTeam(context, !context.team)); setOpen(false); }}><Users size={15} aria-hidden="true" className="shrink-0" /><span className="shrink-0">{t("team.mode")}</span><span className="min-w-0 flex-1 truncate text-text-muted">{t(teamAvailable ? "team.modeHint" : "team.modeUnavailable")}</span>{context.team && teamAvailable ? <Check size={13} aria-hidden="true" className="shrink-0" /> : null}</button>
       </> : <>
         <button type="button" onClick={() => setPage("add")} className="mb-2 flex items-center gap-1 rounded px-2 py-1 text-text-muted hover:text-text-primary"><ChevronLeft size={14} />{t("composer.add")}</button>
@@ -81,8 +83,8 @@ export function ComposerAddMenu({ owner, disabled, context, onChange, planningAv
     </PopoverContent>
   </Popover>;
 }
-export function ComposerContextChips({ owner, context, disabled, onChange, planningAvailable }: {
-  owner: string; context: ComposerContext; disabled: boolean; onChange: (context: ComposerContext) => void; planningAvailable: boolean;
+export function ComposerContextChips({ owner, context, disabled, onChange, planningAvailable, readOnly = false }: {
+  owner: string; context: ComposerContext; disabled: boolean; onChange: (context: ComposerContext) => void; planningAvailable: boolean; readOnly?: boolean;
 }) {
   const t = useTranslation();
   const chip = "inline-flex max-w-full items-center gap-1.5 rounded-[8px] border border-border-subtle bg-background-3 px-2 py-1 ui-caption text-text-secondary";
@@ -111,7 +113,7 @@ export function ComposerContextChips({ owner, context, disabled, onChange, plann
       <button type="button" disabled={disabled} aria-label={`${t("composer.removeAttachment")} · ${t("terminal.snippet")}`} className="rounded p-0.5 hover:text-text-primary" onClick={() => onChange({ ...context, snippets: (context.snippets ?? []).filter((item) => item.id !== snippet.id) })}><X size={12} /></button>
     </span>)}
     {context.goal ? <span className={chip} title={context.goal}><Target size={12} /><span className="max-w-44 truncate">{context.goal}</span><button type="button" disabled={disabled} aria-label={t("composer.removeGoal")} onClick={() => onChange({ ...context, goal: "" })} className="rounded p-0.5 hover:text-text-primary"><X size={12} /></button></span> : null}
-    {context.planning ? <span className={chip}><Lightbulb size={12} />{t(planningAvailable ? "composer.planning" : "composer.planningUnavailable")}<button type="button" disabled={disabled} aria-label={t("composer.disablePlanning")} onClick={() => onChange({ ...context, planning: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} /></button></span> : null}
+    {context.planning ? <span className={chip}><Lightbulb size={12} />{t(planningAvailable ? "composer.planning" : "composer.planningUnavailable")}{readOnly ? null : <button type="button" disabled={disabled} aria-label={t("composer.disablePlanning")} onClick={() => onChange({ ...context, planning: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} /></button>}</span> : null}
     {context.team ? <span className={chip}><Users size={12} aria-hidden="true" />{t("team.mode")}<button type="button" disabled={disabled} aria-label={t("team.disable")} onClick={() => onChange({ ...context, team: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} aria-hidden="true" /></button></span> : null}
     {context.debugging ? <span className={chip}><Bug size={12} aria-hidden="true" />{t("composer.debugging")}<button type="button" disabled={disabled} aria-label={t("composer.disableDebug")} onClick={() => onChange({ ...context, debugging: false })} className="rounded p-0.5 hover:text-text-primary"><X size={12} aria-hidden="true" /></button></span> : null}
   </div>;

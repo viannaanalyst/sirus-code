@@ -108,6 +108,7 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
         side_chat: Some(SideChatOrigin {
             parent_session_id: source.id.clone(),
         }),
+        pull_ask: None,
         scripts: Default::default(),
     };
     let view = crate::transcript_view::session_meta(&session)?;
@@ -124,6 +125,9 @@ fn parent<'a>(sessions: &'a [Session], id: &str) -> Result<&'a Session> {
         .ok_or_else(|| Error::not_found("session not found"))?;
     if session.side_chat.is_some() {
         return Err(Error::agent("A side chat cannot open another side chat."));
+    }
+    if session.pull_ask.is_some() {
+        return Err(Error::agent("An Ask conversation has no side chat."));
     }
     Ok(session)
 }

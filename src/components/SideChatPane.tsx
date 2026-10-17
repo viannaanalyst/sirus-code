@@ -73,7 +73,8 @@ export function SideChatPane({ parentSessionId, paneId }: { parentSessionId: str
   </div>;
 }
 
-const SideMessage = memo(function SideMessage({ message, parentSessionId }: { message: Message; parentSessionId: string }) {
+/** One compact transcript message; "Take to main chat" shows only beside a main session. Also used by pull request Ask (ADR-050). */
+export const SideMessage = memo(function SideMessage({ message, parentSessionId }: { message: Message; parentSessionId?: string }) {
   const t = useTranslation();
   const blocks = useMemo(() => message.role === "agent" && message.content ? parseTranscript(message.content) : null, [message.role, message.content]);
   if (message.role === "user") {
@@ -90,8 +91,8 @@ const SideMessage = memo(function SideMessage({ message, parentSessionId }: { me
     </div>
     {settled ? <div className="mt-1.5 flex items-center gap-0.5 text-text-muted">
       <Tooltip label={t("Copy message")}><span className="inline-flex"><CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" /></span></Tooltip>
-      <button type="button" className="inline-flex h-6 items-center gap-1.5 rounded-[7px] px-2 ui-caption text-text-muted hover:bg-background-3 hover:text-text-primary"
-        onClick={() => takeToMain(parentSessionId, message.content)}><CornerUpLeft size={12} aria-hidden="true" />{t("sideChat.takeToMain")}</button>
+      {parentSessionId ? <button type="button" className="inline-flex h-6 items-center gap-1.5 rounded-[7px] px-2 ui-caption text-text-muted hover:bg-background-3 hover:text-text-primary"
+        onClick={() => takeToMain(parentSessionId, message.content)}><CornerUpLeft size={12} aria-hidden="true" />{t("sideChat.takeToMain")}</button> : null}
     </div> : null}
   </div>;
 });

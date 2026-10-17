@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { client } from "@/client";
 import type { AgentInstall } from "@/client/types";
-import { Check, ChevronDown, FolderOpen, RotateCcw } from "@/components/icons/phosphor";
+import { Check, ChevronDown, FolderOpen, RotateCcw, Users } from "@/components/icons/phosphor";
+import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { translate } from "@/i18n";
 import { formatUnknownError } from "@/lib/format-error";
 import { executableChoices, withProviderPath } from "@/lib/provider-executables";
+import { providerAccounts, supportsProviderAccounts } from "@/lib/provider-accounts";
+import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import type { ProviderDefinition } from "@/lib/providers";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { Switch } from "@/primitives/Switch";
@@ -27,6 +30,9 @@ export function ProviderRow({
   const t = (key: string, values?: Record<string, string>) => translate(locale, key, values);
   const installed = Boolean(install?.installed);
   const [busy, setBusy] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const accountCount = useAppStore((state) => providerAccounts(definition.id, state.providerAccounts).length);
+  const selectedAccount = useAppStore((state) => state.selectedProviderAccounts[definition.id] ?? "default");
   const [error, setError] = useState<string | null>(null);
   const choices = executableChoices(install, override);
   // Pick which install runs, persisted as the provider path override.
@@ -79,6 +85,17 @@ export function ProviderRow({
             {override ? <DropdownItem icon={<RotateCcw size={14} />} onSelect={() => void choose(null)}>{t("providers.executableAutomatic")}</DropdownItem> : null}
           </DropdownContent>
         </Dropdown> : <button type="button" disabled={busy} className="mt-1 ui-caption text-text-secondary underline-offset-2 hover:underline disabled:opacity-50" onClick={() => void chooseFile()}>{t("providers.executableChoose")}</button>}
+        {/* Named accounts (ADR-015): the same panel as the sidebar usage ring's. */}
+        {installed && supportsProviderAccounts(definition.id) ? <Popover open={accountsOpen} onOpenChange={setAccountsOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" className="mt-1 inline-flex items-center gap-1 ui-caption text-text-secondary hover:text-text-primary" aria-label={t("providers.accounts", { name: definition.name })}>
+              <Users size={12} aria-hidden="true" />{t("providers.accountsCount", { count: String(accountCount) })}<ChevronDown size={11} aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent side="bottom" align="start" sideOffset={6} className="scroll-thin max-h-[min(520px,80vh)] w-80 overflow-y-auto p-3">
+            <ProviderAccountsPanel provider={definition.id} name={definition.name} currentId={selectedAccount} onBack={() => setAccountsOpen(false)} />
+          </PopoverContent>
+        </Popover> : null}
         {error ? <p role="alert" className="mt-1 ui-caption text-danger">{error}</p> : null}
       </div>
       <Switch checked={enabled} onChange={onEnabledChange} label={`${t("providers.enable")} · ${definition.name}`} />

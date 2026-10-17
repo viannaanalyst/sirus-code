@@ -79,6 +79,7 @@ mod provider_updates;
 mod provider_usage;
 mod provider_usage_http;
 mod pty_term;
+mod pull_ask;
 mod pull_requests;
 mod redact;
 mod remote;
@@ -301,6 +302,7 @@ pub fn run() {
             html_preview::html_preview,
             team::team_action,
             side_chat::side_chat_action,
+            pull_ask::pull_ask_action,
             github_inbox::pull_request_action,
             ci_autofix::ci_autofix_action,
             pr_watch::pr_watch_action,

@@ -51,3 +51,18 @@ test("fix drafts carry every failing check's annotations and a safely fenced log
   assert.match(draft, /More checks failed than are listed here/);
   assert.doesNotMatch(draft, /Failing checks:\n- ci/);
 });
+
+test("a fix draft keeps only the failing checks the person picked", () => {
+  const base = { item: item(9), body: "", headOid: null, mergedAt: null, closedAt: null, mergeStateStatus: null, changedFiles: 0, viewerCanUpdate: true, mergeMethods: [], checks: [{ name: "test", status: "failed" as const, url: null }, { name: "lint", status: "failed" as const, url: null }], reviewers: [], reviews: [], comments: [], commits: [], files: [], filesTruncated: false } satisfies GithubDetail;
+  const failures = { truncated: false, checks: [
+    { name: "test", url: null, summary: "boom", annotations: [], log: "FAIL test" },
+    { name: "lint", url: null, summary: "lint error", annotations: [], log: "error: lint" },
+  ] };
+  const draft = agentDraft(base, "fix", failures, ["lint"]);
+  assert.match(draft, /### lint/);
+  assert.doesNotMatch(draft, /### test|FAIL test/);
+  const fallback = agentDraft(base, "fix", null, ["test"]);
+  assert.match(fallback, /Failing checks:\n- test$/m);
+  assert.doesNotMatch(fallback, /- lint/);
+  assert.match(agentDraft(base, "fix", failures), /### test[\s\S]*### lint/, "no selection keeps every failure");
+});

@@ -32,7 +32,7 @@ fn eligible(data: &AppData, session: &Session) -> bool {
         && !session.status.is_active()
         && session.pending_requests.is_empty()
         && session.snoozed_until.is_none()
-        && session.side_chat.is_none()
+        && !session.is_auxiliary()
         && session.team_worker.is_none()
         && !session.auto_archive_disabled
 }

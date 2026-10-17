@@ -73,7 +73,7 @@ export function SettingsScreen() {
   const data = useSirus((state) => state.data);
   const prefs = useSirus((state) => state.prefs);
   const archived = useMemo(() => Object.values(data).reduce((sum, value) => sum + (value.settings?.archivedSessionIds.length ?? 0), 0), [data]);
-  const snoozed = useMemo(() => Object.values(data).reduce((sum, value) => sum + value.sessions.filter((session) => !session.sideChat && isSnoozed(session)).length, 0), [data]);
+  const snoozed = useMemo(() => Object.values(data).reduce((sum, value) => sum + value.sessions.filter((session) => !session.sideChat && !session.pullAsk && isSnoozed(session)).length, 0), [data]);
   const online = computers.filter((computer) => connection[computer.id] === "open").length;
   const go = (screen: string) => () => navigation.navigate(screen);
   return <>
@@ -174,7 +174,7 @@ export function SettingsComputerScreen() {
       <ListRowLayout icon={icon("circle.fill")} label="Estado" detail={state === "open" ? "Conectado" : state === "lost" ? "Fora de alcance" : "Conectando…"} />
       <ListRowLayout icon={icon(computer.kind === "server" ? "server.rack" : "laptopcomputer")} label="Tipo" detail={computer.kind === "server" ? "Servidor" : "Mac"} />
       <ListRowLayout icon={icon("link")} label="Endereço" description={computer.baseUrl} />
-      <ListRowLayout icon={icon("bubble.left.and.bubble.right")} label="Conversas" detail={data ? String(data.sessions.filter((session) => !session.sideChat).length) : "—"} />
+      <ListRowLayout icon={icon("bubble.left.and.bubble.right")} label="Conversas" detail={data ? String(data.sessions.filter((session) => !session.sideChat && !session.pullAsk).length) : "—"} />
       <ListRowLayout icon={icon("folder")} label="Projetos" detail={data ? String(data.projects.length) : "—"} />
     </ListSection>
     <ListSection>
@@ -246,7 +246,7 @@ function ConversationList(props: { readonly kind: "archived" | "snoozed" }) {
       const archived = new Set(value.settings?.archivedSessionIds ?? []);
       const projects = new Map(value.projects.map((project) => [project.id, project.name]));
       for (const session of value.sessions) {
-        if (session.sideChat) continue;
+        if (session.sideChat || session.pullAsk) continue;
         if (props.kind === "archived" ? archived.has(session.id) : !archived.has(session.id) && isSnoozed(session)) list.push({ computerId, session, project: projects.get(session.projectId) });
       }
     }

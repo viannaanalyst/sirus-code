@@ -15,3 +15,18 @@ test("GitHub HTML in PR bodies becomes chat Markdown", () => {
   assert.equal(prBodyMarkdown("<!-- only a template -->\n"), "");
   assert.equal(prBodyMarkdown("<script>x</script>"), "<script>x</script>", "other HTML stays text for React to escape");
 });
+
+test("GitHub uploads are recognized by ID only, for the item's own repository", async () => {
+  const { githubAttachmentAsset, githubAttachmentAssets } = await import("../src/lib/pr-body.ts");
+  const uuid = "e7d69315-2274-4873-a343-7c087c9f8543";
+  assert.equal(githubAttachmentAsset(`https://github.com/user-attachments/assets/${uuid.toUpperCase()}`, "acme/app"), uuid);
+  assert.equal(githubAttachmentAsset(`https://github.com/Acme/App/assets/123/${uuid}`, "acme/app"), `123/${uuid}`);
+  assert.equal(githubAttachmentAsset(`https://github.com/other/repo/assets/123/${uuid}`, "acme/app"), null, "another repository's upload loads like any image");
+  for (const url of [`http://github.com/user-attachments/assets/${uuid}`, `https://github.com.evil/user-attachments/assets/${uuid}`, `https://github.com/user-attachments/assets/${uuid}/../x`, `https://github.com/user-attachments/files/1/${uuid}`, "https://example.com/a.png"]) {
+    assert.equal(githubAttachmentAsset(url, "acme/app"), null, url);
+  }
+  const markdown = prBodyMarkdown(`<img src="https://github.com/user-attachments/assets/${uuid}"> and ![x](https://github.com/user-attachments/assets/${uuid}) ![y](https://example.com/y.png)`);
+  assert.deepEqual(githubAttachmentAssets(markdown, "acme/app"), [uuid]);
+  const many = Array.from({ length: 20 }, (_, index) => `![](https://github.com/user-attachments/assets/${uuid.slice(0, -2)}${String(index).padStart(2, "0")})`).join(" ");
+  assert.equal(githubAttachmentAssets(many, "acme/app").length, 12, "bounded per text");
+});

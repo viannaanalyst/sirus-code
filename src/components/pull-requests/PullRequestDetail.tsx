@@ -1,18 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, ChevronDown, CircleAlert, CircleCheck, CircleDashed, CircleMinus, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw, Signpost } from "@/components/icons/phosphor";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Bot, ChevronDown, MessagesSquare, CircleAlert, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw, Signpost } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
-import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { DiffViewer } from "@/components/DiffViewer";
+import { GithubMarkdown } from "@/components/pull-requests/GithubMarkdown";
+import { PullRequestChecks, type Failures } from "@/components/pull-requests/PullRequestChecks";
 import { PullRequestGuide } from "@/components/pull-requests/PullRequestGuide";
+import { ReviewThreadEntry, useReviewThreads, type ThreadsState } from "@/components/pull-requests/PullRequestThreads";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import { PrWatchList } from "@/components/PrWatch";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { formatUnknownError } from "@/lib/format-error";
-import { agentDraft, mergeBlocker, splitDiff } from "@/lib/github-inbox";
+import { agentDraft, itemKey, mergeBlocker, splitDiff } from "@/lib/github-inbox";
+import { autoFixFor, failingNames, fixProgress, fixRequest, forgetFixRequest, rememberFixRequest, subscribeFixRequests } from "@/lib/pr-checks";
 import { watchesFor } from "@/lib/pull-requests";
-import { prBodyMarkdown } from "@/lib/pr-body";
 import { pullRequestGuidePrompt } from "@/lib/review-guide";
 import { relativeTime } from "@/lib/session-board";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
@@ -20,7 +22,7 @@ import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTri
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useAppStore } from "@/store/app-store";
 
-type Tab = "summary" | "timeline" | "code" | "guide";
+type Tab = "summary" | "timeline" | "checks" | "code" | "guide";
 type PullDiff = { files: ReturnType<typeof splitDiff>; truncated: boolean } | { error: string };
 type Pending =
   | { type: "merge"; method: GithubMergeMethod }
@@ -29,7 +31,11 @@ type Pending =
 
 const METHOD_LABEL: Record<GithubMergeMethod, string> = { squash: "pulls.method.squash", merge: "pulls.method.merge", rebase: "pulls.method.rebase" };
 
-export function PullRequestDetail({ item, projectIds, onChanged }: { item: GithubItem; projectIds: string[]; onChanged: () => void }) {
+export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false, onAsk, onBody }: {
+  item: GithubItem; projectIds: string[]; onChanged: () => void;
+  /** Ask (ADR-050): whether its panel shows, the header toggle, and the loaded description it carries. */
+  askOpen?: boolean; onAsk?: () => void; onBody?: (key: string, body: string) => void;
+}) {
   const t = useTranslation();
   const [detail, setDetail] = useState<GithubDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +46,9 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
   const isPull = item.kind === "pullRequest";
   const allWatches = useAppStore((store) => store.prWatches);
   const watches = useMemo(() => isPull ? watchesFor(allWatches, item.repository, item.number) : [], [allWatches, isPull, item.repository, item.number]);
+  const key = itemKey(item);
+  const autoFixStates = useAppStore((store) => store.ciAutoFix);
+  const request = useSyncExternalStore(subscribeFixRequests, () => fixRequest(key));
 
   const load = useCallback(async () => {
     setError(null);
@@ -49,6 +58,8 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
     } catch (reason) { setError(formatUnknownError(reason)); }
   }, [item.repository, item.number, item.kind]);
   useEffect(() => { void load(); }, [load]);
+  const loadedBody = detail?.body ?? null;
+  useEffect(() => { if (loadedBody !== null) onBody?.(key, loadedBody); }, [key, loadedBody, onBody]);
   // The diff loads once, when the Code or Guide tab first needs it.
   const wantsDiff = isPull && (tab === "code" || tab === "guide");
   const [diffState, setDiffState] = useState<{ key: string; value: PullDiff } | null>(null);
@@ -82,26 +93,29 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
     return true;
   };
 
-  const sendToAgent = async (purpose: "work" | "fix" | "conflicts" | "guide") => {
+  const sendToAgent = async (purpose: "work" | "fix" | "conflicts" | "guide", fix?: { selected: string[]; failures: Failures | null }) => {
     if (!detail || !projectIds[0] || fixing) return;
     const store = useAppStore.getState();
     const projectId = projectIds[0];
-    // Fixing starts from what GitHub reported for every failing check; if that
-    // lookup fails the draft still lists the failing check names.
-    let failures = null;
-    if (purpose === "fix" && detail.checks.some((check) => check.status === "failed")) {
+    // Fixing starts from what GitHub reported for every failing check (or the ones picked in
+    // the Checks tab); if that lookup fails the draft still lists the failing check names.
+    let failures: Failures | null = fix?.failures ?? null;
+    const failingChecks = fix?.selected ?? failingNames(detail.checks);
+    if (purpose === "fix" && !fix && failingChecks.length) {
       setFixing(true);
       const response = await client.pullRequestAction({ type: "failures", repository: item.repository, number: item.number }).catch(() => null);
       setFixing(false);
       if (response?.type === "failures") failures = response;
     }
+    // The Checks tab follows this fix until the head moves and CI settles (memory only).
+    if (purpose === "fix" && failingChecks.length) rememberFixRequest(key, { head: detail.headOid, checks: failingChecks, at: Date.now() });
     void store.selectProject(projectId).then(() => {
       const next = useAppStore.getState();
       next.setMainView("session");
       next.requestNewSession();
       const draft = purpose === "guide"
         ? pullRequestGuidePrompt({ ...detail.item, headOid: detail.headOid })
-        : agentDraft(detail, purpose, failures);
+        : agentDraft(detail, purpose, failures, fix?.selected);
       next.setComposerDraft(`project:${projectId}`, draft);
       requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="project:${projectId}"]`)?.focus());
     });
@@ -110,6 +124,13 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
   const confirmCopy = pending ? confirmText(pending, view, t) : null;
   const failing = detail?.checks.some((check) => check.status === "failed") || detail?.reviews.some((review) => review.state === "CHANGES_REQUESTED");
   const conflicting = view.mergeable === "CONFLICTING" || detail?.mergeStateStatus === "DIRTY";
+  const failedCount = detail?.checks.filter((check) => check.status === "failed").length ?? 0;
+  const hasChecks = isPull && !!detail?.checks.length;
+  // The Checks tab exists only while the pull request has checks.
+  const shown: Tab = tab === "checks" && detail && !hasChecks ? "summary" : tab;
+  const tabs: Tab[] = isPull ? ["summary", "timeline", ...(hasChecks ? ["checks" as const] : []), "code", "guide"] : ["summary", "timeline"];
+  const progress = detail && isPull && view.state === "open" ? fixProgress(detail, request, autoFixFor(autoFixStates, item)) : null;
+  const { threads, reload: reloadThreads } = useReviewThreads(item.repository, item.number, isPull && shown === "timeline");
 
   return <div className="pulls-detail">
     <header className="pulls-detail-header">
@@ -136,6 +157,7 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
           </div>) : null}
         {blocker && isPull && view.state === "open" && !view.isDraft ? <span className="inline-flex items-center gap-1 ui-caption text-text-muted"><CircleAlert size={12} />{t(blocker)}</span> : null}
         <span className="flex-1" />
+        {onAsk ? <InteractiveButton variant="toolbar" data-pull-ask-toggle="" aria-pressed={askOpen} title={t("pulls.ask.buttonHint")} disabled={!detail || !projectIds.length} onClick={onAsk}><MessagesSquare size={14} />{t("pulls.ask.button")}</InteractiveButton> : null}
         <InteractiveButton variant="toolbar" disabled={!detail || !projectIds.length} onClick={() => void sendToAgent("work")}><Bot size={14} />{t("pulls.sendToAgent")}</InteractiveButton>
         <InteractiveButton variant="toolbar" onClick={() => void client.openExternalUrl(view.url).catch((reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) }))}><ExternalLink size={14} />{t("pulls.openOnGithub")}</InteractiveButton>
         <Dropdown>
@@ -152,17 +174,22 @@ export function PullRequestDetail({ item, projectIds, onChanged }: { item: Githu
         </Dropdown>
       </div>
       <div className="pulls-detail-tabs" role="tablist">
-        {(isPull ? ["summary", "timeline", "code", "guide"] as const : ["summary", "timeline"] as const).map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className="pulls-tab ui-control" onClick={() => setTab(value)}>{value === "guide" ? <><Signpost size={13} aria-hidden="true" />{t("guide.tab")}</> : t(`pulls.tab.${value}`)}</button>)}
+        {tabs.map((value) => <button key={value} type="button" role="tab" aria-selected={shown === value} className="pulls-tab ui-control" onClick={() => setTab(value)}>
+          {value === "guide" ? <><Signpost size={13} aria-hidden="true" />{t("guide.tab")}</> : t(`pulls.tab.${value}`)}
+          {value === "checks" && failedCount ? <span className="pulls-tab-badge" aria-label={t("pulls.checks.failingCount", { count: failedCount })}><CircleAlert size={12} aria-hidden="true" />{failedCount}</span> : null}
+        </button>)}
       </div>
     </header>
     <div className="scroll-thin pulls-detail-body">
       {error ? <p role="alert" className="ui-description text-danger">{t(error)}</p> : null}
       {!detail && !error ? <p role="status" className="ui-description text-text-muted">{t("common.loading")}</p> : null}
-      {tab === "summary" ? <PrWatchList watches={watches} /> : null}
-      {detail && tab === "summary" ? <Summary detail={detail} onFixChecks={isPull && view.state === "open" && projectIds.length ? () => void sendToAgent("fix") : undefined} fixing={fixing} /> : null}
-      {detail && tab === "timeline" ? <Timeline detail={detail} onCommented={() => { void load(); onChanged(); }} /> : null}
-      {detail && tab === "code" ? <Code diff={diff} /> : null}
-      {detail && isPull && tab === "guide" ? <PullRequestGuide item={view} headOid={detail.headOid} diff={diff && "files" in diff ? diff : null} diffError={diff && "error" in diff ? diff.error : null} canAsk={projectIds.length > 0} onAsk={() => void sendToAgent("guide")} /> : null}
+      {shown === "summary" ? <PrWatchList watches={watches} /> : null}
+      {detail && shown === "summary" ? <Summary detail={detail} /> : null}
+      {detail && shown === "timeline" ? <Timeline detail={detail} threads={isPull ? threads : null} onThreadsChanged={reloadThreads} onCommented={() => { void load(); onChanged(); }} /> : null}
+      {detail && shown === "checks" ? <PullRequestChecks detail={detail} canFix={view.state === "open" && projectIds.length > 0} fixing={fixing} progress={progress}
+        onFix={(selected, failures) => void sendToAgent("fix", { selected, failures })} onDismissProgress={() => forgetFixRequest(key)} /> : null}
+      {detail && shown === "code" ? <Code diff={diff} /> : null}
+      {detail && isPull && shown === "guide" ? <PullRequestGuide item={view} headOid={detail.headOid} diff={diff && "files" in diff ? diff : null} diffError={diff && "error" in diff ? diff.error : null} canAsk={projectIds.length > 0} onAsk={() => void sendToAgent("guide")} /> : null}
     </div>
     <ConfirmDialog open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }}
       title={confirmCopy?.title ?? ""} description={confirmCopy?.description} confirmLabel={confirmCopy?.confirm ?? ""}
@@ -182,22 +209,13 @@ function confirmText(pending: Pending, item: GithubItem, t: (key: string, values
     : { title: t("pulls.confirm.closeTitle", { ref }), description: t("pulls.confirm.closeBody"), confirm: t("pulls.close") };
 }
 
-const CHECK_ICON = { passed: CircleCheck, failed: CircleAlert, pending: CircleDashed, skipped: CircleMinus, unknown: CircleDashed } as const;
-
-function Summary({ detail, onFixChecks, fixing }: { detail: GithubDetail; onFixChecks?: () => void; fixing: boolean }) {
+function Summary({ detail }: { detail: GithubDetail }) {
   const t = useTranslation();
   const latest = new Map<string, string>();
   for (const review of detail.reviews) if (review.author && review.state !== "COMMENTED") latest.set(review.author, review.state);
   return <div className="flex flex-col gap-5">
-    <PullRequestBody body={detail.body} />
+    <PullRequestBody body={detail.body} repository={detail.item.repository} number={detail.item.number} />
     {detail.item.labels.length ? <div className="flex flex-wrap gap-1">{detail.item.labels.map((label) => <span key={label.name} className="pulls-label ui-caption" style={label.color ? { borderColor: `#${label.color}` } : undefined}>{label.name}</span>)}</div> : null}
-    {detail.checks.length ? <Block title={t("pulls.checksTitle", { passed: detail.checks.filter((check) => check.status === "passed").length, total: detail.checks.length })} action={onFixChecks && detail.checks.some((check) => check.status === "failed") ? <button type="button" className="pulls-fix-checks ui-caption" disabled={fixing} onClick={onFixChecks}><Wrench size={12} />{t(fixing ? "pulls.fixingChecks" : "pulls.fixChecks")}</button> : null}>
-      {detail.checks.map((check, index) => { const Icon = CHECK_ICON[check.status]; return <div key={`${check.name}:${index}`} className="flex items-center gap-2 py-1 ui-control">
-        <Icon size={14} className={cn(check.status === "passed" && "pulls-open", check.status === "failed" && "pulls-closed", check.status !== "passed" && check.status !== "failed" && "text-text-muted")} />
-        <span className="min-w-0 flex-1 truncate">{check.name}</span>
-        {check.url ? <button type="button" className="text-text-muted hover:text-text-primary" aria-label={t("pulls.openCheck", { name: check.name })} onClick={() => void client.openExternalUrl(check.url!).catch(() => undefined)}><ExternalLink size={12} /></button> : null}
-      </div>; })}
-    </Block> : null}
     {(detail.reviewers.length || latest.size) ? <Block title={t("pulls.reviewers")}>
       {[...latest].map(([author, state]) => <div key={author} className="flex items-center justify-between py-1 ui-control"><span>{author}</span><span className={cn("ui-caption", state === "APPROVED" ? "pulls-open" : state === "CHANGES_REQUESTED" ? "pulls-closed" : "text-text-muted")}>{t(`pulls.review.${state}`)}</span></div>)}
       {detail.reviewers.filter((name) => !latest.has(name)).map((name) => <div key={name} className="flex items-center justify-between py-1 ui-control"><span>{name}</span><span className="ui-caption text-text-muted">{t("pulls.review.REQUESTED")}</span></div>)}
@@ -210,28 +228,29 @@ function Summary({ detail, onFixChecks, fixing }: { detail: GithubDetail; onFixC
   </div>;
 }
 
-/** The PR description as chat Markdown: images open in the app gallery, links via openLink (ADR-102). */
-export function PullRequestBody({ body }: { body: string }) {
+/** The PR description as chat Markdown: images open in the app gallery, links via openLink (ADR-102);
+ * GitHub uploads of the item's repository load through `gh` when `repository` and `number` are given. */
+export function PullRequestBody({ body, repository, number }: { body: string; repository?: string; number?: number }) {
   const t = useTranslation();
-  const markdown = useMemo(() => prBodyMarkdown(body), [body]);
-  return <div data-gallery-scope="" className="ui-body text-text-secondary [overflow-wrap:anywhere] selectable">
-    {markdown ? <ChatMarkdown text={markdown} /> : <span className="text-text-muted">{t("pulls.noDescription")}</span>}
-  </div>;
+  return <GithubMarkdown text={body} repository={repository} number={number} empty={<span className="text-text-muted">{t("pulls.noDescription")}</span>} />;
 }
 
 function Block({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return <section><div className="mb-1.5 flex items-center justify-between gap-2"><h3 className="ui-section-title text-text-muted">{title}</h3>{action}</div><div className="rounded-[10px] border border-border-subtle px-3 py-2">{children}</div></section>;
 }
 
-function Timeline({ detail, onCommented }: { detail: GithubDetail; onCommented: () => void }) {
+function Timeline({ detail, threads, onThreadsChanged, onCommented }: { detail: GithubDetail; threads: ThreadsState; onThreadsChanged: () => void; onCommented: () => void }) {
   const t = useTranslation();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const { repository, number } = detail.item;
   const events = useMemo(() => [
     ...detail.commits.map((commit) => ({ at: commit.committedAt ?? "", key: `c:${commit.oid}`, node: <div className="flex items-center gap-2 ui-control text-text-secondary"><GitCommitHorizontal size={14} className="shrink-0 text-text-muted" /><span className="min-w-0 flex-1 truncate">{commit.headline}</span><span className="font-mono ui-caption text-text-muted">{commit.oid.slice(0, 7)}</span></div> })),
-    ...detail.reviews.map((review, index) => ({ at: review.submittedAt ?? "", key: `r:${index}`, node: <Entry author={review.author} at={review.submittedAt} badge={t(`pulls.review.${review.state}`)} body={review.body} /> })),
-    ...detail.comments.map((comment, index) => ({ at: comment.createdAt, key: `m:${index}`, node: <Entry author={comment.author} at={comment.createdAt} body={comment.body} /> })),
-  ].sort((a, b) => a.at.localeCompare(b.at)), [detail, t]);
+    ...detail.reviews.map((review, index) => ({ at: review.submittedAt ?? "", key: `r:${index}`, node: <Entry author={review.author} at={review.submittedAt} badge={t(`pulls.review.${review.state}`)} body={review.body} repository={repository} number={number} /> })),
+    ...detail.comments.map((comment, index) => ({ at: comment.createdAt, key: `m:${index}`, node: <Entry author={comment.author} at={comment.createdAt} body={comment.body} repository={repository} number={number} /> })),
+    // Inline review conversations sit where their first comment was written.
+    ...(threads && "threads" in threads ? threads.threads : []).map((thread) => ({ at: thread.comments[0]?.createdAt ?? "", key: `t:${thread.id}`, node: <ReviewThreadEntry thread={thread} repository={repository} number={number} onChanged={onThreadsChanged} /> })),
+  ].sort((a, b) => a.at.localeCompare(b.at)), [detail, threads, repository, number, onThreadsChanged, t]);
   const send = async () => {
     const body = text.trim();
     if (!body || busy) return;
@@ -243,6 +262,8 @@ function Timeline({ detail, onCommented }: { detail: GithubDetail; onCommented: 
   };
   return <div className="flex flex-col gap-3">
     {events.length === 0 ? <p className="ui-description text-text-muted">{t("pulls.noActivity")}</p> : events.map((event) => <div key={event.key}>{event.node}</div>)}
+    {threads && "error" in threads ? <p role="alert" className="ui-caption text-danger">{t("pulls.thread.loadFailed")}</p> : null}
+    {threads && "threads" in threads && threads.truncated ? <p className="ui-caption text-text-muted">{t("pulls.thread.truncated")}</p> : null}
     <div className="mt-2 flex flex-col gap-2 rounded-[10px] border border-border-subtle p-2">
       <textarea value={text} onChange={(event) => setText(event.target.value)} maxLength={65_536} rows={3} placeholder={t("pulls.commentPlaceholder")} aria-label={t("pulls.commentPlaceholder")} className="w-full resize-y bg-transparent px-1 ui-body text-text-primary outline-none placeholder:text-text-muted" />
       <div className="flex justify-end"><InteractiveButton variant="secondary" glow={false} loading={busy} disabled={!text.trim()} onClick={() => void send()}><MessageSquare size={14} />{t("pulls.comment")}</InteractiveButton></div>
@@ -250,12 +271,12 @@ function Timeline({ detail, onCommented }: { detail: GithubDetail; onCommented: 
   </div>;
 }
 
-function Entry({ author, at, badge, body }: { author: string | null; at: string | null; badge?: string; body: string }) {
+function Entry({ author, at, badge, body, repository, number }: { author: string | null; at: string | null; badge?: string; body: string; repository: string; number: number }) {
   const t = useTranslation();
   const time = at ? relativeTime(at) : "";
   return <div className="rounded-[10px] border border-border-subtle px-3 py-2">
     <p className="flex items-center gap-2 ui-caption text-text-muted"><span className="text-text-secondary">{author ?? t("pulls.someone")}</span>{badge ? <span>{badge}</span> : null}<span className="ml-auto">{time === "now" ? t("Now") : time}</span></p>
-    {body.trim() ? <p className="mt-1 whitespace-pre-wrap ui-body text-text-secondary [overflow-wrap:anywhere] selectable">{body}</p> : null}
+    {body.trim() ? <GithubMarkdown text={body} repository={repository} number={number} className="mt-1" /> : null}
   </div>;
 }
 

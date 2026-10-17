@@ -478,7 +478,7 @@ function mergeMessages(current: Message[], incoming: Message[]): Message[] {
 
 /**
  * Every conversation of every computer: pinned first, then by the chosen order; without
- * archived or snoozed ones and without side chats.
+ * archived or snoozed ones and without side chats or pull request Ask conversations.
  */
 export function selectRows(state: Pick<SirusState, "data">, order: PhonePrefs["threadOrder"] = "updated_at"): SessionRow[] {
   const rows: SessionRow[] = [];
@@ -488,7 +488,7 @@ export function selectRows(state: Pick<SirusState, "data">, order: PhonePrefs["t
     const projects = new Map(data.projects.map((project) => [project.id, project]));
     const children = childRequests(data.sessions);
     for (const session of data.sessions) {
-      if (archived.has(session.id) || session.sideChat || isSnoozed(session)) continue;
+      if (archived.has(session.id) || session.sideChat || session.pullAsk || isSnoozed(session)) continue;
       rows.push({ computerId, session, project: projects.get(session.projectId), pinned: pinned.has(session.id), childRequest: children.get(session.id) });
     }
   }

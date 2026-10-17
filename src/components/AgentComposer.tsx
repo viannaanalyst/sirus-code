@@ -137,7 +137,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const execution = modelExecutionControls(agentId, modelId, catalogs[agentId]?.models ?? [], preference);
   const planningAvailable = supportsPlanning(agentId, modelId);
   // Teams need a native planning coordinator and no team already in flight on this session.
-  const teamAvailable = ["codex", "claude", "opencode"].includes(agentId) && !session?.teamWorker && !session?.sideChat
+  const teamAvailable = ["codex", "claude", "opencode"].includes(agentId) && !session?.teamWorker && !session?.sideChat && !session?.pullAsk
     && !(session?.team && ["planning", "proposed", "running", "ready"].includes(session.team.status));
   const submitting = (sending && !running) || queueSending;
   const hasDraft = value.trim().length > 0 || context.attachments.length > 0 || Boolean(context.snippets?.length);
@@ -331,8 +331,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   // Typing while nothing editable has focus (after clicking the conversation) writes in the
   // composer — only the visible main composer of the selected conversation, and never when a
   // control (button, link, switch, tab, tree row, …) has focus (ADR-102).
-  const typingOwner = useRef({ sessionId, sideChat: Boolean(session?.sideChat) });
-  typingOwner.current = { sessionId, sideChat: Boolean(session?.sideChat) };
+  const typingOwner = useRef({ sessionId, sideChat: Boolean(session?.sideChat || session?.pullAsk) });
+  typingOwner.current = { sessionId, sideChat: Boolean(session?.sideChat || session?.pullAsk) };
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       const field = area.current;
@@ -394,7 +394,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
 
   // A finished planning turn offers Implement (also ⌘↩ on an empty composer).
   // A started conversation's composer is one row while the draft is one plain line.
-  const started = Boolean(session && !session.sideChat && ((session.transcriptLength ?? 0) > 0 || session.messages.length > 0));
+  const started = Boolean(session && !session.sideChat && !session.pullAsk && ((session.transcriptLength ?? 0) > 0 || session.messages.length > 0));
   const [wraps, setWraps] = useState(false);
   const singleWidth = useRef(0);
   const plain = !context.attachments.length && !context.snippets?.length && !context.goal && !context.planning && !context.debugging && !context.team && !session?.handoff;
@@ -411,8 +411,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   }, [single, value, wraps]);
   const planPending = useAppStore((state) => {
     const row = sessionId ? state.sessions.find((item) => item.id === sessionId) : null;
-    // A team plan has its own Confirm and start (ADR-043).
-    if (!row?.execution?.planning || row.team || ["starting", "running", "waiting"].includes(row.status)) return false;
+    // A team plan has its own Confirm and start (ADR-043); an Ask conversation stays read-only (ADR-050).
+    if (!row?.execution?.planning || row.team || row.pullAsk || ["starting", "running", "waiting"].includes(row.status)) return false;
     const last = row.messages[row.messages.length - 1];
     return last?.role === "agent" && !last.streaming && Boolean(last.content.trim());
   });
@@ -465,7 +465,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       {dropping && primary ? createPortal(<div className="window-drop" aria-hidden="true"><span>{t("composer.dropHere")}</span></div>, document.body) : null}
       {session ? <HandoffCard session={session} /> : null}
       {planPending ? <div className="plan-banner"><ClipboardList size={14} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{t("plan.ready")}</span><button type="button" className="plan-banner-action" onClick={implementPlan}>{t("plan.implement")}<kbd>⌘↩</kbd></button></div> : null}
-      <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} />
+      <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} readOnly={Boolean(session?.pullAsk)} />
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}
       <div className="composer-editor relative">
       {highlighted ? <div ref={mirror} aria-hidden="true" className="composer-highlight pointer-events-none absolute inset-0 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary">
@@ -481,7 +481,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         autoCorrect={autocorrect ? "on" : "off"}
         value={value}
         disabled={!canType || pasting}
-        placeholder={phone?.placeholder ?? t("session.prompt")}
+        placeholder={phone?.placeholder ?? (session?.pullAsk ? t("pulls.ask.prompt", { kind: t(`pulls.ask.kind.${session.pullAsk.kind}`) }) : t("session.prompt"))}
         aria-label={t("session.prompt")}
         aria-autocomplete="list"
         aria-haspopup="listbox"
@@ -551,14 +551,14 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         <div className="composer-footer-context flex min-w-0 items-center gap-1">
           <span className="composer-add-slot flex items-center gap-1">
           {phone ? phone.addMenu({ owner: draftKey, disabled: submitting || pasting || !canType, context, onChange: changeContext })
-            : <ComposerAddMenu key={draftKey} boundaryRef={boundary} owner={draftKey} disabled={submitting || pasting || !canType} context={context} onChange={changeContext} planningAvailable={planningAvailable} teamAvailable={teamAvailable} />}
+            : <ComposerAddMenu key={draftKey} boundaryRef={boundary} owner={draftKey} disabled={submitting || pasting || !canType} context={context} onChange={changeContext} planningAvailable={planningAvailable} teamAvailable={teamAvailable} readOnly={Boolean(session?.pullAsk)} />}
           {stash.length ? <ComposerStash items={stash} open={stashOpen} onOpenChange={setStashOpen} onRestore={restoreStash} onRemove={(index) => saveStash(stash.filter((_, at) => at !== index))} /> : null}
           </span>
           {phone ? null : <div className="composer-idle-control composer-approval-slot">
           <Dropdown onOpenChange={(open) => { if (open) setApprovalLayout(composerPopoverLayout(approvalTrigger.current, boundary.current)); }}>
             <DropdownTrigger asChild>
-              <button ref={approvalTrigger} type="button" disabled={submitting} aria-label={`${t("composer.approvals")} · ${approvalLabel}`} className={`composer-approval-trigger composer-control titlebar-no-drag inline-flex items-center gap-1.5 rounded-full px-2 ui-control transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50 ${fullAccess ? "text-[var(--brand-claude)]" : "text-text-secondary"}`}>
-                {fullAccess ? <Zap size={16} /> : approval === "auto" ? <Bot size={16} /> : <Hand size={16} />}{t(approvalLabel)}<ChevronDown size={11} />
+              <button ref={approvalTrigger} type="button" disabled={submitting} aria-label={`${t("composer.approvals")} · ${approvalLabel}`} className={`composer-approval-trigger composer-control titlebar-no-drag inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2 ui-control transition-colors duration-[var(--motion-fast)] hover:bg-background-3 disabled:opacity-50 ${fullAccess ? "text-[var(--brand-claude)]" : "text-text-secondary"}`}>
+                {fullAccess ? <Zap size={16} className="shrink-0" /> : approval === "auto" ? <Bot size={16} className="shrink-0" /> : <Hand size={16} className="shrink-0" />}<span className="min-w-0 truncate">{t(approvalLabel)}</span><ChevronDown size={11} className="shrink-0" />
               </button>
             </DropdownTrigger>
             <DropdownContent side="top" sideOffset={approvalLayout.sideOffset} alignOffset={approvalLayout.alignOffset} align="start" style={{ width: approvalLayout.width, maxWidth: "calc(100vw - 20px)" }} className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-auto p-2">
@@ -566,7 +566,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
               {(["ask", "auto", "full"] as const).map((mode) => {
                 const Icon = mode === "ask" ? Hand : mode === "auto" ? Bot : Zap;
                 const label = mode === "ask" ? "composer.askApproval" : mode === "auto" ? "composer.autoReview" : "composer.fullAccess";
-                const supported = definition.approvalModes.includes(mode);
+                // An Ask conversation about a pull request never runs with Full access (ADR-050).
+                const supported = definition.approvalModes.includes(mode) && !(mode === "full" && session?.pullAsk);
                 const description = !supported ? "composer.approvalUnsupported" : mode === "ask" ? "composer.askApprovalDescription" : mode === "auto" && agentId === "opencode" ? "composer.autoEditsDescription" : mode === "auto" ? "composer.autoReviewDescription" : "composer.fullAccessDescription";
                 return <DropdownItem key={mode} disabled={!supported || submitting} onSelect={() => chooseApproval(agentId, mode)} className={`py-2 ui-control [&>span]:flex [&>span]:w-full [&>span]:items-center [&>span]:gap-2.5 ${mode === "full" ? "text-[var(--brand-claude)]" : ""}`}>
                   <Icon aria-hidden="true" size={15} className="shrink-0" />

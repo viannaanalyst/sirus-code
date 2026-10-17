@@ -116,6 +116,33 @@ pub enum Action {
         body: String,
         confirm: bool,
     },
+    /// Inline review conversations of a pull request (bounded).
+    ReviewThreads { repository: String, number: u32 },
+    /// Replies to one review thread; the thread must belong to this pull request.
+    ReplyThread {
+        repository: String,
+        number: u32,
+        thread_id: String,
+        body: String,
+        confirm: bool,
+    },
+    /// Resolves or unresolves one review thread of this pull request.
+    ResolveThread {
+        repository: String,
+        number: u32,
+        thread_id: String,
+        resolved: bool,
+        confirm: bool,
+    },
+    /// One GitHub image attachment of this item's text, read through `gh` (so a
+    /// private repository's upload works without the token reaching the
+    /// renderer) and returned as a bounded `data:image/…` URL. `asset` is the
+    /// attachment's ID (`<uuid>` or `<number>/<uuid>`), never a URL.
+    Attachment {
+        repository: String,
+        number: u32,
+        asset: String,
+    },
     /// Pushes the session branch, then opens a pull request from it into the
     /// repository's default branch.
     Create {
@@ -148,7 +175,37 @@ pub enum Response {
     Created {
         url: String,
     },
+    Threads {
+        threads: Vec<ReviewThread>,
+        /// More threads exist than were read.
+        truncated: bool,
+    },
+    Attachment {
+        data_url: String,
+    },
     Done,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewThread {
+    pub id: String,
+    pub path: String,
+    /// The line the thread is on in the current diff; `None` once outdated.
+    pub line: Option<u32>,
+    pub start_line: Option<u32>,
+    /// The line it was written on, kept for outdated threads.
+    pub original_line: Option<u32>,
+    pub is_resolved: bool,
+    pub is_outdated: bool,
+    pub viewer_can_reply: bool,
+    pub viewer_can_resolve: bool,
+    pub viewer_can_unresolve: bool,
+    /// The end of the diff hunk the first comment was written on.
+    pub diff_hunk: Option<String>,
+    pub comments: Vec<Comment>,
+    /// Every comment of the thread, including those not read.
+    pub comment_count: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -231,6 +288,8 @@ pub struct Check {
     /// passed, failed, pending, skipped or unknown.
     pub status: String,
     pub url: Option<String>,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -396,6 +455,61 @@ pub async fn pull_request_action(
             rest(binary, "POST", &endpoint, &[("body", body)]).await?;
             Ok(Response::Done)
         }
+        Action::ReviewThreads { repository, number } => {
+            let repo = owned(&repositories, &repository, number)?;
+            let (threads, truncated) = review_threads(binary, repo, number).await?;
+            Ok(Response::Threads { threads, truncated })
+        }
+        Action::ReplyThread {
+            repository,
+            number,
+            thread_id,
+            body,
+            confirm,
+        } => {
+            let repo = owned(&repositories, &repository, number)?;
+            confirmed(confirm)?;
+            let body = body.trim();
+            if body.is_empty() || body.len() > COMMENT_BODY_LIMIT || body.contains('\0') {
+                return Err(Error::new(
+                    "invalid",
+                    "Replies must have 1 to 65,536 bytes of text.",
+                ));
+            }
+            let thread = owned_thread(binary, repo, number, &thread_id).await?;
+            thread_mutation(binary, REPLY_MUTATION, &[("id", thread), ("body", body)]).await?;
+            Ok(Response::Done)
+        }
+        Action::ResolveThread {
+            repository,
+            number,
+            thread_id,
+            resolved,
+            confirm,
+        } => {
+            let repo = owned(&repositories, &repository, number)?;
+            confirmed(confirm)?;
+            let thread = owned_thread(binary, repo, number, &thread_id).await?;
+            let mutation = if resolved {
+                RESOLVE_MUTATION
+            } else {
+                UNRESOLVE_MUTATION
+            };
+            thread_mutation(binary, mutation, &[("id", thread)]).await?;
+            Ok(Response::Done)
+        }
+        Action::Attachment {
+            repository,
+            number,
+            asset,
+        } => {
+            let repo = owned(&repositories, &repository, number)?;
+            let url = attachment_url(repo, &asset)
+                .ok_or_else(|| Error::new("invalid", "Not a GitHub image attachment."))?;
+            Ok(Response::Attachment {
+                data_url: attachment(binary, &url).await?,
+            })
+        }
         Action::Create {
             session_id,
             title,
@@ -559,7 +673,11 @@ fn confirmed(confirm: bool) -> Result<()> {
 }
 
 /// The repository must belong to a saved project; the number must be plausible.
-fn owned<'a>(repositories: &'a [Repository], requested: &str, number: u32) -> Result<&'a str> {
+pub(crate) fn owned<'a>(
+    repositories: &'a [Repository],
+    requested: &str,
+    number: u32,
+) -> Result<&'a str> {
     if number == 0 || number > 10_000_000 {
         return Err(Error::new(
             "invalid",
@@ -574,7 +692,7 @@ fn owned<'a>(repositories: &'a [Repository], requested: &str, number: u32) -> Re
 }
 
 /// GitHub repositories of saved projects, from each project's `origin` remote.
-fn owned_repositories(state: &AppState) -> Result<Vec<Repository>> {
+pub(crate) fn owned_repositories(state: &AppState) -> Result<Vec<Repository>> {
     let projects: Vec<(String, PathBuf)> = state
         .data
         .lock()
@@ -896,7 +1014,7 @@ const PR_DETAIL_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){
 number title url state isDraft body createdAt updatedAt mergedAt closedAt headRefName baseRefName headRefOid additions deletions changedFiles reviewDecision mergeable mergeStateStatus viewerCanUpdate author{login} \
 labels(first:20){nodes{name color}} comments{totalCount} assignees(first:10){nodes{login}} reviewRequests(first:20){nodes{requestedReviewer{... on User{login} ... on Team{name}}}} \
 reviews(last:30){nodes{author{login} state body submittedAt}} commentsList:comments(last:50){nodes{author{login} body createdAt}} \
-commits(last:50){nodes{commit{oid messageHeadline committedDate author{name} statusCheckRollup{state contexts(first:80){nodes{__typename ... on CheckRun{name status conclusion detailsUrl} ... on StatusContext{context state targetUrl}}}}}}} \
+commits(last:50){nodes{commit{oid messageHeadline committedDate author{name} statusCheckRollup{state contexts(first:80){nodes{__typename ... on CheckRun{name status conclusion detailsUrl startedAt completedAt} ... on StatusContext{context state targetUrl}}}}}}} \
 files(first:100){totalCount nodes{path additions deletions changeType}}}}}";
 
 const ISSUE_DETAIL_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){issue(number:$number){__typename \
@@ -958,6 +1076,8 @@ async fn detail(binary: &OsStr, repo: &str, number: u32, kind: ItemKind) -> Resu
                 name: string(&check["name"], 200).or_else(|| string(&check["context"], 200))?,
                 status: check_status(check),
                 url: repo_link("detailsUrl").or_else(|| repo_link("targetUrl")),
+                started_at: string(&check["startedAt"], 40),
+                completed_at: string(&check["completedAt"], 40),
             })
         })
         .collect();
@@ -1288,13 +1408,7 @@ async fn set_draft(binary: &OsStr, repo: &str, number: u32, draft: bool) -> Resu
     }
     let id = node["id"]
         .as_str()
-        .filter(|id| {
-            !id.is_empty()
-                && id.len() <= 128
-                && id
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'='))
-        })
+        .filter(|id| node_id(id))
         .ok_or_else(|| Error::not_found("Pull request not found on GitHub."))?;
     graphql(
         binary,
@@ -1315,6 +1429,230 @@ async fn set_draft(binary: &OsStr, repo: &str, number: u32, draft: bool) -> Resu
         other => lookup_error(other),
     })?;
     Ok(())
+}
+
+/// A GitHub GraphQL node ID (`PR_…`, `PRRT_…`): short, URL-safe base64 characters only.
+fn node_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 128
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'='))
+}
+
+/// Review threads read for the Timeline, and comments read per thread.
+const MAX_THREADS: u32 = 40;
+const MAX_THREAD_COMMENTS: u32 = 20;
+/// The diff hunk shown above a thread keeps its last lines only.
+const HUNK_LINES: usize = 12;
+const HUNK_LIMIT: usize = 4_000;
+
+const THREADS_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!,$first:Int!,$comments:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){\
+reviewThreads(last:$first){totalCount nodes{id isResolved isOutdated path line startLine originalLine viewerCanReply viewerCanResolve viewerCanUnresolve \
+hunk:comments(first:1){nodes{diffHunk}} comments(first:$comments){totalCount nodes{author{login} body createdAt}}}}}}}";
+const THREAD_OWNER_QUERY: &str = "query($id:ID!){node(id:$id){__typename ... on PullRequestReviewThread{pullRequest{number repository{nameWithOwner}}}}}";
+const REPLY_MUTATION: &str = "mutation($id:ID!,$body:String!){addPullRequestReviewThreadReply(input:{pullRequestReviewThreadId:$id,body:$body}){comment{id}}}";
+const RESOLVE_MUTATION: &str =
+    "mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}";
+const UNRESOLVE_MUTATION: &str =
+    "mutation($id:ID!){unresolveReviewThread(input:{threadId:$id}){thread{isResolved}}}";
+
+async fn review_threads(
+    binary: &OsStr,
+    repo: &str,
+    number: u32,
+) -> Result<(Vec<ReviewThread>, bool)> {
+    let (owner, name) = repo.split_once('/').expect("validated repository");
+    let data = graphql(
+        binary,
+        THREADS_QUERY,
+        &[("owner", owner), ("name", name)],
+        &[
+            ("number", number),
+            ("first", MAX_THREADS),
+            ("comments", MAX_THREAD_COMMENTS),
+        ],
+    )
+    .await
+    .map_err(lookup_error)?;
+    let node = &data["repository"]["pullRequest"];
+    if node.is_null() {
+        return Err(Error::not_found("Not found on GitHub."));
+    }
+    Ok(parse_threads(&node["reviewThreads"]))
+}
+
+fn line(value: &Value) -> Option<u32> {
+    value
+        .as_u64()
+        .filter(|line| (1..=10_000_000).contains(line))
+        .map(|line| line as u32)
+}
+
+/// The last `HUNK_LINES` lines of a diff hunk, control-stripped and bounded.
+fn hunk_tail(value: &Value) -> Option<String> {
+    let hunk = body(value, 200_000);
+    let lines: Vec<&str> = hunk.lines().collect();
+    let tail = lines[lines.len().saturating_sub(HUNK_LINES)..].join("\n");
+    let tail: String = tail.chars().take(HUNK_LIMIT).collect();
+    Some(tail).filter(|tail| !tail.trim().is_empty())
+}
+
+fn parse_threads(threads: &Value) -> (Vec<ReviewThread>, bool) {
+    let parsed: Vec<ReviewThread> = nodes(threads)
+        .iter()
+        .filter_map(|thread| {
+            let id = thread["id"].as_str().filter(|id| node_id(id))?.to_owned();
+            let comments: Vec<Comment> = nodes(&thread["comments"])
+                .iter()
+                .map(|comment| Comment {
+                    author: login(&comment["author"]),
+                    body: body(&comment["body"], COMMENT_LIMIT),
+                    created_at: string(&comment["createdAt"], 40).unwrap_or_default(),
+                })
+                .collect();
+            if comments.is_empty() {
+                return None;
+            }
+            Some(ReviewThread {
+                id,
+                path: string(&thread["path"], 1024).unwrap_or_default(),
+                line: line(&thread["line"]),
+                start_line: line(&thread["startLine"]),
+                original_line: line(&thread["originalLine"]),
+                is_resolved: thread["isResolved"].as_bool().unwrap_or(false),
+                is_outdated: thread["isOutdated"].as_bool().unwrap_or(false),
+                viewer_can_reply: thread["viewerCanReply"].as_bool().unwrap_or(false),
+                viewer_can_resolve: thread["viewerCanResolve"].as_bool().unwrap_or(false),
+                viewer_can_unresolve: thread["viewerCanUnresolve"].as_bool().unwrap_or(false),
+                diff_hunk: hunk_tail(&thread["hunk"]["nodes"][0]["diffHunk"]),
+                comment_count: count(&thread["comments"]["totalCount"]).max(comments.len() as u32),
+                comments,
+            })
+        })
+        .collect();
+    let truncated = count(&threads["totalCount"]) > parsed.len() as u32;
+    (parsed, truncated)
+}
+
+/// Whether a `node(id:)` answer is a review thread of this repository's pull request.
+fn thread_belongs(data: &Value, repo: &str, number: u32) -> bool {
+    let node = &data["node"];
+    node["__typename"].as_str() == Some("PullRequestReviewThread")
+        && node["pullRequest"]["number"].as_u64() == Some(u64::from(number))
+        && node["pullRequest"]["repository"]["nameWithOwner"]
+            .as_str()
+            .is_some_and(|name| name.eq_ignore_ascii_case(repo))
+}
+
+/// A thread ID the renderer sent, checked natively to be a review thread of
+/// this owned pull request before anything changes.
+async fn owned_thread<'a>(binary: &OsStr, repo: &str, number: u32, id: &'a str) -> Result<&'a str> {
+    let refused = || Error::not_found("This conversation is not part of this pull request.");
+    if !node_id(id) {
+        return Err(refused());
+    }
+    let data = graphql(binary, THREAD_OWNER_QUERY, &[("id", id)], &[])
+        .await
+        .map_err(lookup_error)?;
+    if thread_belongs(&data, repo, number) {
+        Ok(id)
+    } else {
+        Err(refused())
+    }
+}
+
+async fn thread_mutation(binary: &OsStr, mutation: &str, strings: &[(&str, &str)]) -> Result<()> {
+    graphql(binary, mutation, strings, &[])
+        .await
+        .map_err(|status| match status {
+            LookupStatus::Unavailable => {
+                Error::new("github_refused", "GitHub refused this change.")
+            }
+            other => lookup_error(other),
+        })?;
+    Ok(())
+}
+
+/// The fixed GitHub URL of an image attachment ID: `<uuid>` is a
+/// `user-attachments` upload, `<number>/<uuid>` an older upload of this repository.
+fn attachment_url(repo: &str, asset: &str) -> Option<String> {
+    let uuid = |value: &str| {
+        value.len() == 36
+            && value.bytes().enumerate().all(|(index, b)| match index {
+                8 | 13 | 18 | 23 => b == b'-',
+                _ => b.is_ascii_hexdigit(),
+            })
+    };
+    match asset.split_once('/') {
+        None if uuid(asset) => Some(format!(
+            "https://github.com/user-attachments/assets/{}",
+            asset.to_ascii_lowercase()
+        )),
+        Some((id, rest))
+            if !id.is_empty()
+                && id.len() <= 12
+                && id.bytes().all(|b| b.is_ascii_digit())
+                && uuid(rest) =>
+        {
+            Some(format!(
+                "https://github.com/{repo}/assets/{id}/{}",
+                rest.to_ascii_lowercase()
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// A `data:` URL for PNG, JPEG, GIF or WebP bytes recognized by their magic
+/// bytes (never the server's content type); anything else is refused.
+fn image_data_url(bytes: &[u8]) -> Option<String> {
+    use base64::Engine as _;
+    let mime = if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        "image/png"
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        "image/jpeg"
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        "image/gif"
+    } else if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        "image/webp"
+    } else {
+        return None;
+    };
+    Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+/// Reads an attachment through `gh`, which adds the person's token for
+/// github.com only (Go drops it on the redirect to the storage host). The
+/// token never leaves `gh`; output is bounded by the 2 MiB capture ceiling.
+async fn attachment(binary: &OsStr, url: &str) -> Result<String> {
+    let mut command = hardened(binary);
+    command.args([
+        "api",
+        "--hostname",
+        "github.com",
+        "--method",
+        "GET",
+        "-H",
+        "Accept: image/*",
+        url,
+    ]);
+    match crate::gh_gate::read(command, Duration::from_secs(30)).await {
+        Ok(output) if output.status.success() => image_data_url(&output.stdout)
+            .ok_or_else(|| Error::new("invalid", "This attachment is not an image.")),
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Err(Error::new(
+            "attachment_too_large",
+            "This image is too large to show here.",
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Err(lookup_error(LookupStatus::CliMissing))
+        }
+        Err(_) => Err(lookup_error(LookupStatus::Unavailable)),
+        Ok(output) => Err(lookup_error(status_of(&output.stderr))),
+    }
 }
 
 #[cfg(test)]
@@ -1538,6 +1876,173 @@ mod tests {
         .await
         .unwrap_err();
         assert!(format!("{refused:?}").contains("github_conflict"));
+    }
+
+    #[test]
+    fn thread_actions_are_closed_and_changes_carry_confirmation() {
+        assert!(serde_json::from_value::<Action>(json!({
+            "type": "replyThread", "repository": "o/r", "number": 4, "threadId": "PRRT_x", "body": "ok", "confirm": true
+        }))
+        .is_ok());
+        assert!(serde_json::from_value::<Action>(json!({
+            "type": "replyThread", "repository": "o/r", "number": 4, "threadId": "PRRT_x", "body": "ok"
+        }))
+        .is_err(), "confirm is required");
+        assert!(serde_json::from_value::<Action>(json!({
+            "type": "resolveThread", "repository": "o/r", "number": 4, "threadId": "PRRT_x", "resolved": true
+        }))
+        .is_err(), "confirm is required");
+        assert!(serde_json::from_value::<Action>(json!({
+            "type": "attachment", "repository": "o/r", "number": 4, "asset": "x", "url": "https://evil.example"
+        }))
+        .is_err(), "no URL field");
+    }
+
+    #[test]
+    fn review_threads_parse_bounded_with_hunk_tail_and_state() {
+        let hunk: String = (0..40).map(|i| format!("+line {i}\n")).collect();
+        let threads = json!({"totalCount": 3, "nodes": [
+            {"id": "PRRT_kwDOabc", "path": "src/a.ts", "line": 12, "startLine": null, "originalLine": 10,
+             "isResolved": true, "isOutdated": false, "viewerCanReply": true, "viewerCanResolve": false, "viewerCanUnresolve": true,
+             "hunk": {"nodes": [{"diffHunk": hunk}]},
+             "comments": {"totalCount": 25, "nodes": [{"author": {"login": "ana"}, "body": "Why\u{0007}?", "createdAt": "2026-10-01T00:00:00Z"}]}},
+            {"id": "bad id; x", "path": "b", "comments": {"nodes": [{"body": "x"}]}},
+            {"id": "PRRT_empty", "path": "c", "comments": {"nodes": []}}
+        ]});
+        let (parsed, truncated) = parse_threads(&threads);
+        assert!(truncated);
+        assert_eq!(parsed.len(), 1);
+        let thread = &parsed[0];
+        assert_eq!(
+            (thread.line, thread.start_line, thread.original_line),
+            (Some(12), None, Some(10))
+        );
+        assert!(thread.is_resolved && thread.viewer_can_unresolve && !thread.viewer_can_resolve);
+        assert_eq!(thread.comment_count, 25);
+        assert_eq!(thread.comments[0].body, "Why?");
+        let hunk = thread.diff_hunk.as_deref().unwrap();
+        assert_eq!(hunk.lines().count(), HUNK_LINES);
+        assert!(hunk.ends_with("+line 39") && !hunk.contains("+line 27\n"));
+    }
+
+    #[test]
+    fn only_threads_of_this_pull_request_can_change() {
+        let answer = |name: &str, number: u64, kind: &str| json!({"node": {"__typename": kind, "pullRequest": {"number": number, "repository": {"nameWithOwner": name}}}});
+        assert!(thread_belongs(
+            &answer("Owner/Repo", 7, "PullRequestReviewThread"),
+            "owner/repo",
+            7
+        ));
+        assert!(!thread_belongs(
+            &answer("owner/other", 7, "PullRequestReviewThread"),
+            "owner/repo",
+            7
+        ));
+        assert!(!thread_belongs(
+            &answer("owner/repo", 8, "PullRequestReviewThread"),
+            "owner/repo",
+            7
+        ));
+        assert!(!thread_belongs(
+            &answer("owner/repo", 7, "Issue"),
+            "owner/repo",
+            7
+        ));
+        assert!(!thread_belongs(&json!({"node": null}), "owner/repo", 7));
+        assert!(
+            node_id("PRRT_kwDOA-b_c=")
+                && !node_id("")
+                && !node_id("a b")
+                && !node_id(&"a".repeat(129))
+        );
+    }
+
+    #[test]
+    fn attachments_are_fixed_github_urls_and_images_by_magic_bytes() {
+        let uuid = "E7D69315-2274-4873-a343-7c087c9f8543";
+        assert_eq!(
+            attachment_url("owner/repo", uuid).as_deref(),
+            Some("https://github.com/user-attachments/assets/e7d69315-2274-4873-a343-7c087c9f8543")
+        );
+        assert_eq!(
+            attachment_url("owner/repo", &format!("123/{uuid}")).as_deref(),
+            Some("https://github.com/owner/repo/assets/123/e7d69315-2274-4873-a343-7c087c9f8543")
+        );
+        for bad in [
+            "",
+            "x",
+            "../e7d69315-2274-4873-a343-7c087c9f8543",
+            "12/34/e7d69315-2274-4873-a343-7c087c9f8543",
+            "e7d69315x2274-4873-a343-7c087c9f8543",
+            "a1/e7d69315-2274-4873-a343-7c087c9f8543",
+            "https://evil.example/x",
+        ] {
+            assert_eq!(attachment_url("owner/repo", bad), None, "{bad}");
+        }
+        assert!(image_data_url(b"\x89PNG\r\n\x1a\n rest")
+            .unwrap()
+            .starts_with("data:image/png;base64,"));
+        assert!(image_data_url(b"\xff\xd8\xff\xe0")
+            .unwrap()
+            .starts_with("data:image/jpeg;base64,"));
+        assert!(image_data_url(b"GIF89a..")
+            .unwrap()
+            .starts_with("data:image/gif;base64,"));
+        assert!(image_data_url(b"RIFF\0\0\0\0WEBPVP8 ")
+            .unwrap()
+            .starts_with("data:image/webp;base64,"));
+        assert_eq!(
+            image_data_url(b"<svg xmlns='http://www.w3.org/2000/svg'/>"),
+            None
+        );
+        assert_eq!(image_data_url(b"<!DOCTYPE html>"), None);
+        assert_eq!(image_data_url(b""), None);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn thread_changes_check_ownership_first_and_attachments_read_through_gh() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("gh");
+        let log = dir.path().join("argv");
+        std::fs::write(
+            &binary,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$@\" >> '{}'\ncase \"$*\" in\n *user-attachments*) printf 'GIF89a';;\n *node\\(id*) echo '{{\"data\":{{\"node\":{{\"__typename\":\"PullRequestReviewThread\",\"pullRequest\":{{\"number\":7,\"repository\":{{\"nameWithOwner\":\"owner/repo\"}}}}}}}}}}';;\n *) echo '{{\"data\":{{}}}}';;\nesac\n",
+                log.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let gh = binary.as_os_str();
+        assert_eq!(
+            owned_thread(gh, "owner/repo", 7, "PRRT_a").await.unwrap(),
+            "PRRT_a"
+        );
+        assert!(owned_thread(gh, "owner/repo", 8, "PRRT_a").await.is_err());
+        assert!(owned_thread(gh, "other/repo", 7, "PRRT_a").await.is_err());
+        assert!(owned_thread(gh, "owner/repo", 7, "bad id").await.is_err());
+        thread_mutation(
+            gh,
+            REPLY_MUTATION,
+            &[("id", "PRRT_a"), ("body", "@/etc/passwd")],
+        )
+        .await
+        .unwrap();
+        let url = attachment_url("owner/repo", "e7d69315-2274-4873-a343-7c087c9f8543").unwrap();
+        assert_eq!(
+            attachment(gh, &url).await.unwrap(),
+            "data:image/gif;base64,R0lGODlh"
+        );
+        let argv = std::fs::read_to_string(&log).unwrap();
+        assert!(
+            argv.contains("-f\nbody=@/etc/passwd\n"),
+            "reply bodies are raw fields"
+        );
+        assert!(argv.contains(
+            "--method\nGET\n-H\nAccept: image/*\nhttps://github.com/user-attachments/assets/"
+        ));
     }
 
     /// Read-only queries against real GitHub through the local `gh` login.

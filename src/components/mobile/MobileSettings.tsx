@@ -19,6 +19,7 @@ import { MobileMacSettings, type MacSettingsPage } from "./MobileMacSettings";
 import { Choices, Row } from "./MobileSettingsParts";
 import { MobileUsage } from "./MobileUsage";
 import "@/styles/mobile-settings.css";
+import { isAuxiliarySession } from "@/lib/pull-ask";
 
 type Page = "notifications" | "appearance" | "keyboard" | "organization" | "usage" | "about" | MacSettingsPage | AboutSubpage;
 type Translate = ReturnType<typeof useTranslation>;
@@ -91,7 +92,7 @@ function SettingsIndex({ online, open, navigation }: { online: boolean; open: (p
   const t = useTranslation();
   const sessions = useAppStore((state) => state.sessions);
   const archived = useAppStore((state) => state.settings.archivedSessionIds);
-  const archivedCount = sessions.filter((session) => archived.includes(session.id) && !session.sideChat).length;
+  const archivedCount = sessions.filter((session) => archived.includes(session.id) && !isAuxiliarySession(session)).length;
   return <>
     <section>
       <h2>{t("mobile.connections")}</h2>

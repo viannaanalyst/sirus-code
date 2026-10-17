@@ -91,6 +91,21 @@ pub fn approval_for(
         })
 }
 
+/// Providers with a native planning (read-only) mode.
+pub fn supports_planning(provider: &AgentProviderId) -> bool {
+    matches!(
+        provider,
+        AgentProviderId::Codex
+            | AgentProviderId::Claude
+            | AgentProviderId::Cursor
+            | AgentProviderId::OpenCode
+            | AgentProviderId::Droid
+            | AgentProviderId::Pi
+            | AgentProviderId::Devin
+            | AgentProviderId::Hermes
+    )
+}
+
 pub fn validate(
     provider: &AgentProviderId,
     model: Option<&str>,
@@ -110,19 +125,7 @@ pub fn validate(
             "Full access cannot be combined with planning mode.",
         ));
     }
-    if options.planning
-        && !matches!(
-            provider,
-            AgentProviderId::Codex
-                | AgentProviderId::Claude
-                | AgentProviderId::Cursor
-                | AgentProviderId::OpenCode
-                | AgentProviderId::Droid
-                | AgentProviderId::Pi
-                | AgentProviderId::Devin
-                | AgentProviderId::Hermes
-        )
-    {
+    if options.planning && !supports_planning(provider) {
         return Err(Error::agent(
             "Planning mode is not supported by this adapter.",
         ));
