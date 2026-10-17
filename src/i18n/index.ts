@@ -96,7 +96,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     "providers.keepIdle": "Manter agentes prontos",
     "providers.keepIdleHelp": "Quantas conversas terminadas mantêm o agente aberto para responder mais rápido na próxima mensagem. Ficam até 30 minutos paradas; as paradas há mais tempo fecham primeiro.",
     "providers.keepIdleNone": "Nenhuma",
-    "providers.keepIdleAll": "Todas (como o T3)",
+    "providers.keepIdleAll": "Todas",
     "providers.back": "Provedores",
     "providers.enable": "Ativar provedor",
     "providers.enableHelp": "Desabilitar esconde o provedor para novas sessões. Sessões em execução não são encerradas.",

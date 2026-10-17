@@ -13,7 +13,7 @@ export function ChangeTally({ additions, deletions }: { additions: number; delet
   return <span className="inline-flex shrink-0 gap-2 font-mono ui-micro tabular-nums"><span className="text-success">+{additions}</span><span className="text-danger">−{deletions}</span></span>;
 }
 
-/** Folder-tree expansion per turn, kept while the app runs (T3 keeps it per thread too). */
+/** Folder-tree expansion per turn, kept while the app runs. */
 const expandedByTurn = new Map<string, { all: boolean; overrides: Record<string, boolean> }>();
 
 /**

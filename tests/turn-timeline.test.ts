@@ -19,7 +19,7 @@ test("text and work interleave in the order they happened; back-to-back work is 
   assert.equal(foldBoundary(timelineParts("", [row("x", "edit", "a.ts")])), 1);
 });
 
-test("steps read as T3 sentences in Portuguese", () => {
+test("steps read as sentences in Portuguese", () => {
   assert.equal(stepCategory(row("a", "read", "src/app.ts")), "read");
   assert.equal(stepCategory(row("a", "read", "TODO|FIXME")), "search");
   assert.equal(stepCategory(row("a", "read", "/Users/me/Library/Application Support/wt/README.md")), "read");

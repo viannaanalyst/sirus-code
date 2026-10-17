@@ -47,7 +47,7 @@ export function languageForPath(path: string): EditorLanguage | null {
 
 /** Palette-aware code colors, with the same fonts and sizes as Appearance. */
 const highlight = HighlightStyle.define([
-  // Markdown reads like VS Code's (T3 uses its themes): coloured headings, emphasis, inline
+  // Markdown reads like VS Code's: coloured headings, emphasis, inline
   // code, quotes, list markers and the `#`/`**` marks themselves.
   { tag: tags.heading, color: "var(--code-function)", fontWeight: "700" },
   { tag: tags.strong, color: "var(--code-keyword)", fontWeight: "700" },

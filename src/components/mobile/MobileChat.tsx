@@ -124,7 +124,7 @@ export function MobileChat({ sessionId, navigation }: { sessionId: string; navig
 }
 
 /**
- * Whether the composer shows as T3's single pill or as the grown card: it grows while its field
+ * Whether the composer shows as a single pill or as the grown card: it grows while its field
  * has focus, holds a draft or attachment, or a menu or sheet of its own is open. Losing focus
  * waits a moment, so a tap on the model button lands before the card shrinks.
  */

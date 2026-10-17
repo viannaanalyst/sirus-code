@@ -35,7 +35,7 @@ try {
     const failed = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [{ ...child, state: "failed", endedAt: 5000, steps: [{ id: "x", kind: "command", label: "Command", state: "failed" }] }] } }));
     assert.ok(failed.includes(translate(locale, "subagent.state.failed")) && /class="subagent-card-head" aria-expanded="true"/.test(failed) && failed.includes('class="activity-child-steps"'), "a failed card opens its trail");
     assert.ok(html.includes(translate(locale, "timeline.workedFor", { duration: "1m 8s" })), "a finished turn reads Worked for …");
-    // A folded turn hides its work behind the header; the T3 timeline interleaves text and work in order.
+    // A folded turn hides its work behind the header; the timeline interleaves text and work in order.
     // Server rendering reads the initial store snapshot.
     Object.assign(snapshot, { settings: { ...settings, foldFinishedTurns: true } });
     const folded = renderToString(createElement(AgentActivity, { activity }));
@@ -61,5 +61,5 @@ try {
     for (const key of ["Allow once", "Decline", "Cancel turn"]) assert.ok(permission.includes(translate(locale, key)));
     assert.ok(permission.includes("npm test"));
   }
-  console.log("Activity SSR: both locales and three themes, subagent cards (role, step, result, state pill), T3 timeline order/fold, relative paths, native labels/status, escaped metadata, question progress and explicit approval actions passed");
+  console.log("Activity SSR: both locales and three themes, subagent cards (role, step, result, state pill), timeline order/fold, relative paths, native labels/status, escaped metadata, question progress and explicit approval actions passed");
 } finally { await server.close(); }

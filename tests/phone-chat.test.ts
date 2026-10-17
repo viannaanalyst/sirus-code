@@ -9,7 +9,7 @@ import { defaultSettings } from "../src/lib/settings.ts";
 
 const model = (id: string, fields: Partial<DiscoveredModel> = {}): DiscoveredModel => ({ id, displayName: id, availability: "available", ...fields });
 
-test("terminal keys follow T3: esc, CMD, CTRL, tab, paste, clear, then arrows", () => {
+test("terminal keys: esc, CMD, CTRL, tab, paste, clear, then arrows", () => {
   assert.deepEqual(TERMINAL_KEYS.slice(0, 10).map((key) => key.id), ["esc", "cmd", "ctrl", "tab", "paste", "clear", "up", "down", "left", "right"]);
   assert.equal(TERMINAL_CLEAR, "\u000c");
 });

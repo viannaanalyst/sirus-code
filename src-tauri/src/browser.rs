@@ -338,7 +338,7 @@ mod tests {
         assert!(!is_allowed_browser_url(""));
         assert!(!is_allowed_browser_url("https://exa\nmple.com"));
         assert!(!is_allowed_browser_url(
-            "synara-local-preview://token/x.html"
+            "custom-local-preview://token/x.html"
         ));
     }
 

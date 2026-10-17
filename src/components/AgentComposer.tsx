@@ -257,7 +257,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       if (queueing) setQueueSending(false); else setSending(false);
     }
   };
-  // ⌥⌘↩ (customizable): send like Enter, then open a new thread in this project (T3's "send and new").
+  // ⌥⌘↩ (customizable): send like Enter, then open a new thread in this project.
   const sendNewCombo = effectiveShortcut(settings.customShortcuts, "send-new-thread");
   const sendAndStartNew = async () => { if (await send()) useAppStore.getState().requestNewSession(); };
   // ⇧⇥ (customizable): the next reasoning level the model supports, wrapping around.
@@ -368,7 +368,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     return true;
   };
 
-  // ⌘S sets the draft aside (T3's stash); with an empty composer it brings one back.
+  // ⌘S sets the draft aside ; with an empty composer it brings one back.
   const [stash, setStash] = useState<string[]>(() => readStash(draftKey));
   const [stashOpen, setStashOpen] = useState(false);
   const [stashOwner, setStashOwner] = useState(draftKey);
