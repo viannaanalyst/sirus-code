@@ -114,8 +114,8 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "appearance",
-  "title": "Composer line speed",
-  "description": "The silver line pauses while the text field is focused.",
+  "title": "Composer runner speed",
+  "description": "The working model's mark that runs along the composer's edge while the agent works.",
   "group": "Effects and motion"
  },
  {
@@ -273,6 +273,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "title": "connections.httpsSetup",
   "description": "connections.httpsSetupHelp",
   "group": "connections.access"
+ },
+ {
+  "section": "connections",
+  "title": "connections.connectRow",
+  "description": "connections.connectRowHelp",
+  "group": "connections.connect"
  },
  {
   "section": "general",

@@ -225,8 +225,8 @@ const pairs: Record<string, string> = {
   "New terminal session": "Nova sessão de terminal",
   "Now": "agora",
 
-  "Composer line speed": "Velocidade da linha do composer",
-  "The light that travels the composer's edge while the agent works.": "A luz que percorre a borda do composer enquanto o agente trabalha.",
+  "Composer runner speed": "Velocidade do corredor do composer",
+  "The working model's mark that runs along the composer's edge while the agent works.": "A marca do modelo que corre pela borda do composer enquanto o agente trabalha.",
   "Slow": "Lenta",
   "Smooth": "Suave",
   "Fast": "Rápida",

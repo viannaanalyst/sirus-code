@@ -132,7 +132,7 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
     <SettingsGroup title={t("Effects and motion")} card>
       {boolRow("animations", "Interface animations")}
       {boolRow("pointerGlow", "Cursor-reactive button effects")}
-      <SettingsRow title={t("Composer line speed")} description={t("The light that travels the composer's edge while the agent works.")}><Select className="general-settings-select" label={t("Composer line speed")} value={settings.composerLineSpeed} onChange={composerLineSpeed => onSave({ ...settings, composerLineSpeed })} options={[{ value: "slow", label: t("Slow") }, { value: "smooth", label: t("Smooth") }, { value: "fast", label: t("Fast") }]} /></SettingsRow>
+      <SettingsRow title={t("Composer runner speed")} description={t("The working model's mark that runs along the composer's edge while the agent works.")}><Select className="general-settings-select" label={t("Composer runner speed")} value={settings.composerLineSpeed} onChange={composerLineSpeed => onSave({ ...settings, composerLineSpeed })} options={[{ value: "slow", label: t("Slow") }, { value: "smooth", label: t("Smooth") }, { value: "fast", label: t("Fast") }]} /></SettingsRow>
       {boolRow("reduceMotion", "Reduce motion", "Also respects prefers-reduced-motion from the OS.")}
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card><SettingsRow title={t("Dock icon")} description={t(!host?.appearanceSupport?.dockIcon ? "Dock customization is unavailable on this host." : "Choose the icon shown in the Dock.")}>

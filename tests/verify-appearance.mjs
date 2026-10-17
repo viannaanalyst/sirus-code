@@ -22,7 +22,7 @@ try {
     }
     assert.equal(markup.split(translate(locale, "Restore defaults")).length - 1, 1, "one page-level reset");
     const labels = [...markup.matchAll(/<label for="([^"]+)"[^>]*>([^<]+)<\/label>/g)];
-    for (const key of ["Theme", "UI font", "UI font size", "Code font", "Code font size", "Terminal font", "Terminal font size", "UI density", "Composer line speed"]) {
+    for (const key of ["Theme", "UI font", "UI font size", "Code font", "Code font size", "Terminal font", "Terminal font size", "UI density", "Composer runner speed"]) {
       const label = labels.find(match => match[2] === translate(locale, key)); assert.ok(label, `${key} native label`);
       const trigger = markup.match(new RegExp(`<button[^>]*id="${label[1]}"[^>]*>`))?.[0]; assert.ok(trigger?.includes('role="combobox"'));
       if (key === "UI font") assert.ok(trigger.includes('disabled=""'), "system override disables custom family");

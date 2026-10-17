@@ -4,12 +4,9 @@
   .composer-plain-button-filled { background:color-mix(in srgb,var(--text-primary) 6%,transparent); }
   .composer-plain-button:hover:not(:disabled) { background:color-mix(in srgb,var(--text-primary) 10%,transparent); }
   /* While the agent works: a soft light travels the composer's edge. */
-  @property --composer-light-angle { syntax:"<angle>"; inherits:false; initial-value:0deg; }
-  .composer-working-light { position:absolute; inset:-1px; z-index:1; padding:1.5px; border-radius:inherit; pointer-events:none; background:conic-gradient(from var(--composer-light-angle),transparent 0 68%,color-mix(in srgb,var(--info) 85%,white) 80%,#f3b37a 89%,transparent 100%); -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0); mask-composite:exclude; animation:composer-light 2.6s linear infinite, composer-light-in var(--motion-slow) var(--ease-out) both; }
-  .composer-working-light[data-speed="slow"] { animation-duration:3.8s,var(--motion-slow); }
-  .composer-working-light[data-speed="fast"] { animation-duration:1.7s,var(--motion-slow); }
-  @keyframes composer-light { to { --composer-light-angle:360deg; } }
-  @keyframes composer-light-in { from { opacity:0; } }
+  .composer-runner { position:absolute; left:0; top:calc(1px - 20px); z-index:2; pointer-events:none; transform-origin:50% 100%; will-change:transform; animation:composer-runner-in var(--motion-slow) var(--ease-out) both; }
+  .composer-runner img { filter:drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)); }
+  @keyframes composer-runner-in { from { opacity:0; } }
   .composer-speed-setting [role="group"],.composer-speed-setting button[data-value] { border-radius:999px; }
   .attachment-viewer-overlay { position:fixed; inset:0; z-index:50; background:color-mix(in srgb,var(--background-0) 85%,transparent); backdrop-filter:blur(4px); }
   .attachment-viewer { position:fixed; inset:0; z-index:51; display:flex; align-items:center; justify-content:center; padding:24px; outline:none; }
@@ -216,7 +213,6 @@ button.attachment-chip-open:hover .attachment-chip-name { text-decoration: under
   transition: border-color var(--motion-fast) var(--ease-out);
 }
 .agent-composer[data-single]:focus-within::before { border-color: color-mix(in oklab, var(--text-primary) 20%, transparent); }
-.agent-composer[data-single] .composer-working-light { grid-row: 1 / 2; grid-column: 1 / -1; border-radius: 999px; }
 .agent-composer[data-single] .composer-editor { grid-row: 1; grid-column: 2; min-width: 0; }
 .agent-composer[data-single] .composer-editor textarea { overflow: hidden; }
 .agent-composer[data-single] :is(.composer-footer, .composer-footer-context, .composer-footer-actions) { display: contents; }

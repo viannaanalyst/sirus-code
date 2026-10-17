@@ -24,6 +24,7 @@ import { ScriptRunNotice } from "@/components/ScriptRunNotice";
 import { conversationMarkdown, REVIEW_PROMPT, type ComposerCommandId } from "@/lib/composer-commands";
 import { lastAssistantId } from "@/lib/prompt-queue";
 import { canSteer, compactingTurn } from "@/lib/steering";
+import { ComposerRunner } from "@/components/ComposerRunner";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { composerOwnsTyping, typingGoesToComposer } from "@/lib/type-to-focus";
 import { shortcutMatches } from "@/lib/shortcuts";
@@ -458,9 +459,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>
     <div ref={boundary} data-dictating={dictating} data-single={(single && !planPending) || undefined} className="agent-composer relative isolate mx-auto w-full max-w-[var(--chat-column-width)] rounded-[var(--composer-radius)] border border-[color-mix(in_oklab,var(--text-primary)_10%,transparent)] bg-[color-mix(in_oklab,var(--text-primary)_3%,transparent)] backdrop-blur-[8px] transition-colors duration-[var(--motion-fast)]" data-dropping={dropping || undefined}>
-      {/* A thin, still border at rest and while typing; while the agent works a soft light travels it,
-          so the effect says "busy" instead of decorating (the phone's pill keeps none, ADR-129). */}
-      {running && !phone && !reducedMotion ? <span className="composer-working-light" data-speed={settings.composerLineSpeed} aria-hidden="true" /> : null}
+      {/* While the agent works, the working model's mark runs along the top edge (the phone's pill keeps none, ADR-129). */}
+      {!phone ? <ComposerRunner running={running} provider={agentId} modelId={modelId ?? ""} speed={settings.composerLineSpeed} reduce={reducedMotion} /> : null}
       {dropping ? <div className="composer-drop" aria-hidden="true">{t("composer.dropHere")}</div> : null}
       {dropping && primary ? createPortal(<div className="window-drop" aria-hidden="true"><span>{t("composer.dropHere")}</span></div>, document.body) : null}
       {session ? <HandoffCard session={session} /> : null}
