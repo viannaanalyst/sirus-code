@@ -701,11 +701,10 @@ pub fn sync(session: &mut Session) {
     }
 }
 fn current(session: &mut Session) -> Option<&mut TurnActivity> {
+    // Only the newest agent message and later rows count as changed (checkpoints).
     session
         .messages
-        .iter_mut()
-        .rev()
-        .find(|m| m.role == MessageRole::Agent)?
+        .rev_find_mut(|m| m.role == MessageRole::Agent)?
         .activity
         .as_mut()
 }

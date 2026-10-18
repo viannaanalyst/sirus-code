@@ -163,7 +163,9 @@ fn migrate_into_database(path: &Path, data: &AppData) -> Result<()> {
     let index = encode_state(data)?;
     let writes: Vec<crate::store::TranscriptWrite<'_>> = transcripts
         .iter()
-        .map(|(id, revision, messages)| (id.as_str(), *revision, messages.as_slice()))
+        .map(|(id, revision, messages)| {
+            crate::store::TranscriptWrite::full(id, *revision, messages)
+        })
         .collect();
     crate::store::write(path, next_generation(), &index, &writes)?;
     // Read back and compare before anything relies on it.
@@ -669,10 +671,21 @@ pub fn save(path: &Path, data: &AppData) -> Result<()> {
             .iter()
             .filter_map(|session| {
                 let messages = session.messages.loaded()?;
-                Some((session.id.as_str(), session.messages.revision(), messages))
+                Some(crate::store::TranscriptWrite::full(
+                    &session.id,
+                    session.messages.revision(),
+                    messages,
+                ))
             })
             .collect();
-        crate::store::write(path, next_generation(), &index, &transcripts)?;
+        if crate::store::write(path, next_generation(), &index, &transcripts)? {
+            // The rows hold these revisions now: checkpoints count changes from here.
+            for session in &data.sessions {
+                if session.messages.loaded().is_some() {
+                    session.messages.mark_handed();
+                }
+            }
+        }
         crate::diagnostics::observe(path, data);
         return Ok(());
     }
@@ -722,39 +735,64 @@ pub fn save(path: &Path, data: &AppData) -> Result<()> {
     Ok(())
 }
 
-/// A checkpoint's encoded view: the index and the named transcripts.
+/// One transcript in a checkpoint: the messages from `offset` on (all of them
+/// unless the rows already hold `base`, ADR-099).
+struct Tail {
+    session_id: String,
+    revision: u64,
+    offset: usize,
+    base: Option<u64>,
+    messages: Vec<Message>,
+}
+
+/// A checkpoint's encoded view: the index and the named transcripts. In SQLite the
+/// index is partial (sessions and small app-state fields, [`encode_checkpoint_index`]).
 struct Encoded {
     generation: u64,
     state: serde_json::Value,
-    transcripts: Vec<(String, u64, Vec<Message>)>,
+    partial: bool,
+    transcripts: Vec<Tail>,
 }
 
 /// Writes a checkpoint: its transcripts (when changed), then the index. A snapshot
 /// older than what is already on disk is dropped, so a delayed checkpoint never
-/// replaces a newer save. Other transcripts' files are kept.
-fn write(path: &Path, encoded: &Encoded) -> Result<()> {
+/// replaces a newer save. Other transcripts' files are kept. Returns the sessions
+/// whose tail could not be written (they need a full checkpoint).
+fn write(path: &Path, encoded: &Encoded) -> Result<Vec<String>> {
     if uses_database(path) {
         let transcripts: Vec<crate::store::TranscriptWrite<'_>> = encoded
             .transcripts
             .iter()
-            .map(|(id, revision, messages)| (id.as_str(), *revision, messages.as_slice()))
+            .map(|tail| crate::store::TranscriptWrite {
+                session_id: &tail.session_id,
+                revision: tail.revision,
+                messages: &tail.messages,
+                offset: tail.offset,
+                base: tail.base,
+            })
             .collect();
-        crate::store::write(path, encoded.generation, &encoded.state, &transcripts)?;
-        return Ok(());
+        return if encoded.partial {
+            crate::store::write_checkpoint(path, encoded.generation, &encoded.state, &transcripts)
+        } else {
+            crate::store::write(path, encoded.generation, &encoded.state, &transcripts)
+                .map(|_| Vec::new())
+        };
     }
     let state = serde_json::to_vec(&encoded.state)?;
     let mut all = WRITTEN.get_or_init(Mutex::default).lock();
     let disk = slot(&mut all, path);
     if disk.generation > encoded.generation {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let dir = sessions_dir(path);
-    for (session_id, revision, messages) in &encoded.transcripts {
-        write_transcript(&dir, disk, session_id, *revision, messages)?;
+    for tail in &encoded.transcripts {
+        // The JSON files are always written whole.
+        debug_assert_eq!(tail.offset, 0);
+        write_transcript(&dir, disk, &tail.session_id, tail.revision, &tail.messages)?;
     }
     atomic_write(path, &state)?;
     disk.generation = encoded.generation;
-    Ok(())
+    Ok(Vec::new())
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
@@ -774,10 +812,11 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 static CHECKPOINT_SESSIONS: OnceLock<Mutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
 
 /// Coalesced, best-effort checkpoint for streaming output: at most one write per
-/// second across every stream. Under the lock it encodes the index (metadata only)
-/// and clones only the transcripts of the sessions that streamed; encoding, hashing
-/// and writing them happen outside it. Other transcripts are left as they are on
-/// disk. Final states keep using [`save`], which writes every changed transcript.
+/// second across every stream. Under the lock it encodes the sessions' index entries
+/// and clones, of the transcripts that streamed, only the messages that changed since
+/// they were last handed to storage (ADR-099); encoding, hashing and writing them
+/// happen outside it. Other transcripts, settings and item tables are left as they
+/// are on disk. Final states keep using [`save`], which writes everything that changed.
 pub fn checkpoint_soon(state: &Arc<AppState>, session_id: &str) {
     {
         let mut all = CHECKPOINT_SESSIONS.get_or_init(Mutex::default).lock();
@@ -803,38 +842,112 @@ pub fn checkpoint_soon(state: &Arc<AppState>, session_id: &str) {
                 .lock()
                 .remove(&state.data_path)
                 .unwrap_or_default();
-            snapshot_sessions(&data, &sessions, next_generation())
+            snapshot_sessions(&state.data_path, &data, &sessions, next_generation())
         };
-        if let Err(error) = snapshot.and_then(|encoded| write(&state.data_path, &encoded)) {
-            tracing::error!(%error, "cannot checkpoint streamed output");
+        match snapshot.and_then(|encoded| write(&state.data_path, &encoded)) {
+            // Another write landed in between: these go whole in the next checkpoint.
+            Ok(stale) => {
+                for session_id in stale {
+                    checkpoint_soon(&state, &session_id);
+                }
+            }
+            Err(error) => tracing::error!(%error, "cannot checkpoint streamed output"),
         }
     });
 }
 
-/// Taken under the state lock; cheap: the index has no messages and only the named,
-/// loaded transcripts are cloned.
+/// Taken under the state lock. In SQLite it is proportional to what streamed, not to
+/// the transcripts' length: the index is the sessions' entries and the small app-state
+/// fields, and each named transcript contributes the messages from the first one that
+/// changed since it was last handed to storage, when the rows still hold that revision
+/// (otherwise all of them, compared row by row as a save does). The JSON files keep
+/// full snapshots.
 fn snapshot_sessions(
+    path: &Path,
     data: &AppData,
     sessions: &HashSet<String>,
     generation: u64,
 ) -> Result<Encoded> {
+    let database = uses_database(path);
+    let named = data
+        .sessions
+        .iter()
+        .filter(|session| sessions.contains(&session.id) && session.messages.loaded().is_some())
+        .collect::<Vec<_>>();
+    let stored = if database {
+        crate::store::revisions(
+            path,
+            &named
+                .iter()
+                .map(|session| session.id.as_str())
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        vec![None; named.len()]
+    };
+    let transcripts = named
+        .into_iter()
+        .zip(stored)
+        .filter_map(|(session, stored)| {
+            let messages = session.messages.loaded()?;
+            let offset = session.messages.changed_from(stored).min(messages.len());
+            let tail = Tail {
+                session_id: session.id.clone(),
+                revision: session.messages.revision(),
+                offset,
+                base: stored.filter(|_| offset > 0),
+                messages: messages[offset..].to_vec(),
+            };
+            session.messages.mark_handed();
+            Some(tail)
+        })
+        .collect();
     Ok(Encoded {
         generation,
-        state: encode_state(data)?,
-        transcripts: data
-            .sessions
-            .iter()
-            .filter(|session| sessions.contains(&session.id))
-            .filter_map(|session| {
-                let messages = session.messages.loaded()?;
-                Some((
-                    session.id.clone(),
-                    session.messages.revision(),
-                    messages.to_vec(),
-                ))
-            })
-            .collect(),
+        state: if database {
+            encode_checkpoint_index(data)?
+        } else {
+            encode_state(data)?
+        },
+        partial: database,
+        transcripts,
     })
+}
+
+/// A checkpoint's index: every session's entry with its counts and the small
+/// app-state fields, as [`encode_state`] has them. Settings, projects, tasks and
+/// review guides change only through commands that save, so a checkpoint leaves
+/// their rows alone instead of encoding them every second.
+fn encode_checkpoint_index(data: &AppData) -> Result<serde_json::Value> {
+    let mut sessions = without_transcripts(|| serde_json::to_value(&data.sessions))?;
+    if let Some(entries) = sessions.as_array_mut() {
+        for (entry, session) in entries.iter_mut().zip(&data.sessions) {
+            let counts = session.messages.counts();
+            entry[MESSAGE_COUNT] = counts.messages.into();
+            entry[TRANSCRIPT_LENGTH] = counts.conversation.into();
+        }
+    }
+    let mut index = serde_json::Map::new();
+    index.insert("sessions".into(), sessions);
+    index.insert(
+        "providerAccounts".into(),
+        serde_json::to_value(&data.provider_accounts)?,
+    );
+    index.insert(
+        "selectedProviderAccounts".into(),
+        serde_json::to_value(&data.selected_provider_accounts)?,
+    );
+    index.insert(
+        "composerDrafts".into(),
+        serde_json::to_value(&data.composer_drafts)?,
+    );
+    index.insert(
+        "contextTexts".into(),
+        serde_json::to_value(&data.context_texts)?,
+    );
+    index.insert("ciAutoFix".into(), serde_json::to_value(&data.ci_auto_fix)?);
+    index.insert("prWatches".into(), serde_json::to_value(&data.pr_watches)?);
+    Ok(serde_json::Value::Object(index))
 }
 
 const CHECKPOINT_DELAY: Duration = Duration::from_secs(1);
@@ -860,8 +973,13 @@ mod tests {
     fn a_delayed_older_snapshot_never_replaces_a_newer_save() {
         let temp = crate::git::tests::Repo::new();
         let path = temp.0.join("state.json");
-        let older =
-            snapshot_sessions(&AppData::default(), &HashSet::new(), next_generation()).unwrap();
+        let older = snapshot_sessions(
+            &path,
+            &AppData::default(),
+            &HashSet::new(),
+            next_generation(),
+        )
+        .unwrap();
         let mut newer_data = AppData::default();
         newer_data
             .composer_drafts
@@ -941,7 +1059,7 @@ mod tests {
         data.sessions[1].messages[0].content.push_str(" unsaved");
         data.sessions.push(session("c", &["new"]));
         let named = HashSet::from(["a".to_owned()]);
-        let snapshot = snapshot_sessions(&data, &named, next_generation()).unwrap();
+        let snapshot = snapshot_sessions(&path, &data, &named, next_generation()).unwrap();
         assert_eq!(
             snapshot.transcripts.len(),
             1,
@@ -1661,8 +1779,13 @@ mod tests {
             .unwrap()
             .contains("\"lazy\""));
 
-        let older =
-            snapshot_sessions(&AppData::default(), &HashSet::new(), next_generation()).unwrap();
+        let older = snapshot_sessions(
+            &path,
+            &AppData::default(),
+            &HashSet::new(),
+            next_generation(),
+        )
+        .unwrap();
         let mut newer = AppData::default();
         newer
             .composer_drafts
@@ -1706,6 +1829,263 @@ mod tests {
                 started.elapsed().as_secs_f64() * 1000.0 / 20.0
             );
         }
+    }
+
+    fn message(session_id: &str, id: &str, text: &str) -> Message {
+        serde_json::from_value(serde_json::json!({"id":id,"sessionId":session_id,"role":"agent","content":text,"createdAt":"t","streaming":false})).unwrap()
+    }
+
+    /// Every message row, in order, as `(session, position, id, JSON)`.
+    fn message_rows(path: &Path) -> Vec<(String, i64, String, String)> {
+        let raw = crate::store::raw(path);
+        let mut statement = raw
+            .prepare(
+                "SELECT session_id, position, id, json FROM messages ORDER BY session_id, position",
+            )
+            .unwrap();
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap();
+        rows
+    }
+
+    #[test]
+    fn a_streaming_checkpoint_writes_only_the_messages_that_changed() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let mut data = load_or_create(&path).unwrap();
+        let texts: Vec<String> = (0..200).map(|n| format!("message {n}")).collect();
+        let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        data.sessions = vec![session("a", &refs), session("b", &["other"])];
+        save(&path, &data).unwrap();
+        // Marks on every stored row: a row that is rewritten loses its mark.
+        let raw = crate::store::raw(&path);
+        raw.execute_batch(
+            "UPDATE messages SET json = replace(json, '\"streaming\":false', '\"streaming\":false ');
+             UPDATE settings SET json = json || ' ';
+             UPDATE projects SET json = json || ' ';",
+        )
+        .unwrap();
+        // Streaming: the newest message grows and a new one is appended.
+        let streamed = data.sessions[0]
+            .messages
+            .rev_find_mut(|message| message.id == "a-199")
+            .unwrap();
+        streamed.content.push_str(" and more");
+        data.sessions[0]
+            .messages
+            .append(message("a", "a-200", "next"));
+        data.settings.steer_while_running = !data.settings.steer_while_running;
+        let named = HashSet::from(["a".to_owned()]);
+        let snapshot = snapshot_sessions(&path, &data, &named, next_generation()).unwrap();
+        assert_eq!(snapshot.transcripts.len(), 1);
+        assert_eq!(
+            snapshot.transcripts[0].offset, 199,
+            "only the tail is copied"
+        );
+        assert_eq!(snapshot.transcripts[0].messages.len(), 2);
+        assert!(
+            snapshot.state.get("settings").is_none(),
+            "settings are not encoded"
+        );
+        assert!(write(&path, &snapshot).unwrap().is_empty());
+        let rows = message_rows(&path);
+        let a: Vec<_> = rows.iter().filter(|row| row.0 == "a").collect();
+        assert_eq!(a.len(), 201);
+        assert!(
+            a[..199].iter().all(|row| row.3.contains("false ")),
+            "unchanged rows are not rewritten"
+        );
+        assert!(a[199].3.contains("message 199 and more") && a[200].3.contains("next"));
+        let settings: String = raw
+            .query_row("SELECT json FROM settings", [], |row| row.get(0))
+            .unwrap();
+        assert!(settings.ends_with(' '), "the settings row is left alone");
+
+        // Nothing changed since: the next checkpoint copies nothing.
+        let snapshot = snapshot_sessions(&path, &data, &named, next_generation()).unwrap();
+        assert!(snapshot.transcripts[0].messages.is_empty());
+        write(&path, &snapshot).unwrap();
+
+        // An edit through the whole list (an older message) makes the next one whole.
+        data.sessions[0].messages[3].content.push_str(" edited");
+        let snapshot = snapshot_sessions(&path, &data, &named, next_generation()).unwrap();
+        assert_eq!(snapshot.transcripts[0].offset, 0);
+        assert_eq!(snapshot.transcripts[0].messages.len(), 201);
+        write(&path, &snapshot).unwrap();
+        let rows = message_rows(&path);
+        assert!(rows[3].3.contains("message 3 edited"));
+        assert!(
+            rows[0].3.contains("false "),
+            "still only changed rows are written"
+        );
+
+        restart(&path);
+        let loaded = load_or_create(&path).unwrap();
+        let loaded = crate::transcript_store::lock_loaded(&Mutex::new(loaded), &path, &["a"])
+            .sessions[0]
+            .messages
+            .to_vec();
+        let expected = data.sessions[0].messages.to_vec();
+        assert_eq!(
+            serde_json::to_value(&loaded).unwrap(),
+            serde_json::to_value(&expected).unwrap()
+        );
+    }
+
+    #[test]
+    fn checkpointed_tails_store_the_same_rows_as_a_full_save() {
+        let temp = crate::git::tests::Repo::new();
+        let streamed = temp.0.join("streamed/state.json");
+        let whole = temp.0.join("whole/state.json");
+        let mut data = load_or_create(&streamed).unwrap();
+        data.sessions = vec![session("a", &["one", "two"]), session("b", &["other"])];
+        save(&streamed, &data).unwrap();
+        let named = HashSet::from(["a".to_owned(), "b".to_owned()]);
+        for round in 0..12 {
+            if round % 4 == 0 {
+                data.sessions[0]
+                    .messages
+                    .append(message("a", &format!("a-new-{round}"), ""));
+            }
+            data.sessions[0]
+                .messages
+                .rev_find_mut(|message| message.role == crate::models::MessageRole::Agent)
+                .unwrap()
+                .content
+                .push_str(&format!(" chunk {round}"));
+            if round == 5 {
+                data.sessions[1]
+                    .messages
+                    .append(message("b", "b-1", "late"));
+                // A save between checkpoints.
+                save(&streamed, &data).unwrap();
+            }
+            if round == 9 {
+                // A copy that diverges from what is stored is written whole.
+                let copy = data.sessions[0].clone();
+                data.sessions[0]
+                    .messages
+                    .append(message("a", "a-gone", "gone"));
+                save(&streamed, &data).unwrap();
+                data.sessions[0] = copy;
+                data.sessions[0]
+                    .messages
+                    .rev_find_mut(|message| message.role == crate::models::MessageRole::Agent)
+                    .unwrap()
+                    .content
+                    .push_str(" after the copy");
+                let snapshot =
+                    snapshot_sessions(&streamed, &data, &named, next_generation()).unwrap();
+                assert_eq!(snapshot.transcripts[0].offset, 0);
+                write(&streamed, &snapshot).unwrap();
+                continue;
+            }
+            let snapshot = snapshot_sessions(&streamed, &data, &named, next_generation()).unwrap();
+            write(&streamed, &snapshot).unwrap();
+        }
+        let mut fresh = load_or_create(&whole).unwrap();
+        fresh.sessions = data.sessions.clone();
+        save(&whole, &fresh).unwrap();
+        assert_eq!(message_rows(&streamed), message_rows(&whole));
+        assert!(!message_rows(&whole).iter().any(|row| row.2 == "a-gone"));
+        // And a full save over the checkpoints changes nothing.
+        save(&streamed, &data).unwrap();
+        assert_eq!(message_rows(&streamed), message_rows(&whole));
+        let sessions = |path: &Path| -> Vec<(String, String, i64)> {
+            let raw = crate::store::raw(path);
+            let mut statement = raw
+                .prepare("SELECT id, json, message_count FROM sessions ORDER BY position")
+                .unwrap();
+            let rows = statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+                .unwrap()
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .unwrap();
+            rows
+        };
+        assert_eq!(sessions(&streamed), sessions(&whole));
+    }
+
+    #[test]
+    fn a_tail_that_no_longer_fits_the_rows_is_not_written() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let mut data = load_or_create(&path).unwrap();
+        data.sessions = vec![session("a", &["one", "two"])];
+        save(&path, &data).unwrap();
+        let tail = [message("a", "a-2", "three")];
+        let write = crate::store::TranscriptWrite {
+            session_id: "a",
+            revision: crate::transcript_store::next_revision(),
+            messages: &tail,
+            offset: 2,
+            base: Some(crate::transcript_store::next_revision()),
+        };
+        let stale = crate::store::write_checkpoint(
+            &path,
+            next_generation(),
+            &encode_checkpoint_index(&data).unwrap(),
+            &[write],
+        )
+        .unwrap();
+        assert_eq!(stale, ["a"]);
+        assert_eq!(crate::store::message_count(&path, "a").unwrap(), 2);
+    }
+
+    #[test]
+    fn the_checkpoint_index_is_the_full_index_without_settings_and_item_tables() {
+        let mut data = AppData {
+            sessions: vec![session("a", &["one"])],
+            ..AppData::default()
+        };
+        data.composer_drafts
+            .insert("session:a".into(), "draft".into());
+        let mut full = encode_state(&data).unwrap();
+        let object = full.as_object_mut().unwrap();
+        for key in ["settings", "projects", "tasks", "reviewGuides"] {
+            assert!(object.remove(key).is_some());
+        }
+        assert_eq!(full, encode_checkpoint_index(&data).unwrap());
+    }
+
+    /// Timing of a streaming checkpoint while the last message of a long conversation
+    /// grows (run by hand: `cargo test --lib persist::tests::bench_streaming -- --ignored --nocapture`).
+    #[test]
+    #[ignore]
+    fn bench_streaming_checkpoint_in_a_long_conversation() {
+        let body = "x".repeat(1500);
+        let texts: Vec<String> = (0..3000).map(|n| format!("{n} {body}")).collect();
+        let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let mut data = load_or_create(&path).unwrap();
+        data.sessions = vec![session("big", &refs)];
+        save(&path, &data).unwrap();
+        let named = HashSet::from(["big".to_owned()]);
+        let (mut locked, mut total) = (0.0, 0.0);
+        for _ in 0..20 {
+            data.sessions[0]
+                .messages
+                .rev_find_mut(|message| message.id == "big-2999")
+                .unwrap()
+                .content
+                .push_str(" streamed");
+            let started = std::time::Instant::now();
+            let snapshot = snapshot_sessions(&path, &data, &named, next_generation()).unwrap();
+            locked += started.elapsed().as_secs_f64();
+            write(&path, &snapshot).unwrap();
+            total += started.elapsed().as_secs_f64();
+        }
+        println!(
+            "checkpoint of a ~4.5 MB conversation: {:.2} ms under the lock, {:.2} ms in all",
+            locked * 1000.0 / 20.0,
+            total * 1000.0 / 20.0
+        );
     }
 
     #[test]

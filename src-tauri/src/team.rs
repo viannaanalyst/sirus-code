@@ -556,6 +556,7 @@ async fn send_task(
                 ..Default::default()
             },
             team: false,
+            client_request_id: None,
         };
         let result =
             crate::commands::send_prompt(app.clone(), app.state::<Arc<AppState>>(), request).await;

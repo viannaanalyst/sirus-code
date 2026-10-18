@@ -113,6 +113,7 @@ pub async fn launch(
                     ..Default::default()
                 },
                 team: false,
+                client_request_id: None,
             };
             let sent =
                 crate::commands::send_prompt(app.clone(), app.state::<Arc<AppState>>(), send).await;
@@ -322,6 +323,7 @@ pub(crate) fn send_from(
             ..Default::default()
         },
         team: false,
+        client_request_id: None,
     };
     let state = app.state::<Arc<AppState>>();
     crate::runtime::async_runtime::block_on(crate::commands::send_prompt(

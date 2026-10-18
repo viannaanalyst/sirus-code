@@ -450,6 +450,7 @@ pub fn settled(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
                 prompt,
                 execution,
                 team: false,
+                client_request_id: None,
             };
             let sent =
                 crate::commands::send_prompt(app.clone(), app.state::<Arc<AppState>>(), request)

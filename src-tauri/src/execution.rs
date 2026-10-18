@@ -39,6 +39,36 @@ pub fn validate_queued_context(
     Ok(())
 }
 
+/// How many of a session's latest user messages a send's id is checked against.
+const RECENT_SENDS: usize = 100;
+
+/// A send's client id, if any: a hyphenated UUID, kept lowercase. Anything else is refused,
+/// so the stored value stays small and comparable.
+pub fn client_request_id(raw: Option<&str>) -> Result<Option<String>> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    match uuid::Uuid::parse_str(raw) {
+        Ok(id) if raw.len() == 36 => Ok(Some(id.hyphenated().to_string())),
+        _ => Err(Error::new(
+            "invalid",
+            "clientRequestId must be a hyphenated UUID",
+        )),
+    }
+}
+
+/// True when one of the session's recent user messages came from this send already: a
+/// retried or doubled delivery, which must not start a second turn (idempotent sends).
+pub fn already_sent(session: &crate::models::Session, client_request_id: &str) -> bool {
+    session
+        .messages
+        .iter()
+        .rev()
+        .filter(|message| message.role == crate::models::MessageRole::User)
+        .take(RECENT_SENDS)
+        .any(|message| message.client_request_id.as_deref() == Some(client_request_id))
+}
+
 pub fn debug_prompt(debugging: bool, request: String) -> String {
     if !debugging {
         return request;

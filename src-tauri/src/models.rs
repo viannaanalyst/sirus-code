@@ -187,6 +187,10 @@ pub struct Message {
     /// Agent replies: HTML visuals the agent published with `sirus_show_visual` (ADR-123).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub visuals: Vec<MessageVisual>,
+    /// User messages: the sender's id for this send (a UUID), so a delivery that arrives
+    /// twice starts one turn (idempotent sends).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_request_id: Option<String>,
 }
 
 /// A self-contained HTML visual shown as a card in an agent reply (ADR-123). It only ever
@@ -1855,6 +1859,10 @@ pub struct SendPromptRequest {
     /// Team planning turn: read-only, wrapped with coordinator instructions (ADR-043).
     #[serde(default)]
     pub team: bool,
+    /// One UUID per user send, reused on every retry of it: a send whose id is already
+    /// on a recent user message returns the session as it is instead of a second turn.
+    #[serde(default)]
+    pub client_request_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

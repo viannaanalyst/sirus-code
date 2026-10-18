@@ -262,6 +262,7 @@ mod tests {
             attachments: Vec::new(),
             launched: vec![],
             visuals: Vec::new(),
+            client_request_id: None,
         }
     }
 

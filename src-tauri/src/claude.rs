@@ -502,6 +502,9 @@ impl Text {
 }
 
 /// Longest a turn keeps its process for background subagents after its own answer (ADR-097).
+/// Measured from the turn's last sign of life (a task starting or settling, a follow-up turn
+/// beginning), so a session that keeps working through its background tasks is never cut off;
+/// only background work silent for this long is stopped.
 pub(crate) const BACKGROUND_LIMIT: Duration = Duration::from_secs(30 * 60);
 /// How long the CLI may take to start the follow-up turn it runs when a background task settles.
 const FOLLOW_UP_GRACE: Duration = Duration::from_secs(20);
@@ -527,7 +530,8 @@ struct Background {
     finished: Vec<(String, Value)>,
     /// Any background subagent was seen this turn.
     seen: bool,
-    /// When our prompt's answer arrived while background work remained.
+    /// When our prompt's answer arrived while background work remained, moved forward by every
+    /// later sign of life: the background limit counts silence, not the turn's age.
     since: Option<tokio::time::Instant>,
     /// A follow-up turn is expected (a task settled between turns, the CLI queued one, or an
     /// instruction was sent): since when, and whether it began.
@@ -601,7 +605,16 @@ impl Background {
         if settled && self.since.is_some() {
             self.expect_follow_up();
         }
+        if settled || value["subtype"] == "task_started" {
+            self.touch();
+        }
         settled
+    }
+    /// The turn showed life: the background limit starts over.
+    fn touch(&mut self) {
+        if self.since.is_some() {
+            self.since = Some(tokio::time::Instant::now());
+        }
     }
     /// Markers for the tasks that settled on the last frame (ADR-101).
     fn take_finished(&mut self) -> Vec<crate::activity::ActivityItem> {
@@ -623,6 +636,9 @@ impl Background {
                 && matches!(value["type"].as_str(), Some("assistant" | "stream_event")));
         if let Some((_, started)) = self.follow_up.as_mut() {
             *started |= began;
+        }
+        if began {
+            self.touch();
         }
     }
     /// A follow-up turn ended; the CLI may still have others queued.
@@ -1894,6 +1910,30 @@ assert sys.stdin.read()==''
         assert!(background
             .observe(&json!({"type":"system","subtype":"background_tasks_changed","tasks":[]})));
         assert!(!background.waiting());
+    }
+
+    #[test]
+    fn the_background_limit_counts_silence_not_the_turns_age() {
+        let limits = Limits {
+            background: Duration::from_secs(60),
+            grace: Duration::from_secs(5),
+        };
+        let long_ago = || tokio::time::Instant::now() - Duration::from_secs(100);
+        let mut background = Background::default();
+        background.observe(&json!({"type":"system","subtype":"task_started","task_id":"a","task_type":"local_agent","is_backgrounded":true}));
+        // Its first answer came 100 s ago and nothing happened since: past the limit.
+        background.since = Some(long_ago());
+        assert!(background.wake(limits).unwrap() <= tokio::time::Instant::now());
+        // The session kept working: a follow-up turn began, so the limit starts over.
+        background.turn_began(&json!({"type":"system","subtype":"init"}));
+        assert!(background.wake(limits).unwrap() > tokio::time::Instant::now());
+        // So does a new background task, or one settling.
+        background.since = Some(long_ago());
+        background.observe(&json!({"type":"system","subtype":"task_started","task_id":"b","task_type":"local_bash","is_backgrounded":true}));
+        assert!(background.wake(limits).unwrap() > tokio::time::Instant::now());
+        background.since = Some(long_ago());
+        background.observe(&json!({"type":"system","subtype":"task_notification","task_id":"b","status":"completed"}));
+        assert!(background.wake(limits).unwrap() > tokio::time::Instant::now());
     }
 
     #[test]

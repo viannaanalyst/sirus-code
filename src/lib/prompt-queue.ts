@@ -4,6 +4,8 @@ import type { ComposerContext } from "@/lib/composer-context";
 export const PROMPT_QUEUE_LIMIT = 8;
 export interface QueuedPrompt {
   id: string;
+  /** The send's id, reused on every admission attempt: a retry never starts a second turn. */
+  clientRequestId?: string;
   text: string;
   prompt: string;
   context: ComposerContext;

@@ -111,7 +111,8 @@ export default function MobileApp() {
       // The conversation as the computer has it now: a send names the last reply it follows, and
       // the copy cached while offline may be behind, which the computer refuses as stale.
       await useAppStore.getState().ensureTranscript(message.sessionId, true);
-      return useAppStore.getState().sendPrompt(message.prompt, message.execution, message.sessionId);
+      // The same id on every try: a send the computer took before its answer was lost is not run twice.
+      return useAppStore.getState().sendPrompt(message.prompt, message.execution, message.sessionId, message.clientRequestId);
     }, localStorage, here); };
     flush();
     const stopConnection = onRemoteConnection((state) => { if (state === "open") setTimeout(flush, 1500); });

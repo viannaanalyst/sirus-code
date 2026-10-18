@@ -11,7 +11,7 @@
 //! never keep what they read.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
 use parking_lot::{Mutex, MutexGuard};
@@ -24,6 +24,9 @@ pub const KEEP_RECENT: usize = 6;
 
 static REVISION: AtomicU64 = AtomicU64::new(1);
 static CLOCK: AtomicU64 = AtomicU64::new(1);
+
+/// No message changed since the content was last handed to storage.
+const CLEAN: usize = usize::MAX;
 
 /// Every change to a loaded transcript gets a new, process-unique revision; a
 /// transcript is unsaved while its revision differs from the one last written.
@@ -84,6 +87,12 @@ pub struct Messages {
     used: AtomicU64,
     /// A read on access failed: the empty content is never written.
     failed: AtomicBool,
+    /// The revision last handed to storage (or created, read or installed): what
+    /// `dirty` counts from. Atomics because saves only borrow the state.
+    handed: AtomicU64,
+    /// The first position that may have changed since `handed` ([`CLEAN`] when none),
+    /// so a streaming checkpoint copies and writes only the messages from there on.
+    dirty: AtomicUsize,
 }
 
 impl Messages {
@@ -145,6 +154,57 @@ impl Messages {
         self.list = OnceLock::from(list);
         self.failed.store(false, Ordering::Release);
         self.revision = next_revision();
+        self.mark_handed();
+    }
+
+    /// The newest message matching `matches`, to edit in place: only it and the
+    /// messages after it count as changed (a stream appends to its newest message).
+    pub fn rev_find_mut(&mut self, matches: impl Fn(&Message) -> bool) -> Option<&mut Message> {
+        let index = self.list().iter().rposition(matches)?;
+        self.changed_at(index);
+        self.list.get_mut()?.get_mut(index)
+    }
+
+    /// Appends a message; the messages before it are unchanged.
+    pub fn append(&mut self, message: Message) {
+        let at = self.list().len();
+        self.changed_at(at);
+        if let Some(list) = self.list.get_mut() {
+            list.push(message);
+        }
+    }
+
+    /// The first position that may differ from what storage holds at revision
+    /// `stored`: 0 (everything) unless `stored` is the revision last handed to it;
+    /// the length when nothing changed since.
+    pub fn changed_from(&self, stored: Option<u64>) -> usize {
+        if stored != Some(self.handed.load(Ordering::Acquire)) {
+            return 0;
+        }
+        self.dirty.load(Ordering::Acquire).min(self.len())
+    }
+
+    /// The current content is being written: later changes count from here. Called
+    /// under the state lock, with the snapshot that is written.
+    pub fn mark_handed(&self) {
+        self.handed.store(self.revision, Ordering::Release);
+        self.dirty.store(CLEAN, Ordering::Release);
+    }
+
+    /// Loads an unloaded transcript for a write.
+    fn list(&mut self) -> &Vec<Message> {
+        if self.list.get().is_none() {
+            let list = self.read_on_access();
+            self.list = OnceLock::from(list);
+        }
+        self.list.get().expect("the transcript was just loaded")
+    }
+
+    /// A change at `index`: a new revision, and rows from `index` on are unsaved.
+    fn changed_at(&mut self, index: usize) {
+        self.revision = next_revision();
+        let dirty = self.dirty.get_mut();
+        *dirty = (*dirty).min(index);
     }
 
     /// Releases the content; only its counts stay. Callers check it is saved.
@@ -161,6 +221,7 @@ impl Messages {
         self.failed.store(false, Ordering::Release);
         // A later read is compared with what was written under a new revision.
         self.revision = next_revision();
+        self.mark_handed();
     }
 
     /// What a scan needs without the state lock: a copy of loaded content, or
@@ -211,13 +272,16 @@ impl Snapshot {
 
 impl From<Vec<Message>> for Messages {
     fn from(list: Vec<Message>) -> Self {
+        let revision = next_revision();
         Self {
             list: OnceLock::from(list),
             origin: None,
             stored: Counts::default(),
-            revision: next_revision(),
+            revision,
             used: AtomicU64::new(0),
             failed: AtomicBool::new(false),
+            handed: AtomicU64::new(revision),
+            dirty: AtomicUsize::new(CLEAN),
         }
     }
 }
@@ -241,6 +305,10 @@ impl Clone for Messages {
             revision: self.revision,
             used: AtomicU64::new(self.used.load(Ordering::Relaxed)),
             failed: AtomicBool::new(self.failed()),
+            // A copy counts from the same revision: if the original writes newer
+            // content, storage no longer holds `handed` and the copy writes in full.
+            handed: AtomicU64::new(self.handed.load(Ordering::Acquire)),
+            dirty: AtomicUsize::new(self.dirty.load(Ordering::Acquire)),
         }
     }
 }
@@ -270,7 +338,8 @@ impl std::ops::DerefMut for Messages {
             let list = self.read_on_access();
             self.list = OnceLock::from(list);
         }
-        self.revision = next_revision();
+        // Any position may change through the whole list.
+        self.changed_at(0);
         self.list.get_mut().expect("the transcript was just loaded")
     }
 }

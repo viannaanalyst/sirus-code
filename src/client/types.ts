@@ -114,6 +114,8 @@ export interface Message {
   launched?: string[];
   /** Agent replies: HTML visuals published with `sirus_show_visual` (ADR-123). */
   visuals?: MessageVisual[];
+  /** User messages: the send's `clientRequestId`, so a doubled delivery starts one turn. */
+  clientRequestId?: string;
 }
 /** A self-contained HTML visual shown as a sandboxed card in a reply; the same title in a turn replaces it (ADR-123). */
 export interface MessageVisual {
@@ -816,6 +818,11 @@ export interface SendPromptRequest {
   execution?: ExecutionOptions;
   /** Read-only team planning turn (ADR-043). */
   team?: boolean;
+  /**
+   * One UUID per user send, reused on every retry of it (`newRequestId`). A send whose id the
+   * session already holds returns the session as it is instead of starting a second turn.
+   */
+  clientRequestId?: string;
 }
 
 export interface DiscoveredModel {

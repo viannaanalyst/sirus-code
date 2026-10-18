@@ -3,6 +3,8 @@ import { githubSeenFloor } from "@/lib/github-seen";
 import { appendDiffComment } from "@/lib/diff-comment";
 import { startRecording, stopRecording } from "@/lib/browser-recordings";
 import { promptWantsBrowserCapture } from "@/lib/browser-url";
+import { forgetUnanswered, rememberUnanswered, retryIdFor } from "@/lib/unanswered-sends";
+import { isUnansweredSend } from "@/client/remote-transport";
 import { activeSession, lastAssistantId, observedPromptAdmission, observedQueuedAdmission, PROMPT_QUEUE_LIMIT, queueBinding, sameQueueBinding, validQueuedPrompt, type PromptQueue } from "@/lib/prompt-queue";
 import { acknowledgeEditorSave, editorKey } from "@/lib/editor-state";
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
@@ -24,7 +26,7 @@ import { secondOpinionPrompt, secondOpinionTurn } from "@/lib/second-opinion";
 import { appendTranscriptQuote } from "@/lib/transcript-selection";
 import { createDraftWriter } from "@/lib/draft-persistence";
 import { CONTEXT_TEXT_LIMIT, hasContextOwner, normalizeContextTexts } from "@/lib/context-text";
-import { newId } from "@/lib/ids";
+import { newId, newRequestId } from "@/lib/ids";
 import { scanLocalServers } from "@/lib/local-servers";
 import { archiveSidebarSession, pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
 import type { PullRequestLoadState } from "@/lib/pull-requests";
@@ -294,8 +296,11 @@ interface AppStore {
   setMessagePinned: (sessionId: string, messageId: string, pinned: boolean) => Promise<boolean>;
   messageJump: { sessionId: string; messageId: string; sequence: number; searchStart?: number } | null;
   jumpToMessage: (sessionId: string, messageId: string, searchStart?: number) => Promise<void>;
-  /** Sends to the selected session, or to `sessionId` (a side chat) when given. */
-  sendPrompt: (prompt: string, execution?: ExecutionOptions, sessionId?: string) => Promise<boolean>;
+  /**
+   * Sends to the selected session, or to `sessionId` (a side chat) when given. A retry of a
+   * send passes its `clientRequestId` again (the phone's outbox); otherwise each call is a new send.
+   */
+  sendPrompt: (prompt: string, execution?: ExecutionOptions, sessionId?: string, clientRequestId?: string) => Promise<boolean>;
   /** Compact and send: runs `/compact`, then queues the request behind it. */
   compactAndSend: (prompt: string, execution: ExecutionOptions | undefined, sessionId: string) => Promise<boolean>;
   /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
@@ -1567,9 +1572,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return request;
   },
 
-  sendPrompt: async (prompt, execution, targetSessionId) => {
+  sendPrompt: async (prompt, execution, targetSessionId, givenRequestId) => {
     const selectedId = targetSessionId ?? get().selectedSessionId;
     const originKey = selectedId ? `session:${selectedId}` : `project:${get().selectedProjectId}`;
+    // Sending the same text again after an unanswered send repeats that send, not a new one.
+    const clientRequestId = givenRequestId ?? retryIdFor(originKey, prompt) ?? newRequestId();
     const submittedDraft = get().composerDrafts[originKey];
     const originalContext = get().composerContexts[originKey];
     const restoredContext = composerContextForOwner(originKey, get().composerContexts, get().sessions);
@@ -1607,7 +1614,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
             return false;
           }
           const context = submittedContext ?? restoredContext;
-          const item = { id: newId(), text: submittedDraft ?? (context.attachments.length ? "" : prompt), prompt, context: { ...context, attachments: [...context.attachments] }, execution: execution ? { ...execution } : undefined, binding: initialBinding };
+          const item = { id: newId(), clientRequestId, text: submittedDraft ?? (context.attachments.length ? "" : prompt), prompt, context: { ...context, attachments: [...context.attachments] }, execution: execution ? { ...execution } : undefined, binding: initialBinding };
           const before = get().composerDrafts;
           const paused = queue?.paused || initialQueue?.paused || intendedQueue && (session.status === "failed" || session.status === "stopped");
           const base = queue ?? { paused: Boolean(paused), reason: paused ? "queue.failed" : undefined, waitingFor: activeSession(session) ? lastAssistantId(session) : null };
@@ -1683,15 +1690,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
       directAdmissions.set(ownedSessionId, admission);
       let response: Session;
       try {
-        response = await client.sendPrompt({ sessionId, prompt, execution, team: Boolean(submittedContext?.team) || undefined, debugging: Boolean(submittedContext?.debugging) && !submittedContext?.planning && !submittedContext?.team, goal: submittedContext?.goal, attachmentIds: submittedContext?.attachments.map((file) => file.id) ?? [], attachmentOwner: originKey, queuedAfter: initialBinding ? { ...initialBinding, messageId: initialMessageId } : undefined });
+        response = await client.sendPrompt({ sessionId, prompt, execution, clientRequestId, team: Boolean(submittedContext?.team) || undefined, debugging: Boolean(submittedContext?.debugging) && !submittedContext?.planning && !submittedContext?.team, goal: submittedContext?.goal, attachmentIds: submittedContext?.attachments.map((file) => file.id) ?? [], attachmentOwner: originKey, queuedAfter: initialBinding ? { ...initialBinding, messageId: initialMessageId } : undefined });
       } finally {
         if (directAdmissions.get(ownedSessionId) === admission) directAdmissions.delete(ownedSessionId);
       }
       admission.clear();
+      forgetUnanswered(originKey);
       set(state => ({ error: null, sessions: state.sessions.map(session => session.id === ownedSessionId && (session.goal === previousGoal || lastAssistantId(session) === lastAssistantId(response)) ? { ...session, goal: response.goal ?? null } : session) }));
       return true;
     } catch (error) {
-      set({ error: formatUnknownError(error) });
+      const message = formatUnknownError(error);
+      if (isUnansweredSend(message)) rememberUnanswered(originKey, prompt, clientRequestId);
+      set({ error: message });
       return false;
     }
   },
@@ -2541,7 +2551,7 @@ async function advancePromptQueue(sessionId: string) {
   let succeeded = false;
   let response: Session | undefined;
   try {
-    response = await client.sendPrompt({ sessionId, prompt: item.prompt, execution: item.execution, debugging: Boolean(item.context.debugging) && !item.context.planning, goal: item.context.goal, attachmentIds: item.context.attachments.map(file => file.id), attachmentOwner: `session:${sessionId}`, queuedAfter: { ...item.binding, messageId: predecessor } });
+    response = await client.sendPrompt({ sessionId, prompt: item.prompt, execution: item.execution, clientRequestId: item.clientRequestId, debugging: Boolean(item.context.debugging) && !item.context.planning, goal: item.context.goal, attachmentIds: item.context.attachments.map(file => file.id), attachmentOwner: `session:${sessionId}`, queuedAfter: { ...item.binding, messageId: predecessor } });
     succeeded = true;
   } catch (error) {
     useAppStore.setState({ error: formatUnknownError(error) });

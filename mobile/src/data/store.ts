@@ -5,6 +5,7 @@ import { socketUrlFor } from "@sirus/client/remote-pairing";
 import type { AgentEvent, AgentInstall, AgentProviderId, AgentResponse, AppData, AppSettings, ApprovalMode, ExecutionOptions, Message, PendingRequest, Project, ProviderModelList, Session, TranscriptResponse, TurnActivity } from "@sirus/client/types";
 import { applyAgentOutput } from "@sirus/lib/agent-events";
 import { applyRowSettingsAction } from "@sirus/lib/environments";
+import { newRequestId } from "@sirus/lib/ids";
 import { isSnoozed } from "@sirus/lib/snooze";
 import * as SecureStore from "expo-secure-store";
 
@@ -60,6 +61,8 @@ export interface PhonePrefs {
 /** A message written while the agent works; it goes once the reply ends (as the desktop's queue). */
 export interface QueuedPrompt {
   readonly id: string;
+  /** The send's id, the same on every try: a send whose answer was lost is not run twice. */
+  readonly clientRequestId?: string;
   readonly prompt: string;
   readonly attachmentIds: string[];
   readonly execution?: ExecutionOptions;
@@ -99,7 +102,8 @@ interface SirusState {
   loadTranscript: (computerId: string, sessionId: string) => Promise<void>;
   /** Loads the page before the oldest loaded message; false when nothing older remains. */
   loadOlder: (computerId: string, sessionId: string) => Promise<boolean>;
-  sendPrompt: (computerId: string, sessionId: string, prompt: string, attachmentIds?: string[], execution?: ExecutionOptions) => Promise<void>;
+  /** One send; a retry of it passes the same `clientRequestId` (otherwise a new one is made). */
+  sendPrompt: (computerId: string, sessionId: string, prompt: string, attachmentIds?: string[], execution?: ExecutionOptions, clientRequestId?: string) => Promise<void>;
   stopAgent: (computerId: string, sessionId: string) => Promise<void>;
   /** Sends now, or queues it while the agent works. */
   submitPrompt: (computerId: string, sessionId: string, prompt: string, attachmentIds?: string[], execution?: ExecutionOptions) => Promise<"sent" | "queued">;
@@ -290,8 +294,8 @@ export const useSirus = create<SirusState>()((set, get) => {
       }
     },
 
-    sendPrompt: async (computerId, sessionId, prompt, attachmentIds = [], execution) => {
-      await get().invoke<Session>(computerId, "send_prompt", { request: { sessionId, prompt: prompt.trim(), attachmentIds, attachmentOwner: `session:${sessionId}`, ...(execution ? { execution } : {}) } });
+    sendPrompt: async (computerId, sessionId, prompt, attachmentIds = [], execution, clientRequestId = newRequestId()) => {
+      await get().invoke<Session>(computerId, "send_prompt", { request: { sessionId, prompt: prompt.trim(), attachmentIds, attachmentOwner: `session:${sessionId}`, clientRequestId, ...(execution ? { execution } : {}) } });
     },
 
     stopAgent: async (computerId, sessionId) => {
@@ -300,7 +304,9 @@ export const useSirus = create<SirusState>()((set, get) => {
 
     submitPrompt: async (computerId, sessionId, prompt, attachmentIds = [], execution) => {
       const sessionKey = key(computerId, sessionId);
-      const enqueue = () => set((state) => ({ queue: { ...state.queue, [sessionKey]: [...(state.queue[sessionKey] ?? []), { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, prompt: prompt.trim(), attachmentIds, execution }] } }));
+      // One id for this send, whether it goes now or after waiting in the queue.
+      const clientRequestId = newRequestId();
+      const enqueue = () => set((state) => ({ queue: { ...state.queue, [sessionKey]: [...(state.queue[sessionKey] ?? []), { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, clientRequestId, prompt: prompt.trim(), attachmentIds, execution }] } }));
       const session = get().data[computerId]?.sessions.find((item) => item.id === sessionId);
       // Behind a running reply, or behind messages already waiting, it waits its turn.
       if ((session && ACTIVE_STATUS.has(session.status)) || get().queue[sessionKey]?.length) {
@@ -309,7 +315,7 @@ export const useSirus = create<SirusState>()((set, get) => {
         return "queued";
       }
       try {
-        await get().sendPrompt(computerId, sessionId, prompt, attachmentIds, execution);
+        await get().sendPrompt(computerId, sessionId, prompt, attachmentIds, execution, clientRequestId);
         return "sent";
       } catch (reason) {
         // The list had not caught up with a reply that had just started.
@@ -336,7 +342,7 @@ export const useSirus = create<SirusState>()((set, get) => {
       draining.add(sessionKey);
       const without = (items: QueuedPrompt[] | undefined) => (items ?? []).filter((entry) => entry.id !== next.id);
       try {
-        await get().sendPrompt(computerId, sessionId, next.prompt, next.attachmentIds, next.execution);
+        await get().sendPrompt(computerId, sessionId, next.prompt, next.attachmentIds, next.execution, next.clientRequestId);
         set((state) => ({ queue: { ...state.queue, [sessionKey]: without(state.queue[sessionKey]) } }));
       } catch (reason) {
         const message = reason instanceof Error ? reason.message : String(reason);

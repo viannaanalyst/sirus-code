@@ -643,7 +643,7 @@ pub(crate) fn record_output(
     if first {
         if stream == "stderr" {
             let id = uuid::Uuid::new_v4().to_string();
-            session.messages.push(Message {
+            session.messages.append(Message {
                 id: id.clone(),
                 session_id: session.id.clone(),
                 role: MessageRole::System,
@@ -655,6 +655,7 @@ pub(crate) fn record_output(
                 attachments: Vec::new(),
                 launched: vec![],
                 visuals: Vec::new(),
+                client_request_id: None,
             });
             *message_id = Some(id);
         } else {
@@ -666,12 +667,11 @@ pub(crate) fn record_output(
                 .map(|message| message.id.clone());
         }
     }
-    // The streamed message is the newest or close to it.
+    // The streamed message is the newest or close to it; only it and later rows
+    // count as changed for the next checkpoint.
     let Some(message) = session
         .messages
-        .iter_mut()
-        .rev()
-        .find(|message| Some(&message.id) == message_id.as_ref())
+        .rev_find_mut(|message| Some(&message.id) == message_id.as_ref())
     else {
         return Ok(None);
     };
@@ -1246,6 +1246,7 @@ mod tests {
             attachments: Vec::new(),
             launched: vec![],
             visuals: Vec::new(),
+            client_request_id: None,
         };
         let messages = vec![
             message(MessageRole::User, "First request"),

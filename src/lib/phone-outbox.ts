@@ -1,11 +1,13 @@
 import type { ExecutionOptions } from "@/client/types";
+import { newRequestId } from "@/lib/ids";
 
 /**
  * Messages written on the phone while the Mac is out of reach (ADR-086). They wait in
  * the phone's storage and go out in order, oldest first, once the connection is back.
- * Text only: attachments live on the Mac and need it to be reachable.
+ * Text only: attachments live on the Mac and need it to be reachable. Each keeps one
+ * `clientRequestId` for every try, so a send whose answer was lost is not run twice.
  */
-export interface QueuedMessage { id: string; sessionId: string; prompt: string; execution?: ExecutionOptions; createdAt: number }
+export interface QueuedMessage { id: string; sessionId: string; prompt: string; execution?: ExecutionOptions; createdAt: number; clientRequestId?: string }
 
 const KEY = "sirus.outbox";
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
@@ -24,8 +26,8 @@ function write(items: QueuedMessage[], storage: Storage) {
   globalThis.window?.dispatchEvent(new Event("sirus-outbox"));
 }
 
-export function enqueueMessage(message: Omit<QueuedMessage, "id" | "createdAt">, storage: Storage = localStorage): QueuedMessage {
-  const item = { ...message, id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, createdAt: Date.now() };
+export function enqueueMessage(message: Omit<QueuedMessage, "id" | "createdAt" | "clientRequestId">, storage: Storage = localStorage): QueuedMessage {
+  const item = { ...message, id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, createdAt: Date.now(), clientRequestId: newRequestId() };
   write([...readOutbox(storage), item].slice(-50), storage);
   return item;
 }

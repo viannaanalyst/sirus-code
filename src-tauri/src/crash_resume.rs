@@ -131,6 +131,7 @@ pub async fn continue_session(app: &AppHandle, session_id: &str, prompt: &str) -
         prompt: prompt.into(),
         execution,
         team: false,
+        client_request_id: None,
     };
     let result =
         crate::commands::send_prompt(app.clone(), app.state::<Arc<AppState>>(), request).await;

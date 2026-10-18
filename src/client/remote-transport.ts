@@ -64,6 +64,11 @@ export function invokeTimeout(command: string): number {
 }
 
 /** The transport's own "Mac out of reach" failures, which the phone shows as reconnecting instead. */
+/** The command may have reached the computer: the socket dropped or the answer never came. */
+export function isUnansweredSend(message: string): boolean {
+  return message === TIMED_OUT || message === LOST;
+}
+
 export function isRemoteConnectionError(message: string): boolean {
   return message === UNREACHABLE || message === LOST;
 }

@@ -484,6 +484,21 @@ pub fn mark_saved(state_path: &Path, session_id: &str, revision: u64) {
     });
 }
 
+/// The revision each session's rows hold, when known.
+pub fn revisions(state_path: &Path, sessions: &[&str]) -> Vec<Option<u64>> {
+    with_db(state_path, |db| {
+        Ok(sessions
+            .iter()
+            .map(|id| {
+                db.transcripts
+                    .get(*id)
+                    .and_then(|transcript| transcript.revision)
+            })
+            .collect())
+    })
+    .unwrap_or_else(|_| vec![None; sessions.len()])
+}
+
 /// Whether each `(session id, revision)` is what the rows hold.
 pub fn saved(state_path: &Path, sessions: &[(&str, u64)]) -> Vec<bool> {
     with_db(state_path, |db| {
@@ -499,8 +514,29 @@ pub fn saved(state_path: &Path, sessions: &[(&str, u64)]) -> Vec<bool> {
     .unwrap_or_else(|_| vec![false; sessions.len()])
 }
 
-/// One loaded transcript to write: session id, revision and messages.
-pub type TranscriptWrite<'a> = (&'a str, u64, &'a [Message]);
+/// One loaded transcript to write.
+pub struct TranscriptWrite<'a> {
+    pub session_id: &'a str,
+    pub revision: u64,
+    /// The messages from position `offset` on.
+    pub messages: &'a [Message],
+    pub offset: usize,
+    /// With an offset: the revision whose rows before it are kept (ADR-099).
+    pub base: Option<u64>,
+}
+
+impl<'a> TranscriptWrite<'a> {
+    /// The whole transcript.
+    pub fn full(session_id: &'a str, revision: u64, messages: &'a [Message]) -> Self {
+        Self {
+            session_id,
+            revision,
+            messages,
+            offset: 0,
+            base: None,
+        }
+    }
+}
 
 /// Writes a snapshot in one transaction: the index rows that changed, the named
 /// transcripts' changed messages, and deletions of what the index no longer lists.
@@ -511,11 +547,53 @@ pub fn write(
     index: &Value,
     transcripts: &[TranscriptWrite<'_>],
 ) -> Result<bool> {
+    write_with(state_path, generation, index, false, transcripts).map(|outcome| outcome.wrote)
+}
+
+/// A streaming checkpoint: `index` holds the sessions and the small app-state fields
+/// only (settings and item tables are left as they are), and transcripts may be tails.
+/// Returns the sessions whose tail no longer fits the rows (another write landed in
+/// between); they need a full checkpoint.
+pub fn write_checkpoint(
+    state_path: &Path,
+    generation: u64,
+    index: &Value,
+    transcripts: &[TranscriptWrite<'_>],
+) -> Result<Vec<String>> {
+    write_with(state_path, generation, index, true, transcripts).map(|outcome| outcome.stale)
+}
+
+struct Outcome {
+    wrote: bool,
+    stale: Vec<String>,
+}
+
+/// A transcript's cached rows after a write: replaced, or kept up to `offset` and
+/// followed by the new tail.
+enum Update {
+    Replace(Transcript),
+    Tail {
+        revision: u64,
+        offset: usize,
+        rows: Vec<(String, u64)>,
+    },
+}
+
+fn write_with(
+    state_path: &Path,
+    generation: u64,
+    index: &Value,
+    partial: bool,
+    transcripts: &[TranscriptWrite<'_>],
+) -> Result<Outcome> {
     // Encoding happens before the lock: only hashing and SQL run under it.
     let encoded = encode_transcripts(transcripts)?;
     with_db(state_path, |db| {
         if db.generation > generation {
-            return Ok(false);
+            return Ok(Outcome {
+                wrote: false,
+                stale: Vec::new(),
+            });
         }
         let Db {
             conn,
@@ -524,48 +602,90 @@ pub fn write(
             ..
         } = db;
         let tx = conn.transaction().map_err(sql)?;
+        // The index rows are few (no messages); transcript rows change in place
+        // after the commit, so a long transcript is never copied.
         let mut new_rows = rows.clone();
-        let mut new_cached = cached.clone();
-        let removed = write_index(&tx, &mut new_rows, index)?;
-        for id in &removed {
-            new_cached.remove(id);
-        }
-        for (session_id, revision, messages) in &encoded {
-            let previous = new_cached.get(*session_id).cloned().unwrap_or_default();
-            if previous.revision == Some(*revision) {
+        let removed = write_index(&tx, &mut new_rows, index, partial)?;
+        let unknown = Transcript::default();
+        let mut updates = Vec::new();
+        let mut stale = Vec::new();
+        for (write, messages) in transcripts.iter().zip(&encoded) {
+            let session_id = write.session_id;
+            let previous = cached
+                .get(session_id)
+                .filter(|_| !removed.iter().any(|id| id == session_id))
+                .unwrap_or(&unknown);
+            if previous.revision == Some(write.revision) {
                 continue;
             }
-            let next = write_messages(&tx, session_id, &previous, messages)?;
-            new_cached.insert(
-                (*session_id).to_owned(),
-                Transcript {
-                    revision: Some(*revision),
-                    rows: next,
+            if write.offset > 0 {
+                // A tail is relative to the rows of `base`.
+                if write.base.is_none()
+                    || previous.revision != write.base
+                    || previous.rows.len() < write.offset
+                {
+                    stale.push(session_id.to_owned());
+                    continue;
+                }
+            }
+            let next = write_messages(&tx, session_id, previous, write.offset, messages)?;
+            updates.push((
+                session_id,
+                if write.offset == 0 {
+                    Update::Replace(Transcript {
+                        revision: Some(write.revision),
+                        rows: next,
+                    })
+                } else {
+                    Update::Tail {
+                        revision: write.revision,
+                        offset: write.offset,
+                        rows: next,
+                    }
                 },
-            );
+            ));
         }
         tx.commit().map_err(sql)?;
         *rows = new_rows;
-        *cached = new_cached;
+        for id in &removed {
+            cached.remove(id);
+        }
+        for (session_id, update) in updates {
+            match update {
+                Update::Replace(transcript) => {
+                    cached.insert(session_id.to_owned(), transcript);
+                }
+                Update::Tail {
+                    revision,
+                    offset,
+                    rows,
+                } => {
+                    let transcript = cached.entry(session_id.to_owned()).or_default();
+                    transcript.rows.truncate(offset);
+                    transcript.rows.extend(rows);
+                    transcript.revision = Some(revision);
+                }
+            }
+        }
         db.generation = generation;
-        Ok(true)
+        Ok(Outcome { wrote: true, stale })
     })
 }
 
-type Encoded<'a> = Vec<(&'a str, u64, Vec<(String, String)>)>;
-
-fn encode_transcripts<'a>(transcripts: &[TranscriptWrite<'a>]) -> Result<Encoded<'a>> {
+/// Each transcript's messages as `(id, JSON)`, in order.
+fn encode_transcripts(transcripts: &[TranscriptWrite<'_>]) -> Result<Vec<Vec<(String, String)>>> {
     transcripts
         .iter()
-        .map(|(session_id, revision, messages)| {
+        .map(|write| {
             // The live thought (ADR-101) stays out of storage.
             let rows = crate::activity::persisting(|| {
-                messages
+                write
+                    .messages
                     .iter()
                     .map(|message| Ok((message.id.clone(), serde_json::to_string(message)?)))
                     .collect::<std::result::Result<Vec<_>, serde_json::Error>>()
             })?;
-            Ok((*session_id, *revision, rows))
+            Ok(rows)
         })
         .collect()
 }
@@ -582,11 +702,14 @@ fn changed(
 }
 
 /// Upserts rows whose JSON changed and deletes rows that are gone, table by table.
-/// Returns the sessions removed (their messages go with them).
+/// A `partial` index (a checkpoint's) lists every session but not every field: only
+/// sessions it no longer lists are deleted. Returns the sessions removed (their
+/// messages go with them).
 fn write_index(
     tx: &rusqlite::Transaction<'_>,
     rows: &mut HashMap<(String, String), u64>,
     index: &Value,
+    partial: bool,
 ) -> Result<Vec<String>> {
     let object = index
         .as_object()
@@ -685,7 +808,7 @@ fn write_index(
     // Rows the index no longer has.
     let gone: Vec<(String, String)> = rows
         .keys()
-        .filter(|slot| !seen.contains(*slot))
+        .filter(|slot| !seen.contains(*slot) && (!partial || slot.0 == "sessions"))
         .cloned()
         .collect();
     let mut removed = Vec::new();
@@ -714,17 +837,20 @@ fn write_index(
     Ok(removed)
 }
 
-/// Writes one transcript's changed messages: rows whose id or JSON differ at their
-/// position are replaced, rows past the new length are deleted.
+/// Writes one transcript's changed messages from position `offset` on (the rows
+/// before it are kept): rows whose id or JSON differ at their position are replaced,
+/// rows past the new length are deleted. Returns the rows from `offset` on.
 fn write_messages(
     tx: &rusqlite::Transaction<'_>,
     session_id: &str,
     previous: &Transcript,
+    offset: usize,
     messages: &[(String, String)],
 ) -> Result<Vec<(String, u64)>> {
-    // Unknown rows (never read in this process): replace the whole transcript.
+    // Unknown rows (never read in this process): replace the whole transcript. A
+    // tail is only written over known rows.
     let known = previous.revision.is_some() || !previous.rows.is_empty();
-    if !known {
+    if !known && offset == 0 {
         tx.execute("DELETE FROM messages WHERE session_id = ?1", [session_id])
             .map_err(sql)?;
     }
@@ -736,7 +862,7 @@ fn write_messages(
                  ON CONFLICT(session_id, position) DO UPDATE SET id = excluded.id, json = excluded.json",
             )
             .map_err(sql)?;
-        for (position, (id, json)) in messages.iter().enumerate() {
+        for (position, (id, json)) in (offset..).zip(messages) {
             let digest = hash(json);
             let same = known
                 && previous
@@ -751,10 +877,11 @@ fn write_messages(
             next.push((id.clone(), digest));
         }
     }
-    if known && previous.rows.len() > messages.len() {
+    let end = offset + messages.len();
+    if known && previous.rows.len() > end {
         tx.execute(
             "DELETE FROM messages WHERE session_id = ?1 AND position >= ?2",
-            params![session_id, messages.len() as i64],
+            params![session_id, end as i64],
         )
         .map_err(sql)?;
     }

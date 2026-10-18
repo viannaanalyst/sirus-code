@@ -485,6 +485,7 @@ async fn fix(
             ..Default::default()
         },
         team: false,
+        client_request_id: None,
     };
     let sent: State<'_, Arc<AppState>> = app.state::<Arc<AppState>>();
     if let Err(error) = crate::commands::send_prompt(app.clone(), sent, request).await {

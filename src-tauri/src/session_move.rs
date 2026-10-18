@@ -210,6 +210,7 @@ pub fn imported_messages(session_id: &str, messages: &[MovedMessage], now: &str)
             attachments: Vec::new(),
             launched: Vec::new(),
             visuals: Vec::new(),
+            client_request_id: None,
         })
         .collect()
 }
@@ -494,6 +495,7 @@ mod tests {
             attachments: vec![],
             launched: vec![],
             visuals: vec![],
+            client_request_id: None,
         }
     }
 

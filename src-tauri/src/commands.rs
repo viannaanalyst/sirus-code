@@ -1720,9 +1720,27 @@ pub async fn retry_last_turn(
             prompt: message.content.clone(),
             execution: session.execution.clone(),
             team: false,
+            // A new turn by choice: reusing the original send's id would make it a no-op.
+            // The busy check above already refuses a second click while this one starts.
+            client_request_id: None,
         }
     };
     send_prompt(app, state, request).await
+}
+
+/// Under the admission lock: the session as it is now when this send was admitted
+/// before (a retried or doubled delivery), so the caller gets what the original
+/// send returned instead of a second turn.
+fn replayed_send(
+    session: &Session,
+    client_request_id: Option<&str>,
+) -> Result<Option<serde_json::Value>> {
+    match client_request_id {
+        Some(id) if crate::execution::already_sent(session, id) => {
+            crate::transcript_view::session_tail(session).map(Some)
+        }
+        _ => Ok(None),
+    }
 }
 
 #[cfg_attr(feature = "desktop", tauri::command)]
@@ -1757,6 +1775,8 @@ pub async fn send_prompt(
     if prompt.len() > 64 * 1024 {
         return Err(Error::new("invalid", "prompt exceeds the 64 KiB limit"));
     }
+    let client_request_id =
+        crate::execution::client_request_id(request.client_request_id.as_deref())?;
     if request.execution.effort.is_some() || request.execution.fast {
         ensure_model_catalog(state.inner(), &request.session_id).await;
     }
@@ -1800,6 +1820,11 @@ pub async fn send_prompt(
             .iter()
             .find(|session| session.id == request.session_id)
             .ok_or_else(|| Error::not_found("session not found"))?;
+        // Checked under the same lock that records the user message below, before any
+        // check the original turn itself would now fail (busy, stale queue context).
+        if let Some(tail) = replayed_send(snapshot, client_request_id.as_deref())? {
+            return Ok(tail);
+        }
         crate::execution::validate_queued_context(snapshot, request.queued_after.as_ref())?;
         // An Ask conversation about a pull request is read-only on every turn (ADR-050).
         let pull_ask = snapshot.pull_ask.clone();
@@ -1954,6 +1979,7 @@ pub async fn send_prompt(
                 .collect(),
             launched: vec![],
             visuals: Vec::new(),
+            client_request_id,
         };
         session.messages.push(user);
         session.messages.push(Message {
@@ -1968,6 +1994,7 @@ pub async fn send_prompt(
             attachments: Vec::new(),
             launched: vec![],
             visuals: Vec::new(),
+            client_request_id: None,
         });
         if let Some(message) = session.messages.last_mut() {
             let mut activity =
@@ -3372,5 +3399,138 @@ mod tests {
             .all(|message| !message.streaming));
         state.shutdown().unwrap();
         assert_eq!(std::fs::read(&data_path).unwrap(), first_shutdown);
+    }
+
+    /// `send_prompt`'s idempotency steps in order: the id is validated, then, under the
+    /// one lock that also records the turn, a known id replays instead of admitting.
+    fn admit_once(
+        session: &Mutex<Session>,
+        raw: Option<&str>,
+    ) -> Result<Option<serde_json::Value>> {
+        let id = crate::execution::client_request_id(raw)?;
+        let mut session = session.lock();
+        if let Some(tail) = replayed_send(&session, id.as_deref())? {
+            return Ok(Some(tail));
+        }
+        let turn = session.messages.len();
+        let message = |role: MessageRole, client_request_id: Option<String>| Message {
+            id: format!("m{turn}-{role:?}"),
+            session_id: "s".into(),
+            role,
+            content: "Fix the build".into(),
+            created_at: "t".into(),
+            streaming: false,
+            activity: None,
+            steers: Vec::new(),
+            attachments: Vec::new(),
+            launched: vec![],
+            visuals: Vec::new(),
+            client_request_id,
+        };
+        session.messages.push(message(MessageRole::User, id));
+        session.messages.push(message(MessageRole::Agent, None));
+        Ok(None)
+    }
+
+    fn idempotency_session() -> Mutex<Session> {
+        Mutex::new(
+            serde_json::from_value(serde_json::json!({
+                "id":"s", "projectId":"p", "title":"Task", "agent":"codex", "model":null,
+                "status":"completed", "createdAt":"t", "lastActivityAt":"t",
+                "worktree":{"path":"/fixture", "branch":"main", "isolated":false}, "lastError":null,
+                "messages":[]
+            }))
+            .unwrap(),
+        )
+    }
+
+    fn turns(session: &Mutex<Session>) -> usize {
+        session
+            .lock()
+            .messages
+            .iter()
+            .filter(|message| message.role == MessageRole::User)
+            .count()
+    }
+
+    #[test]
+    fn a_send_delivered_twice_starts_one_turn_and_replays_the_session() {
+        let session = std::sync::Arc::new(idempotency_session());
+        let id = "6F1C2B4A-8D3E-4F5A-9B7C-0D1E2F3A4B5C";
+        let threads = (0..4)
+            .map(|_| {
+                let session = session.clone();
+                std::thread::spawn(move || admit_once(&session, Some(id)).unwrap())
+            })
+            .collect::<Vec<_>>();
+        let replays = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .filter(Option::is_some)
+            .collect::<Vec<_>>();
+        assert_eq!(turns(&session), 1);
+        assert_eq!(replays.len(), 3);
+        // The replay is the session tail, as the original send returned it.
+        let tail = replays[0].as_ref().unwrap();
+        assert_eq!(tail["id"], "s");
+        assert!(tail["messages"].is_array());
+        // Stored lowercase and kept through a save: a retry after a restart still matches.
+        let stored = serde_json::to_value(&session.lock().messages[0]).unwrap();
+        assert_eq!(stored["clientRequestId"], id.to_lowercase());
+        let reread: Message = serde_json::from_value(stored).unwrap();
+        assert!(crate::execution::already_sent(
+            &Session {
+                messages: vec![reread].into(),
+                ..session.lock().clone()
+            },
+            &id.to_lowercase()
+        ));
+        assert!(admit_once(&session, Some(&id.to_lowercase()))
+            .unwrap()
+            .is_some());
+        assert_eq!(turns(&session), 1);
+    }
+
+    #[test]
+    fn different_send_ids_and_sends_without_one_are_each_admitted() {
+        let session = idempotency_session();
+        for id in [
+            Some("0b5e9a3c-1d2f-4e6a-8b7c-9d0e1f2a3b4c"),
+            Some("1c6f0b4d-2e3a-4f7b-9c8d-0e1f2a3b4c5d"),
+            None,
+            None,
+        ] {
+            assert!(admit_once(&session, id).unwrap().is_none());
+        }
+        assert_eq!(turns(&session), 4);
+    }
+
+    #[test]
+    fn a_malformed_send_id_is_refused_before_admission() {
+        let session = idempotency_session();
+        for raw in [
+            "",
+            "not-a-uuid",
+            "0b5e9a3c1d2f4e6a8b7c9d0e1f2a3b4c",
+            "{0b5e9a3c-1d2f-4e6a-8b7c-9d0e1f2a3b4c}",
+            "urn:uuid:0b5e9a3c-1d2f-4e6a-8b7c-9d0e1f2a3b4c",
+            &"a".repeat(4096),
+        ] {
+            let error = admit_once(&session, Some(raw)).unwrap_err();
+            assert!(
+                matches!(
+                    error,
+                    Error::App {
+                        code: "invalid",
+                        ..
+                    }
+                ),
+                "{raw}"
+            );
+        }
+        assert_eq!(turns(&session), 0);
+        let legacy: SendPromptRequest =
+            serde_json::from_value(serde_json::json!({"sessionId":"s", "prompt":"Next"})).unwrap();
+        assert!(legacy.client_request_id.is_none());
     }
 }

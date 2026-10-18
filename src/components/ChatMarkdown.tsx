@@ -1,10 +1,11 @@
 import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons/phosphor";
-import { createContext, Fragment, memo, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { client, isRemoteUi } from "@/client";
 import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
-import { fileReference, localMediaKind, parseChatInline, parseChatMarkdown, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
+import { fileReference, localMediaKind, parseChatInline, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
+import { parseChatMarkdownStream, type ChatMarkdownParse } from "@/lib/chat-markdown-stream";
 import type { StreamFade } from "@/lib/use-stream-fade";
 import { ReplyMedia } from "@/components/ReplyMedia";
 import { StreamFadeText } from "@/components/StreamFadeText";
@@ -242,13 +243,26 @@ const MarkdownBlock = memo(function MarkdownBlock({ block, owner, fade }: { bloc
   }
 }, (previous, next) => previous.source === next.source && previous.owner === next.owner && previous.fade === next.fade);
 
+/** Each block's source for `MarkdownBlock`'s comparison, encoded once per block object. */
+const blockSources = new WeakMap<ChatBlock, string>();
+function blockSource(block: ChatBlock): string {
+  let source = blockSources.get(block);
+  if (source === undefined) { source = JSON.stringify(block); blockSources.set(block, source); }
+  return source;
+}
+
 /**
  * An assistant reply's prose as formatted text, with workspace files as links. `fade` is set
  * on the streaming reply's last prose: its last block fades the words that just arrived (ADR-119).
  */
 export const ChatMarkdown = memo(function ChatMarkdown({ text, sessionId, cwd, fade = null }: { text: string; sessionId?: string; cwd?: string; fade?: StreamFade | null }) {
   // Codex's own directives (cited files, next steps) read as paths and reply choices (codex-directives).
-  const blocks = useMemo(() => parseChatMarkdown(readableCodexText(text)).map((block) => ({ block, source: JSON.stringify(block) })), [text]);
+  // While it streams, only the text after the last blank line is parsed and encoded again.
+  const parsed = useRef<ChatMarkdownParse | null>(null);
+  const blocks = useMemo(() => {
+    parsed.current = parseChatMarkdownStream(parsed.current, readableCodexText(text));
+    return parsed.current.blocks.map((block) => ({ block, source: blockSource(block) }));
+  }, [text]);
   const owner = useMemo(() => sessionId && cwd ? { sessionId, cwd } : null, [sessionId, cwd]);
   return <div className="chat-markdown">
     {blocks.map(({ block, source }, index) => <MarkdownBlock key={index} block={block} source={source} owner={owner} fade={index === blocks.length - 1 ? fade : null} />)}
