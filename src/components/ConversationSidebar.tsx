@@ -1,7 +1,8 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Project, Session } from "@/client/types";
-import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, Check, Clock3, Columns3, Folder, FolderOpen, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { AppSettings, Project, Session } from "@/client/types";
+import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
+import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
@@ -11,7 +12,7 @@ import { RailGlyph } from "@/components/SidebarRailMore";
 import { SidebarUsageRings } from "@/components/SidebarUsageRings";
 import { SnoozePicker } from "@/components/SnoozePicker";
 import { useTranslation } from "@/i18n/use-translation";
-import { conversationListItems, conversationOrderSettings, conversationSortKeys, CONVERSATION_LIST_MAX_WIDTH, CONVERSATION_LIST_MIN_WIDTH, itemOffsets, offsetWindow, type ConversationListSettings } from "@/lib/conversation-list";
+import { conversationListItems, conversationOrderSettings, conversationSortKeys, CONVERSATION_LIST_MAX_WIDTH, CONVERSATION_LIST_MIN_WIDTH, expandOpenFolder, itemOffsets, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, type ConversationListSettings, type ConversationTimeGroup } from "@/lib/conversation-list";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { tabStatus, type TabStatus } from "@/lib/header-tabs";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
@@ -25,7 +26,8 @@ import { SIDEBAR_WINDOW_THRESHOLD } from "@/lib/sidebar-window";
 import { canSnooze } from "@/lib/snooze";
 import { beginSplitDrag } from "@/lib/split-drag";
 import { leafShowing, splitLeaves, SPLIT_MAX_PANES } from "@/lib/split-layout";
-import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
+import { useMotionPreferences } from "@/lib/use-motion-preferences";
+import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { IconButton } from "@/primitives/IconButton";
 import { ResizeHandle } from "@/primitives/ResizablePanel";
 import { ShortcutHint } from "@/primitives/ShortcutHint";
@@ -35,6 +37,9 @@ import "@/styles/header-tabs.css";
 import "@/styles/conversation-sidebar.css";
 
 const NAV_ITEMS = ["inbox", "tasks", "pulls"] as const;
+
+/** The column styles (ADR-139): every project's conversations, or one project at a time. */
+type ColumnStyle = "list" | "project";
 
 /** Rail dots for the compact nav row: a session waits for the person, or an unread pull request. */
 function useNavDots() {
@@ -52,58 +57,64 @@ function useWaitingSets() {
   return useMemo(() => ({ unseen: new Set(unseen), computer: new Set((requests ?? []).map(request => request.sessionId)) }), [unseen, requests]);
 }
 
+const store = () => useAppStore.getState();
+const saveSettings = (change: Partial<AppSettings>) => { const state = store(); void state.saveSettings({ ...state.settings, ...change }); };
+
 /**
- * The conversation list sidebar (ADR-139): recent conversations from every project in a
- * resizable column, with search, project actions, Inbox / Tasks / PRs, usage rings, Archived
- * and Settings. It replaces the header's project switcher while it shows; ⌘B hides it.
+ * The column sidebar (ADR-139). The conversation list shows recent conversations from every
+ * project (flat, or in project folders); the Project style shows one project at a time with
+ * its switcher on top, conversations grouped by time and a strip of projects at the foot.
+ * Both have search, the list order, New project, Inbox / Tasks / PRs, usage rings, Archived
+ * and Settings, and replace the header's project switcher while they show; ⌘B hides them.
  */
 export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion }) {
   const t = useTranslation();
   const width = useAppStore(state => state.sidebarWidth);
+  const style: ColumnStyle = useAppStore(state => state.settings.sidebarMode === "project" ? "project" : "list");
   const mainView = useAppStore(state => state.mainView);
   const customShortcuts = useAppStore(state => state.settings.customShortcuts);
-  const order = useAppStore(state => state.settings.sidebarListOrder);
   const index = useAppStore(state => state.navIndex);
   const historyLength = useAppStore(state => state.navHistory.length);
   const dots = useNavDots();
+  const collapsed = useAppStore(state => state.sidebarCollapsed);
   // Hidden (⌘B), the rows unmount once the column has closed; the archive confirmation stays.
-  const hidden = useAppStore(state => state.sidebarCollapsed) && !motion;
+  const hidden = collapsed && !motion;
   // Edits made outside Sirus (an editor, a terminal) show up when the window comes back.
   useEffect(() => {
     window.addEventListener("focus", scheduleProjectDiffs);
     return () => window.removeEventListener("focus", scheduleProjectDiffs);
   }, []);
-  const store = () => useAppStore.getState();
   const shortcut = (id: Parameters<typeof effectiveShortcut>[1]) => shortcutLabel(effectiveShortcut(customShortcuts, id));
-  const setOrder = (sidebarListOrder: "recent" | "project") => { const state = store(); if (state.settings.sidebarListOrder !== sidebarListOrder) void state.saveSettings({ ...state.settings, sidebarListOrder }); };
   const headButton = "size-6 min-h-0 rounded-[6px] p-0 text-text-muted";
   const toolButton = "conversation-sidebar-tool size-7 min-h-0 rounded-[7px] p-0 text-text-muted";
+  const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>;
+  const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>;
+  const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} /></IconButton>;
+  const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={toolButton}><SquarePen size={15} /></IconButton>;
 
-  return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} style={{ width }}>
+  return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-style={style} data-motion={motion ?? undefined} style={{ width }}>
     <ArchiveConfirm />
     <div data-tauri-drag-region className="conversation-sidebar-head titlebar-drag">
-      <span className="conversation-sidebar-brand" data-tauri-drag-region>Sirus <span>Code</span></span>
+      {style === "list"
+        ? <span className="conversation-sidebar-brand" data-tauri-drag-region>Sirus <span>Code</span></span>
+        : <span className="flex-1" data-tauri-drag-region />}
       <div className="conversation-sidebar-head-actions titlebar-no-drag">
-        <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>
-        <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>
-        <Dropdown>
-          <DropdownTrigger asChild><button type="button" className="conversation-sidebar-head-button" aria-label={t("sidebarList.order")} title={t("sidebarList.order")}><ArrowUpDown size={14} aria-hidden="true" /></button></DropdownTrigger>
-          <DropdownContent align="end" className="min-w-[180px]">
-            {([["recent", "sidebarList.recent", <Clock3 key="icon" size={15} />], ["project", "sidebarList.byProject", <Folder key="icon" size={15} />]] as const).map(([value, label, icon]) => <DropdownItem key={value} icon={icon} onSelect={() => setOrder(value)}>
-              <span className="flex min-w-[120px] items-center gap-2"><span className="flex-1">{t(label)}</span>{order === value ? <Check size={13} aria-hidden="true" /> : null}</span>
-            </DropdownItem>)}
-          </DropdownContent>
-        </Dropdown>
-        <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} /></IconButton>
+        {style === "list" ? <>{back}{forward}{collapse}</> : <>{collapse}{back}{forward}</>}
       </div>
     </div>
+    {style === "project" ? <div className="conversation-sidebar-switch">
+      {/* Mounted only while the column shows, so ⌘⇧P opens one switcher: here, or the header's once hidden. */}
+      {collapsed ? <span className="flex-1" /> : <ProjectSwitcher placement="sidebar" />}
+      {newConversation}
+    </div> : null}
     <div className="conversation-sidebar-tools">
       <button type="button" className="conversation-sidebar-search" onClick={() => store().setPaletteOpen(true)}>
         <Search size={14} aria-hidden="true" /><span>{t("sidebarList.search")}</span><ShortcutHint keys={shortcut("palette")} />
       </button>
-      <IconButton label={t("Open Project")} shortcut={shortcut("open-project")} onClick={() => void store().addProjectFromPicker()} className={toolButton}><FolderOpen size={15} /></IconButton>
-      <IconButton label={t("newProject.title")} onClick={() => store().setCreateProjectOpen(true)} className={toolButton}><FolderPlus size={15} /></IconButton>
-      <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={toolButton}><SquarePen size={15} /></IconButton>
+      <OrderMenu style={style} />
+      {/* The New project dialog offers opening a folder, creating one and cloning. */}
+      <IconButton label={t("New project")} onClick={() => store().setCreateProjectOpen(true)} className={toolButton}><FolderPlus size={15} /></IconButton>
+      {style === "list" ? newConversation : null}
     </div>
     <nav className="conversation-sidebar-nav" aria-label={t("Navigation")}>
       {NAV_ITEMS.map(id => <button key={id} type="button" className="conversation-sidebar-nav-item" aria-current={mainView === id ? "page" : undefined} onClick={() => store().setMainView(id)}>
@@ -112,7 +123,8 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
         {dots[id] ? <span className="conversation-sidebar-nav-dot" aria-hidden="true" /> : null}
       </button>)}
     </nav>
-    {hidden ? <div className="flex-1" /> : <ConversationList />}
+    {hidden ? <div className="flex-1" /> : <ConversationList style={style} />}
+    {style === "project" && !hidden ? <ProjectStrip /> : null}
     <div className="conversation-sidebar-foot">
       <SidebarUsageRings />
       <span className="flex-1" />
@@ -129,19 +141,41 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   </aside>;
 }
 
+/** The list order (Recent or By project, in the list style) and "Working and unread first" (both styles). */
+function OrderMenu({ style }: { style: ColumnStyle }) {
+  const t = useTranslation();
+  const order = useAppStore(state => state.settings.sidebarListOrder);
+  const attentionFirst = useAppStore(state => state.settings.sidebarAttentionFirst);
+  const mark = (on: boolean, label: string) => <span className="flex min-w-[140px] items-center gap-2"><span className="flex-1">{label}</span>{on ? <Check size={13} aria-hidden="true" /> : null}</span>;
+  return <Dropdown>
+    <DropdownTrigger asChild><button type="button" className="conversation-sidebar-tool conversation-sidebar-order" aria-label={t("sidebarList.order")} title={t("sidebarList.order")}><ArrowUpDown size={15} aria-hidden="true" /></button></DropdownTrigger>
+    <DropdownContent align="start" className="min-w-[200px]">
+      {style === "list" ? <>
+        {([["recent", "sidebarList.recent", <Clock3 key="icon" size={15} />], ["project", "sidebarList.byProject", <Folder key="icon" size={15} />]] as const).map(([value, label, icon]) =>
+          <DropdownItem key={value} icon={icon} onSelect={() => { if (order !== value) saveSettings({ sidebarListOrder: value }); }}>{mark(order === value, t(label))}</DropdownItem>)}
+        <DropdownSeparator />
+      </> : null}
+      <DropdownItem icon={<Sparkles size={15} />} onSelect={() => saveSettings({ sidebarAttentionFirst: !attentionFirst })}>{mark(attentionFirst, t("Working and unread first"))}</DropdownItem>
+    </DropdownContent>
+  </Dropdown>;
+}
+
 /**
- * The rows, windowed like `SidebarWindowedRows` past 60 items (two fixed heights: project
- * headers and conversation rows, both measured). The order holds still while the pointer is
- * over the list (ADR-121) and settles when it leaves.
+ * The rows, windowed like `SidebarWindowedRows` past 60 items (two fixed heights, both
+ * measured: conversation rows, and headers — project folders or time groups). The order holds
+ * still while the pointer is over the list (ADR-121) and settles when it leaves.
  */
-function ConversationList() {
+function ConversationList({ style }: { style: ColumnStyle }) {
   const t = useTranslation();
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
-  const order = useAppStore(state => state.settings.sidebarListOrder);
+  const listOrder = useAppStore(state => state.settings.sidebarListOrder);
+  const order = style === "project" ? "time" : listOrder;
   const archivedSessionIds = useAppStore(state => state.settings.archivedSessionIds);
   const pinnedSessionIds = useAppStore(state => state.settings.pinnedSessionIds);
   const sidebarAttentionFirst = useAppStore(state => state.settings.sidebarAttentionFirst);
+  const savedOpenFolders = useAppStore(state => state.settings.sidebarOpenFolders);
+  const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const selectedSessionId = useAppStore(state => state.mainView === "session" ? state.selectedSessionId : null);
   const listSettings = useMemo<ConversationListSettings>(() => ({ archivedSessionIds, pinnedSessionIds, sidebarAttentionFirst, sidebarThreadSortOrder: "updated_at" }), [archivedSessionIds, pinnedSessionIds, sidebarAttentionFirst]);
   const { unseen, computer } = useWaitingSets();
@@ -158,7 +192,30 @@ function ConversationList() {
   const [heldOrder, setHeldOrder] = useState(liveOrder);
   const held = holdSessionOrder(heldOrder, liveOrder, hovering);
   if (held !== heldOrder) setHeldOrder(held);
-  const items = useMemo(() => conversationListItems(projects, sessions, listSettings, order, { unseen, computer, held: held.keys }), [projects, sessions, listSettings, order, unseen, computer, held]);
+
+  // Project folders (By project): the saved open ones, else the selected project's.
+  const openFolders = useMemo(() => new Set(openFolderIds(savedOpenFolders, selectedProjectId)), [savedOpenFolders, selectedProjectId]);
+  const toggleFolder = useCallback((projectId: string) => {
+    const state = store();
+    saveSettings({ sidebarOpenFolders: toggleOpenFolder(openFolderIds(state.settings.sidebarOpenFolders, state.selectedProjectId), projectId) });
+  }, []);
+  // Selecting a conversation (anywhere: tabs, palette, Inbox) opens its folder.
+  const seenSelection = useRef(selectedSessionId);
+  useEffect(() => {
+    if (seenSelection.current === selectedSessionId) return;
+    seenSelection.current = selectedSessionId;
+    if (order !== "project" || !selectedSessionId || !selectedProjectId) return;
+    const state = store();
+    const next = expandOpenFolder(openFolderIds(state.settings.sidebarOpenFolders, selectedProjectId), selectedProjectId);
+    if (next) saveSettings({ sidebarOpenFolders: next });
+  }, [order, selectedSessionId, selectedProjectId]);
+
+  // Only time groups read the clock; the other orders do not rebuild when ages refresh.
+  const groupNow = order === "time" ? now : 0;
+  const items = useMemo(() => order === "time"
+    ? projectConversationItems(projects, sessions, listSettings, selectedProjectId, groupNow, { unseen, computer, held: held.keys })
+    : conversationListItems(projects, sessions, listSettings, order, { unseen, computer, held: held.keys, openFolders }),
+  [order, projects, sessions, listSettings, selectedProjectId, groupNow, unseen, computer, held, openFolders]);
 
   // Windowing: only the items near the visible area mount past the threshold.
   const viewport = useRef<HTMLDivElement>(null);
@@ -175,7 +232,7 @@ function ConversationList() {
     const measure = () => {
       frame = 0;
       const row = list.querySelector<HTMLElement>(':scope > [data-list-kind="session"]')?.offsetHeight ?? 0;
-      const header = list.querySelector<HTMLElement>(':scope > [data-list-kind="project"]')?.offsetHeight ?? 0;
+      const header = list.querySelector<HTMLElement>(':scope > [data-list-kind]:not([data-list-kind="session"])')?.offsetHeight ?? 0;
       if ((row && row !== metrics.row) || (header && header !== metrics.header)) { setMetrics({ row: row || metrics.row, header: header || metrics.header }); return; }
       const listTop = list.getBoundingClientRect().top - node.getBoundingClientRect().top + node.scrollTop;
       const next = offsetWindow(offsets, node.scrollTop - listTop, node.clientHeight);
@@ -217,52 +274,134 @@ function ConversationList() {
     ];
   }, [menuSession, moveItems, t]);
 
-  return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")}
+  const empty = order === "time" && !projects.some(project => project.id === selectedProjectId) ? t("sidebarList.noProject") : t(order === "time" ? "sidebarList.emptyProject" : "sidebarList.empty");
+  return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
     onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)}>
     {items.length ? <ContextMenu activation="context-only" label={t("session.actions")} items={menuItems}>
       <div ref={inner} className="conversation-sidebar-rows" style={windowed ? { paddingTop: offsets[start], paddingBottom: offsets[items.length] - offsets[end] } : undefined}
         onContextMenuCapture={event => setMenuId((event.target as HTMLElement).closest<HTMLElement>("[data-conversation]")?.dataset.conversation ?? null)}>
-        {items.slice(start, end).map(item => item.kind === "project"
-          ? <ProjectHeader key={item.key} project={item.project} count={item.count} />
-          : <ConversationRow key={item.key} session={item.session} project={item.project} pinned={item.pinned} active={item.session.id === selectedSessionId} status={tabStatus(item.session, unseen, computer)} age={relativeTime(item.session.lastActivityAt, now)} />)}
+        {items.slice(start, end).map(item => item.kind === "folder"
+          ? <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} open={item.open} onToggle={toggleFolder} />
+          : item.kind === "time"
+            ? <TimeHeader key={item.key} group={item.group} />
+            : <ConversationRow key={item.key} session={item.session} project={item.project} pinned={item.pinned} variant={order === "time" ? "compact" : item.nested ? "nested" : "full"}
+              active={item.session.id === selectedSessionId} status={tabStatus(item.session, unseen, computer)} age={relativeTime(item.session.lastActivityAt, now)} />)}
       </div>
-    </ContextMenu> : <p className="conversation-sidebar-empty">{t("sidebarList.empty")}</p>}
+    </ContextMenu> : <p className="conversation-sidebar-empty">{empty}</p>}
     {action ? <SessionActionDialog session={action.session} action={action.kind} onClose={() => setAction(null)} /> : null}
     <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
   </div>;
 }
 
-const ProjectHeader = memo(function ProjectHeader({ project, count }: { project: Project; count: number }) {
+/** A dot for the strongest state: working, waiting, or unread (finished while away). */
+function statusDotOf(status: TabStatus, active: boolean): "running" | "waiting" | "unread" | null {
+  return status === "running" || status === "waiting" ? status : status === "done" && !active ? "unread" : null;
+}
+
+/** By project: one folder per project; open, its conversations follow it, indented. */
+const FolderRow = memo(function FolderRow({ project, count, status, open, onToggle }: { project: Project; count: number; status: TabStatus; open: boolean; onToggle: (projectId: string) => void }) {
   const t = useTranslation();
-  return <div className="conversation-group" data-list-kind="project" aria-label={t("sidebarList.projectCount", { project: project.name, count })}>
-    <ProjectGlyph project={project} size={13} />
-    <span className="conversation-group-name">{project.name}</span>
+  const dot = statusDotOf(status, false);
+  const label = [t("sidebarList.projectCount", { project: project.name, count }), dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
+  return <div className="conversation-folder" data-list-kind="folder" data-open={open || undefined}>
+    <button type="button" className="conversation-folder-toggle" aria-expanded={open} aria-label={label} onClick={() => onToggle(project.id)}>
+      <ChevronRight size={12} aria-hidden="true" className="conversation-folder-chevron" />
+      <ProjectGlyph project={project} expanded={open} size={14} />
+      <span className="conversation-folder-name">{project.name}</span>
+      {dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : null}
+      <span className="conversation-folder-count" aria-hidden="true">{count}</span>
+    </button>
     <button type="button" className="conversation-group-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => void sidebarProjectAction(project.id, "new")}><SquarePen size={13} aria-hidden="true" /></button>
   </div>;
 });
 
-/** Line 1: project and age with the live dot; line 2: the title; line 3: branch and model mark. */
-const ConversationRow = memo(function ConversationRow({ session, project, status, active, pinned, age }: { session: Session; project: Project; status: TabStatus; active: boolean; pinned: boolean; age: string }) {
+/** The Project style's time groups: Pinned, Today, This week, Older. */
+const TimeHeader = memo(function TimeHeader({ group }: { group: ConversationTimeGroup }) {
   const t = useTranslation();
-  const unread = status === "done" && !active;
-  const statusLabel = status === "idle" ? null : unread ? t("sidebarList.unread") : status === "done" ? null : t(`tabs.status.${status}`);
-  return <div className="conversation-row" data-list-kind="session" data-conversation={session.id} data-active={active || undefined} data-unread={unread || undefined}>
+  return <div className="conversation-time-group" data-list-kind="time" role="heading" aria-level={3}>{t(group === "pinned" ? "Pinned" : `sidebarList.${group}`)}</div>;
+});
+
+/**
+ * "full" (Recent): project and age with the live dot, the title, branch and model mark.
+ * "nested" (in a folder): the dot, title and age, then branch and model mark.
+ * "compact" (Project style): the dot, title and age; branch and model in the tooltip.
+ */
+const ConversationRow = memo(function ConversationRow({ session, project, status, active, pinned, age, variant }: { session: Session; project: Project; status: TabStatus; active: boolean; pinned: boolean; age: string; variant: "full" | "nested" | "compact" }) {
+  const t = useTranslation();
+  const dot = statusDotOf(status, active);
+  const statusLabel = dot === "unread" ? t("sidebarList.unread") : dot ? t(`tabs.status.${dot}`) : null;
+  const ageText = <span className="conversation-row-age">{age === "now" ? t("Now") : age}</span>;
+  const dotMark = dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : variant === "compact" ? <span className="conversation-row-idle" aria-hidden="true" /> : null;
+  const title = <span className="conversation-row-title">{variant === "full" ? null : dotMark}{pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>{variant === "full" ? null : ageText}</span>;
+  const detail = <span className="conversation-row-detail">
+    <span className="conversation-row-branch">{session.worktree.branch}</span>
+    <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
+  </span>;
+  return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined}>
     <button type="button" className="conversation-row-open" aria-current={active ? "page" : undefined}
-      aria-label={[session.title, project.name, statusLabel].filter(Boolean).join(" · ")}
+      aria-label={[session.title, variant === "full" ? project.name : null, statusLabel].filter(Boolean).join(" · ")}
+      title={variant === "compact" ? [session.worktree.branch, session.model ?? session.agent].filter(Boolean).join(" · ") : undefined}
       onPointerDown={event => beginSplitDrag(event, session.id, session.title)}
       onClick={() => void useAppStore.getState().selectSession(session.id)}>
-      <span className="conversation-row-meta">
+      {variant === "full" ? <span className="conversation-row-meta">
         <ProjectGlyph project={project} size={13} />
         <span className="conversation-row-project">{project.name}</span>
-        <span className="conversation-row-age">{age === "now" ? t("Now") : age}</span>
-        {statusLabel ? <span className="header-tab-status" data-status={unread ? "unread" : status} aria-hidden="true" /> : null}
-      </span>
-      <span className="conversation-row-title">{pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span></span>
-      <span className="conversation-row-detail">
-        <span className="conversation-row-branch">{session.worktree.branch}</span>
-        <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
-      </span>
+        {ageText}
+        {dotMark}
+      </span> : null}
+      {title}
+      {variant === "compact" ? null : detail}
     </button>
   </div>;
 });
 
+/**
+ * The Project style's foot (ADR-139, round 2): every project's icon in the switcher's order,
+ * scrolling sideways with arrows at the ends; the selected one is highlighted and a click
+ * switches to that project.
+ */
+function ProjectStrip() {
+  const t = useTranslation();
+  const projects = useAppStore(state => state.projects);
+  const pinnedProjectIds = useAppStore(state => state.settings.pinnedProjectIds);
+  const sidebarProjectOrder = useAppStore(state => state.settings.sidebarProjectOrder);
+  const sidebarProjectSortOrder = useAppStore(state => state.settings.sidebarProjectSortOrder);
+  const selectedProjectId = useAppStore(state => state.selectedProjectId);
+  const reduced = useMotionPreferences();
+  const ordered = useMemo(() => projectStripOrder(projects, { pinnedProjectIds, sidebarProjectOrder, sidebarProjectSortOrder }), [projects, pinnedProjectIds, sidebarProjectOrder, sidebarProjectSortOrder]);
+  const strip = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ start: true, end: true });
+  useLayoutEffect(() => {
+    const node = strip.current;
+    if (!node) return;
+    const measure = () => {
+      const next = { start: node.scrollLeft <= 1, end: node.scrollLeft + node.clientWidth >= node.scrollWidth - 1 };
+      setEdges(current => current.start === next.start && current.end === next.end ? current : next);
+    };
+    measure();
+    node.addEventListener("scroll", measure, { passive: true });
+    const resize = new ResizeObserver(measure);
+    resize.observe(node);
+    return () => { node.removeEventListener("scroll", measure); resize.disconnect(); };
+  }, [ordered.length]);
+  // The selected project stays in view when it changes (from the switcher, the palette or here).
+  // Only the strip scrolls: scrollIntoView could also shift the sidebar frame while it animates.
+  useEffect(() => {
+    const node = strip.current, item = node?.querySelector<HTMLElement>("[aria-current]");
+    if (!node || !item) return;
+    if (item.offsetLeft < node.scrollLeft) node.scrollLeft = item.offsetLeft;
+    else if (item.offsetLeft + item.offsetWidth > node.scrollLeft + node.clientWidth) node.scrollLeft = item.offsetLeft + item.offsetWidth - node.clientWidth;
+  }, [selectedProjectId]);
+  const page = (direction: -1 | 1) => { const node = strip.current; if (node) node.scrollBy({ left: direction * Math.max(60, node.clientWidth - 40), behavior: reduced ? "auto" : "smooth" }); };
+  if (!ordered.length) return null;
+  return <div className="conversation-strip">
+    <button type="button" className="conversation-strip-arrow" aria-label={t("sidebarList.previousProjects")} disabled={edges.start} onClick={() => page(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
+    <div ref={strip} className="conversation-strip-items" role="group" aria-label={t("sidebarList.projects")}>
+      {ordered.map(project => <button key={project.id} type="button" className="conversation-strip-project" aria-label={project.name} title={project.name}
+        aria-current={project.id === selectedProjectId ? "true" : undefined} onClick={() => { if (project.id !== selectedProjectId) void store().switchProject(project.id); }}>
+        <ProjectGlyph project={project} size={16} />
+      </button>)}
+    </div>
+    <button type="button" className="conversation-strip-arrow" aria-label={t("sidebarList.nextProjects")} disabled={edges.end} onClick={() => page(1)}><ChevronRight size={14} aria-hidden="true" /></button>
+  </div>;
+}

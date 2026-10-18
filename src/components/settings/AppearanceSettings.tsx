@@ -13,6 +13,7 @@ import { Switch } from "@/primitives/Switch";
 import { Slider } from "@/components/arc/slider/slider";
 import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
 import { ThemeModePicker } from "./ThemeModePicker";
+import { SidebarStylePicker, type SidebarStyleChoice } from "./SidebarStylePicker";
 import { resolveAppearanceMaterial } from "@/lib/appearance";
 import { useSystemPalette } from "@/lib/use-system-palette";
 import { useAppStore } from "@/store/app-store";
@@ -95,17 +96,19 @@ function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSa
   </SettingsGroup>;
 }
 
-/** Icon rail, conversation list or hidden (ADR-139). Hidden keeps the chosen style for ⌘B to bring back. */
+/** Icon rail, conversation list, Project or hidden (ADR-139). Hidden keeps the chosen style for ⌘B to bring back. */
 function SidebarStyleGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
   const t = useTranslation();
   const collapsed = useAppStore(state => state.sidebarCollapsed);
-  const choose = (choice: "rail" | "list" | "hidden") => {
+  const choose = (choice: SidebarStyleChoice) => {
     const sidebarCollapsed = choice === "hidden";
     useAppStore.setState({ sidebarCollapsed });
     onSave({ ...settings, sidebarCollapsed, sidebarMode: choice === "hidden" ? settings.sidebarMode : choice });
   };
   return <SettingsGroup title={t("Sidebar")} card>
-    <SettingsRow title={t("sidebarList.style")} description={t("sidebarList.styleHelp")}><Select className="general-settings-select" label={t("sidebarList.style")} value={collapsed ? "hidden" : settings.sidebarMode} onChange={choose} options={[{ value: "rail", label: t("sidebarList.styleRail") }, { value: "list", label: t("sidebarList.styleList") }, { value: "hidden", label: t("sidebarList.styleHidden") }]} /></SettingsRow>
+    {/* The row heads the cards and keeps "Sidebar style" in the Settings search. */}
+    <SettingsRow title={t("sidebarList.style")} description={t("sidebarList.styleHelp")}>{null}</SettingsRow>
+    <SidebarStylePicker value={collapsed ? "hidden" : settings.sidebarMode} onChange={choose} />
     {settings.sidebarMode === "list" && <SettingsRow title={t("sidebarList.order")} description={t("sidebarList.orderHelp")}><Select className="general-settings-select" label={t("sidebarList.order")} value={settings.sidebarListOrder} onChange={sidebarListOrder => onSave({ ...settings, sidebarListOrder })} options={[{ value: "recent", label: t("sidebarList.recent") }, { value: "project", label: t("sidebarList.byProject") }]} /></SettingsRow>}
   </SettingsGroup>;
 }

@@ -1,4 +1,5 @@
 import { SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
+import { isColumnSidebar } from "@/lib/conversation-list";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
 import { AttachmentModal } from "@/components/AttachmentModal";
 import { useSidebarMotion } from "@/lib/sidebar-motion";
@@ -93,8 +94,8 @@ export default function App() {
   if (createProjectOpen && !createProjectMounted) setCreateProjectMounted(true);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
-  // The sidebar is the icon rail or the conversation list (ADR-139); ⌘B hides either.
-  const listSidebar = useAppStore((state) => state.settings.sidebarMode === "list");
+  // The sidebar is the icon rail or a column: the conversation list or the Project style (ADR-139); ⌘B hides any.
+  const listSidebar = useAppStore((state) => isColumnSidebar(state.settings.sidebarMode));
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const listShown = listSidebar && !sidebarCollapsed;
   const dockWidth = useAppStore((state) => state.dockWidth);
@@ -242,7 +243,8 @@ export default function App() {
       { id: "previous-tab", combo: "Meta+Alt+ArrowLeft", when: headerTabsVisible, run: () => selectHeaderTab((tabs, current) => tabs[(current - 1 + tabs.length) % tabs.length]) },
       { id: "switch-project", combo: "Meta+Shift+P", when: headerTabsVisible, run: () => {
         const store = useAppStore.getState();
-        // The conversation list hides the header switcher: the palette lists projects instead.
+        // The conversation list hides the header switcher: the palette lists projects instead. The
+        // Project style mounts the switcher in the sidebar, so the same flag opens it there.
         if (store.settings.sidebarMode === "list" && !store.sidebarCollapsed) store.setPaletteOpen(true);
         else store.setProjectSwitcherOpen(true);
       } },

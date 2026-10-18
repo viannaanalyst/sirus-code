@@ -44,26 +44,31 @@ export function holdSessionOrder(held: SessionOrderSnapshot | null, live: Sessio
   return hold && held && held.signature === live.signature ? held : live;
 }
 
-export function sidebarGroups(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, options: SessionOrderOptions = {}) {
-  const archivedIds = new Set(settings.archivedSessionIds);
-  const pinnedIds = new Set(settings.pinnedSessionIds);
+/** Projects in sidebar order: pinned first, then newest (created_at) or the manual order. */
+export function orderSidebarProjects(projects: readonly Project[], settings: Pick<AppSettings, "pinnedProjectIds" | "sidebarProjectOrder" | "sidebarProjectSortOrder">): Project[] {
   const pinnedProjects = new Set(settings.pinnedProjectIds);
   const manualOrder = new Map(settings.sidebarProjectOrder.map((id, index) => [id, index]));
   const fallbackOrder = new Map([...settings.pinnedProjectIds, ...projects.filter(row => !pinnedProjects.has(row.id)).map(row => row.id)].map((id, index) => [id, index]));
+  const projectDates = new Map(projects.map(row => [row.id, timestamp(row.addedAt)]));
+  return [...projects].sort((a, b) => Number(pinnedProjects.has(b.id)) - Number(pinnedProjects.has(a.id))
+    || (settings.sidebarProjectSortOrder === "created_at" ? (projectDates.get(b.id) ?? 0) - (projectDates.get(a.id) ?? 0) : 0)
+    || (manualOrder.get(a.id) ?? settings.sidebarProjectOrder.length + (fallbackOrder.get(a.id) ?? projects.length))
+    - (manualOrder.get(b.id) ?? settings.sidebarProjectOrder.length + (fallbackOrder.get(b.id) ?? projects.length)));
+}
+
+export function sidebarGroups(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, options: SessionOrderOptions = {}) {
+  const archivedIds = new Set(settings.archivedSessionIds);
+  const pinnedIds = new Set(settings.pinnedSessionIds);
   const sessionOrder = new Map(settings.pinnedSessionIds.map((id, index) => [id, index]));
   const owned = new Set(projects.map((project) => project.id));
   const visible = sessions.filter((session) => owned.has(session.projectId) && !archivedIds.has(session.id));
-  const projectDates = new Map(projects.map(row => [row.id, timestamp(row.addedAt)]));
   const liveKeys = sessionSortKeys(sessions, settings, options);
   const keyOf = (id: string) => options.held?.get(id) ?? liveKeys.get(id) ?? { rank: 0, time: 0 };
   const originalSessionOrder = new Map(sessions.map((row, index) => [row.id, index]));
   const compareSessions = (a: Session, b: Session) => keyOf(b.id).rank - keyOf(a.id).rank || keyOf(b.id).time - keyOf(a.id).time
     || (originalSessionOrder.get(a.id) ?? 0) - (originalSessionOrder.get(b.id) ?? 0);
   return {
-    projects: [...projects].sort((a, b) => Number(pinnedProjects.has(b.id)) - Number(pinnedProjects.has(a.id))
-      || (settings.sidebarProjectSortOrder === "created_at" ? (projectDates.get(b.id) ?? 0) - (projectDates.get(a.id) ?? 0) : 0)
-      || (manualOrder.get(a.id) ?? settings.sidebarProjectOrder.length + (fallbackOrder.get(a.id) ?? projects.length))
-      - (manualOrder.get(b.id) ?? settings.sidebarProjectOrder.length + (fallbackOrder.get(b.id) ?? projects.length))),
+    projects: orderSidebarProjects(projects, settings),
     pinned: visible.filter((session) => pinnedIds.has(session.id)).sort((a, b) => (sessionOrder.get(a.id) ?? 0) - (sessionOrder.get(b.id) ?? 0)),
     nested: visible.filter((session) => !pinnedIds.has(session.id)).sort(compareSessions),
     archived: sessions.filter((session) => owned.has(session.projectId) && archivedIds.has(session.id)).sort(compareSessions),

@@ -3,6 +3,9 @@ use std::collections::HashSet;
 use crate::error::{Error, Result};
 use crate::models::{AppData, AppSettings, Project, Session};
 
+/// Most project folders the conversation list remembers as open (ADR-139, round 2).
+pub const SIDEBAR_OPEN_FOLDERS_LIMIT: usize = 100;
+
 pub fn validate(settings: &AppSettings) -> Result<()> {
     for ids in [
         &settings.sidebar_project_order,
@@ -16,6 +19,15 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
                 "sidebar references exceed their bounds",
             ));
         }
+    }
+    if settings.sidebar_open_folders.as_ref().is_some_and(|ids| {
+        ids.len() > SIDEBAR_OPEN_FOLDERS_LIMIT
+            || ids.iter().any(|id| id.is_empty() || id.len() > 64)
+    }) {
+        return Err(Error::new(
+            "invalid",
+            "open sidebar folders exceed their bounds",
+        ));
     }
     if settings.project_folders.len() > 64 {
         return Err(Error::new("invalid", "too many project folders"));
@@ -49,6 +61,10 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
         .collect();
     retain_unique(&mut settings.sidebar_project_order, &project_ids);
     retain_unique(&mut settings.pinned_project_ids, &project_ids);
+    if let Some(open) = settings.sidebar_open_folders.as_mut() {
+        retain_unique(open, &project_ids);
+        open.truncate(SIDEBAR_OPEN_FOLDERS_LIMIT);
+    }
     // Folders keep only existing projects, each in one folder, and unique ids.
     let mut placed = HashSet::new();
     let mut folder_ids = HashSet::new();
@@ -162,6 +178,41 @@ mod tests {
         assert!(validate(&data.settings).is_err());
         data.settings.pinned_project_ids = vec!["x".repeat(65)];
         assert!(validate(&data.settings).is_err());
+    }
+
+    #[test]
+    fn open_list_folders_are_bounded_and_keep_existing_projects_once() {
+        let mut data = fixture();
+        assert!(validate(&data.settings).is_ok());
+        data.settings.sidebar_open_folders = Some(vec!["p".into(), "gone".into(), "p".into()]);
+        assert!(validate(&data.settings).is_ok());
+        prune(&mut data);
+        assert_eq!(
+            data.settings.sidebar_open_folders.as_deref(),
+            Some(&["p".to_owned()][..])
+        );
+        // Every folder closed stays an empty list, not the default.
+        data.settings.sidebar_open_folders = Some(vec!["gone".into()]);
+        prune(&mut data);
+        assert_eq!(data.settings.sidebar_open_folders, Some(Vec::new()));
+        data.settings.sidebar_open_folders = Some(vec!["p".into(); SIDEBAR_OPEN_FOLDERS_LIMIT + 1]);
+        assert!(validate(&data.settings).is_err());
+        data.settings.sidebar_open_folders = Some(vec![String::new()]);
+        assert!(validate(&data.settings).is_err());
+        data.settings.sidebar_open_folders = Some(vec!["x".repeat(65)]);
+        assert!(validate(&data.settings).is_err());
+        for value in [
+            serde_json::json!(["p"]),
+            serde_json::json!([]),
+            serde_json::Value::Null,
+        ] {
+            let saved: AppSettings =
+                serde_json::from_value(serde_json::json!({ "sidebarOpenFolders": value })).unwrap();
+            assert_eq!(
+                serde_json::to_value(saved).unwrap()["sidebarOpenFolders"],
+                value
+            );
+        }
     }
 
     #[test]

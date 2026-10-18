@@ -577,14 +577,15 @@ pub enum SidebarThreadSortOrder {
     CreatedAt,
 }
 
-/// What the sidebar shows when it is not hidden (ADR-139): the icon rail or the
-/// conversation list. `sidebar_collapsed` still hides either one.
+/// What the sidebar shows when it is not hidden (ADR-139): the icon rail, the
+/// conversation list, or one project at a time. `sidebar_collapsed` still hides any of them.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum SidebarMode {
     #[default]
     Rail,
     List,
+    Project,
 }
 
 /// The conversation list's order (ADR-139): flat by last activity, or grouped by project.
@@ -753,6 +754,11 @@ pub struct AppSettings {
     /// Icon rail or conversation list (ADR-139); older settings load as the rail.
     pub sidebar_mode: SidebarMode,
     pub sidebar_list_order: SidebarListOrder,
+    /// Projects whose folder is open in the list's By project order (ADR-139, round 2);
+    /// at most `SIDEBAR_OPEN_FOLDERS_LIMIT` owned project ids. `None` until the person opens
+    /// or closes one: then the selected project's folder shows open.
+    #[serde(default)]
+    pub sidebar_open_folders: Option<Vec<String>>,
     pub sidebar_project_order: Vec<String>,
     pub sidebar_project_sort_order: SidebarProjectSortOrder,
     pub sidebar_thread_sort_order: SidebarThreadSortOrder,
@@ -920,6 +926,7 @@ impl Default for AppSettings {
             sidebar_collapsed: false,
             sidebar_mode: SidebarMode::Rail,
             sidebar_list_order: SidebarListOrder::Recent,
+            sidebar_open_folders: None,
             sidebar_project_order: Vec::new(),
             sidebar_project_sort_order: SidebarProjectSortOrder::Manual,
             sidebar_thread_sort_order: SidebarThreadSortOrder::CreatedAt,
@@ -1462,11 +1469,12 @@ mod settings_tests {
         assert!(legacy.sidebar_collapsed);
         assert_eq!(legacy.sidebar_mode, SidebarMode::Rail);
         assert_eq!(legacy.sidebar_list_order, SidebarListOrder::Recent);
+        assert!(legacy.sidebar_open_folders.is_none());
         for (field, allowed) in [
-            ("sidebarMode", ["rail", "list"]),
-            ("sidebarListOrder", ["recent", "project"]),
+            ("sidebarMode", &["rail", "list", "project"][..]),
+            ("sidebarListOrder", &["recent", "project"][..]),
         ] {
-            for value in allowed {
+            for &value in allowed {
                 let settings: AppSettings =
                     serde_json::from_value(serde_json::json!({ field: value })).unwrap();
                 assert_eq!(serde_json::to_value(settings).unwrap()[field], value);

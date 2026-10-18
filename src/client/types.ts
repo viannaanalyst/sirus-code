@@ -528,10 +528,12 @@ export interface AppSettings {
   defaultModel: string | null;
   modelExecution: Record<string, ExecutionOptions>;
   sidebarCollapsed: boolean;
-  /** What the sidebar shows when not hidden: the icon rail or the conversation list (ADR-139). */
-  sidebarMode: "rail" | "list";
-  /** The conversation list's order: flat by last activity, or grouped by project (ADR-139). */
+  /** What the sidebar shows when not hidden: the icon rail, the conversation list or one project at a time (ADR-139). */
+  sidebarMode: "rail" | "list" | "project";
+  /** The conversation list's order: flat by last activity, or project folders (ADR-139). */
   sidebarListOrder: "recent" | "project";
+  /** Projects whose folder is open in the By project order (at most 100 ids, ADR-139 round 2); null until one is opened or closed, when the selected project's folder shows open. */
+  sidebarOpenFolders: string[] | null;
   sidebarProjectOrder: string[];
   sidebarProjectSortOrder: "manual" | "created_at";
   sidebarThreadSortOrder: "updated_at" | "created_at";

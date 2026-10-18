@@ -23,8 +23,10 @@ try {
     const settings = mergeSettings({ locale, foldFinishedTurns: false });
     Object.assign(snapshot, { settings }); useAppStore.setState({ settings });
     // A: the strip lists the running ones, with what they do now and a stop for each.
-    const strip = renderToString(createElement(BackgroundTasks, { session: { id: "s", status: "running" }, message: message("running", [...running, child("a3", "Done already", "completed")]) }));
-    assert.ok(strip.includes("data-background-tasks") && strip.includes(t("background.title")), "the strip shows while background work runs");
+    const pill = renderToString(createElement(BackgroundTasks, { session: { id: "s", status: "running" }, message: message("running", [...running, child("a3", "Done already", "completed")]) }));
+    assert.ok(pill.includes("data-background-tasks") && pill.includes(t("background.capsule", { count: 2 })), "the pill counts the running background work");
+    const strip = renderToString(createElement(BackgroundTasks, { session: { id: "s", status: "running" }, message: message("running", [...running, child("a3", "Done already", "completed")]), initiallyExpanded: true }));
+    assert.ok(strip.includes("data-background-tasks") && strip.includes(t("background.title")), "the opened strip shows while background work runs");
     assert.equal((strip.match(/class="background-task"/g) ?? []).length, 2, "only running tasks are listed");
     assert.ok(strip.includes("Audit BigQuery queries") && strip.includes("Running npm test"), "name and current step");
     assert.ok(strip.includes("2m 0s"), "elapsed time");

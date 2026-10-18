@@ -330,9 +330,9 @@ function WorkingDock() {
   const node = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(0);
   const [drop, setDrop] = useState(0);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(WORKING_COLLAPSED_KEY) === "1");
+  const [collapsed, setCollapsed] = useState(() => globalThis.localStorage?.getItem(WORKING_COLLAPSED_KEY) === "1");
   const toggle = () => setCollapsed((value) => {
-    localStorage.setItem(WORKING_COLLAPSED_KEY, value ? "0" : "1");
+    globalThis.localStorage?.setItem(WORKING_COLLAPSED_KEY, value ? "0" : "1");
     return !value;
   });
   useLayoutEffect(() => {

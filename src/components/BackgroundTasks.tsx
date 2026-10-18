@@ -19,11 +19,12 @@ const active = (status: Session["status"]) => status === "starting" || status ==
  * has its status dot, name, what it is doing now, its time and a stop for that task alone.
  * Hidden when none runs.
  */
-export function BackgroundTasks({ session, message }: { session: Pick<Session, "id" | "status">; message: Message | undefined }) {
+/** Starts as the "N in the background" pill; `initiallyExpanded` opens the list (render checks). */
+export function BackgroundTasks({ session, message, initiallyExpanded = false }: { session: Pick<Session, "id" | "status">; message: Message | undefined; initiallyExpanded?: boolean }) {
   const t = useTranslation();
   const tasks = active(session.status) && message?.role === "agent" ? runningBackground(message.activity) : [];
   const open = tasks.length > 0;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const cascade = useCascade(open);
   // Its own clock, only while shown: the conversation does not re-render each second.
   const ambient = useAmbientActive();

@@ -33,6 +33,7 @@ import type { EditorReveal } from "@/components/editor/CodeEditor";
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
 import { isConversationStarted } from "@/lib/appearance";
 import { cn } from "@/lib/cn";
+import { isColumnSidebar } from "@/lib/conversation-list";
 import { motionTokens } from "@/lib/motion";
 
 const TerminalTabsPane = lazy(async () => {
@@ -87,7 +88,7 @@ export function RightDock() {
   const activePaneId = useAppStore((state) => state.dockActivePaneId);
   const maximized = useAppStore((state) => state.dockMaximized);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
-  const listSidebar = useAppStore((state) => state.settings.sidebarMode === "list");
+  const listSidebar = useAppStore((state) => isColumnSidebar(state.settings.sidebarMode));
   const openDockPane = useAppStore((state) => state.openDockPane);
   const closeDockPane = useAppStore((state) => state.closeDockPane);
   const setActiveDockPane = useAppStore((state) => state.setActiveDockPane);

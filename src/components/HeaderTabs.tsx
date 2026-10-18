@@ -20,6 +20,7 @@ import { deleteFolder, folderOf, moveProjectToFolder, switcherEntries, updateFol
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
 import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
+import { isColumnSidebar } from "@/lib/conversation-list";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { selectCurrentProject, useAppStore, selectListedSessions, selectSnoozedSessions } from "@/store/app-store";
@@ -94,8 +95,10 @@ function useWaitingSets() {
  * projects on the left with live status and changes, and on the right every session of
  * the project under the pointer (pinned first), with New session, pin and archive. The
  * search matches project names and session titles; right-click a project for its actions.
+ * The Project sidebar style (ADR-139, round 2) shows it at the top of the sidebar instead,
+ * where it opens on click or ⌘⇧P only, since the pointer crosses the sidebar all the time.
  */
-function ProjectSwitcher() {
+export function ProjectSwitcher({ placement = "header" }: { placement?: "header" | "sidebar" }) {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
@@ -206,7 +209,8 @@ function ProjectSwitcher() {
   return <>
   <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) { setQuery(""); setFocus(null); setHovering(false); } setCursor(0); }}>
     <PopoverTrigger asChild>
-      <button type="button" className="header-project" aria-label={t("tabs.switchProject")} onPointerEnter={hoverIn} onPointerLeave={hoverOut}
+      <button type="button" className={placement === "sidebar" ? "header-project conversation-sidebar-project" : "header-project"} aria-label={t("tabs.switchProject")}
+        onPointerEnter={placement === "header" ? hoverIn : undefined} onPointerLeave={placement === "header" ? hoverOut : undefined}
         // A click right after the hover opened it keeps it open instead of toggling it shut.
         onClick={event => { if (open && hover.current.opened && Date.now() - hover.current.at < 600) { event.preventDefault(); used(); } else if (open) hover.current.opened = false; else { hover.current.opened = false; window.clearTimeout(hover.current.timer); } }}>
         {project ? <ProjectGlyph project={project} size={14} /> : null}
@@ -380,8 +384,9 @@ export function HeaderTabs() {
   const mainView = useAppStore(state => state.mainView);
   const draft = useAppStore(state => (project ? !!state.draftTabByProject[project.id] : false));
   const showTabs = useAppStore(state => state.settings.showSessionTabs);
-  // The conversation list sidebar already lists every project's conversations (ADR-139).
-  const listSidebar = useAppStore(state => state.settings.sidebarMode === "list" && !state.sidebarCollapsed);
+  // The conversation list sidebar already lists every project's conversations, and the Project
+  // style holds the switcher itself (ADR-139).
+  const listSidebar = useAppStore(state => isColumnSidebar(state.settings.sidebarMode) && !state.sidebarCollapsed);
   const switcher = listSidebar ? null : <><ProjectSwitcher /><span className="header-tabs-separator" aria-hidden="true" /></>;
   const { unseen, computer } = useWaitingSets();
   const runningTerminals = useAppStore(state => state.runningTerminals);
