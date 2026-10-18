@@ -32,11 +32,12 @@ export function ContextMeter({ session }: { session: Session | null }) {
         </svg>
       </button>
     </PopoverTrigger>
-    <PopoverContent side="top" align="end" sideOffset={8} className="w-[248px] p-3">
-      <p className="ui-control font-medium text-text-primary">{t("context.used", { percent })}</p>
-      <p className="mt-0.5 ui-caption tabular-nums text-text-muted">{t("context.tokens", { used: formatTokens(usage.used), window: formatTokens(usage.window) })}</p>
-      <p className="mt-2 ui-caption text-text-muted">{t(canCompact ? "context.help" : "context.helpNoCompact")}</p>
-      {canCompact ? <button type="button" className={cn("context-meter-compact ui-control", level !== "normal" && "context-meter-compact-strong")} disabled={active}
+    <PopoverContent side="top" align="end" sideOffset={8} className="flex min-w-0 items-center gap-3.5 py-2 pr-2 pl-3">
+      <div className="min-w-0">
+        <p className="ui-control font-medium text-text-primary">{t("context.used", { percent })}</p>
+        <p className="ui-caption tabular-nums text-text-muted">{t("context.tokens", { used: formatTokens(usage.used), window: formatTokens(usage.window) })}</p>
+      </div>
+      {canCompact ? <button type="button" className={cn("context-meter-compact ui-caption", level !== "normal" && "context-meter-compact-strong")} disabled={active}
         title={active ? t("context.wait") : undefined}
         onClick={() => { setOpen(false); void useAppStore.getState().sendPrompt("/compact", undefined, session.id); }}>{t("context.compact")}</button> : null}
     </PopoverContent>

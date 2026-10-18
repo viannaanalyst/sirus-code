@@ -435,20 +435,26 @@ export function HeaderTabs() {
   useLayoutEffect(() => {
     const box = list.current, mark = glider.current;
     if (!box || !mark) return;
+    let target = "";
     const place = (instant: boolean) => {
       // Overflowing titles get the edge fade before any hover.
       box.querySelectorAll<HTMLElement>(".header-tab-title").forEach(title => title.toggleAttribute("data-overflow", (title.firstElementChild?.scrollWidth ?? 0) > title.clientWidth + 2));
       const tab = box.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
       mark.toggleAttribute("data-visible", !!tab);
       if (!tab) return;
+      const next = `${tab.offsetLeft}:${tab.offsetWidth}`;
+      // A resize that leaves the active tab where it was must not cut short a glide in progress.
+      if (instant && next === target) return;
+      target = next;
       mark.toggleAttribute("data-instant", instant);
       mark.style.transform = `translateX(${tab.offsetLeft}px)`;
       mark.style.width = `${tab.offsetWidth}px`;
     };
     place(!placed.current);
     placed.current = true;
-    let initial = true;
-    const observer = new ResizeObserver(() => { if (initial) initial = false; else place(true); });
+    // Every notice re-measures, the first one too: a tab can settle (a neighbour that just closed,
+    // a late font) between the placement above and the observer's first report.
+    const observer = new ResizeObserver(() => place(true));
     observer.observe(box);
     // A tab can change width while the list keeps its own: a new title, or a neighbour closing.
     box.querySelectorAll<HTMLElement>('[role="tab"]').forEach(tab => observer.observe(tab));

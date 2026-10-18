@@ -4,7 +4,7 @@
   .context-meter[data-level="warning"] { color: var(--warning); }
   .context-meter[data-level="danger"] { color: var(--danger); }
   .context-meter:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -1px; }
-  .context-meter-compact { width: 100%; margin-top: 10px; padding: 6px 10px; border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-primary); }
+  .context-meter-compact { flex-shrink: 0; padding: 5px 10px; white-space: nowrap; font-weight: 500; border: 1px solid var(--border-default); border-radius: 8px; color: var(--text-primary); }
   .context-meter-compact:hover:not(:disabled) { background: var(--navigation-hover); }
   .context-meter-compact-strong { border-color: transparent; background: var(--accent); color: var(--background-0); }
   .context-meter-compact-strong:hover:not(:disabled) { background: var(--accent-hover); }
