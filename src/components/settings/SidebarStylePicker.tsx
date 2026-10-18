@@ -1,5 +1,5 @@
 import { useId, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
-import type { Project, Session } from "@/client/types";
+import type { AppSettings, Project, Session } from "@/client/types";
 import { ArrowLeft, ArrowRight, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
@@ -15,7 +15,7 @@ import "@/styles/header-tabs.css";
 import "@/styles/conversation-sidebar.css";
 import "@/styles/sidebar-style-picker.css";
 
-export type SidebarStyleChoice = "rail" | "list" | "project" | "hidden";
+export type SidebarStyleChoice = AppSettings["sidebarMode"];
 
 /** The scene each thumbnail draws at full size before scaling it down (px). */
 const SCENE_WIDTH = 1000;
@@ -153,20 +153,18 @@ function Scene({ choice, sample }: { choice: SidebarStyleChoice; sample: Sample 
     rail: <><Rail /><Main sample={sample} switcher /></>,
     list: <><ListSidebar sample={sample} /><Main sample={sample} switcher={false} /></>,
     project: <><ProjectSidebar sample={sample} /><Main sample={sample} switcher={false} /></>,
-    hidden: <Main sample={sample} switcher />,
   };
-  return <span className="sidebar-thumb-scene" data-choice={choice} inert>{choice === "hidden" || choice === "rail" ? <Lights /> : null}{parts[choice]}</span>;
+  return <span className="sidebar-thumb-scene" data-choice={choice} inert>{choice === "rail" ? <Lights /> : null}{parts[choice]}</span>;
 }
 
 const CHOICES = [
   { value: "rail", label: "sidebarList.styleRail", help: "sidebarList.styleRailHelp" },
   { value: "list", label: "sidebarList.styleList", help: "sidebarList.styleListHelp" },
   { value: "project", label: "sidebarList.styleProject", help: "sidebarList.styleProjectHelp" },
-  { value: "hidden", label: "sidebarList.styleHidden", help: "sidebarList.styleHiddenHelp" },
 ] as const satisfies readonly { value: SidebarStyleChoice; label: string; help: string }[];
 
 /**
- * Settings → Appearance → Sidebar (ADR-139, round 2): four native radio cards, each with a
+ * Settings → Appearance → Sidebar (ADR-139, round 2): three native radio cards, each with a
  * still miniature of the window in that style, drawn from the person's own projects and
  * conversations. Mounted only while the Appearance page shows; no animation, no IPC.
  */

@@ -38,17 +38,17 @@
   /* Fixed-height items so the window can place them without measuring each one. */
   /* By project: one folder row per project (a real button with aria-expanded). */
   .conversation-folder { position: relative; display: flex; align-items: center; height: 32px; flex-shrink: 0; padding: 1px 0; }
-  .conversation-folder-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; height: 30px; padding: 0 30px 0 6px; border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--text-ui-13); text-align: left; transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .conversation-folder-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 8px; border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--text-ui-13); text-align: left; transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .conversation-folder-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-folder-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
-  .conversation-folder-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out); }
+  .conversation-folder-chevron { margin-left: auto; flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
   .conversation-folder[data-open] .conversation-folder-chevron { rotate: 90deg; }
   .conversation-folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .conversation-folder-count { margin-left: auto; flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
   .conversation-group-new { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out); }
-  .conversation-folder > .conversation-group-new { position: absolute; right: 6px; top: 50%; translate: 0 -50%; }
+  /* New conversation shows on hover just before the chevron, which stays at the end. */
+  .conversation-folder > .conversation-group-new { position: absolute; right: 28px; top: 50%; translate: 0 -50%; }
   .conversation-folder:is(:hover, :focus-within) .conversation-group-new { opacity: 1; }
-  .conversation-folder:is(:hover, :focus-within) .conversation-folder-count { opacity: 0; }
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-name { margin-right: 24px; }
   .conversation-group-new:hover { background: var(--navigation-hover); color: var(--text-primary); }
 
   /* Project style: Pinned, Today, This week, Older. */
@@ -73,8 +73,23 @@
   .conversation-row-branch { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .header-tab-status[data-status="unread"] { background: var(--info); }
 
-  /* In a folder: the dot, title and age on one line, branch and model below, indented. */
-  .conversation-row[data-variant="nested"] { padding-left: 18px; }
+  /* In a folder: one line under a thin guide from the folder (dot, title, branch, model, age). */
+  .conversation-row[data-variant="nested"], .conversation-more { position: relative; height: 32px; padding-left: 20px; }
+  .conversation-row[data-variant="nested"]::before, .conversation-more::before { content: ""; position: absolute; left: 15px; top: 0; bottom: 0; width: 1px; background: var(--border-subtle); }
+  .conversation-row[data-variant="nested"] .conversation-row-open { height: 30px; justify-content: center; padding: 0 10px; border-radius: var(--radius-md); }
+  .conversation-row[data-variant="nested"] .conversation-row-title { gap: 6px; }
+  .conversation-row[data-variant="nested"] .conversation-row-title > span:not([class]) { flex: 1 1 auto; }
+  .conversation-row[data-variant="nested"] .conversation-row-title > .conversation-row-branch { flex: 0 12 auto; max-width: 35%; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-ui-11); }
+  .conversation-row-dot-space { width: 6px; flex-shrink: 0; }
+  .conversation-more-toggle { display: flex; width: 100%; height: 30px; align-items: center; padding: 0 10px 0 22px; border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-ui-12); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .conversation-more-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
+  .conversation-more-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
+  /* Opening grows each row in from the folder; closing folds them up together. */
+  :is(.conversation-row, .conversation-more)[data-motion] { overflow: hidden; }
+  :is(.conversation-row, .conversation-more)[data-motion="open"] { animation: conversation-folder-in 260ms var(--ease-out) both; animation-delay: calc(min(var(--row-index, 0), 8) * 18ms); }
+  :is(.conversation-row, .conversation-more)[data-motion="close"] { animation: conversation-folder-out 170ms var(--ease-out) both; }
+  @keyframes conversation-folder-in { from { height: 0; opacity: 0; translate: 0 -4px; } }
+  @keyframes conversation-folder-out { to { height: 0; opacity: 0; translate: 0 -4px; } }
   .conversation-row:not([data-variant="full"]) .conversation-row-title > .conversation-row-age { margin-left: auto; padding-left: 6px; }
   .conversation-row[data-variant="nested"] .conversation-row-open { gap: 2px; }
   /* Project style: one line, with a quiet dot when nothing is happening. */
@@ -103,7 +118,9 @@
   /* The content frame starts after the column instead of the rail. */
   [data-rail="list"] > .app-content-frame { left: var(--sidebar-list-width, 280px); transition: none; }
 
+  html:is([data-animations="off"], [data-reduce-motion="on"]) :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
   @media (prefers-reduced-motion: reduce) {
+    :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
     .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-group-new, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-folder-chevron, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
   }
 }

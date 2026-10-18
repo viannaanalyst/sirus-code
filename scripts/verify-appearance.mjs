@@ -14,9 +14,9 @@ try {
     const settings = mergeSettings({ locale, theme, darkWindowTranslucent: glass, lightWindowTranslucent: glass });
     snapshot.settings = settings;
     const html = renderToString(createElement(AppearanceSettings, { settings, host: { appearanceSupport: { translucency: true, dockIcon: true } }, onSave() {} }));
-    // Three theme cards and four sidebar style cards (ADR-139, round 2).
-    assert.equal((html.match(/type="radio"/g) ?? []).length, 7);
-    assert.equal((html.match(/sidebar-thumb-scene/g) ?? []).length, 4);
+    // Three theme cards and three sidebar style cards (ADR-139, round 3).
+    assert.equal((html.match(/type="radio"/g) ?? []).length, 6);
+    assert.equal((html.match(/sidebar-thumb-scene/g) ?? []).length, 3);
     assert.ok((html.match(/<input[^>]+type="radio"[^>]*>/g) ?? []).some(input => input.includes(`value="${theme}"`) && input.includes('checked=""')));
     assert.ok(html.includes(locale === "en" ? "System" : "Sistema"));
     assert.ok(html.includes(locale === "en" ? "Light" : "Claro"));

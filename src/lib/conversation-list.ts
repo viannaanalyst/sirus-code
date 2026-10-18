@@ -20,7 +20,9 @@ export type ConversationTimeGroup = "pinned" | "today" | "week" | "older";
 export type ConversationListItem =
   | { kind: "folder"; key: string; project: Project; count: number; status: TabStatus; open: boolean }
   | { kind: "time"; key: string; group: ConversationTimeGroup }
-  | { kind: "session"; key: string; session: Session; project: Project; pinned: boolean; nested: boolean };
+  | { kind: "session"; key: string; session: Session; project: Project; pinned: boolean; nested: boolean }
+  /** Under an open folder past `FOLDER_PREVIEW` conversations: Show more (`hidden` > 0) or Show less. */
+  | { kind: "more"; key: string; projectId: string; hidden: number };
 
 /** The list and Project styles are both a resizable column (ADR-139); the rail is 52 px. */
 export function isColumnSidebar(mode: AppSettings["sidebarMode"]): boolean {
@@ -29,6 +31,9 @@ export function isColumnSidebar(mode: AppSettings["sidebarMode"]): boolean {
 
 /** Most project folders remembered as open (validated natively too). */
 export const SIDEBAR_OPEN_FOLDERS_LIMIT = 100;
+
+/** An open folder shows this many conversations until Show more. */
+export const FOLDER_PREVIEW = 5;
 
 /** Default, narrowest and widest list column (px); the column is resizable within these. */
 export const CONVERSATION_LIST_WIDTH = 280;
@@ -65,13 +70,18 @@ export function conversationSortKeys(sessions: readonly Session[], settings: Con
 /** Options of the list rows: the order inputs plus which project folders are open. */
 export interface ConversationListOptions extends SessionOrderOptions {
   openFolders?: ReadonlySet<string>;
+  /** Folders showing all their conversations (Show more); the rest show `FOLDER_PREVIEW`. */
+  fullFolders?: ReadonlySet<string>;
+  /** Shown even past the preview (the selected conversation). */
+  keep?: string | null;
 }
 
 /**
  * Rows of the list. "recent": pinned conversations first (in pin order), then the rest by
  * attention rank and last activity. "project": one folder per project that has conversations,
  * projects ordered by their most recent conversation; an open folder is followed by its
- * conversations (pinned ones first), marked `nested`.
+ * conversations (pinned ones first), marked `nested`: the first `FOLDER_PREVIEW` (plus `keep`)
+ * and a Show more row, or all of them and Show less when the folder is in `fullFolders`.
  */
 export function conversationListItems(projects: readonly Project[], sessions: readonly Session[], settings: ConversationListSettings, order: ConversationListOrder, options: ConversationListOptions = {}): ConversationListItem[] {
   const byId = new Map(projects.map(project => [project.id, project]));
@@ -100,7 +110,12 @@ export function conversationListItems(projects: readonly Project[], sessions: re
     const project = byId.get(projectId)!;
     const open = options.openFolders?.has(projectId) ?? false;
     items.push({ kind: "folder", key: `folder:${projectId}`, project, count: members.length, status: folderStatus(members, options.unseen, options.computer), open });
-    if (open) for (const session of [...members].sort(compare)) items.push(row(session, true));
+    if (!open) continue;
+    const ordered = [...members].sort(compare);
+    const full = options.fullFolders?.has(projectId) ?? false;
+    const shown = full || ordered.length <= FOLDER_PREVIEW ? ordered : ordered.filter((session, index) => index < FOLDER_PREVIEW || session.id === options.keep);
+    for (const session of shown) items.push(row(session, true));
+    if (ordered.length > FOLDER_PREVIEW) items.push({ kind: "more", key: `more:${projectId}`, projectId, hidden: ordered.length - shown.length });
   }
   return items;
 }

@@ -1,6 +1,6 @@
 /* Settings → Appearance → Sidebar (ADR-139, round 2): radio cards with still window miniatures. */
 @layer components {
-  .sidebar-style-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0; padding: 14px 16px 16px; border: 0; }
+  .sidebar-style-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 14px 16px 16px; border: 0; }
   .sidebar-style-option { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--border-default); border-radius: calc(var(--radius-lg) + 2px); cursor: pointer; transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
   .sidebar-style-option input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
   .sidebar-style-option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -38,7 +38,6 @@
   .sidebar-thumb-main { display: flex; min-width: 0; flex: 1; flex-direction: column; }
   .sidebar-thumb-header { display: flex; align-items: center; gap: 8px; height: 46px; flex-shrink: 0; padding: 0 16px; border-bottom: 1px solid var(--border-subtle); }
   [data-choice="rail"] .sidebar-thumb-header { padding-left: 40px; }
-  [data-choice="hidden"] .sidebar-thumb-header { padding-left: 96px; }
   .sidebar-thumb-switcher { display: flex; align-items: center; gap: 6px; padding: 0 8px; color: var(--text-primary); font-size: 14px; font-weight: 500; white-space: nowrap; }
   .sidebar-thumb-tab { display: block; min-width: 90px; max-width: 260px; height: 28px; align-items: center; padding: 0 12px; overflow: hidden; border-radius: 999px; color: var(--text-muted); font-size: 13px; white-space: nowrap; text-overflow: ellipsis; }
   .sidebar-thumb-tab[data-on] { line-height: 28px; background: var(--navigation-selected); color: var(--text-secondary); }

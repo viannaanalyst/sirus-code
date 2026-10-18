@@ -75,10 +75,10 @@ try {
     snapshot.mainView = "session";
     assert.ok(!render(createElement(HeaderTabs)).match(/class="[^"]*\bheader-project\b/), "the sidebar holds the switcher in the Project style");
 
-    // Settings → Appearance → Sidebar: four radio cards with still miniatures of the person's projects.
+    // Settings → Appearance → Sidebar: three radio cards (no Hidden: ⌘B hides any style) with still miniatures of the person's projects.
     const picker = render(createElement(SidebarStylePicker, { value: "project", onChange: () => {} }));
-    assert.equal((picker.match(/type="radio"/g) ?? []).length, 4);
-    assert.equal((picker.match(/sidebar-thumb-scene/g) ?? []).length, 4);
+    assert.equal((picker.match(/type="radio"/g) ?? []).length, 3);
+    assert.equal((picker.match(/sidebar-thumb-scene/g) ?? []).length, 3);
     assert.ok(/checked="" value="project"/.test(picker) && picker.includes("Project alpha") && picker.includes("Session alpha-old"));
     assert.ok(picker.includes(locale === "en" ? "Conversation list" : "Lista de conversas") && !/uppercase/.test(picker));
     assert.ok(!/<button/.test(picker), "the miniatures hold no controls");

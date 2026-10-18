@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Project, Session } from "../src/client/types.ts";
 import { mergeSettings } from "../src/lib/settings.ts";
-import { clampConversationListWidth, conversationListItems, conversationSortKeys, conversationTimeGroup, expandOpenFolder, folderStatus, isColumnSidebar, itemOffsets, listedConversations, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, CONVERSATION_LIST_MAX_WIDTH, CONVERSATION_LIST_MIN_WIDTH, SIDEBAR_OPEN_FOLDERS_LIMIT, type ConversationListItem } from "../src/lib/conversation-list.ts";
+import { clampConversationListWidth, conversationListItems, conversationSortKeys, conversationTimeGroup, expandOpenFolder, folderStatus, isColumnSidebar, itemOffsets, listedConversations, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, CONVERSATION_LIST_MAX_WIDTH, FOLDER_PREVIEW, CONVERSATION_LIST_MIN_WIDTH, SIDEBAR_OPEN_FOLDERS_LIMIT, type ConversationListItem } from "../src/lib/conversation-list.ts";
 
 const project = (id: string): Project => ({ id, name: id, path: `/fixture/${id}`, addedAt: "time", lastOpenedAt: "time" });
 const projects = [project("a"), project("b")];
 const session = (id: string, projectId: string, lastActivityAt: string, extra: Partial<Session> = {}): Session => ({ id, title: id, projectId, agent: "codex", status: "completed", createdAt: "2026-01-01", lastActivityAt, worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null, ...extra });
-const keys = (items: readonly ConversationListItem[]) => items.map(item => item.kind === "folder" ? `${item.open ? "v" : ">"}${item.project.id}` : item.kind === "time" ? `@${item.group}` : item.session.id);
+const keys = (items: readonly ConversationListItem[]) => items.map(item => item.kind === "folder" ? `${item.open ? "v" : ">"}${item.project.id}` : item.kind === "time" ? `@${item.group}` : item.kind === "more" ? `+${item.hidden}` : item.session.id);
 const open = (...ids: string[]) => ({ openFolders: new Set(ids) });
 
 const sessions = [
@@ -71,6 +71,18 @@ test("By project is folders only, ordered by each project's latest unpinned conv
   assert.ok(items.every(item => item.kind !== "session" || item.nested));
   assert.ok(conversationListItems(projects, sessions, settings, "recent").every(item => item.kind === "session" && !item.nested));
   assert.deepEqual(keys(conversationListItems(projects, [], settings, "project")), []);
+});
+
+test("an open folder shows its first conversations and Show more; full, all of them and Show less; the selected one always shows", () => {
+  const settings = mergeSettings({});
+  const many = Array.from({ length: FOLDER_PREVIEW + 3 }, (_, index) => session(`a${index}`, "a", `2026-02-${String(20 - index).padStart(2, "0")}`));
+  const preview = conversationListItems(projects, many, settings, "project", open("a"));
+  assert.deepEqual(keys(preview), ["va", ...many.slice(0, FOLDER_PREVIEW).map(row => row.id), "+3"]);
+  const kept = conversationListItems(projects, many, settings, "project", { ...open("a"), keep: "a7" });
+  assert.deepEqual(keys(kept), ["va", ...many.slice(0, FOLDER_PREVIEW).map(row => row.id), "a7", "+2"]);
+  const full = conversationListItems(projects, many, settings, "project", { ...open("a"), fullFolders: new Set(["a"]) });
+  assert.deepEqual(keys(full), ["va", ...many.map(row => row.id), "+0"]);
+  assert.deepEqual(keys(conversationListItems(projects, many.slice(0, FOLDER_PREVIEW), settings, "project", open("a"))).at(-1), many[FOLDER_PREVIEW - 1].id);
 });
 
 test("a folder's dot is its most urgent conversation: working, then waiting, then unread", () => {

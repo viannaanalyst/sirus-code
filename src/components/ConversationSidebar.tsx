@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
@@ -165,6 +165,10 @@ function OrderMenu({ style }: { style: ColumnStyle }) {
  * measured: conversation rows, and headers — project folders or time groups). The order holds
  * still while the pointer is over the list (ADR-121) and settles when it leaves.
  */
+/** Folder rows grow in over this long (with their stagger), and fold away before leaving. */
+const FOLDER_OPEN_MS = 420;
+const FOLDER_CLOSE_MS = 170;
+
 function ConversationList({ style }: { style: ColumnStyle }) {
   const t = useTranslation();
   const projects = useAppStore(state => state.projects);
@@ -195,10 +199,33 @@ function ConversationList({ style }: { style: ColumnStyle }) {
 
   // Project folders (By project): the saved open ones, else the selected project's.
   const openFolders = useMemo(() => new Set(openFolderIds(savedOpenFolders, selectedProjectId)), [savedOpenFolders, selectedProjectId]);
+  // Opening grows the folder's rows in; closing folds them away before they leave the list.
+  const reduced = useMotionPreferences();
+  const [folderMotion, setFolderMotion] = useState<{ projectId: string; kind: "open" | "close" } | null>(null);
+  const motionTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(motionTimer.current), []);
   const toggleFolder = useCallback((projectId: string) => {
     const state = store();
-    saveSettings({ sidebarOpenFolders: toggleOpenFolder(openFolderIds(state.settings.sidebarOpenFolders, state.selectedProjectId), projectId) });
-  }, []);
+    const open = openFolderIds(state.settings.sidebarOpenFolders, state.selectedProjectId);
+    const save = () => saveSettings({ sidebarOpenFolders: toggleOpenFolder(open, projectId) });
+    window.clearTimeout(motionTimer.current);
+    if (reduced) { setFolderMotion(null); save(); return; }
+    if (open.includes(projectId)) {
+      setFolderMotion({ projectId, kind: "close" });
+      motionTimer.current = window.setTimeout(() => { save(); setFolderMotion(null); }, FOLDER_CLOSE_MS);
+    } else {
+      save();
+      setFolderMotion({ projectId, kind: "open" });
+      motionTimer.current = window.setTimeout(() => setFolderMotion(null), FOLDER_OPEN_MS);
+    }
+  }, [reduced]);
+  // Show more / Show less per folder, for this window only.
+  const [fullFolders, setFullFolders] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleFull = useCallback((projectId: string) => setFullFolders(current => {
+    const next = new Set(current);
+    if (!next.delete(projectId)) next.add(projectId);
+    return next;
+  }), []);
   // Selecting a conversation (anywhere: tabs, palette, Inbox) opens its folder.
   const seenSelection = useRef(selectedSessionId);
   useEffect(() => {
@@ -214,8 +241,8 @@ function ConversationList({ style }: { style: ColumnStyle }) {
   const groupNow = order === "time" ? now : 0;
   const items = useMemo(() => order === "time"
     ? projectConversationItems(projects, sessions, listSettings, selectedProjectId, groupNow, { unseen, computer, held: held.keys })
-    : conversationListItems(projects, sessions, listSettings, order, { unseen, computer, held: held.keys, openFolders }),
-  [order, projects, sessions, listSettings, selectedProjectId, groupNow, unseen, computer, held, openFolders]);
+    : conversationListItems(projects, sessions, listSettings, order, { unseen, computer, held: held.keys, openFolders, fullFolders, keep: selectedSessionId }),
+  [order, projects, sessions, listSettings, selectedProjectId, selectedSessionId, groupNow, unseen, computer, held, openFolders, fullFolders]);
 
   // Windowing: only the items near the visible area mount past the threshold.
   const viewport = useRef<HTMLDivElement>(null);
@@ -274,18 +301,26 @@ function ConversationList({ style }: { style: ColumnStyle }) {
     ];
   }, [menuSession, moveItems, t]);
 
+  // Position under its folder, for the open stagger.
+  let depth = 0;
   const empty = order === "time" && !projects.some(project => project.id === selectedProjectId) ? t("sidebarList.noProject") : t(order === "time" ? "sidebarList.emptyProject" : "sidebarList.empty");
   return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
     onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)}>
     {items.length ? <ContextMenu activation="context-only" label={t("session.actions")} items={menuItems}>
       <div ref={inner} className="conversation-sidebar-rows" style={windowed ? { paddingTop: offsets[start], paddingBottom: offsets[items.length] - offsets[end] } : undefined}
         onContextMenuCapture={event => setMenuId((event.target as HTMLElement).closest<HTMLElement>("[data-conversation]")?.dataset.conversation ?? null)}>
-        {items.slice(start, end).map(item => item.kind === "folder"
-          ? <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} open={item.open} onToggle={toggleFolder} />
-          : item.kind === "time"
-            ? <TimeHeader key={item.key} group={item.group} />
-            : <ConversationRow key={item.key} session={item.session} project={item.project} pinned={item.pinned} variant={order === "time" ? "compact" : item.nested ? "nested" : "full"}
-              active={item.session.id === selectedSessionId} status={tabStatus(item.session, unseen, computer)} age={relativeTime(item.session.lastActivityAt, now)} />)}
+        {items.slice(start, end).map(item => {
+          if (item.kind === "folder") depth = 0;
+          if (item.kind === "folder") return <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} open={item.open && folderMotion?.kind !== "close"} onToggle={toggleFolder} />;
+          if (item.kind === "time") return <TimeHeader key={item.key} group={item.group} />;
+          // Rows of the folder opening or closing animate, staggered from the folder down.
+          const projectId = item.kind === "more" ? item.projectId : item.project.id;
+          const motion = folderMotion?.projectId === projectId ? folderMotion.kind : undefined;
+          const row = depth++;
+          if (item.kind === "more") return <MoreRow key={item.key} projectId={item.projectId} hidden={item.hidden} motion={motion} depth={row} onToggle={toggleFull} />;
+          return <ConversationRow key={item.key} session={item.session} project={item.project} pinned={item.pinned} variant={order === "time" ? "compact" : item.nested ? "nested" : "full"}
+            active={item.session.id === selectedSessionId} status={tabStatus(item.session, unseen, computer)} age={relativeTime(item.session.lastActivityAt, now)} motion={motion} depth={row} />;
+        })}
       </div>
     </ContextMenu> : <p className="conversation-sidebar-empty">{empty}</p>}
     {action ? <SessionActionDialog session={action.session} action={action.kind} onClose={() => setAction(null)} /> : null}
@@ -298,20 +333,27 @@ function statusDotOf(status: TabStatus, active: boolean): "running" | "waiting" 
   return status === "running" || status === "waiting" ? status : status === "done" && !active ? "unread" : null;
 }
 
-/** By project: one folder per project; open, its conversations follow it, indented. */
+/** By project: one folder per project, its chevron at the end; open, its conversations follow it, indented. */
 const FolderRow = memo(function FolderRow({ project, count, status, open, onToggle }: { project: Project; count: number; status: TabStatus; open: boolean; onToggle: (projectId: string) => void }) {
   const t = useTranslation();
   const dot = statusDotOf(status, false);
   const label = [t("sidebarList.projectCount", { project: project.name, count }), dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
   return <div className="conversation-folder" data-list-kind="folder" data-open={open || undefined}>
     <button type="button" className="conversation-folder-toggle" aria-expanded={open} aria-label={label} onClick={() => onToggle(project.id)}>
-      <ChevronRight size={12} aria-hidden="true" className="conversation-folder-chevron" />
       <ProjectGlyph project={project} expanded={open} size={14} />
       <span className="conversation-folder-name">{project.name}</span>
       {dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : null}
-      <span className="conversation-folder-count" aria-hidden="true">{count}</span>
+      <ChevronRight size={12} aria-hidden="true" className="conversation-folder-chevron" />
     </button>
     <button type="button" className="conversation-group-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => void sidebarProjectAction(project.id, "new")}><SquarePen size={13} aria-hidden="true" /></button>
+  </div>;
+});
+
+/** Under an open folder with more than `FOLDER_PREVIEW` conversations: Show more or Show less. */
+const MoreRow = memo(function MoreRow({ projectId, hidden, motion, depth, onToggle }: { projectId: string; hidden: number; motion?: "open" | "close"; depth: number; onToggle: (projectId: string) => void }) {
+  const t = useTranslation();
+  return <div className="conversation-more" data-list-kind="more" data-motion={motion} style={motion ? { "--row-index": depth } as CSSProperties : undefined}>
+    <button type="button" className="conversation-more-toggle" onClick={() => onToggle(projectId)}>{hidden ? t("sidebarList.showMore", { count: hidden }) : t("sidebarList.showLess")}</button>
   </div>;
 });
 
@@ -323,24 +365,29 @@ const TimeHeader = memo(function TimeHeader({ group }: { group: ConversationTime
 
 /**
  * "full" (Recent): project and age with the live dot, the title, branch and model mark.
- * "nested" (in a folder): the dot, title and age, then branch and model mark.
+ * "nested" (in a folder): one line with the dot, title, the branch when the conversation has
+ * its own worktree, and age; the model is in the tooltip.
  * "compact" (Project style): the dot, title and age; branch and model in the tooltip.
  */
-const ConversationRow = memo(function ConversationRow({ session, project, status, active, pinned, age, variant }: { session: Session; project: Project; status: TabStatus; active: boolean; pinned: boolean; age: string; variant: "full" | "nested" | "compact" }) {
+const ConversationRow = memo(function ConversationRow({ session, project, status, active, pinned, age, variant, motion, depth = 0 }: { session: Session; project: Project; status: TabStatus; active: boolean; pinned: boolean; age: string; variant: "full" | "nested" | "compact"; motion?: "open" | "close"; depth?: number }) {
   const t = useTranslation();
   const dot = statusDotOf(status, active);
   const statusLabel = dot === "unread" ? t("sidebarList.unread") : dot ? t(`tabs.status.${dot}`) : null;
   const ageText = <span className="conversation-row-age">{age === "now" ? t("Now") : age}</span>;
   const dotMark = dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : variant === "compact" ? <span className="conversation-row-idle" aria-hidden="true" /> : null;
-  const title = <span className="conversation-row-title">{variant === "full" ? null : dotMark}{pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>{variant === "full" ? null : ageText}</span>;
+  const nested = variant === "nested";
+  const title = <span className="conversation-row-title">{variant === "full" ? null : dotMark ?? (nested ? <span className="conversation-row-dot-space" aria-hidden="true" /> : null)}{pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>
+    {nested && session.worktree.isolated ? <span className="conversation-row-branch">{session.worktree.branch}</span> : null}
+    {variant === "full" ? null : ageText}</span>;
   const detail = <span className="conversation-row-detail">
     <span className="conversation-row-branch">{session.worktree.branch}</span>
     <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
   </span>;
-  return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined}>
+  return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined}
+    data-motion={motion} style={motion ? { "--row-index": depth } as CSSProperties : undefined}>
     <button type="button" className="conversation-row-open" aria-current={active ? "page" : undefined}
       aria-label={[session.title, variant === "full" ? project.name : null, statusLabel].filter(Boolean).join(" · ")}
-      title={variant === "compact" ? [session.worktree.branch, session.model ?? session.agent].filter(Boolean).join(" · ") : undefined}
+      title={variant !== "full" ? [session.worktree.branch, session.model ?? session.agent].filter(Boolean).join(" · ") : undefined}
       onPointerDown={event => beginSplitDrag(event, session.id, session.title)}
       onClick={() => void useAppStore.getState().selectSession(session.id)}>
       {variant === "full" ? <span className="conversation-row-meta">
@@ -350,7 +397,7 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
         {dotMark}
       </span> : null}
       {title}
-      {variant === "compact" ? null : detail}
+      {variant === "full" ? detail : null}
     </button>
   </div>;
 });

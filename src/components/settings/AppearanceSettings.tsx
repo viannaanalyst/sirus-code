@@ -96,19 +96,17 @@ function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSa
   </SettingsGroup>;
 }
 
-/** Icon rail, conversation list, Project or hidden (ADR-139). Hidden keeps the chosen style for ⌘B to bring back. */
+/** Icon rail, conversation list or Project (ADR-139); ⌘B hides any of them, and picking one shows it. */
 function SidebarStyleGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
   const t = useTranslation();
-  const collapsed = useAppStore(state => state.sidebarCollapsed);
-  const choose = (choice: SidebarStyleChoice) => {
-    const sidebarCollapsed = choice === "hidden";
-    useAppStore.setState({ sidebarCollapsed });
-    onSave({ ...settings, sidebarCollapsed, sidebarMode: choice === "hidden" ? settings.sidebarMode : choice });
+  const choose = (sidebarMode: SidebarStyleChoice) => {
+    useAppStore.setState({ sidebarCollapsed: false });
+    onSave({ ...settings, sidebarCollapsed: false, sidebarMode });
   };
   return <SettingsGroup title={t("Sidebar")} card>
     {/* The row heads the cards and keeps "Sidebar style" in the Settings search. */}
     <SettingsRow title={t("sidebarList.style")} description={t("sidebarList.styleHelp")}>{null}</SettingsRow>
-    <SidebarStylePicker value={collapsed ? "hidden" : settings.sidebarMode} onChange={choose} />
+    <SidebarStylePicker value={settings.sidebarMode} onChange={choose} />
     {settings.sidebarMode === "list" && <SettingsRow title={t("sidebarList.order")} description={t("sidebarList.orderHelp")}><Select className="general-settings-select" label={t("sidebarList.order")} value={settings.sidebarListOrder} onChange={sidebarListOrder => onSave({ ...settings, sidebarListOrder })} options={[{ value: "recent", label: t("sidebarList.recent") }, { value: "project", label: t("sidebarList.byProject") }]} /></SettingsRow>}
   </SettingsGroup>;
 }
