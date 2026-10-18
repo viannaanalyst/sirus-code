@@ -136,7 +136,15 @@ pub(crate) fn session_cwd(data: &AppData, session: &Session) -> Result<PathBuf> 
         .iter()
         .find(|project| project.id == session.project_id)
         .ok_or_else(|| Error::not_found("project not found"))?;
-    let project_root = paths::ensure_dir(&PathBuf::from(&project.path))?;
+    let root = PathBuf::from(&project.path);
+    // Name the folder: a generic "path does not exist" reads like a missing CLI.
+    if !root.is_dir() {
+        return Err(Error::invalid_path(format!(
+            "The project folder was not found: {}. Move it back or remove the project and add it again.",
+            root.display()
+        )));
+    }
+    let project_root = paths::ensure_dir(&root)?;
     if session.worktree.isolated {
         let path = PathBuf::from(&session.worktree.path);
         if !path.exists() {
@@ -145,7 +153,14 @@ pub(crate) fn session_cwd(data: &AppData, session: &Session) -> Result<PathBuf> 
         }
         return paths::ensure_dir(&path);
     }
-    paths::ensure_within(&project_root, &PathBuf::from(&session.worktree.path))
+    let folder = PathBuf::from(&session.worktree.path);
+    if !folder.is_dir() {
+        return Err(Error::invalid_path(format!(
+            "The working folder was not found: {}.",
+            folder.display()
+        )));
+    }
+    paths::ensure_within(&project_root, &folder)
 }
 
 fn find_session_mut<'a>(data: &'a mut AppData, id: &str) -> Result<&'a mut Session> {

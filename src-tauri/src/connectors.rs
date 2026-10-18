@@ -680,25 +680,62 @@ async fn sign_in(connector: &Connector, open: impl FnOnce(&str) -> Result<()>) -
     save_tokens(&connector.id, &tokens)
 }
 
-/// A usable access token: refreshed first when it is about to expire. None when signed out
-/// or the refresh failed (the person signs in again).
+/// A usable access token: refreshed first when it is about to expire. None when signed out,
+/// or when the refresh failed and the old token has run out (the person signs in again).
 async fn access_token(id: &str) -> Option<String> {
     let tokens = load_tokens(id)?;
-    let expiring = tokens
-        .expires_at
-        .is_some_and(|at| at - now() < REFRESH_MARGIN_SECS);
-    if !expiring {
+    if !expiring(&tokens) {
         return Some(tokens.access_token);
     }
+    // Sessions starting together must not each spend the same refresh token: providers
+    // that rotate it would refuse every refresh but the first (and may revoke them all).
+    let gate = refresh_gate(id);
+    let _turn = gate.lock().await;
+    // Another session may have refreshed while this one waited.
+    let tokens = load_tokens(id)?;
+    if !expiring(&tokens) {
+        return Some(tokens.access_token);
+    }
+    match refresh(&tokens).await {
+        Some(fresh) => {
+            // A token that could not be stored still works for this session.
+            let _ = save_tokens(id, &fresh);
+            Some(fresh.access_token)
+        }
+        // A failed refresh keeps the old token for the time it has left.
+        None => still_valid(&tokens).then_some(tokens.access_token),
+    }
+}
+
+fn expiring(tokens: &Tokens) -> bool {
+    tokens
+        .expires_at
+        .is_some_and(|at| at - now() < REFRESH_MARGIN_SECS)
+}
+
+fn still_valid(tokens: &Tokens) -> bool {
+    tokens.expires_at.is_none_or(|at| at > now())
+}
+
+/// One refresh at a time per connector.
+fn refresh_gate(id: &str) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    static GATES: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>,
+    > = std::sync::OnceLock::new();
+    let mut gates = GATES
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    gates.entry(id.to_owned()).or_default().clone()
+}
+
+async fn refresh(tokens: &Tokens) -> Option<Tokens> {
     let (Some(refresh), Some(endpoint), Some(client_id)) = (
         tokens.refresh_token.as_deref(),
         tokens.token_endpoint.as_deref(),
         tokens.client_id.as_deref(),
     ) else {
-        return tokens
-            .expires_at
-            .is_some_and(|at| at > now())
-            .then_some(tokens.access_token);
+        return None;
     };
     let resource = tokens.resource.clone().unwrap_or_default();
     let mut pairs = vec![
@@ -713,17 +750,15 @@ async fn access_token(id: &str) -> Option<String> {
         pairs.push(("client_secret", secret));
     }
     let body = post_form(endpoint, &pairs).await.ok()?;
-    let fresh = tokens_from(
+    tokens_from(
         &body,
-        Some(&tokens),
+        Some(tokens),
         endpoint,
         client_id,
         tokens.client_secret.as_deref(),
         &resource,
     )
-    .ok()?;
-    save_tokens(id, &fresh).ok()?;
-    Some(fresh.access_token)
+    .ok()
 }
 
 // ---- Status and the command ----
@@ -992,6 +1027,25 @@ pub fn acp_servers(active: &[Active], init: &Value) -> Vec<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_refresh_keeps_the_old_token_while_it_lasts_and_refreshes_take_turns() {
+        let tokens = |expires_in: i64| -> Tokens {
+            serde_json::from_value(json!({"accessToken":"old","expiresAt": now() + expires_in}))
+                .unwrap()
+        };
+        assert!(expiring(&tokens(60)) && still_valid(&tokens(60)));
+        assert!(!expiring(&tokens(3600)));
+        assert!(!still_valid(&tokens(-5)));
+        assert!(std::sync::Arc::ptr_eq(
+            &refresh_gate("a"),
+            &refresh_gate("a")
+        ));
+        assert!(!std::sync::Arc::ptr_eq(
+            &refresh_gate("a"),
+            &refresh_gate("b")
+        ));
+    }
 
     /// Writes to the real Keychain, so it runs only when asked (`--ignored`).
     #[test]
