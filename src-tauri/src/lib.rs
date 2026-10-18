@@ -14,6 +14,8 @@ mod activity;
 mod agent;
 mod agent_output;
 mod agent_pool;
+#[cfg(feature = "desktop")]
+mod app_update;
 mod appearance;
 mod attachment_platform;
 mod attachments;
@@ -192,6 +194,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         // `sirus://new?…` prompt links (ADR-122); handled natively in `prompt_link`.
         .plugin(tauri_plugin_deep_link::init())
+        // In-app updates (ADR-140): driven from Rust only, no renderer permission.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // The main window reopens where and how big it was left. Visibility
         // stays ours: the window shows only after its glass is applied (ADR-098).
         .plugin(
@@ -279,6 +283,7 @@ pub fn run() {
             ci_autofix::start(app.handle().clone());
             pr_watch::start(app.handle().clone());
             prompt_link::install(app.handle());
+            app_update::start(app.handle());
             {
                 let state = app.state::<Arc<AppState>>().inner().clone();
                 let settings = state.data.lock().settings.clone();
@@ -316,6 +321,7 @@ pub fn run() {
             chat_background::chat_background_action,
             chat_background::chat_background_image,
             window_snap::window_snap_action,
+            app_update::app_update_action,
             project_look::project_look_action,
             project_look::pick_look_image,
             media_preview::media_preview,
@@ -467,6 +473,14 @@ pub fn run() {
                 tauri::RunEvent::Ready => {
                     // Tauri assigns its default Dock image during launch.
                     appearance::ready(app, app.state::<Arc<AppState>>().inner().clone());
+                }
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::Focused(true),
+                    ..
+                } if label == "main" => {
+                    // At most one update check every few hours (ADR-140).
+                    app_update::focused(app);
                 }
                 tauri::RunEvent::WindowEvent {
                     label,

@@ -380,6 +380,9 @@ export function HeaderTabs() {
   const mainView = useAppStore(state => state.mainView);
   const draft = useAppStore(state => (project ? !!state.draftTabByProject[project.id] : false));
   const showTabs = useAppStore(state => state.settings.showSessionTabs);
+  // The conversation list sidebar already lists every project's conversations (ADR-139).
+  const listSidebar = useAppStore(state => state.settings.sidebarMode === "list" && !state.sidebarCollapsed);
+  const switcher = listSidebar ? null : <><ProjectSwitcher /><span className="header-tabs-separator" aria-hidden="true" /></>;
   const { unseen, computer } = useWaitingSets();
   const runningTerminals = useAppStore(state => state.runningTerminals);
   const tabs = useMemo(() => (project ? visibleTabSessions(tabIds ?? [], sessions, project.id, archived) : []), [project, tabIds, sessions, archived]);
@@ -467,8 +470,7 @@ export function HeaderTabs() {
   if (!showTabs) {
     const current = sessions.find(session => session.id === selectedSessionId && mainView === "session");
     return <div className="header-tabs titlebar-no-drag">
-    <ProjectSwitcher />
-      <span className="header-tabs-separator" aria-hidden="true" />
+      {switcher}
       {current ? <span className="header-tab header-tab-single" data-active="">
         <TabGlyph agent={current.agent} status={tabStatus(current, unseen, computer)} label={label(current)} />
         <span className="header-tab-title"><span>{current.title}</span></span>
@@ -479,8 +481,7 @@ export function HeaderTabs() {
   }
 
   return <div className="header-tabs titlebar-no-drag">
-    <ProjectSwitcher />
-    <span className="header-tabs-separator" aria-hidden="true" />
+    {switcher}
     <div className="header-tabs-context">
       <ContextMenu activation="context-only" label={t("tabs.actions")} items={menuTab ? [
         { id: "close", label: t("tabs.close"), icon: <X size={15} />, onSelect: () => close(menuTab) },

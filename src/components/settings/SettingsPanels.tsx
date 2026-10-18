@@ -1,7 +1,8 @@
 import { useTranslation } from "@/i18n/use-translation";
 import type { AgentInstall, AgentProviderId, AppSettings, HostInfo, WorktreeLeftoverScan } from "@/client/types";
 import { formatDiskSize } from "@/lib/project-scripts";
-import { client } from "@/client";
+import { client, localClient } from "@/client";
+import { AppUpdateControl } from "@/components/AppUpdateToast";
 import { RefreshCw } from "@/components/icons/phosphor";
 import "@/styles/general-settings.css";
 import { KeybindingsSettings } from "./KeybindingsSettings";
@@ -259,6 +260,11 @@ export function SettingsPanels({
   return (
     <SettingsSection title={t("Advanced")}>
         <div className="general-settings">
+      {localClient ? <SettingsGroup title={t("About")} card>
+        <SettingsRow title={t("Updates")} description={t("Sirus Code looks for a new version when it opens and every few hours. Updates install only when you choose.")}>
+          <AppUpdateControl />
+        </SettingsRow>
+      </SettingsGroup> : null}
       <SettingsGroup title={t("Diagnostics")} card>
         <SettingsRow title={t("Developer logs")} description={t("Stores bounded lifecycle counts locally. Prompts, output, paths and credentials are excluded.")}>
           <Switch checked={settings.developerLogs} onChange={(developerLogs) => onSave({ ...settings, developerLogs })} />

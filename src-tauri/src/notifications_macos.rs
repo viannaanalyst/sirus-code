@@ -1,6 +1,6 @@
 //! AppKit sound previews and native UserNotifications. No renderer-selected
 //! identifiers, messages, URLs or audio files enter this module.
-use super::{Notice, Permission, Sound};
+use super::{Kind, Notice, Permission, Sound};
 use crate::runtime::{AppHandle, Emitter, Manager};
 use crate::{
     commands::AppState,
@@ -97,7 +97,14 @@ pub(super) async fn show(app: &AppHandle, notice: &Notice) -> Result<()> {
                 let content = UNMutableNotificationContent::new();
                 content.setTitle(&NSString::from_str(&notice.title));
                 content.setBody(&NSString::from_str(&notice.body));
-                let identifier = if notice.session_id.is_empty() {
+                let identifier = if notice.kind == Kind::PullRequest {
+                    // The pull request a click opens; a summary names none.
+                    format!(
+                        "sirus.pull:{}:{}",
+                        uuid::Uuid::new_v4(),
+                        notice.pull.as_deref().unwrap_or_default()
+                    )
+                } else if notice.session_id.is_empty() {
                     format!("sirus.test:{}", uuid::Uuid::new_v4())
                 } else {
                     format!(
@@ -213,6 +220,7 @@ define_class!(
             }
             let identifier = response.notification().request().identifier().to_string();
             let id = session_from_identifier(&identifier).map(str::to_owned);
+            let pull = pull_from_identifier(&identifier).map(str::to_owned);
             let app = self.ivars().app.clone();
             let dispatcher = app.clone();
             let _ = dispatcher.run_on_main_thread(move || {
@@ -220,7 +228,10 @@ define_class!(
                 if state.ensure_running().is_err() {
                     return;
                 }
-                if let Some(id) = &id {
+                // A pull request alert (ADR-050) opens the Pull requests page on that item.
+                if let Some(pull) = &pull {
+                    let _ = app.emit("notification-open", format!("pull:{pull}"));
+                } else if let Some(id) = &id {
                     let data = state.data.lock();
                     if !data.sessions.iter().any(|session| {
                         session.id == *id
@@ -252,6 +263,12 @@ fn session_from_identifier(identifier: &str) -> Option<&str> {
     uuid::Uuid::parse_str(id).ok()?;
     Some(id)
 }
+/// `owner/repo#n` of a pull request alert, or "" for a summary; anything else is refused.
+fn pull_from_identifier(identifier: &str) -> Option<&str> {
+    let (id, key) = identifier.strip_prefix("sirus.pull:")?.split_once(':')?;
+    uuid::Uuid::parse_str(id).ok()?;
+    (key.is_empty() || crate::models::valid_github_pin(key)).then_some(key)
+}
 pub(super) fn install(app: &AppHandle) {
     if !supported() {
         return;
@@ -274,6 +291,24 @@ mod tests {
         );
         assert_eq!(session_from_identifier("sirus.test:123"), None);
         assert_eq!(session_from_identifier("sirus.session:../../file"), None);
+    }
+    #[test]
+    fn pull_click_identifiers_only_resolve_valid_items() {
+        let id = uuid::Uuid::new_v4().to_string();
+        assert_eq!(
+            pull_from_identifier(&format!("sirus.pull:{id}:owner/repo#12")),
+            Some("owner/repo#12")
+        );
+        assert_eq!(pull_from_identifier(&format!("sirus.pull:{id}:")), Some(""));
+        assert_eq!(
+            pull_from_identifier(&format!("sirus.pull:{id}:../x#1")),
+            None
+        );
+        assert_eq!(pull_from_identifier("sirus.pull:nope:owner/repo#1"), None);
+        assert_eq!(
+            pull_from_identifier(&format!("sirus.session:{id}/notification")),
+            None
+        );
     }
     #[test]
     fn delegate_protocol_methods_are_registered() {

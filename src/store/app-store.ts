@@ -1,5 +1,6 @@
 import { hostFeatures } from "@/lib/phone-host";
 import { githubSeenFloor } from "@/lib/github-seen";
+import { planPullAlerts, pullRefreshDue } from "@/lib/github-notify";
 import { appendDiffComment } from "@/lib/diff-comment";
 import { startRecording, stopRecording } from "@/lib/browser-recordings";
 import { promptWantsBrowserCapture } from "@/lib/browser-url";
@@ -8,6 +9,7 @@ import { isUnansweredSend } from "@/client/remote-transport";
 import { activeSession, lastAssistantId, observedPromptAdmission, observedQueuedAdmission, PROMPT_QUEUE_LIMIT, queueBinding, sameQueueBinding, validQueuedPrompt, type PromptQueue } from "@/lib/prompt-queue";
 import { acknowledgeEditorSave, editorKey } from "@/lib/editor-state";
 import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
+import { clampConversationListWidth } from "@/lib/conversation-list";
 import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openTab as openTabRule, TAB_LIMIT, visibleTabSessions } from "@/lib/header-tabs";
 import { retainActivityNotifications } from "@/lib/notifications";
 import { isSnoozed } from "@/lib/snooze";
@@ -456,6 +458,43 @@ let projectRequestSequence = 0;
 let settingsSaveQueue: Promise<void> = Promise.resolve();
 /** Local saves still on their way: a `settings-changed` echo must not undo a newer local choice. */
 let settingsSavesPending = 0;
+/** When the open pull requests were last asked for (start-up, focus refresh or the page). */
+let lastOpenPullsRead: number | null = null;
+
+/**
+ * Pull request alerts after a list of open pull requests loads (ADR-050 amendment, 2026-10-18):
+ * remembers them in `githubNotified` first, so a restart never repeats one, then asks native,
+ * which confirms each against its own list and delivers through the person's channels. Silent
+ * until the first load ever has set `githubSeenFloor`.
+ */
+function announcePullRequests(data: import("@/client/types").GithubInbox) {
+  const { ready, settings, saveSettings } = useAppStore.getState();
+  if (!ready) return;
+  const plan = planPullAlerts(data.items, data.viewer, settings.githubSeen, settings.githubSeenFloor, settings.githubNotified);
+  if (plan.notified === settings.githubNotified) return;
+  void saveSettings({ ...settings, githubNotified: [...plan.notified] });
+  if (plan.alerts.length && settings.notifications.pullRequests) void client.notificationAction({ type: "pullRequests", items: plan.alerts }).catch(() => undefined);
+}
+
+/** Opens the Pull requests page from an alert, on its item when it names one. */
+export function openPullAlert(pull: string | undefined) {
+  const store = useAppStore.getState();
+  store.setSettingsOpen(false);
+  if (pull) useAppStore.setState({ pullsSelection: pull });
+  store.setMainView("pulls");
+}
+
+/**
+ * Reads the open pull requests again when the window comes back after a while, so new ones
+ * alert without polling: at most once per `PULL_REFRESH_INTERVAL_MS` (five minutes), counting
+ * every read, because each read runs one GitHub search per saved repository.
+ */
+function refreshPullsOnReturn() {
+  if (document.visibilityState === "hidden" || !pullRefreshDue(lastOpenPullsRead)) return;
+  const { ready, settings, loadGithubInbox } = useAppStore.getState();
+  if (!ready || settings.hiddenRailItems?.includes("pulls")) return;
+  void loadGithubInbox("pullRequest", "open");
+}
 const pinQueues = new Map<string, Promise<boolean>>();
 const browserBoundsSignatures = new Map<string, string>();
 const pullRequestRequests = new Map<string, { promise: Promise<void>; workspacePath: string; branch: string | null }>();
@@ -491,10 +530,10 @@ function persistDraftChanges(before: Record<string, string>, after: Record<strin
 /** Minimum chat width kept while the dock grows. */
 const MIN_CHAT_WIDTH = 440;
 
-function clampDockWidth(width: number, state: Pick<AppStore, "sidebarCollapsed">): number {
+function clampDockWidth(width: number, state: Pick<AppStore, "sidebarCollapsed" | "sidebarWidth" | "settings">): number {
   const viewport = typeof window === "undefined" ? 1440 : window.innerWidth;
-  // The sidebar is the icon rail only (ADR-092); collapsing hides it.
-  const sidebar = state.sidebarCollapsed ? 0 : SIDEBAR_RAIL_WIDTH;
+  // The sidebar is the icon rail (ADR-092) or the conversation list (ADR-139); collapsing hides it.
+  const sidebar = state.sidebarCollapsed ? 0 : state.settings.sidebarMode === "list" ? state.sidebarWidth : SIDEBAR_RAIL_WIDTH;
   const max = Math.max(320, viewport - sidebar - MIN_CHAT_WIDTH);
   return Math.min(max, Math.max(280, width));
 }
@@ -1815,11 +1854,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadGithubInbox: async (kind, state) => {
     const key = `${kind}:${state}`;
     if (get().githubInbox[key]?.loading) return;
+    if (key === "pullRequest:open") lastOpenPullsRead = Date.now();
     set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data: current.githubInbox[key]?.data ?? null, loading: true, error: null } } }));
     try {
       const response = await client.pullRequestAction({ type: "list", kind, state });
       const data = response.type === "inbox" ? response : null;
       set((current) => ({ githubInbox: { ...current.githubInbox, [key]: { data, loading: false, error: null } } }));
+      if (data && kind === "pullRequest" && state === "open") announcePullRequests(data);
       // The first list that loads marks everything already there as seen (no flood of unread dots).
       const { ready, settings, saveSettings } = get();
       if (data && ready && settings.githubSeenFloor === null && !data.failures.some((failure) => failure.status === "cliMissing" || failure.status === "authRequired"))
@@ -1943,9 +1984,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) { set({ error: formatUnknownError(error) }); }
   },
 
-  setSidebarWidth: (width) => set({ sidebarWidth: Math.min(420, Math.max(SIDEBAR_MIN_WIDTH, width)) }),
+  setSidebarWidth: (width) => set({ sidebarWidth: clampConversationListWidth(width) }),
   resizeSidebar: (delta) =>
-    set((state) => ({ sidebarWidth: Math.min(420, Math.max(SIDEBAR_MIN_WIDTH, state.sidebarWidth + delta)) })),
+    set((state) => ({ sidebarWidth: clampConversationListWidth(state.sidebarWidth + delta) })),
   toggleSidebar: () => {
     const sidebarCollapsed = !get().sidebarCollapsed;
     set({ sidebarCollapsed });
@@ -2690,17 +2731,25 @@ export async function bindRealtime() {
   try {
     unlisteners.push(await client.onActivityNotification((notice) => {
       useAppStore.setState((state) => {
-        if (!state.sessions.some(session => session.id === notice.sessionId) || state.activityNotifications.some(item => item.id === notice.id)) return {};
-        if (!state.settingsOpen && state.mainView === "session" && state.selectedSessionId === notice.sessionId && document.hasFocus()) return {};
+        const pull = notice.kind === "pullRequest";
+        if ((!pull && !state.sessions.some(session => session.id === notice.sessionId)) || state.activityNotifications.some(item => item.id === notice.id)) return {};
+        if (!state.settingsOpen && (pull ? state.mainView === "pulls" : state.mainView === "session" && state.selectedSessionId === notice.sessionId) && document.hasFocus()) return {};
         return { activityNotifications: retainActivityNotifications([...state.activityNotifications, notice], state.settings.notifications) };
       });
     }));
     unlisteners.push(await client.onNotificationOpen((sessionId) => {
+      // A pull request alert (ADR-050) sends `pull:owner/repo#n`, or `pull:` for a summary.
+      if (sessionId.startsWith("pull:")) { openPullAlert(sessionId.slice(5) || undefined); return; }
       const store = useAppStore.getState();
       if (!store.sessions.some(session => session.id === sessionId)) return;
       store.setSettingsOpen(false);
       void store.selectSession(sessionId);
     }));
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
+      window.addEventListener("focus", refreshPullsOnReturn);
+      document.addEventListener("visibilitychange", refreshPullsOnReturn);
+      unlisteners.push(() => { window.removeEventListener("focus", refreshPullsOnReturn); document.removeEventListener("visibilitychange", refreshPullsOnReturn); });
+    }
     unlisteners.push(await client.onWindowSnap((event) => { void receiveWindowSnap(event); }));
     unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
     void useAppStore.getState().ciAutofixAction({ type: "status" });

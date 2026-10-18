@@ -14,7 +14,13 @@ const entries = [];
 for (const [file, fixed] of Object.entries(files)) {
   const source = readFileSync(new URL(`../src/components/settings/${file}`, import.meta.url), "utf8");
   // In SettingsPanels each page is an `if (section === "…")` block; helpers below hold advanced/provider rows.
-  const marks = [...source.matchAll(/section === "([a-z]+)"/g)].map((match) => ({ at: match.index, id: match[1] }));
+  // A one-line `if (section === "x") return <Page />;` covers only its own line: the rows after it
+  // belong to the next page (or Advanced, the fallthrough).
+  const marks = [...source.matchAll(/section === "([a-z]+)"/g)].map((match) => {
+    const lineEnd = source.indexOf("\n", match.index);
+    const line = source.slice(source.lastIndexOf("\n", match.index) + 1, lineEnd < 0 ? undefined : lineEnd);
+    return { at: match.index, id: /\)\s*return\s.*;\s*$/.test(line) ? "advanced" : match[1] };
+  });
   let group = null;
   const groups = [...source.matchAll(/<SettingsGroup\b[^>]*?\btitle=\{t\("([^"]+)"\)\}/g)];
   for (const match of source.matchAll(helper)) {

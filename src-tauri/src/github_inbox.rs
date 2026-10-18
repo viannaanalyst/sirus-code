@@ -348,6 +348,105 @@ pub struct Detail {
     pub files_truncated: bool,
 }
 
+/// Why a pull request is worth an alert (ADR-050 amendment, 2026-10-18).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AlertReason {
+    Opened,
+    ReviewRequested,
+}
+
+/// A pull request alert built only from what native itself listed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullAlert {
+    /// `owner/repo#n`, as listed.
+    pub key: String,
+    pub repository: String,
+    pub number: u32,
+    pub author: String,
+    pub title: String,
+    pub reason: AlertReason,
+}
+
+/// The viewer and the open pull requests of the last open pull request list. A pull request
+/// alert can only name an item in it, so the renderer cannot make one up.
+static OPEN_PULLS: parking_lot::Mutex<Option<(Option<String>, Vec<Item>)>> =
+    parking_lot::Mutex::new(None);
+
+fn remember_open_pulls(inbox: &Inbox) {
+    let items = inbox
+        .items
+        .iter()
+        .filter(|item| item.kind == ItemKind::PullRequest && item.state == "open")
+        .cloned()
+        .collect();
+    *OPEN_PULLS.lock() = Some((inbox.viewer.clone(), items));
+}
+
+/// The alerts the last open pull request list confirms, in the asked order, one per item
+/// (a review request wins over the opening). Only open pull requests someone other than the
+/// viewer authored qualify, and a review request must name the viewer.
+pub fn pull_alerts(requests: &[(String, u32, AlertReason)]) -> Vec<PullAlert> {
+    let guard = OPEN_PULLS.lock();
+    let Some((viewer, items)) = guard.as_ref() else {
+        return vec![];
+    };
+    confirmed_alerts(viewer.as_deref(), items, requests)
+}
+
+fn confirmed_alerts(
+    viewer: Option<&str>,
+    items: &[Item],
+    requests: &[(String, u32, AlertReason)],
+) -> Vec<PullAlert> {
+    let Some(viewer) = viewer.filter(|viewer| !viewer.is_empty()) else {
+        return vec![];
+    };
+    let mut alerts: Vec<PullAlert> = Vec::new();
+    for (repository, number, reason) in requests {
+        let Some(item) = items.iter().find(|item| {
+            item.kind == ItemKind::PullRequest
+                && item.state == "open"
+                && item.number == *number
+                && item.repository.eq_ignore_ascii_case(repository)
+        }) else {
+            continue;
+        };
+        let Some(author) = item
+            .author
+            .as_deref()
+            .filter(|author| !author.is_empty() && !author.eq_ignore_ascii_case(viewer))
+        else {
+            continue;
+        };
+        let requested = item
+            .review_requests
+            .iter()
+            .any(|login| login.eq_ignore_ascii_case(viewer));
+        let reason = match reason {
+            AlertReason::ReviewRequested if !requested => continue,
+            AlertReason::Opened if requested => AlertReason::ReviewRequested,
+            reason => *reason,
+        };
+        let key = format!("{}#{}", item.repository, item.number);
+        if let Some(known) = alerts.iter_mut().find(|alert| alert.key == key) {
+            if reason == AlertReason::ReviewRequested {
+                known.reason = reason;
+            }
+            continue;
+        }
+        alerts.push(PullAlert {
+            key,
+            repository: item.repository.clone(),
+            number: item.number,
+            author: author.to_owned(),
+            title: item.title.clone(),
+            reason,
+        });
+    }
+    alerts
+}
+
 #[cfg_attr(feature = "desktop", tauri::command)]
 pub async fn pull_request_action(
     state: State<'_, Arc<AppState>>,
@@ -358,9 +457,13 @@ pub async fn pull_request_action(
     let repositories = native_task(move || owned_repositories(&snapshot)).await?;
     let binary = OsStr::new("gh");
     match action {
-        Action::List { kind, state } => Ok(Response::Inbox(
-            list(binary, repositories, kind, state).await,
-        )),
+        Action::List { kind, state } => {
+            let inbox = list(binary, repositories, kind, state).await;
+            if kind == ItemKind::PullRequest && state == ItemState::Open {
+                remember_open_pulls(&inbox);
+            }
+            Ok(Response::Inbox(inbox))
+        }
         Action::Detail {
             repository,
             number,
@@ -2095,5 +2198,76 @@ mod tests {
                 Err(error) => eprintln!("diff #{number}: {error:?}"),
             }
         }
+    }
+
+    fn pull(number: u32, author: Option<&str>, state: &str, reviewers: &[&str]) -> Item {
+        Item {
+            kind: ItemKind::PullRequest,
+            repository: "Owner/Repo".into(),
+            number,
+            title: format!("Change {number}"),
+            url: format!("https://github.com/Owner/Repo/pull/{number}"),
+            state: state.into(),
+            is_draft: false,
+            author: author.map(str::to_owned),
+            created_at: "2026-10-18T10:00:00Z".into(),
+            updated_at: "2026-10-18T10:00:00Z".into(),
+            head_ref: None,
+            base_ref: None,
+            additions: 0,
+            deletions: 0,
+            review_decision: None,
+            mergeable: None,
+            labels: vec![],
+            comment_count: 0,
+            assignees: vec![],
+            review_requests: reviewers.iter().map(|login| login.to_string()).collect(),
+            checks: None,
+        }
+    }
+
+    #[test]
+    fn pull_alerts_only_name_listed_open_pulls_by_someone_else() {
+        let items = vec![
+            pull(1, Some("ana"), "open", &[]),
+            pull(2, Some("Me"), "open", &["me"]),
+            pull(3, Some("bia"), "open", &["ME"]),
+            pull(4, Some("caio"), "merged", &[]),
+            pull(5, None, "open", &["me"]),
+            pull(6, Some("dani"), "open", &["other"]),
+        ];
+        let ask = |requests: &[(&str, u32, AlertReason)]| {
+            let requests: Vec<_> = requests
+                .iter()
+                .map(|(repo, n, reason)| (repo.to_string(), *n, *reason))
+                .collect();
+            confirmed_alerts(Some("me"), &items, &requests)
+                .into_iter()
+                .map(|alert| (alert.key, alert.reason, alert.author))
+                .collect::<Vec<_>>()
+        };
+        use AlertReason::{Opened, ReviewRequested};
+        assert_eq!(
+            ask(&[
+                ("owner/repo", 1, Opened),
+                ("owner/repo", 2, Opened),
+                ("owner/repo", 4, Opened),
+                ("owner/repo", 5, ReviewRequested),
+                ("owner/repo", 6, ReviewRequested),
+                ("owner/repo", 99, Opened),
+                ("other/repo", 1, Opened),
+            ]),
+            vec![("Owner/Repo#1".into(), Opened, "ana".into())]
+        );
+        // An opening that also asks for the viewer's review is one review alert.
+        assert_eq!(
+            ask(&[
+                ("owner/repo", 3, Opened),
+                ("owner/repo", 3, ReviewRequested)
+            ]),
+            vec![("Owner/Repo#3".into(), ReviewRequested, "bia".into())]
+        );
+        // Without a known viewer nothing qualifies.
+        assert!(confirmed_alerts(None, &items, &[("owner/repo".into(), 1, Opened)]).is_empty());
     }
 }

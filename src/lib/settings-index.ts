@@ -60,6 +60,18 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "appearance",
+  "title": "sidebarList.style",
+  "description": "sidebarList.styleHelp",
+  "group": "Sidebar"
+ },
+ {
+  "section": "appearance",
+  "title": "sidebarList.order",
+  "description": "sidebarList.orderHelp",
+  "group": "Sidebar"
+ },
+ {
+  "section": "appearance",
   "title": "Translucency",
   "description": null,
   "group": "Materials"
@@ -395,6 +407,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "group": "Activity alerts"
  },
  {
+  "section": "notifications",
+  "title": "Pull requests",
+  "description": "When someone else opens a pull request or asks for your review in a saved project's repository. Checked when Sirus Code opens and when you come back to it.",
+  "group": "Events and sounds"
+ },
+ {
   "section": "mcp",
   "title": "mcp.agents.enable",
   "description": "mcp.agents.enableHelp",
@@ -563,37 +581,43 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "group": "Display"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
+  "title": "Updates",
+  "description": "Sirus Code looks for a new version when it opens and every few hours. Updates install only when you choose.",
+  "group": "About"
+ },
+ {
+  "section": "advanced",
   "title": "Developer logs",
   "description": "Stores bounded lifecycle counts locally. Prompts, output, paths and credentials are excluded.",
   "group": "Diagnostics"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
   "title": "Open Sirus Code data directory",
   "description": null,
   "group": "Diagnostics"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
   "title": "Open logs folder",
   "description": null,
   "group": "Diagnostics"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
   "title": "Reset window layout",
   "description": "Clears sidebar collapse and panel widths in this session.",
   "group": "Diagnostics"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
   "title": "UI Arc components",
   "description": "Explore all 100 free components with local examples.",
   "group": "Diagnostics"
  },
  {
-  "section": "keybindings",
+  "section": "advanced",
   "title": "Experimental features",
   "description": null,
   "group": "Diagnostics"

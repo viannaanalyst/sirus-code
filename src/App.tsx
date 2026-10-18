@@ -13,7 +13,7 @@ import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { Archive, Folder, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
 import { WindowSnapToast } from "@/components/WindowSnapToast";
@@ -23,6 +23,7 @@ import { WorktreeReleaseToast } from "@/components/WorktreeReleaseToast";
 import { SnoozeToast } from "@/components/SnoozeToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
+import { AppUpdateToast } from "@/components/AppUpdateToast";
 import { CommandPalette } from "@/components/CommandPalette";
 import { EnvironmentPanel, EnvironmentToggle } from "@/components/EnvironmentPanel";
 import { RightDock } from "@/components/RightDock";
@@ -32,6 +33,7 @@ import { WindowNavigationControls } from "@/components/WindowNavigationControls"
 import { HeaderTabs } from "@/components/HeaderTabs";
 import { visibleTabSessions } from "@/lib/header-tabs";
 import { Sidebar } from "@/components/Sidebar";
+import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { applyAppearance } from "@/lib/settings";
 import { isConversationStarted } from "@/lib/appearance";
 import { useSystemPalette } from "@/lib/use-system-palette";
@@ -91,6 +93,10 @@ export default function App() {
   if (createProjectOpen && !createProjectMounted) setCreateProjectMounted(true);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
+  // The sidebar is the icon rail or the conversation list (ADR-139); ⌘B hides either.
+  const listSidebar = useAppStore((state) => state.settings.sidebarMode === "list");
+  const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const listShown = listSidebar && !sidebarCollapsed;
   const dockWidth = useAppStore((state) => state.dockWidth);
   const dockOpen = useAppStore((state) => state.dockOpen);
   const dockMaximized = useAppStore((state) => state.dockMaximized);
@@ -234,7 +240,12 @@ export default function App() {
       })),
       { id: "next-tab", combo: "Meta+Alt+ArrowRight", when: headerTabsVisible, run: () => selectHeaderTab((tabs, current) => tabs[(current + 1) % tabs.length]) },
       { id: "previous-tab", combo: "Meta+Alt+ArrowLeft", when: headerTabsVisible, run: () => selectHeaderTab((tabs, current) => tabs[(current - 1 + tabs.length) % tabs.length]) },
-      { id: "switch-project", combo: "Meta+Shift+P", when: headerTabsVisible, run: () => useAppStore.getState().setProjectSwitcherOpen(true) },
+      { id: "switch-project", combo: "Meta+Shift+P", when: headerTabsVisible, run: () => {
+        const store = useAppStore.getState();
+        // The conversation list hides the header switcher: the palette lists projects instead.
+        if (store.settings.sidebarMode === "list" && !store.sidebarCollapsed) store.setPaletteOpen(true);
+        else store.setProjectSwitcherOpen(true);
+      } },
     ].map((binding) => {
 
       const entry = KEYBINDINGS.find((item) => item.id === binding.id);
@@ -248,13 +259,15 @@ export default function App() {
   return (
     <MotionConfig reducedMotion={reducedMotion ? "always" : "never"} transition={{ duration: reducedMotion ? 0 : motionTokens.fast, ease: motionTokens.ease }}>
     <TooltipProvider>
-      <div data-settings-open={settingsOpen} data-rail={sidebarCollapsed ? "hidden" : undefined} className="app-material relative flex h-dvh min-h-0 text-text-primary">
-        <WindowNavigationControls />
+      <div data-settings-open={settingsOpen} data-rail={sidebarCollapsed ? "hidden" : listSidebar ? "list" : undefined} className="app-material relative flex h-dvh min-h-0 text-text-primary"
+        style={listSidebar ? { "--sidebar-list-width": `${sidebarWidth}px` } as CSSProperties : undefined}>
+        {/* The conversation list carries its own back, forward and collapse buttons. */}
+        {listShown ? null : <WindowNavigationControls />}
         <div aria-hidden="true" className="app-content-frame" />
-        {/* The sidebar is the icon rail only (ADR-092); collapsing hides it. */}
-        <div className="sidebar-frame relative z-10 shrink-0 overflow-hidden" data-opening-part="rail" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? 0 : SIDEBAR_RAIL_WIDTH }}
+        {/* The icon rail (ADR-092) or the conversation list (ADR-139); collapsing hides it. */}
+        <div className="sidebar-frame relative z-10 shrink-0 overflow-hidden" data-opening-part="rail" data-motion={sidebarMotion ?? undefined} style={{ width: sidebarCollapsed ? 0 : listSidebar ? sidebarWidth : SIDEBAR_RAIL_WIDTH }}
           onTransitionEnd={event => { if (event.target === event.currentTarget && event.propertyName === "width") endSidebarMotion(); }}>
-          <Sidebar motion={sidebarMotion} />
+          {listSidebar ? <ConversationSidebar motion={sidebarMotion} /> : <Sidebar motion={sidebarMotion} />}
         </div>
 
         <AnimatePresence initial={false}>
@@ -268,7 +281,7 @@ export default function App() {
           <header
             data-tauri-drag-region
             data-opening-part="header"
-            className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"}`}
+            className={`titlebar-drag flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 pr-2 ${listShown ? "pl-2" : sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"}`}
           >
             {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
             {mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
@@ -354,6 +367,7 @@ export default function App() {
           <SnoozeToast />
           <ActivityNotifications />
           <ProviderUpdateToast />
+          <AppUpdateToast />
           <ImageGalleryHost />
           <AttachmentModal />
         </TopToastStack> : null}

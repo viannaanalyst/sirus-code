@@ -8,6 +8,7 @@ import { SIDEBAR_USAGE_LIMIT, USAGE_PROVIDER_IDS } from "./provider-usage";
 import { RAIL_ITEMS } from "./rail";
 import { normalizeConnectors } from "./connectors";
 import { normalizeGithubSeen, normalizeGithubSeenFloor } from "./github-seen";
+import { normalizeGithubNotified } from "./github-notify";
 
 export const defaultSettings: AppSettings = {
   notifications: defaultNotifications,
@@ -35,6 +36,7 @@ export const defaultSettings: AppSettings = {
   githubPins: [],
   githubSeen: {},
   githubSeenFloor: null,
+  githubNotified: [],
   railItemOrder: [],
   hiddenRailItems: [],
   railProjectShortcuts: [],
@@ -97,6 +99,8 @@ export const defaultSettings: AppSettings = {
   defaultModel: null,
   modelExecution: {},
   sidebarCollapsed: false,
+  sidebarMode: "rail",
+  sidebarListOrder: "recent",
   sidebarProjectOrder: [],
   sidebarProjectSortOrder: "manual",
   sidebarThreadSortOrder: "created_at",
@@ -189,6 +193,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     githubPins: [...new Set((value?.githubPins ?? []).filter((pin) => typeof pin === "string" && /^[A-Za-z0-9-]{1,100}\/[A-Za-z0-9._-]{1,100}#[1-9]\d{0,7}$/.test(pin)))].slice(0, 200),
     githubSeenFloor: normalizeGithubSeenFloor(value?.githubSeenFloor),
     githubSeen: normalizeGithubSeen(value?.githubSeen, normalizeGithubSeenFloor(value?.githubSeenFloor)),
+    githubNotified: normalizeGithubNotified(value?.githubNotified),
     disabledProviders: value?.disabledProviders ?? [],
     providerPaths: value?.providerPaths ?? {},
     modelExecution: value?.modelExecution ?? {},
@@ -206,6 +211,8 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     sidebarProjectSortOrder: value?.sidebarProjectSortOrder === "created_at" ? "created_at" : "manual",
     sidebarThreadSortOrder: value?.sidebarThreadSortOrder === "updated_at" ? "updated_at" : "created_at",
     sidebarAttentionFirst: value?.sidebarAttentionFirst === true,
+    sidebarMode: value?.sidebarMode === "list" ? "list" : "rail",
+    sidebarListOrder: value?.sidebarListOrder === "project" ? "project" : "recent",
     showEnvironmentUsage: typeof value?.showEnvironmentUsage === "boolean" ? value.showEnvironmentUsage : true,
     showEnvironmentRepository: typeof value?.showEnvironmentRepository === "boolean" ? value.showEnvironmentRepository : true,
     showEnvironmentEditor: typeof value?.showEnvironmentEditor === "boolean" ? value.showEnvironmentEditor : true,
@@ -389,7 +396,7 @@ function booleanPreference(value: unknown, fallback: boolean): boolean { return 
 export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess", "autoArchiveMerged", "autoArchiveInactiveDays"] as const satisfies readonly (keyof AppSettings)[];
 export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
-export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion"] as const satisfies readonly (keyof AppSettings)[];
+export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {
   const restored = { ...settings };
   for (const key of APPEARANCE_SETTING_KEYS) Object.assign(restored, { [key]: defaultSettings[key] });

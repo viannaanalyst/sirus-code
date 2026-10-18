@@ -65,6 +65,10 @@ export function NotificationSettings({ settings, onSave }: { settings: AppSettin
         <IconButton tooltip={false} label={t("Preview sound") + " · " + t(row.label)} disabled={busy || unavailable} onClick={() => void act({ type: "preview", sound: prefs[row.sound] })}><Play size={14} aria-hidden="true" /></IconButton>
         <Switch label={t(row.label)} checked={prefs[row.key]} onChange={value => save({ [row.key]: value })} />
       </SettingsRow>)}
+      {/* Pull request alerts (ADR-050) play the completion sound. */}
+      <SettingsRow title={t("Pull requests")} description={t("When someone else opens a pull request or asks for your review in a saved project's repository. Checked when Sirus Code opens and when you come back to it.")}>
+        <Switch label={t("Pull requests")} checked={prefs.pullRequests} onChange={value => save({ pullRequests: value })} />
+      </SettingsRow>
     </SettingsGroup>
     {feedback && <p role="status" className="mt-4 ui-caption text-text-secondary">{t(feedback)}</p>}
     {failure && <p role="alert" className="mt-4 ui-caption text-danger">{t(failure)}</p>}

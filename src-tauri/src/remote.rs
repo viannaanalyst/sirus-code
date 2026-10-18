@@ -84,6 +84,8 @@ const DENIED: &[&str] = &[
     "window_ready",
     "chat_background_action",
     "share_push_identity",
+    // Updating replaces and restarts this Mac's app (ADR-140).
+    "app_update_action",
 ];
 
 const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.ts.net wss://*.ts.net; script-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'";

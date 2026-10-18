@@ -19,6 +19,7 @@ import { snoozeEnglish, snoozePortuguese } from "./snooze-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
 import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
+import { sidebarListEnglish, sidebarListPortuguese } from "./sidebar-list-strings";
 import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
 import { activityEnglish, activityPortuguese } from "./activity-strings";
 import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
@@ -37,6 +38,7 @@ import { orchestrationEnglish, orchestrationPortuguese } from "./orchestration-s
 import { promptLinkEnglish, promptLinkPortuguese } from "./prompt-link-strings";
 import { deviceEnglish, devicePortuguese } from "./device-strings";
 import { reviewGuideEnglish, reviewGuidePortuguese } from "./review-guide-strings";
+import { appUpdateEnglish, appUpdatePortuguese } from "./app-update-strings";
 export type Locale = "pt-BR" | "en";
 
 const dictionaries: Record<Locale, Record<string, string>> = {
@@ -65,6 +67,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...timelinePortuguese,
     ...teamPortuguese,
     ...sidebarUsagePortuguese,
+    ...sidebarListPortuguese,
     ...sideChatPortuguese,
     ...activityPortuguese,
     ...backgroundPortuguese,
@@ -80,6 +83,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...promptLinkPortuguese,
     ...devicePortuguese,
     ...reviewGuidePortuguese,
+    ...appUpdatePortuguese,
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[1]])),
     "common.search": "Buscar",
     "Add to chat": "Adicionar ao chat",
@@ -151,6 +155,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...timelineEnglish,
     ...teamEnglish,
     ...sidebarUsageEnglish,
+    ...sidebarListEnglish,
     ...sideChatEnglish,
     ...activityEnglish,
     ...backgroundEnglish,
@@ -166,6 +171,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...promptLinkEnglish,
     ...deviceEnglish,
     ...reviewGuideEnglish,
+    ...appUpdateEnglish,
     "shortcut.unsupported": "Use Command with a letter, number or punctuation. System and editing shortcuts are reserved.",
     "shortcut.conflict": "This combination belongs to another action. Choose another.",
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[0]])),

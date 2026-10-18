@@ -87,6 +87,7 @@ export function RightDock() {
   const activePaneId = useAppStore((state) => state.dockActivePaneId);
   const maximized = useAppStore((state) => state.dockMaximized);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
+  const listSidebar = useAppStore((state) => state.settings.sidebarMode === "list");
   const openDockPane = useAppStore((state) => state.openDockPane);
   const closeDockPane = useAppStore((state) => state.closeDockPane);
   const setActiveDockPane = useAppStore((state) => state.setActiveDockPane);
@@ -157,7 +158,7 @@ export function RightDock() {
       {/* Maximized, the panel takes the main header's place: its tabs start after the window
           buttons and the sidebar and history controls, like the header does. */}
       <div data-tauri-drag-region className={cn("flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 px-1.5",
-        maximized && (sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"))}>
+        maximized && (listSidebar && !sidebarCollapsed ? "pl-2" : sidebarCollapsed ? "pl-[calc(var(--window-controls-inset)+80px)]" : "pl-[calc(var(--window-controls-inset)+80px-52px)]"))}>
         <div className="flex h-full min-w-0 flex-1 [&>div]:h-full [&>div]:w-full [&>div]:min-w-0">
         <ContextMenu activation="context-only" label={t("dock.tabActions")} items={[
           ...(menuPane ? [{ id: "close", label: t("Close panel"), icon: <X size={15} />, onSelect: () => requestClose(menuPane) }] : []),

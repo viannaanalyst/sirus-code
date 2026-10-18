@@ -32,6 +32,7 @@ const LOCAL_COMMANDS = new Set([
   "chat_background_image",
   "notification_action",
   "device_action",
+  "app_update_action",
 ]);
 const LOCAL_COMMAND_PREFIXES = ["browser_"];
 
@@ -48,6 +49,7 @@ const LOCAL_EVENTS = new Set([
   "browser-state",
   "browser-capture",
   "browser-record-request",
+  "app-update",
 ]);
 
 export function runsOnThisMac(command: string): boolean {

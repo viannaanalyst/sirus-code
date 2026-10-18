@@ -577,6 +577,25 @@ pub enum SidebarThreadSortOrder {
     CreatedAt,
 }
 
+/// What the sidebar shows when it is not hidden (ADR-139): the icon rail or the
+/// conversation list. `sidebar_collapsed` still hides either one.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SidebarMode {
+    #[default]
+    Rail,
+    List,
+}
+
+/// The conversation list's order (ADR-139): flat by last activity, or grouped by project.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SidebarListOrder {
+    #[default]
+    Recent,
+    Project,
+}
+
 /// Closed choices for the global window snap shortcut.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -647,6 +666,9 @@ pub struct AppSettings {
     /// last seen (at most 500), and the time before which everything counts as seen.
     pub github_seen: std::collections::BTreeMap<String, String>,
     pub github_seen_floor: Option<String>,
+    /// Pull request alerts already given (ADR-050): `opened:owner/repo#n` or
+    /// `review:owner/repo#n`, newest first, at most 200, so a restart does not repeat them.
+    pub github_notified: Vec<String>,
     /// Rail item order and hidden items (closed IDs; Home cannot be hidden).
     pub rail_item_order: Vec<String>,
     pub hidden_rail_items: Vec<String>,
@@ -728,6 +750,9 @@ pub struct AppSettings {
     pub model_execution: std::collections::HashMap<String, ExecutionOptions>,
     #[serde(default)]
     pub sidebar_collapsed: bool,
+    /// Icon rail or conversation list (ADR-139); older settings load as the rail.
+    pub sidebar_mode: SidebarMode,
+    pub sidebar_list_order: SidebarListOrder,
     pub sidebar_project_order: Vec<String>,
     pub sidebar_project_sort_order: SidebarProjectSortOrder,
     pub sidebar_thread_sort_order: SidebarThreadSortOrder,
@@ -830,6 +855,7 @@ impl Default for AppSettings {
             github_pins: Vec::new(),
             github_seen: std::collections::BTreeMap::new(),
             github_seen_floor: None,
+            github_notified: Vec::new(),
             rail_item_order: Vec::new(),
             hidden_rail_items: Vec::new(),
             rail_project_shortcuts: Vec::new(),
@@ -892,6 +918,8 @@ impl Default for AppSettings {
             default_model: None,
             model_execution: Default::default(),
             sidebar_collapsed: false,
+            sidebar_mode: SidebarMode::Rail,
+            sidebar_list_order: SidebarListOrder::Recent,
             sidebar_project_order: Vec::new(),
             sidebar_project_sort_order: SidebarProjectSortOrder::Manual,
             sidebar_thread_sort_order: SidebarThreadSortOrder::CreatedAt,
@@ -929,6 +957,17 @@ pub const RAIL_ITEMS: [&str; 5] = ["home", "inbox", "tasks", "archived", "pulls"
 /// Most unread markers kept for the Pull requests page; the renderer drops the oldest.
 pub const GITHUB_SEEN_LIMIT: usize = 500;
 
+/// Most pull request alerts remembered so a restart does not repeat them (ADR-050).
+pub const GITHUB_NOTIFIED_LIMIT: usize = 200;
+
+/// `opened:owner/repo#n` or `review:owner/repo#n`.
+fn valid_github_notified(entry: &str) -> bool {
+    entry
+        .strip_prefix("opened:")
+        .or_else(|| entry.strip_prefix("review:"))
+        .is_some_and(valid_github_pin)
+}
+
 /// A strict RFC 3339 time as GitHub and `toISOString` write it.
 fn valid_seen_time(value: &str) -> bool {
     value.len() <= 40
@@ -938,7 +977,7 @@ fn valid_seen_time(value: &str) -> bool {
 }
 
 /// `owner/repo#number`, with the same repository charset as GitHub web URLs.
-fn valid_github_pin(pin: &str) -> bool {
+pub(crate) fn valid_github_pin(pin: &str) -> bool {
     let Some((repo, number)) = pin.split_once('#') else {
         return false;
     };
@@ -1033,6 +1072,23 @@ impl AppSettings {
             return Err(Error::new(
                 "invalid_settings",
                 "Invalid read pull requests.",
+            ));
+        }
+        if self.github_notified.len() > GITHUB_NOTIFIED_LIMIT
+            || self
+                .github_notified
+                .iter()
+                .any(|entry| !valid_github_notified(entry))
+            || self
+                .github_notified
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len()
+                != self.github_notified.len()
+        {
+            return Err(Error::new(
+                "invalid_settings",
+                "Invalid pull request alerts.",
             ));
         }
         let unique = |items: &[String]| {
@@ -1240,6 +1296,41 @@ mod settings_tests {
     }
 
     #[test]
+    fn github_notified_is_bounded_unique_and_closed() {
+        let with = |entries: Vec<String>| AppSettings {
+            github_notified: entries,
+            ..AppSettings::default()
+        };
+        assert!(serde_json::from_str::<AppSettings>("{}")
+            .unwrap()
+            .github_notified
+            .is_empty());
+        assert!(with(vec![
+            "opened:owner/repo#1".into(),
+            "review:owner/repo#1".into()
+        ])
+        .validate_controls()
+        .is_ok());
+        for bad in [
+            "owner/repo#1",
+            "merged:owner/repo#1",
+            "opened:owner/repo",
+            "review:o/../x#1",
+            "opened:",
+        ] {
+            assert!(with(vec![bad.into()]).validate_controls().is_err(), "{bad}");
+        }
+        assert!(with(vec!["opened:owner/repo#1".into(); 2])
+            .validate_controls()
+            .is_err());
+        let many: Vec<String> = (1..=GITHUB_NOTIFIED_LIMIT + 1)
+            .map(|n| format!("opened:owner/repo#{n}"))
+            .collect();
+        assert!(with(many.clone()).validate_controls().is_err());
+        assert!(with(many[1..].to_vec()).validate_controls().is_ok());
+    }
+
+    #[test]
     fn sidebar_usage_accepts_at_most_two_providers_that_report_usage() {
         let with = |ids: Vec<AgentProviderId>| AppSettings {
             sidebar_usage_providers: ids,
@@ -1363,6 +1454,33 @@ mod settings_tests {
                 "composerLineSpeed": invalid
             }))
             .is_err());
+        }
+    }
+    #[test]
+    fn sidebar_mode_and_list_order_are_backward_compatible_and_closed() {
+        let legacy: AppSettings = serde_json::from_str(r#"{"sidebarCollapsed":true}"#).unwrap();
+        assert!(legacy.sidebar_collapsed);
+        assert_eq!(legacy.sidebar_mode, SidebarMode::Rail);
+        assert_eq!(legacy.sidebar_list_order, SidebarListOrder::Recent);
+        for (field, allowed) in [
+            ("sidebarMode", ["rail", "list"]),
+            ("sidebarListOrder", ["recent", "project"]),
+        ] {
+            for value in allowed {
+                let settings: AppSettings =
+                    serde_json::from_value(serde_json::json!({ field: value })).unwrap();
+                assert_eq!(serde_json::to_value(settings).unwrap()[field], value);
+            }
+            for invalid in [
+                serde_json::json!("hidden"),
+                serde_json::json!(1),
+                serde_json::Value::Null,
+            ] {
+                assert!(serde_json::from_value::<AppSettings>(
+                    serde_json::json!({ field: invalid })
+                )
+                .is_err());
+            }
         }
     }
     #[test]

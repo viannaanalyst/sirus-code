@@ -19,7 +19,13 @@ mod host_commands {
     use std::path::Path;
 
     /// Modules that only exist in the desktop build; their commands stay on the Mac.
-    const DESKTOP_ONLY: &[&str] = &["browser", "browser_recording", "devices", "window_reveal"];
+    const DESKTOP_ONLY: &[&str] = &[
+        "app_update",
+        "browser",
+        "browser_recording",
+        "devices",
+        "window_reveal",
+    ];
 
     pub fn generate() {
         println!("cargo:rerun-if-changed=src");

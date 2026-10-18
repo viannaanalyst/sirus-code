@@ -39,6 +39,8 @@ pub struct Preferences {
     pub permissions: bool,
     pub questions: bool,
     pub completion: bool,
+    /// Someone else opened a pull request or asked for the person's review (ADR-050).
+    pub pull_requests: bool,
     pub permission_sound: Sound,
     pub question_sound: Sound,
     pub completion_sound: Sound,
@@ -53,6 +55,7 @@ impl Default for Preferences {
             permissions: true,
             questions: true,
             completion: true,
+            pull_requests: true,
             permission_sound: Sound::Ping,
             question_sound: Sound::Pop,
             completion_sound: Sound::Glass,
@@ -74,8 +77,27 @@ pub enum Action {
     Request {},
     Test {},
     Settings {},
-    Preview { sound: Sound },
+    Preview {
+        sound: Sound,
+    },
+    /// Pull requests the renderer found new since the person last looked (ADR-050). Native
+    /// keeps only those its own last open pull request list confirms and writes the text.
+    #[serde(rename = "pullRequests")]
+    PullRequests {
+        items: Vec<PullRequestRef>,
+    },
 }
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PullRequestRef {
+    repository: String,
+    number: u32,
+    reason: crate::github_inbox::AlertReason,
+}
+/// Most pull requests one alert request may name.
+const PULL_ALERT_REQUEST_LIMIT: usize = 50;
+/// At most this many pull requests get their own alert at once; the rest share one summary.
+const PULL_ALERT_BURST: usize = 3;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -87,6 +109,10 @@ pub enum Kind {
     /// A snoozed conversation came back (ADR-103). The person asked for it, so no event
     /// switch hides it; the channels (toasts, system, sounds, foreground) still apply.
     Reminder,
+    /// A pull request someone else opened or asked the person to review (ADR-050); follows
+    /// the pull requests switch and plays the completion sound.
+    #[serde(rename = "pullRequest")]
+    PullRequest,
 }
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -97,6 +123,10 @@ pub struct Notice {
     pub kind: Kind,
     pub title: String,
     pub body: String,
+    /// The pull request a click opens (`owner/repo#n`) when `kind` is `pullRequest`; a summary
+    /// has none and opens the Pull requests page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull: Option<String>,
 }
 
 #[derive(Default)]
@@ -183,6 +213,7 @@ fn choice(prefs: &Preferences, kind: Kind) -> (bool, Sound) {
         Kind::Question => (prefs.questions, prefs.question_sound),
         Kind::Completion | Kind::Failure => (prefs.completion, prefs.completion_sound),
         Kind::Reminder => (true, prefs.completion_sound),
+        Kind::PullRequest => (prefs.pull_requests, prefs.completion_sound),
     }
 }
 fn copy(kind: Kind, portuguese: bool) -> &'static str {
@@ -197,6 +228,8 @@ fn copy(kind: Kind, portuguese: bool) -> &'static str {
         (Kind::Failure, false) => "Task failed",
         (Kind::Reminder, true) => "Lembrete",
         (Kind::Reminder, false) => "Reminder",
+        (Kind::PullRequest, true) => "Novo pull request",
+        (Kind::PullRequest, false) => "New pull request",
     }
 }
 /// The phone alert's status line and the plural phrase its grouped form uses.
@@ -212,6 +245,8 @@ fn phone_status(kind: Kind, portuguese: bool) -> (&'static str, &'static str) {
         (Kind::Failure, false) => ("✕ Failed", "conversations failed"),
         (Kind::Reminder, true) => ("⏰ De volta", "conversas de volta"),
         (Kind::Reminder, false) => ("⏰ Back from snooze", "conversations back"),
+        (Kind::PullRequest, true) => ("Pull request", "novos pull requests"),
+        (Kind::PullRequest, false) => ("Pull request", "new pull requests"),
     }
 }
 fn kind_name(kind: Kind) -> &'static str {
@@ -221,6 +256,7 @@ fn kind_name(kind: Kind) -> &'static str {
         Kind::Completion => "completion",
         Kind::Failure => "failure",
         Kind::Reminder => "reminder",
+        Kind::PullRequest => "pullRequest",
     }
 }
 /// A phone alert: the conversation as the title, then what happened and
@@ -293,7 +329,7 @@ fn detail(session: &Session, key: &str, kind: Kind, portuguese: bool) -> Option<
             .find(|message| message.role == MessageRole::Agent)
             .and_then(|message| line(&message.content)),
         Kind::Failure => session.last_error.as_deref().and_then(line),
-        Kind::Reminder => None,
+        Kind::Reminder | Kind::PullRequest => None,
     }
 }
 
@@ -328,6 +364,7 @@ pub fn announce(app: &AppHandle, state: &Arc<AppState>, title: String, body: Str
         (data.settings.notifications.clone(), foreground)
     };
     let notice = Notice {
+        pull: None,
         created_at: chrono::Utc::now().timestamp_millis(),
         id: uuid::Uuid::new_v4().to_string(),
         session_id: String::new(),
@@ -390,6 +427,7 @@ pub fn remind(app: &AppHandle, state: &Arc<AppState>, session_id: &str) {
         let prefs = data.settings.notifications.clone();
         let portuguese = data.settings.locale == "pt-BR";
         let notice = Notice {
+            pull: None,
             created_at: chrono::Utc::now().timestamp_millis(),
             id: key,
             session_id: id.clone(),
@@ -511,6 +549,7 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
                 continue;
             }
             let notice = Notice {
+                pull: None,
                 created_at: chrono::Utc::now().timestamp_millis(),
                 id: key,
                 session_id: id.clone(),
@@ -558,6 +597,156 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
     });
 }
 
+/// "ana opened a pull request in owner/repo", with "#12 Title" under it.
+fn pull_text(alert: &crate::github_inbox::PullAlert, portuguese: bool) -> (String, String) {
+    use crate::github_inbox::AlertReason;
+    let (author, repository) = (
+        bounded_label(&alert.author),
+        bounded_label(&alert.repository),
+    );
+    let title = match (alert.reason, portuguese) {
+        (AlertReason::Opened, false) => format!("{author} opened a pull request in {repository}"),
+        (AlertReason::Opened, true) => format!("{author} abriu um pull request em {repository}"),
+        (AlertReason::ReviewRequested, false) => {
+            format!("{author} asked for your review in {repository}")
+        }
+        (AlertReason::ReviewRequested, true) => {
+            format!("{author} pediu sua revisão em {repository}")
+        }
+    };
+    (
+        title,
+        bounded_label(&format!("#{} {}", alert.number, alert.title)),
+    )
+}
+
+/// The summary after the first `PULL_ALERT_BURST` alerts: "3 more new pull requests" with
+/// their numbers under it.
+fn pull_summary(rest: &[crate::github_inbox::PullAlert], portuguese: bool) -> (String, String) {
+    let count = rest.len();
+    let title = match (count, portuguese) {
+        (1, false) => "1 more new pull request".to_owned(),
+        (_, false) => format!("{count} more new pull requests"),
+        (1, true) => "Mais 1 novo pull request".to_owned(),
+        (_, true) => format!("Mais {count} novos pull requests"),
+    };
+    let body = rest
+        .iter()
+        .map(|alert| alert.key.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    (title, bounded_label(&body))
+}
+
+/// The alerts shown on their own and those folded into the summary.
+fn burst<T>(alerts: &[T]) -> (&[T], &[T]) {
+    alerts.split_at(alerts.len().min(PULL_ALERT_BURST))
+}
+
+/// The memory key of one pull request alert: an item is announced once per reason.
+fn pull_alert_key(alert: &crate::github_inbox::PullAlert) -> String {
+    let reason = match alert.reason {
+        crate::github_inbox::AlertReason::Opened => "opened",
+        crate::github_inbox::AlertReason::ReviewRequested => "review",
+    };
+    format!("pull:{reason}:{}", alert.key.to_ascii_lowercase())
+}
+
+/// New pull requests (ADR-050 amendment, 2026-10-18): only items the last open pull request
+/// list confirms, each at most once per run (the renderer remembers them across restarts in
+/// `githubNotified`); the first `PULL_ALERT_BURST` alert on their own, the rest in one summary.
+fn announce_pulls(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    items: Vec<PullRequestRef>,
+) -> Result<()> {
+    if items.len() > PULL_ALERT_REQUEST_LIMIT {
+        return Err(notification_error("Too many pull requests."));
+    }
+    let requests: Vec<_> = items
+        .into_iter()
+        .map(|item| (item.repository, item.number, item.reason))
+        .collect();
+    let alerts = crate::github_inbox::pull_alerts(&requests);
+    let (prefs, portuguese) = {
+        let data = state.data.lock();
+        (
+            data.settings.notifications.clone(),
+            data.settings.locale == "pt-BR",
+        )
+    };
+    // Consume even with the switch off: turning it on later does not replay them.
+    let fresh: Vec<_> = {
+        let notification_state = app.state::<NotificationState>();
+        let mut seen = notification_state.seen.lock();
+        alerts
+            .into_iter()
+            .filter(|alert| remember(&mut seen, &pull_alert_key(alert)))
+            .collect()
+    };
+    if fresh.is_empty() || !prefs.pull_requests {
+        return Ok(());
+    }
+    let foreground = app
+        .get_webview_window("main")
+        .is_some_and(|window| window.is_focused().unwrap_or(true));
+    let eligible = !foreground || prefs.foreground;
+    let (single, rest) = burst(&fresh);
+    let mut notices: Vec<Notice> = single
+        .iter()
+        .map(|alert| {
+            let (title, body) = pull_text(alert, portuguese);
+            Notice {
+                created_at: chrono::Utc::now().timestamp_millis(),
+                id: pull_alert_key(alert),
+                session_id: String::new(),
+                kind: Kind::PullRequest,
+                title,
+                body,
+                pull: Some(alert.key.clone()),
+            }
+        })
+        .collect();
+    if !rest.is_empty() {
+        let (title, body) = pull_summary(rest, portuguese);
+        notices.push(Notice {
+            created_at: chrono::Utc::now().timestamp_millis(),
+            id: format!("pull:summary:{}", uuid::Uuid::new_v4()),
+            session_id: String::new(),
+            kind: Kind::PullRequest,
+            title,
+            body,
+            pull: None,
+        });
+    }
+    for notice in notices {
+        // Paired phones get it too (ADR-082); a tap opens the app.
+        crate::remote::notify(&notice.title, &notice.body, "", None, None);
+        if prefs.toasts {
+            let _ = app.emit("notification-activity", &notice);
+        }
+        #[cfg(all(target_os = "macos", feature = "desktop"))]
+        if prefs.system && eligible {
+            let app = app.clone();
+            crate::runtime::async_runtime::spawn(async move {
+                if let Err(error) = platform::show(&app, &notice).await {
+                    tracing::debug!(%error, "system pull request alert unavailable");
+                }
+            });
+        }
+    }
+    #[cfg(all(target_os = "macos", feature = "desktop"))]
+    if prefs.sounds && eligible {
+        let sound = choice(&prefs, Kind::PullRequest).1;
+        let _ = app.run_on_main_thread(move || {
+            let _ = platform::play(sound);
+        });
+    }
+    #[cfg(not(all(target_os = "macos", feature = "desktop")))]
+    let _ = eligible;
+    Ok(())
+}
+
 pub fn install(app: &AppHandle) {
     app.manage(NotificationState::default());
     #[cfg(all(target_os = "macos", feature = "desktop"))]
@@ -586,6 +775,10 @@ pub(super) fn deliver_if_current(app: &AppHandle, notice: &Notice, deliver: impl
 
 #[cfg(any(all(target_os = "macos", feature = "desktop"), test))]
 fn current_notice(data: &crate::models::AppData, notice: &Notice, foreground: bool) -> bool {
+    let prefs = &data.settings.notifications;
+    if notice.kind == Kind::PullRequest {
+        return prefs.system && prefs.pull_requests && (!foreground || prefs.foreground);
+    }
     if notice.session_id.is_empty() {
         return true;
     }
@@ -596,7 +789,6 @@ fn current_notice(data: &crate::models::AppData, notice: &Notice, foreground: bo
     else {
         return false;
     };
-    let prefs = &data.settings.notifications;
     data.projects
         .iter()
         .any(|project| project.id == session.project_id)
@@ -665,6 +857,7 @@ pub async fn notification_action(
             let settings = state.data.lock().settings.clone();
             let portuguese = settings.locale == "pt-BR";
             let notice = Notice {
+                pull: None,
                 created_at: chrono::Utc::now().timestamp_millis(),
                 id: uuid::Uuid::new_v4().to_string(),
                 session_id: String::new(),
@@ -697,6 +890,7 @@ pub async fn notification_action(
             }
         }
         Action::Status {} => {}
+        Action::PullRequests { items } => announce_pulls(&app, state.inner(), items)?,
         Action::Settings {} => {
             #[cfg(all(target_os = "macos", feature = "desktop"))]
             app.run_on_main_thread(platform::open_settings)
@@ -858,6 +1052,7 @@ mod tests {
         let (id, kind) = candidates(&session).remove(0);
         data.sessions.push(session);
         let notice = Notice {
+            pull: None,
             id,
             kind,
             session_id: "session".into(),
@@ -905,6 +1100,7 @@ mod tests {
         let id = reminder_key(&session).unwrap();
         data.sessions.push(session);
         let notice = Notice {
+            pull: None,
             id,
             kind: Kind::Reminder,
             session_id: "session".into(),
@@ -965,5 +1161,90 @@ mod tests {
         };
         assert_eq!(choice(&prefs, Kind::Permission), (false, Sound::Ping));
         assert_eq!(choice(&prefs, Kind::Question), (true, Sound::Hero));
+    }
+
+    fn pull_alert(
+        number: u32,
+        reason: crate::github_inbox::AlertReason,
+    ) -> crate::github_inbox::PullAlert {
+        crate::github_inbox::PullAlert {
+            key: format!("owner/repo#{number}"),
+            repository: "owner/repo".into(),
+            number,
+            author: "ana".into(),
+            title: "Fix the login".into(),
+            reason,
+        }
+    }
+
+    #[test]
+    fn pull_request_alerts_are_localized_capped_and_follow_their_switch() {
+        use crate::github_inbox::AlertReason::{Opened, ReviewRequested};
+        assert_eq!(
+            pull_text(&pull_alert(12, Opened), false),
+            (
+                "ana opened a pull request in owner/repo".into(),
+                "#12 Fix the login".into()
+            )
+        );
+        assert_eq!(
+            pull_text(&pull_alert(12, Opened), true).0,
+            "ana abriu um pull request em owner/repo"
+        );
+        assert_eq!(
+            pull_text(&pull_alert(12, ReviewRequested), false).0,
+            "ana asked for your review in owner/repo"
+        );
+        assert_eq!(
+            pull_text(&pull_alert(12, ReviewRequested), true).0,
+            "ana pediu sua revisão em owner/repo"
+        );
+        // One key per item and reason: a later review request is a new alert.
+        assert_ne!(
+            pull_alert_key(&pull_alert(1, Opened)),
+            pull_alert_key(&pull_alert(1, ReviewRequested))
+        );
+        let alerts: Vec<_> = (1..=5).map(|n| pull_alert(n, Opened)).collect();
+        let (single, rest) = burst(&alerts);
+        assert_eq!((single.len(), rest.len()), (3, 2));
+        assert_eq!(
+            pull_summary(rest, false),
+            (
+                "2 more new pull requests".into(),
+                "owner/repo#4, owner/repo#5".into()
+            )
+        );
+        assert_eq!(pull_summary(&rest[..1], true).0, "Mais 1 novo pull request");
+        let (single, rest) = burst(&alerts[..2]);
+        assert_eq!((single.len(), rest.len()), (2, 0));
+        // The system banner gate follows the switch, the system channel and focus.
+        let mut data = crate::models::AppData::default();
+        let notice = Notice {
+            created_at: 0,
+            id: "pull:opened:owner/repo#1".into(),
+            session_id: String::new(),
+            kind: Kind::PullRequest,
+            title: "t".into(),
+            body: "b".into(),
+            pull: Some("owner/repo#1".into()),
+        };
+        assert!(current_notice(&data, &notice, false));
+        assert!(!current_notice(&data, &notice, true));
+        data.settings.notifications.pull_requests = false;
+        assert!(!current_notice(&data, &notice, false));
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "type": "pullRequests",
+            "items": [{"repository": "owner/repo", "number": 1, "reason": "reviewRequested"}]
+        }))
+        .is_ok());
+        assert!(serde_json::from_value::<Action>(serde_json::json!({
+            "type": "pullRequests",
+            "items": [{"repository": "owner/repo", "number": 1, "reason": "opened", "title": "spoofed"}]
+        }))
+        .is_err());
+        assert_eq!(
+            serde_json::to_value(&notice).unwrap()["kind"],
+            "pullRequest"
+        );
     }
 }

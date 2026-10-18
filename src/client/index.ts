@@ -569,6 +569,15 @@ export class SirusClient {
     return this.transport.listen<number>("quit-armed", handler);
   }
 
+  /** In-app updates of this Mac's app (ADR-140): status, check, install or restart. */
+  appUpdateAction(action: import("./types").AppUpdateAction) {
+    return this.transport.invoke<import("./types").AppUpdateStatus>("app_update_action", { action });
+  }
+
+  onAppUpdate(handler: (status: import("./types").AppUpdateStatus) => void) {
+    return this.transport.listen<import("./types").AppUpdateStatus>("app-update", handler);
+  }
+
   /** The first ready paint: shows the hidden main window; resolves once it is on screen (ADR-098). */
   windowReady() {
     return this.transport.invoke<void>("window_ready");

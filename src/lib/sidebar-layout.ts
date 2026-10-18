@@ -21,7 +21,7 @@ export function sessionAttentionRank(session: Session, unseen: ReadonlySet<strin
   return status === "waiting" || status === "running" ? 2 : status === "done" ? 1 : 0;
 }
 
-export function sessionSortKeys(sessions: readonly Session[], settings: AppSettings, options: Pick<SessionOrderOptions, "unseen" | "computer"> = {}): Map<string, SessionSortKey> {
+export function sessionSortKeys(sessions: readonly Session[], settings: Pick<AppSettings, "sidebarAttentionFirst" | "sidebarThreadSortOrder">, options: Pick<SessionOrderOptions, "unseen" | "computer"> = {}): Map<string, SessionSortKey> {
   return new Map(sessions.map(row => [row.id, {
     rank: settings.sidebarAttentionFirst ? sessionAttentionRank(row, options.unseen, options.computer) : 0,
     time: timestamp(settings.sidebarThreadSortOrder === "updated_at" ? row.lastActivityAt : row.createdAt),
@@ -29,7 +29,7 @@ export function sessionSortKeys(sessions: readonly Session[], settings: AppSetti
 }
 
 /** The order settings a held snapshot belongs to; changing them applies at once, even mid-hover. */
-export function sessionOrderSignature(settings: AppSettings): string {
+export function sessionOrderSignature(settings: Pick<AppSettings, "sidebarAttentionFirst" | "sidebarThreadSortOrder">): string {
   return `${settings.sidebarThreadSortOrder}:${settings.sidebarAttentionFirst}`;
 }
 

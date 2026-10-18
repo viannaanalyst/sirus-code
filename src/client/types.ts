@@ -370,11 +370,15 @@ export type NotificationSound = "glass" | "ping" | "pop" | "submarine" | "tink" 
 export interface NotificationPreferences {
   toasts: boolean; system: boolean; sounds: boolean; foreground: boolean;
   permissions: boolean; questions: boolean; completion: boolean;
+  /** Someone else opened a pull request or asked for your review (ADR-050). */
+  pullRequests: boolean;
   permissionSound: NotificationSound; questionSound: NotificationSound; completionSound: NotificationSound;
 }
 export type NotificationPermission = "prompt" | "granted" | "denied" | "unsupported";
-export type NotificationAction = { type: "status" | "request" | "test" | "settings" } | { type: "preview"; sound: NotificationSound };
-export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion" | "failure" | "reminder"; title: string; body: string; createdAt: number; }
+export type NotificationAction = { type: "status" | "request" | "test" | "settings" } | { type: "preview"; sound: NotificationSound }
+  | { type: "pullRequests"; items: import("@/lib/github-notify").PullAlertRequest[] };
+/** `pull` (`owner/repo#n`) is the item a `pullRequest` alert opens; a summary has none and `sessionId` is empty. */
+export interface ActivityNotification { id: string; sessionId: string; kind: "permission" | "question" | "completion" | "failure" | "reminder" | "pullRequest"; title: string; body: string; createdAt: number; pull?: string; }
 
 export interface SkillOwner { projectId: string | null; sessionId: string | null }
 export interface WorkspaceFileSuggestion { path: string; isDir: boolean }
@@ -450,6 +454,8 @@ export interface AppSettings {
    * and the RFC 3339 time before which everything counts as seen (null until the first load). */
   githubSeen: Record<string, string>;
   githubSeenFloor: string | null;
+  /** Pull request alerts already given, `opened:owner/repo#n` or `review:owner/repo#n` (at most 200), so a restart does not repeat them. */
+  githubNotified: string[];
   /** Rail customization (ADR-052): item order, hidden items and project shortcuts. */
   railItemOrder: string[];
   hiddenRailItems: string[];
@@ -522,6 +528,10 @@ export interface AppSettings {
   defaultModel: string | null;
   modelExecution: Record<string, ExecutionOptions>;
   sidebarCollapsed: boolean;
+  /** What the sidebar shows when not hidden: the icon rail or the conversation list (ADR-139). */
+  sidebarMode: "rail" | "list";
+  /** The conversation list's order: flat by last activity, or grouped by project (ADR-139). */
+  sidebarListOrder: "recent" | "project";
   sidebarProjectOrder: string[];
   sidebarProjectSortOrder: "manual" | "created_at";
   sidebarThreadSortOrder: "updated_at" | "created_at";
@@ -1184,3 +1194,20 @@ export interface ReviewGuide {
   updatedAt: string;
 }
 export type ReviewGuideAction = { type: "get"; target: ReviewGuideTarget } | { type: "delete"; target: ReviewGuideTarget };
+
+/** In-app updates (ADR-140): the desktop app's own version and the newer one on offer. */
+export type AppUpdatePhase = "idle" | "checking" | "upToDate" | "available" | "downloading" | "installing" | "installed" | "failed";
+export interface AppUpdateStatus {
+  currentVersion: string;
+  phase: AppUpdatePhase;
+  version: string | null;
+  notes: string | null;
+  date: string | null;
+  downloaded: number;
+  total: number | null;
+  error: string | null;
+  checkedAt: string | null;
+  /** Release builds check on their own; development builds only when asked. */
+  automatic: boolean;
+}
+export type AppUpdateAction = { type: "status" } | { type: "check" } | { type: "install" } | { type: "restart" };

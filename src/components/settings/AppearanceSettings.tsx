@@ -15,6 +15,7 @@ import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
 import { ThemeModePicker } from "./ThemeModePicker";
 import { resolveAppearanceMaterial } from "@/lib/appearance";
 import { useSystemPalette } from "@/lib/use-system-palette";
+import { useAppStore } from "@/store/app-store";
 import "@/styles/general-settings.css";
 
 const DOCK_ICONS = [
@@ -94,6 +95,21 @@ function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSa
   </SettingsGroup>;
 }
 
+/** Icon rail, conversation list or hidden (ADR-139). Hidden keeps the chosen style for ⌘B to bring back. */
+function SidebarStyleGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
+  const t = useTranslation();
+  const collapsed = useAppStore(state => state.sidebarCollapsed);
+  const choose = (choice: "rail" | "list" | "hidden") => {
+    const sidebarCollapsed = choice === "hidden";
+    useAppStore.setState({ sidebarCollapsed });
+    onSave({ ...settings, sidebarCollapsed, sidebarMode: choice === "hidden" ? settings.sidebarMode : choice });
+  };
+  return <SettingsGroup title={t("Sidebar")} card>
+    <SettingsRow title={t("sidebarList.style")} description={t("sidebarList.styleHelp")}><Select className="general-settings-select" label={t("sidebarList.style")} value={collapsed ? "hidden" : settings.sidebarMode} onChange={choose} options={[{ value: "rail", label: t("sidebarList.styleRail") }, { value: "list", label: t("sidebarList.styleList") }, { value: "hidden", label: t("sidebarList.styleHidden") }]} /></SettingsRow>
+    {settings.sidebarMode === "list" && <SettingsRow title={t("sidebarList.order")} description={t("sidebarList.orderHelp")}><Select className="general-settings-select" label={t("sidebarList.order")} value={settings.sidebarListOrder} onChange={sidebarListOrder => onSave({ ...settings, sidebarListOrder })} options={[{ value: "recent", label: t("sidebarList.recent") }, { value: "project", label: t("sidebarList.byProject") }]} /></SettingsRow>}
+  </SettingsGroup>;
+}
+
 export function AppearanceSettings({ settings, host, onSave }: { settings: AppSettings; host: HostInfo | null; onSave: (settings: AppSettings) => void }) {
   const t = useTranslation();
   const systemPalette = useSystemPalette();
@@ -108,6 +124,7 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
   return <div className="general-settings appearance-settings"><SettingsSection title={t("Appearance")} description={t("Personalize materials, typography and motion.")}
     headerAction={<InteractiveButton variant="secondary" glow={false} disabled={!APPEARANCE_SETTING_KEYS.some(key => settings[key] !== defaultSettings[key])} onClick={() => onSave(resetAppearanceSettings(settings))}><RotateCcw size={14} aria-hidden="true" />{t("Restore defaults")}</InteractiveButton>}>
     <SettingsGroup title={t("Theme")}><ThemeModePicker value={settings.theme} onChange={theme => onSave({ ...settings, theme })} /></SettingsGroup>
+    <SidebarStyleGroup settings={settings} onSave={onSave} />
     <SettingsGroup title={t("Materials")} card>
       <SettingsRow title={t("Translucency")} description={t(supported ? "Menus and popups follow the active theme and material." : nativeNote)}><Switch label={t("Translucency")} checked={glass} disabled={!supported} onChange={value => onSave({ ...settings, [windowKey]: value, [sidebarKey]: false })} /></SettingsRow>
       {glass && <SettingsRow title={t("Apply translucency to")}><Select className="general-settings-select" label={t("Apply translucency to")} disabled={!supported} value={settings[windowKey] ? "window" : "sidebar"} onChange={scope => onSave({ ...settings, [windowKey]: scope === "window", [sidebarKey]: scope === "sidebar" })} options={[{ value: "window", label: t("Whole window") }, { value: "sidebar", label: t("Sidebar only") }]} /></SettingsRow>}
