@@ -38,12 +38,15 @@ import { browserAddressDisplayValue, normalizeBrowserAddressInput } from "@/lib/
 import { cn } from "@/lib/cn";
 import { formatUnknownError } from "@/lib/format-error";
 import { useBrowserBounds } from "@/lib/use-browser-bounds";
+import { useLocalServers } from "@/lib/use-local-servers";
+import { annotationText, base64Text, cropAnnotationPng } from "@/lib/browser-annotation";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
-import type { BrowserAnnotation, BrowserSessionState, BrowserTabState } from "@/client/types";
+import type { BrowserAnnotationCapture, BrowserDialog, BrowserProfile, BrowserSessionState, BrowserTabState } from "@/client/types";
 
 // Zustand/React require a stable snapshot even before these session lists exist.
 const EMPTY_URLS: string[] = [];
+const EMPTY_PROFILES: BrowserProfile[] = [];
 
 function isBlankBrowserUrl(url: string) {
   return !url || url === "about:blank";
@@ -65,7 +68,6 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
   const browser = useAppStore((state) => state.browserBySession[sessionId]);
   const history = useAppStore((state) => state.browserHistoryBySession[sessionId] ?? EMPTY_URLS);
-  const servers = useAppStore((state) => state.localServersBySession[sessionId] ?? EMPTY_URLS);
   const openBrowser = useAppStore((state) => state.openBrowser);
   const browserNewTab = useAppStore((state) => state.browserNewTab);
   const browserCloseTab = useAppStore((state) => state.browserCloseTab);
@@ -75,7 +77,7 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
   const browserBack = useAppStore((state) => state.browserBack);
   const browserForward = useAppStore((state) => state.browserForward);
   const browserAnnotateStart = useAppStore((state) => state.browserAnnotateStart);
-  const browserAnnotateFinish = useAppStore((state) => state.browserAnnotateFinish);
+  const browserAnnotateCapture = useAppStore((state) => state.browserAnnotateCapture);
   const browserAnnotateCancel = useAppStore((state) => state.browserAnnotateCancel);
   const browserCopyLink = useAppStore((state) => state.browserCopyLink);
   const browserCapture = useAppStore((state) => state.browserCapture);
@@ -93,6 +95,9 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
   const activeTabId = active?.id ?? null;
   const blank = !active || isBlankBrowserUrl(active.url);
   const floating = Boolean(active && browser?.pictureInPicture === active.id);
+  const profiles = useAppStore((state) => state.settings.browserProfiles ?? EMPTY_PROFILES);
+  // Local servers are scanned only while the empty state that lists them is showing (ADR-151).
+  const servers = useLocalServers(sessionId, Boolean(browser?.open) && blank);
 
   useEffect(() => {
     if (browser?.open || attempted.current === sessionId) return;
@@ -177,12 +182,26 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
     if (url) void browserNavigate(sessionId, active.id, url);
   };
 
-  const appendAnnotations = (annotations: BrowserAnnotation[]) => {
-    const store = useAppStore.getState();
-    const key = `session:${sessionId}`;
-    const current = store.composerDrafts[key] ?? "";
-    const block = annotations.map((annotation) => `- ${annotation.label} — ${annotation.selector}`).join("\n");
-    store.setComposerDraft(key, current.trim() ? `${current.replace(/\s+$/, "")}\n${block}` : block);
+  // Annotations travel as composer attachments (ADR-151): the cropped picture of the marked
+  // elements, and a text file with the page, viewport and each element's selector.
+  const attachAnnotation = async (capture: BrowserAnnotationCapture) => {
+    const owner = `session:${sessionId}`;
+    const stamp = Date.now();
+    try {
+      const cropped = capture.png ? await cropAnnotationPng(capture.png, capture).catch(() => null) : null;
+      const files = [
+        ...(cropped ? [{ name: `annotation-${stamp}.png`, data: cropped }] : []),
+        { name: `annotation-${stamp}.txt`, data: base64Text(annotationText(capture)) },
+      ];
+      const attachments = await client.pastePromptAttachments(owner, files);
+      if (!attachments.length) return;
+      const store = useAppStore.getState();
+      const context = store.composerContexts[owner] ?? emptyComposerContext;
+      store.setComposerContext(owner, { ...context, attachments: appendAttachments(context.attachments, attachments) });
+      setNotice("browser.annotationAttached");
+    } catch (error) {
+      useAppStore.setState({ error: formatUnknownError(error) });
+    }
   };
 
   const toggleAnnotate = async () => {
@@ -196,8 +215,12 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
     }
     annotatingRef.current = false;
     setAnnotating(false);
-    const annotations = await browserAnnotateFinish(sessionId, active.id);
-    if (annotations?.length) appendAnnotations(annotations);
+    const capture = await browserAnnotateCapture(sessionId, active.id);
+    if (!capture?.elements.length) {
+      if (capture) setNotice("browser.annotationNone");
+      return;
+    }
+    await attachAnnotation(capture);
   };
 
   const captureToComposer = async () => {
@@ -316,9 +339,9 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
           <span className="min-w-0 flex-1 truncate ui-caption">{tab.title || t("New tab")}</span>
         </div>;
       })}
-      <button type="button" title={t("New tab")} aria-label={t("New tab")} disabled={!browser.open} onClick={() => void browserNewTab(sessionId)}
-        className={cn(controlClass, "ml-0.5")}><Plus size={13} aria-hidden="true" /></button>
+      <NewTabMenu sessionId={sessionId} profiles={profiles} disabled={!browser.open} className={cn(controlClass, "ml-0.5")} />
     </div> : null}
+    {browser?.dialog && !floating ? <BrowserDialogBar key={`${browser.dialog.tabId}:${browser.dialog.message}`} sessionId={sessionId} dialog={browser.dialog} /> : null}
     <BrowserViewport sessionId={sessionId} device={floating ? { kind: "fill" } : device} onDevice={setDevice} frame={viewport}>
       {floating ? <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-text-muted">
         <PictureInPicture size={20} aria-hidden="true" />
@@ -335,8 +358,11 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
         {servers.length > 0 ? <>
           <p className="ui-control text-text-secondary">{t("Local servers")}</p>
           <div className="flex w-full max-w-[320px] flex-col gap-1">
-            {servers.map((url) => <button key={url} type="button" onClick={() => { if (active) void browserNavigate(sessionId, active.id, url); }}
-              className="truncate rounded-[8px] px-2 py-1.5 ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary">{url}</button>)}
+            {servers.map((server) => <button key={server.url} type="button" onClick={() => { if (active) void browserNavigate(sessionId, active.id, server.url); }}
+              className="flex min-w-0 items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary">
+              <span className="truncate">{server.url}</span>
+              {server.process ? <span className="shrink-0 truncate ui-caption text-text-muted">{server.process}</span> : null}
+            </button>)}
           </div>
         </> : <p className="ui-control text-text-secondary">{t("Start a new page")}</p>}
       </div> : null}
@@ -344,5 +370,46 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
     {notice ? <div className="pointer-events-none absolute left-1/2 top-1.5 z-50 w-[min(320px,80%)] -translate-x-1/2">
       <ArcToast key={notice} variant="success" title={t(notice)} duration={1600} dismissLabel={t("common.dismiss")} onOpenChange={(open) => { if (!open) setNotice(null); }} />
     </div> : null}
+  </div>;
+}
+
+/** The + button: a new tab in the Settings default, or in another browser profile (ADR-150). */
+function NewTabMenu({ sessionId, profiles, disabled, className }: { sessionId: string; profiles: BrowserProfile[]; disabled: boolean; className: string }) {
+  const t = useTranslation();
+  const open = (profile: string | null) => void useAppStore.getState().browserNewTab(sessionId, null, profile);
+  return <Dropdown>
+    <DropdownTrigger asChild>
+      <button type="button" title={t("browser.newTabIn")} aria-label={t("browser.newTabIn")} disabled={disabled} className={className}><Plus size={13} aria-hidden="true" /></button>
+    </DropdownTrigger>
+    <DropdownContent align="start" className="min-w-[200px]">
+      <DropdownItem onSelect={() => open(null)}>{t("New tab")}</DropdownItem>
+      <DropdownSeparator />
+      <DropdownItem onSelect={() => open("default")}>{t("browser.profileDefault")}</DropdownItem>
+      <DropdownItem onSelect={() => open("private")}>{t("browser.profilePrivate")}</DropdownItem>
+      {profiles.map((profile) => <DropdownItem key={profile.id} onSelect={() => open(profile.id)}>{profile.name}</DropdownItem>)}
+    </DropdownContent>
+  </Dropdown>;
+}
+
+/** A page's alert, confirm or prompt. The person answers here; an agent can answer with browser_dialog (ADR-150). */
+function BrowserDialogBar({ sessionId, dialog }: { sessionId: string; dialog: BrowserDialog }) {
+  const t = useTranslation();
+  const [text, setText] = useState(dialog.defaultText ?? "");
+  const answer = (accept: boolean) => {
+    void client.browserDialogReply(sessionId, dialog.tabId, accept, dialog.kind === "prompt" && accept ? text : null).then(
+      (state) => useAppStore.setState((current) => ({ browserBySession: { ...current.browserBySession, [sessionId]: state } })),
+      (error) => useAppStore.setState({ error: formatUnknownError(error) }),
+    );
+  };
+  const title = t(dialog.kind === "alert" ? "browser.dialogAlert" : dialog.kind === "confirm" ? "browser.dialogConfirm" : "browser.dialogPrompt");
+  return <div role="alertdialog" aria-label={title} className="mx-2 mb-1 flex flex-col gap-2 rounded-[10px] border border-border-subtle bg-background-2 p-2.5">
+    <p className="ui-caption text-text-muted">{title} · {dialog.url}</p>
+    <p className="whitespace-pre-wrap break-words ui-control text-text-primary">{dialog.message}</p>
+    {dialog.kind === "prompt" ? <input value={text} onChange={(event) => setText(event.target.value)} aria-label={dialog.message}
+      className="h-7 rounded-[var(--radius-md)] border border-border-default bg-background-1 px-2 ui-control text-text-primary outline-none" /> : null}
+    <div className="flex justify-end gap-2">
+      {dialog.kind !== "alert" ? <button type="button" onClick={() => answer(false)} className="rounded-[8px] px-2 py-1 ui-control text-text-secondary hover:bg-background-3 hover:text-text-primary">{t("browser.dialogCancel")}</button> : null}
+      <button type="button" onClick={() => answer(true)} className="rounded-[8px] bg-background-3 px-2 py-1 ui-control text-text-primary hover:bg-background-3/80">{t("browser.dialogOk")}</button>
+    </div>
   </div>;
 }

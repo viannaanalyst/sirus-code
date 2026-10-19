@@ -26,6 +26,12 @@
   .chat-file-ref:hover, .chat-link:hover { text-decoration: underline; }
   .chat-file-ref:focus-visible, .chat-link:focus-visible { border-radius: 4px; outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   .chat-file-ref-icon { display: inline-block; margin-right: 0.25rem; vertical-align: -0.12em; }
+  /* Web links wear their site's icon (GitHub mark, favicon, globe); a link that is only its
+     address reads as a soft chip with the short label (ADR-149). */
+  .chat-link-icon { display: inline-block; flex: none; width: 13px; height: 13px; margin-right: 0.25rem; vertical-align: -0.14em; }
+  .chat-link-favicon { border-radius: 3px; object-fit: contain; }
+  .chat-link-chip { padding: 0 0.35em; border-radius: 6px; background: color-mix(in oklab, var(--info) 10%, transparent); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-color var(--motion-fast) ease-out; }
+  .chat-link-chip:hover { text-decoration: none; background: color-mix(in oklab, var(--info) 17%, transparent); }
 }
 /* Reply images: a bounded thumbnail that opens the gallery. */
 .chat-image-button { display: inline-block; margin: 4px 0; padding: 0; border-radius: 10px; vertical-align: top; }

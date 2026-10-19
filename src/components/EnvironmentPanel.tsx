@@ -42,6 +42,7 @@ import { PrWatchBadge, PrWatchPanel } from "@/components/PrWatch";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 import { selectCurrentProject, useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
+import { useLocalServers } from "@/lib/use-local-servers";
 
 export function EnvironmentToggle() {
   const t = useTranslation();
@@ -487,8 +488,14 @@ function CommitAndPushSection({ sessionId, projectId, projectPath, isolated, onC
 
 function LocalServersSection({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
-  const servers = useAppStore((state) => state.localServersBySession[sessionId]) ?? [];
+  // Scanned while this section is shown; a script or terminal start rescans it (ADR-151).
+  const servers = useLocalServers(sessionId, true);
   const fail = (reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) });
+  // Only a server Sirus started can be stopped; the native side refuses the rest.
+  const stop = (url: string) => void client.stopLocalServer(sessionId, url).then(() => {
+    useAppStore.setState((state) => ({ localServersBySession: { ...state.localServersBySession, [sessionId]: (state.localServersBySession[sessionId] ?? []).filter((item) => item !== url) } }));
+    void useAppStore.getState().refreshLocalServers(sessionId);
+  }).catch(fail);
   return (
     <Expandable
       icon={<Globe size={14} />}
@@ -496,24 +503,25 @@ function LocalServersSection({ sessionId }: { sessionId: string }) {
       heading={servers.length ? t("env.serversRunning", { count: servers.length }) : t("Local Servers")}
       trailing={servers.length ? <span className="mr-1 flex items-center gap-1.5 ui-caption tabular-nums text-text-muted"><span className="size-1.5 rounded-full bg-success shadow-[0_0_6px_var(--success)]" aria-hidden="true" />{servers.length}</span> : undefined}
     >
-      {servers.length === 0 ? <p className="px-2 pb-1 ui-caption text-text-muted">{t("No local servers detected.")}</p> : servers.map((url) => {
-        let host = url;
+      {servers.length === 0 ? <p className="px-2 pb-1 ui-caption text-text-muted">{t("No local servers detected.")}</p> : servers.map((server) => {
+        let host = server.url;
         let path = "";
-        try { const parsed = new URL(url); host = parsed.host; path = parsed.pathname === "/" ? "" : parsed.pathname; } catch { /* keep the raw URL */ }
-        return <div key={url} className="group flex w-full items-center gap-1 rounded-[7px] hover:bg-background-3">
-          <button type="button" title={url} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
-            onClick={() => void client.openExternalUrl(url).catch(fail)}>
+        try { const parsed = new URL(server.url); host = parsed.host; path = parsed.pathname === "/" ? "" : parsed.pathname; } catch { /* keep the raw URL */ }
+        const detail = [server.process, path].filter(Boolean).join(" · ");
+        return <div key={server.url} className="group flex w-full items-center gap-1 rounded-[7px] hover:bg-background-3">
+          <button type="button" title={server.url} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left"
+            onClick={() => void client.openExternalUrl(server.url).catch(fail)}>
             <span className="size-1.5 shrink-0 rounded-full bg-success shadow-[0_0_6px_var(--success)]" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block truncate ui-control text-text-primary">{host}</span>
-              {path ? <span className="block truncate font-mono ui-micro text-text-muted">{path}</span> : null}
+              {detail ? <span className="block truncate font-mono ui-micro text-text-muted">{detail}</span> : null}
             </span>
           </button>
-          <button type="button" aria-label={t("env.stopServer")} title={t("env.stopServer")}
+          {server.owned === true ? <button type="button" aria-label={t("env.stopServer")} title={t("env.stopServer")}
             className="mr-1.5 grid size-5 shrink-0 place-items-center rounded-[5px] text-text-muted hover:bg-background-3 hover:text-danger"
-            onClick={() => void client.stopLocalServer(sessionId, url).then(() => useAppStore.setState((state) => ({ localServersBySession: { ...state.localServersBySession, [sessionId]: (state.localServersBySession[sessionId] ?? []).filter((item) => item !== url) } }))).catch(fail)}>
+            onClick={() => stop(server.url)}>
             <Square size={10} aria-hidden="true" />
-          </button>
+          </button> : null}
         </div>;
       })}
     </Expandable>

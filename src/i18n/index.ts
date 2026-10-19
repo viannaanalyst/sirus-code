@@ -14,6 +14,7 @@ import { environmentEnglish, environmentPortuguese } from "./environment-strings
 import { machineEnglish, machinePortuguese } from "./machine-strings";
 import { mcpEnglish, mcpPortuguese } from "./mcp-strings";
 import { secretEnglish, secretPortuguese } from "./secret-strings";
+import { browserProfileEnglish, browserProfilePortuguese } from "./browser-profile-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
 import { snoozeEnglish, snoozePortuguese } from "./snooze-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
@@ -44,6 +45,7 @@ import { deviceEnglish, devicePortuguese } from "./device-strings";
 import { reviewGuideEnglish, reviewGuidePortuguese } from "./review-guide-strings";
 import { appUpdateEnglish, appUpdatePortuguese } from "./app-update-strings";
 import { gitIncomingEnglish, gitIncomingPortuguese } from "./git-incoming-strings";
+import { browserPanelEnglish, browserPanelPortuguese } from "./browser-panel-strings";
 export type Locale = "pt-BR" | "en";
 
 const dictionaries: Record<Locale, Record<string, string>> = {
@@ -67,6 +69,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...machinePortuguese,
     ...mcpPortuguese,
     ...secretPortuguese,
+    ...browserProfilePortuguese,
     ...tabsPortuguese,
     ...snoozePortuguese,
     ...timelinePortuguese,
@@ -94,6 +97,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...reviewGuidePortuguese,
     ...appUpdatePortuguese,
     ...gitIncomingPortuguese,
+    ...browserPanelPortuguese,
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[1]])),
     "common.search": "Buscar",
     "Add to chat": "Adicionar ao chat",
@@ -160,6 +164,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...machineEnglish,
     ...mcpEnglish,
     ...secretEnglish,
+    ...browserProfileEnglish,
     ...tabsEnglish,
     ...snoozeEnglish,
     ...timelineEnglish,
@@ -187,6 +192,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...reviewGuideEnglish,
     ...appUpdateEnglish,
     ...gitIncomingEnglish,
+    ...browserPanelEnglish,
     "shortcut.unsupported": "Use Command with a letter, number or punctuation. System and editing shortcuts are reserved.",
     "shortcut.conflict": "This combination belongs to another action. Choose another.",
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[0]])),

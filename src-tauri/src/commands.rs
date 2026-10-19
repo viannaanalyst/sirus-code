@@ -1808,11 +1808,15 @@ pub async fn send_prompt(
         ensure_model_catalog(state.inner(), &request.session_id).await;
     }
 
+    // A standalone `/compact` is the provider's own compaction, never text for the model (ADR-057).
+    let compacting = crate::codex::is_compact(&prompt);
+
     // Skill discovery/file reads run on workers before any turn mutation.
     // A skill token may stand anywhere in the prompt (ADR-037), so any slash word triggers discovery.
-    let skill_input = if prompt
-        .split_whitespace()
-        .any(|token| token.len() > 1 && token.starts_with('/'))
+    let skill_input = if !compacting
+        && prompt
+            .split_whitespace()
+            .any(|token| token.len() > 1 && token.starts_with('/'))
     {
         let state = state.inner().clone();
         let owner = crate::skills::Owner {
@@ -1924,6 +1928,15 @@ pub async fn send_prompt(
         if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {
             return Err(Error::agent("session already has a running agent"));
         }
+        if compacting {
+            if let Some(reason) = crate::transcript::compaction_refusal(
+                session,
+                !attachments.is_empty(),
+                request.team || request.debugging,
+            ) {
+                return Err(Error::agent(reason));
+            }
+        }
         if request.team {
             if !crate::team::TEAM_PROVIDERS.contains(&session.agent) {
                 return Err(Error::agent(
@@ -1954,36 +1967,41 @@ pub async fn send_prompt(
         } else if crate::acp_cli::handles(&session.agent) {
             crate::acp_cli::validate_binding(session, &display_path(&cwd))?;
         }
-        let process_prompt = crate::transcript::process_prompt(session, &prompt)?;
-        // A pending handoff recap travels with the first prompt only; the
-        // persisted user message keeps the visible text.
-        let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
-        let process_prompt = match &side_recap {
-            Some(recap) => crate::side_chat::wrap(recap, &process_prompt),
-            None => process_prompt,
-        };
-        let process_prompt = match &pull_ask {
-            Some(origin) => crate::pull_ask::wrap(origin, &process_prompt),
-            None => process_prompt,
-        };
-        let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);
-        let process_prompt = match &skill_input {
-            Some((_, instructions, _)) if !instructions.is_empty() => {
-                format!("{instructions}\n\nUser request:\n{process_prompt}")
+        // `/compact` goes alone and verbatim: no recap, wrapper, goal or instructions around it.
+        let process_prompt = if compacting {
+            prompt.clone()
+        } else {
+            let process_prompt = crate::transcript::process_prompt(session, &prompt)?;
+            // A pending handoff recap travels with the first prompt only; the
+            // persisted user message keeps the visible text.
+            let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
+            let process_prompt = match &side_recap {
+                Some(recap) => crate::side_chat::wrap(recap, &process_prompt),
+                None => process_prompt,
+            };
+            let process_prompt = match &pull_ask {
+                Some(origin) => crate::pull_ask::wrap(origin, &process_prompt),
+                None => process_prompt,
+            };
+            let process_prompt = crate::attachments::file_prompt(&process_prompt, &attachments);
+            let process_prompt = match &skill_input {
+                Some((_, instructions, _)) if !instructions.is_empty() => {
+                    format!("{instructions}\n\nUser request:\n{process_prompt}")
+                }
+                _ => process_prompt,
+            };
+            let process_prompt = crate::execution::debug_prompt(request.debugging, process_prompt);
+            let process_prompt = crate::goals::prompt(
+                admitted_goal
+                    .as_ref()
+                    .map(|goal| goal.as_deref())
+                    .unwrap_or(session.goal.as_deref()),
+                process_prompt,
+            )?;
+            match &team_catalog {
+                Some(catalog) => crate::team::planning_prompt(&process_prompt, catalog),
+                None => process_prompt,
             }
-            _ => process_prompt,
-        };
-        let process_prompt = crate::execution::debug_prompt(request.debugging, process_prompt);
-        let process_prompt = crate::goals::prompt(
-            admitted_goal
-                .as_ref()
-                .map(|goal| goal.as_deref())
-                .unwrap_or(session.goal.as_deref()),
-            process_prompt,
-        )?;
-        let process_prompt = match &team_catalog {
-            Some(catalog) => crate::team::planning_prompt(&process_prompt, catalog),
-            None => process_prompt,
         };
         state.attachments.mark_sent(&request.attachment_ids);
         if let Some(goal) = &admitted_goal {
@@ -2349,6 +2367,12 @@ pub async fn steer_turn(
         return Err(Error::new(
             "invalid",
             "Instructions must have 1 to 65,536 bytes of text.",
+        ));
+    }
+    // An instruction is text for the model; `/compact` waits for the reply to end (ADR-057).
+    if crate::codex::is_compact(&text) {
+        return Err(Error::agent(
+            "Wait for the reply to finish, then send /compact.",
         ));
     }
     let (receiver, generation) = {

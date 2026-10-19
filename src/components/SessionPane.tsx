@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
 import { ChevronDown, GitFork, RotateCcw, TerminalSquare } from "@/components/icons/phosphor";
 import { formatUnknownError } from "@/lib/format-error";
+import { isCompactCommand } from "@/lib/compact-before-send";
 import "@/styles/context-meter.css";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
 import { SearchText } from "@/components/SearchText";
@@ -48,7 +49,8 @@ import { SubagentTeam } from "@/components/SubagentTeam";
 import { firstLaunchOffset, teamSize } from "@/lib/subagent-team";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
-import { ChatMarkdown, openLink } from "@/components/ChatMarkdown";
+import { ChatMarkdown } from "@/components/ChatMarkdown";
+import { ChatLink } from "@/components/ChatLink";
 import { WORKING_PANEL_MIN_WIDTH, WORKING_PANEL_WIDTH, WorkingPanel } from "@/components/WorkingPanel";
 import { splitLinks } from "@/lib/link-text";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
@@ -116,7 +118,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
   const touchY = useRef<number | null>(null);
   const messages = useMemo(() => session?.messages.filter(message => message.role !== "system") ?? [], [session?.messages]);
   // Replies to a standalone `/compact` read as a compaction, not as an empty answer (ADR-057).
-  const compactions = useMemo(() => new Set(messages.filter((message, index) => message.role === "agent" && messages[index - 1]?.role === "user" && messages[index - 1].content.trim() === "/compact").map((message) => message.id)), [messages]);
+  const compactions = useMemo(() => new Set(messages.filter((message, index) => message.role === "agent" && messages[index - 1]?.role === "user" && isCompactCommand(messages[index - 1].content)).map((message) => message.id)), [messages]);
   // Where another provider answered: compare each reply's provider with the one before
   // (or, for a handoff session, the provider it was handed off from).
   const providerChanges = useMemo(() => {
@@ -509,7 +511,10 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
           {searchQuery.trim() ? <SearchText text={userRequest} query={searchQuery} />
             : hasComposerTokens(userRequest) ? composerSegments(userRequest).map((segment, index) => segment.kind === "text" ? <LinkedText key={index} text={segment.text} /> : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)
             : <LinkedText text={userRequest} />}
-        </>) : compacted && !message.streaming ? <span className="text-text-muted">✓ {t("context.compacted")}</span> : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
+        </>) : compacted && message.streaming ? <span className="text-text-muted">{t("context.compacting")}</span>
+          // A compaction that failed or was stopped says so in the session's error, not here.
+          : compacted && !(last && (session.status === "failed" || session.status === "stopped")) ? <span className="text-text-muted">✓ {t("context.compacted")}</span>
+          : (message.activity ? null : message.streaming ? "…" : t("session.noOutput"))}
       </div>
       {userImages.length ? <ImageLightbox images={openImage === null ? null : gallery} index={openImage ?? 0} onClose={() => setOpenImage(null)} /> : null}
       {message.role === "user" && message.content && !message.streaming ? <div className="pointer-events-none mt-1 flex min-h-6 items-center justify-end gap-1.5 px-2 text-text-muted opacity-0 group-hover/user:pointer-events-auto group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
@@ -525,10 +530,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   );
 }, sameRowProps);
 
-/** The person's own text with its http(s) addresses as links, opened like those in replies. */
+/** The person's own text with its web addresses as link chips, opened like those in replies (ADR-149). */
 function LinkedText({ text }: { text: string }) {
-  return <>{splitLinks(text).map((segment, index) => segment.kind === "text" ? segment.text
-    : <a key={index} href={segment.url} className="chat-link break-all" onClick={(event) => { event.preventDefault(); openLink(segment.url, event.metaKey); }}>{segment.text}</a>)}</>;
+  return <>{splitLinks(text).map((segment, index) => segment.kind === "text" ? segment.text : <ChatLink key={index} url={segment.url} chip />)}</>;
 }
 
 /** The conversation's last reply finished with no text and no activity. */

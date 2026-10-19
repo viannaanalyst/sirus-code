@@ -27,7 +27,9 @@ export const defaultSettings: AppSettings = {
   browserRecordingFps: 30,
   browserRecordingKeys: true,
   browserRecordingClicks: true,
+  browserShowAgentPages: true,
   githubLinksInApp: true,
+  linkOpenTarget: "app",
   diffWordWrap: false,
   confirmArchive: false,
   confirmTerminalClose: true,
@@ -134,6 +136,8 @@ export const defaultSettings: AppSettings = {
   worktreesFromOrigin: true,
   responseStreaming: "token",
   agentBrowserAccess: true,
+  browserProfiles: [],
+  defaultBrowserProfile: "default",
 };
 
 /** Settings → Default permissions (ADR-130): the composer's own modes, labels and lines. */
@@ -186,7 +190,9 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     browserRecordingFps: value?.browserRecordingFps === 60 ? 60 : 30,
     browserRecordingKeys: value?.browserRecordingKeys !== false,
     browserRecordingClicks: value?.browserRecordingClicks !== false,
+    browserShowAgentPages: value?.browserShowAgentPages !== false,
     githubLinksInApp: value?.githubLinksInApp !== false,
+    linkOpenTarget: value?.linkOpenTarget === "system" ? "system" : "app",
     diffWordWrap: value?.diffWordWrap === true,
     confirmArchive: value?.confirmArchive === true,
     releaseWorktreeOnArchive: value?.releaseWorktreeOnArchive === true,
@@ -266,6 +272,10 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     worktreesFromOrigin: value?.worktreesFromOrigin !== false,
     responseStreaming: value?.responseStreaming === "turn" || value?.responseStreaming === "paragraph" ? value.responseStreaming : "token",
     agentBrowserAccess: value?.agentBrowserAccess !== false,
+    browserProfiles: Array.isArray(value?.browserProfiles)
+      ? value.browserProfiles.filter((item) => item && typeof item.id === "string" && typeof item.name === "string").slice(0, 10).map((item) => ({ id: item.id, name: item.name }))
+      : [],
+    defaultBrowserProfile: typeof value?.defaultBrowserProfile === "string" && value.defaultBrowserProfile ? value.defaultBrowserProfile : "default",
   };
 }
 
@@ -408,7 +418,7 @@ function booleanPreference(value: unknown, fallback: boolean): boolean { return 
 
 /** Chat behavior's Agent behavior and Auto-archive rows (ADR-130), restored with the page. */
 export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess", "autoArchiveMerged", "autoArchiveInactiveDays"] as const satisfies readonly (keyof AppSettings)[];
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "githubLinksInApp", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {

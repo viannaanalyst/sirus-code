@@ -3,7 +3,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 const files = {
-  "AppearanceSettings.tsx": "appearance", "ChatBehaviorSettings.tsx": "chat", "ComputerSettings.tsx": "computer",
+  "AppearanceSettings.tsx": "appearance", "ChatBehaviorSettings.tsx": "chat", "BrowserProfilesSettings.tsx": "chat", "ComputerSettings.tsx": "computer",
   "ConnectionsSettings.tsx": "connections", "GeneralSettings.tsx": "general", "NotificationSettings.tsx": "notifications",
   "McpSettings.tsx": "mcp", "SkillsSettings.tsx": "skills", "KeybindingsSettings.tsx": "keybindings", "SettingsPanels.tsx": null,
 };

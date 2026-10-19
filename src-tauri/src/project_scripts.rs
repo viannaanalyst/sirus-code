@@ -34,11 +34,17 @@ pub struct ProjectScripts {
     pub setup: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_finish: Option<String>,
+    /// The page Setup serves, a loopback http(s) URL (ADR-151).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_url: Option<String>,
+    /// Open `preview_url` in the session's browser once it answers after Setup starts.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub open_preview: bool,
 }
 
 impl ProjectScripts {
     pub fn is_empty(&self) -> bool {
-        self.setup.is_none() && self.on_finish.is_none()
+        self.setup.is_none() && self.on_finish.is_none() && self.preview_url.is_none()
     }
     fn get(&self, kind: ScriptKind) -> Option<&str> {
         match kind {
@@ -119,6 +125,53 @@ pub fn validate(text: Option<String>) -> Result<Option<String>> {
     Ok(Some(text.replace("\r\n", "\n")))
 }
 
+/// A preview URL: blank is none; anything but a loopback http(s) URL with a port is refused.
+pub fn validate_preview_url(url: Option<String>) -> Result<Option<String>> {
+    let Some(url) = url.filter(|url| !url.trim().is_empty()) else {
+        return Ok(None);
+    };
+    crate::local_servers::loopback_url(&url)
+        .map(Some)
+        .ok_or_else(|| {
+            Error::new(
+                "invalid",
+                "The preview address must be a localhost http(s) URL with a port, like http://localhost:5173.",
+            )
+        })
+}
+
+/// How long the preview watch keeps trying after its script ends.
+const PREVIEW_GRACE: Duration = Duration::from_secs(90);
+
+/// Waits for the preview URL to answer while the script runs (and a little after), then
+/// asks the window to open it in the session's browser (`project-preview`).
+async fn watch_preview(
+    app: AppHandle,
+    session_id: String,
+    url: String,
+    mut done: watch::Receiver<bool>,
+) {
+    use crate::runtime::Emitter;
+    let deadline = tokio::time::Instant::now() + SETUP_LIMIT + PREVIEW_GRACE;
+    let mut ended: Option<tokio::time::Instant> = None;
+    while tokio::time::Instant::now() < deadline {
+        if crate::local_servers::responds(&url).await {
+            let _ = app.emit(
+                "project-preview",
+                serde_json::json!({ "sessionId": session_id, "url": url }),
+            );
+            return;
+        }
+        if ended.is_none() && *done.borrow_and_update() {
+            ended = Some(tokio::time::Instant::now());
+        }
+        if ended.is_some_and(|at| at.elapsed() > PREVIEW_GRACE) {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+    }
+}
+
 /// Runs left `running` by a closed app are reported as cancelled.
 pub fn recover(session: &mut Session) -> bool {
     let mut changed = false;
@@ -168,6 +221,10 @@ pub enum Action {
         project_id: String,
         setup: Option<String>,
         on_finish: Option<String>,
+        #[serde(default)]
+        preview_url: Option<String>,
+        #[serde(default)]
+        open_preview: bool,
     },
     /// Runs the project's script of `kind` again in the session's worktree.
     Run {
@@ -197,10 +254,15 @@ pub async fn project_scripts_action(
             project_id,
             setup,
             on_finish,
+            preview_url,
+            open_preview,
         } => {
+            let preview_url = validate_preview_url(preview_url)?;
             let scripts = ProjectScripts {
                 setup: validate(setup)?,
                 on_finish: validate(on_finish)?,
+                open_preview: open_preview && preview_url.is_some(),
+                preview_url,
             };
             crate::commands::native_task(move || {
                 let mut data = state.data.lock();
@@ -337,6 +399,8 @@ struct Started {
     limit: Duration,
     cancel: Arc<Notify>,
     done: watch::Sender<bool>,
+    /// Setup's preview URL to open once it answers (ADR-151).
+    preview: Option<String>,
 }
 
 /// Records a running run and registers it; `None` when the project has no such script.
@@ -366,6 +430,12 @@ fn start(
             "Project scripts run only in a session's own worktree.",
         ));
     }
+    // Any script run (Setup, On finish, Run again) opens the preview once it answers (ADR-151).
+    let preview = project
+        .scripts
+        .open_preview
+        .then(|| project.scripts.preview_url.clone())
+        .flatten();
     let cwd = crate::commands::session_cwd(&data, session)?;
     let env = vec![
         ("SIRUS_PROJECT_ROOT", project.path.clone()),
@@ -419,10 +489,19 @@ fn start(
         },
         cancel,
         done,
+        preview,
     }))
 }
 
 async fn complete(app: AppHandle, state: Arc<AppState>, session_id: String, started: Started) {
+    if let Some(url) = started.preview.clone() {
+        crate::runtime::async_runtime::spawn(watch_preview(
+            app.clone(),
+            session_id.clone(),
+            url,
+            started.done.subscribe(),
+        ));
+    }
     let shell = PathBuf::from(crate::detect::default_shell());
     let (status, code, output) = execute(
         &shell,
@@ -615,17 +694,46 @@ mod tests {
         assert!(value.get("scripts").is_none());
         let scripts = ProjectScripts {
             setup: Some("npm install".into()),
-            on_finish: None,
+            ..Default::default()
         };
         assert_eq!(
             serde_json::to_value(&scripts).unwrap(),
             serde_json::json!({"setup":"npm install"})
         );
+        let preview: ProjectScripts = serde_json::from_value(
+            serde_json::json!({"previewUrl":"http://localhost:5173","openPreview":true}),
+        )
+        .unwrap();
+        assert!(preview.open_preview && !preview.is_empty());
         assert!(SessionScripts::new(false).is_empty());
         assert_eq!(
             serde_json::to_value(SessionScripts::new(true)).unwrap(),
             serde_json::json!({"setupPending":true})
         );
+    }
+
+    #[test]
+    fn preview_urls_are_loopback_only_and_save_accepts_older_clients() {
+        assert_eq!(validate_preview_url(None).unwrap(), None);
+        assert_eq!(validate_preview_url(Some("  ".into())).unwrap(), None);
+        assert_eq!(
+            validate_preview_url(Some("http://localhost:3000/".into())).unwrap(),
+            Some("http://localhost:3000/".into())
+        );
+        assert!(validate_preview_url(Some("https://example.com:443".into())).is_err());
+        assert!(validate_preview_url(Some("http://localhost".into())).is_err());
+        let action: Action = serde_json::from_value(serde_json::json!({
+            "type":"save","projectId":"p","setup":null,"onFinish":null
+        }))
+        .unwrap();
+        assert!(matches!(
+            action,
+            Action::Save {
+                preview_url: None,
+                open_preview: false,
+                ..
+            }
+        ));
     }
 
     #[test]

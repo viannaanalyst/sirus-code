@@ -210,6 +210,18 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "chat",
+  "title": "chatBehavior.openLinksIn",
+  "description": "chatBehavior.openLinksInHelp",
+  "group": "chatBehavior.review"
+ },
+ {
+  "section": "chat",
+  "title": "browser.showAgentPages",
+  "description": "browser.showAgentPagesHelp",
+  "group": "browser.settingsGroup"
+ },
+ {
+  "section": "chat",
   "title": "browser.recordFps",
   "description": "browser.recordFpsHelp",
   "group": "browser.recordingSettings"
@@ -231,6 +243,30 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "title": "chatBehavior.confirmDelete",
   "description": "chatBehavior.confirmDeleteHelp",
   "group": "chatBehavior.safety"
+ },
+ {
+  "section": "chat",
+  "title": "browser.profileDefault",
+  "description": null,
+  "group": "browser.profiles"
+ },
+ {
+  "section": "chat",
+  "title": "browser.profilePrivate",
+  "description": "browser.profilePrivateHelp",
+  "group": "browser.profiles"
+ },
+ {
+  "section": "chat",
+  "title": "browser.profileAdd",
+  "description": null,
+  "group": "browser.profiles"
+ },
+ {
+  "section": "chat",
+  "title": "browser.profileDefaultForTabs",
+  "description": "browser.profileDefaultForTabsHelp",
+  "group": "browser.profiles"
  },
  {
   "section": "computer",

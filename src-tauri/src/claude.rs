@@ -752,7 +752,8 @@ async fn run_turn(
         .as_ref()
         .map(|identity| identity.thread_id.as_str())
         .unwrap_or("default");
-    wire.send(json!({"type":"user","message":{"role":"user","content":crate::attachments::claude_input(&run.prompt, &run.attachments)?},"parent_tool_use_id":null,"session_id":native,"uuid":turn,"client_composed":true})).await?;
+    wire.send(user_message(&run.prompt, &run.attachments, native, &turn)?)
+        .await?;
     // The CLI took the prompt: a handoff recap it carried is spent (ADR-101).
     emit(Event::Activity(vec![crate::activity::delivered()]))?;
     let mut pending: HashMap<String, (String, PendingRequest)> = HashMap::new();
@@ -777,6 +778,8 @@ async fn run_turn(
     let mut wrote_text = false;
     // A continuation after our answer starts on its own paragraph.
     let mut separate = false;
+    // The CLI's report that `/compact` failed; its turn still ends in a "successful" result.
+    let mut compact_failed: Option<String> = None;
     loop {
         let wake = background.wake(limits);
         let value = tokio::select! {
@@ -925,6 +928,9 @@ async fn run_turn(
                 emit(Event::Context(usage))?;
             }
         }
+        if let Some(failure) = compaction_failure(&value) {
+            compact_failed = Some(failure);
+        }
         if value["type"] == "system" && value["subtype"] == "init" {
             if let Some(model) = value["model"].as_str() {
                 emit(Event::Model(model.into()))?;
@@ -1065,6 +1071,12 @@ async fn run_turn(
                     }
                     return Err(error);
                 }
+                if let Some(reason) = compact_failed.take() {
+                    if let Some(resets_at) = usage_limit {
+                        emit(Event::UsageLimit(resets_at))?;
+                    }
+                    return Err(Error::agent(reason));
+                }
                 // Background subagents still run in this process: keep it, and read the
                 // follow-up turns the CLI runs as they report (ADR-097).
                 if background.seen && value["queued_turn_count"].as_u64().unwrap_or(0) > 0 {
@@ -1198,8 +1210,46 @@ fn epoch_ms(value: &Value) -> Option<i64> {
         .map(|time| time.timestamp_millis())
 }
 
+/// The stream-json user message that starts a turn. Prompts are delivered as written
+/// (`client_composed`: no `@path` expansion, no slash-command dispatch), except the
+/// standalone `/compact`, which the CLI must dispatch as its own compaction (ADR-057).
+fn user_message(
+    prompt: &str,
+    attachments: &[std::sync::Arc<crate::attachments::PreparedAttachment>],
+    native: &str,
+    turn: &str,
+) -> Result<Value> {
+    let compact = crate::codex::is_compact(prompt);
+    if compact && !attachments.is_empty() {
+        return Err(Error::agent(
+            "Send /compact on its own, without attachments, team or debug mode.",
+        ));
+    }
+    let prompt = if compact { "/compact" } else { prompt };
+    let mut message = json!({"type":"user","message":{"role":"user","content":crate::attachments::claude_input(prompt, attachments)?},"parent_tool_use_id":null,"session_id":native,"uuid":turn});
+    if !compact {
+        message["client_composed"] = json!(true);
+    }
+    Ok(message)
+}
+
+/// A failed `/compact`: the CLI reports it on its status event (`compact_result`), then ends
+/// the turn with a result that still reads as a success.
+fn compaction_failure(value: &Value) -> Option<String> {
+    (value["type"] == "system"
+        && value["subtype"] == "status"
+        && value["compact_result"] == "failed")
+        .then(|| match value["compact_error"].as_str().map(str::trim) {
+            Some(detail) if !detail.is_empty() => {
+                format!("Claude could not compact the conversation: {detail}")
+            }
+            _ => "Claude could not compact the conversation.".into(),
+        })
+}
+
 /// Context reading from stream-json (ADR-057). Main-agent `assistant` events report
-/// what the request carried; `result` adds the window the CLI knows for the model.
+/// what the request carried; `result` adds the window the CLI knows for the model; a
+/// compaction's boundary reports what the rebuilt context holds.
 fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
     let total = |usage: &Value| -> Option<u64> {
         let field = |name: &str| usage[name].as_u64().unwrap_or(0);
@@ -1231,6 +1281,10 @@ fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
                 window,
             })
         }
+        "system" if value["subtype"] == "compact_boundary" => Some(crate::models::ContextUsage {
+            used: value["compact_metadata"]["post_tokens"].as_u64()?,
+            window: None,
+        }),
         _ => None,
     }
 }
@@ -1819,6 +1873,122 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
         drop(wire);
         let _ = tokio::time::timeout(Duration::from_secs(3), child.wait()).await;
         (outcome, events)
+    }
+
+    /// A `/compact` turn as the 2.1.303 CLI runs it: dispatched only without
+    /// `client_composed`, otherwise the fixture answers as the model would, with text.
+    async fn compact_turn(compact_result: &str) -> (Result<bool>, Vec<Event>) {
+        let script = format!(
+            r#"import sys,json
+read=lambda:json.loads(sys.stdin.readline())
+send=lambda value:print(json.dumps(value),flush=True)
+read();send({{'type':'control_response','response':{{'subtype':'success','request_id':'sy_init','response':{{}}}}}})
+prompt=read();ours=prompt['uuid']
+send({{'type':'system','subtype':'init','session_id':'native'}})
+if prompt.get('client_composed') or prompt['message']['content']!='/compact':
+    send({{'type':'assistant','parent_tool_use_id':None,'session_id':'native','message':{{'content':[{{'type':'text','text':'I cannot run /compact.'}}]}}}})
+    send({{'type':'result','subtype':'success','is_error':False,'session_id':'native','user_message_uuids':[ours]}})
+    sys.exit(0)
+send({{'type':'system','subtype':'status','status':'compacting','session_id':'native'}})
+send({{'type':'system','subtype':'status','status':None,'compact_result':'{compact_result}','compact_error':'Not enough messages to compact.','session_id':'native'}})
+if '{compact_result}'=='success':
+    send({{'type':'system','subtype':'compact_boundary','session_id':'native','compact_metadata':{{'trigger':'manual','pre_tokens':959000,'post_tokens':38000}}}})
+    send({{'type':'user','session_id':'native','isSynthetic':True,'message':{{'role':'user','content':'This session is being continued from a previous conversation.'}}}})
+send({{'type':'user','session_id':'native','isReplay':True,'message':{{'role':'user','content':'<local-command-stdout>Compacted</local-command-stdout>'}}}})
+send({{'type':'user','session_id':'native','isReplay':True,'uuid':ours,'message':{{'role':'user','content':'<command-name>/compact</command-name>'}}}})
+send({{'type':'result','subtype':'success','is_error':False,'num_turns':0,'result':'','local_command':'compact','session_id':'native','user_message_uuids':[ours],'usage':{{'input_tokens':900000,'output_tokens':4000}},'modelUsage':{{'m':{{'contextWindow':1000000}}}}}})
+"#
+        );
+        let mut child = Command::new("python3")
+            .args(["-u", "-c", &script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let (_sender, replies) = mpsc::channel(16);
+        let (_cancel_sender, mut cancel) = watch::channel(false);
+        let mut run = Run {
+            session: session("/fixture"),
+            cwd: "/fixture".into(),
+            prompt: " /compact ".into(),
+            attachments: Vec::new(),
+            generation: "g".into(),
+            replies,
+        };
+        let mut wire = Wire::new(child.stdin.take().unwrap(), child.stdout.take().unwrap());
+        let mut events = Vec::new();
+        let outcome = run_turn(
+            &mut wire,
+            &mut run,
+            &mut cancel,
+            &mut |event| {
+                events.push(event);
+                Ok(())
+            },
+            quick(),
+            crate::workflow::LiveTranscripts::new(None),
+        )
+        .await;
+        drop(wire);
+        let _ = tokio::time::timeout(Duration::from_secs(3), child.wait()).await;
+        (outcome, events)
+    }
+
+    #[tokio::test]
+    async fn compact_is_dispatched_by_the_cli_and_reads_the_rebuilt_context() {
+        let (outcome, events) = compact_turn("success").await;
+        assert!(matches!(outcome, Ok(false)), "{outcome:?}");
+        // No text: the transcript reads "Context compacted".
+        assert_eq!(reply(&events), "");
+        let readings: Vec<_> = events
+            .iter()
+            .filter_map(|event| match event {
+                Event::Context(usage) => Some(*usage),
+                _ => None,
+            })
+            .collect();
+        // The boundary's rebuilt context, not the summarizer call on the result.
+        assert_eq!(
+            readings,
+            vec![crate::models::ContextUsage {
+                used: 38000,
+                window: None
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_compaction_fails_the_turn() {
+        let (outcome, events) = compact_turn("failed").await;
+        let error = outcome.unwrap_err().to_string();
+        assert!(error.contains("could not compact") && error.contains("Not enough messages"));
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, Event::Context(_))));
+    }
+
+    #[test]
+    fn only_compact_skips_client_composed() {
+        let compact = user_message(" /compact ", &[], "native", "turn").unwrap();
+        assert!(compact.get("client_composed").is_none());
+        assert_eq!(compact["message"]["content"], "/compact");
+        for prompt in ["/compact now", "please /compact", "/review"] {
+            let message = user_message(prompt, &[], "native", "turn").unwrap();
+            assert_eq!(message["client_composed"], true);
+        }
+        assert_eq!(
+            compaction_failure(
+                &json!({"type":"system","subtype":"status","compact_result":"success"})
+            ),
+            None
+        );
+        assert_eq!(
+            compaction_failure(
+                &json!({"type":"system","subtype":"status","compact_result":"failed"})
+            )
+            .as_deref(),
+            Some("Claude could not compact the conversation.")
+        );
     }
 
     fn quick() -> Limits {

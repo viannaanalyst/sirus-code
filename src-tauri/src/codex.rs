@@ -580,9 +580,13 @@ async fn execute(
         emit(Event::Model(model.into()))?;
     }
     // `/compact` on an existing thread compacts its context instead of starting a turn (ADR-057).
-    let compact = is_compact(&run.prompt)
-        && run.session.native_thread.is_some()
-        && run.attachments.is_empty();
+    // It is never sent to the model as a text turn.
+    let compact = is_compact(&run.prompt);
+    if compact && (run.session.native_thread.is_none() || !run.attachments.is_empty()) {
+        return Err(Error::agent(
+            "There is nothing to compact yet: this conversation has not started.",
+        ));
+    }
     let turn_id = if compact {
         wire.request(
             "thread/compact/start",

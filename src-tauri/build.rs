@@ -22,6 +22,7 @@ mod host_commands {
     const DESKTOP_ONLY: &[&str] = &[
         "app_update",
         "browser",
+        "browser_agent",
         "browser_recording",
         "devices",
         "window_reveal",

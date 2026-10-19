@@ -3,6 +3,7 @@ import { isColumnSidebar } from "@/lib/conversation-list";
 import { ImageGalleryHost } from "@/components/ImageLightbox";
 import { AttachmentModal } from "@/components/AttachmentModal";
 import { useSidebarMotion } from "@/lib/sidebar-motion";
+import { AgentPagePlayer } from "@/components/AgentPagePlayer";
 import { playWindowOpening } from "@/lib/window-opening";
 import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
@@ -323,6 +324,8 @@ export default function App() {
             {mainView === "archived" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><ArchivedPage /></Suspense> : null}
             {mainView === "usage" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><UsagePage /></Suspense> : null}
             {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}
+            {/* A page an agent opened floats over the conversation's corner (ADR-151). */}
+            {mainView === "session" ? <AgentPagePlayer /> : null}
             <EnvironmentPanel />
           </div>
 

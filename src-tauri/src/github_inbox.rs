@@ -77,6 +77,9 @@ impl MergeMethod {
     deny_unknown_fields
 )]
 pub enum Action {
+    /// The GitHub repositories of saved projects (no `gh` call): chat links to their pull
+    /// requests and issues open on the Pull requests page (ADR-149).
+    Repositories,
     /// Open or closed pull requests/issues of every owned GitHub repository.
     List { kind: ItemKind, state: ItemState },
     Detail {
@@ -161,6 +164,9 @@ pub enum Action {
     rename_all_fields = "camelCase"
 )]
 pub enum Response {
+    Repositories {
+        repositories: Vec<Repository>,
+    },
     Inbox(Inbox),
     Detail(Box<Detail>),
     Diff {
@@ -457,6 +463,7 @@ pub async fn pull_request_action(
     let repositories = native_task(move || owned_repositories(&snapshot)).await?;
     let binary = OsStr::new("gh");
     match action {
+        Action::Repositories => Ok(Response::Repositories { repositories }),
         Action::List { kind, state } => {
             let inbox = list(binary, repositories, kind, state).await;
             if kind == ItemKind::PullRequest && state == ItemState::Open {

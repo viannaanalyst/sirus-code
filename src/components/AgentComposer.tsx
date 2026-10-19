@@ -9,13 +9,13 @@ import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { Bot, Check, ChevronDown, ClipboardList, Hand, Square, ArrowUp, Minimize2, Zap } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import type { AgentInstall, AgentProviderId, ApprovalMode, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerSuggestions } from "@/components/ComposerSuggestions";
 import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
-import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
+import { composerPaintSegments } from "@/lib/link-chips";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
@@ -29,7 +29,7 @@ import { ComposerRunner } from "@/components/ComposerRunner";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { composerOwnsTyping, typingGoesToComposer } from "@/lib/type-to-focus";
 import { shortcutMatches } from "@/lib/shortcuts";
-import { COMPACTING_PROVIDERS, shouldCompactBeforeSend } from "@/lib/compact-before-send";
+import { COMPACTING_PROVIDERS, isCompactCommand, shouldCompactBeforeSend } from "@/lib/compact-before-send";
 import { HandoffCard } from "@/components/HandoffCard";
 import { QUICK_REPLY_EVENT, type QuickReplyDetail } from "@/components/ReplyChoices";
 import { modelExecutionControls, supportsPlanning } from "@/lib/execution-options";
@@ -79,8 +79,9 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const draftKey = session ? `session:${session.id}` : `project:${draftProjectId}`;
   const value = useAppStore((state) => state.composerDrafts[draftKey] ?? "");
   const updateDraft = useAppStore((state) => state.setComposerDraft);
-  // `/skill` and `@file` tokens are painted by a mirror behind the transparent textarea text.
-  const highlighted = hasComposerTokens(value);
+  // `/skill` and `@file` tokens and web addresses are painted by a mirror behind the transparent textarea text.
+  const painted = useMemo(() => composerPaintSegments(value), [value]);
+  const highlighted = painted.some((segment) => segment.kind !== "text");
   const mirror = useRef<HTMLDivElement>(null);
   const setValue = (next: string) => updateDraft(draftKey, next);
   const [sending, setSending] = useState(false);
@@ -151,14 +152,24 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     const turnApproval = planning && requestedApproval === "full" ? agentId === "cursor" ? "auto" : "ask" : requestedApproval;
     return { effort: agentId === "cursor" && !execution.parameterized ? null : execution.effort, fast: agentId === "cursor" && !execution.parameterized ? false : execution.fast, planning, approval: definition.approvalModes.length ? turnApproval : null };
   };
-  // App commands chosen from the `/` list (never sent as text, except `/compact`,
-  // which the provider adapters map to their own compaction).
+  // `/compact` alone, without the draft's attachments or modes; a typed command leaves the box once it ran.
+  const compact = async (): Promise<boolean> => {
+    if (!session) {
+      useAppStore.setState({ error: "context.nothingToCompact" });
+      return false;
+    }
+    const sent = await useAppStore.getState().compactSession(session.id);
+    if (sent && isCompactCommand(useAppStore.getState().composerDrafts[draftKey] ?? "")) setValue("");
+    return sent;
+  };
+  // App commands chosen from the `/` list (never sent as text; `/compact` runs the
+  // provider's own compaction, ADR-057).
   const runCommand = (id: ComposerCommandId) => {
     const store = useAppStore.getState();
     const fail = (error: unknown) => useAppStore.setState({ error: formatUnknownError(error) });
     switch (id) {
       case "review": void onSend(REVIEW_PROMPT, executionFor(planningAvailable)); break;
-      case "compact": void onSend("/compact", executionFor(context.planning)); break;
+      case "compact": void compact(); break;
       case "status": case "usage": case "rename": case "mcp": setCommandPanel({ kind: id, owner: draftKey }); break;
       case "fast": {
         const key = modelKey(agentId, modelId ?? "");
@@ -227,6 +238,15 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const send = async (invert = false, skipCompact = false): Promise<boolean> => {
     const guard = queueing ? enqueueRef : sendingRef;
     if (!canSend || guard.current) return false;
+    // A typed `/compact` is the command, never text for the model, a steer or a queued request.
+    if (isCompactCommand(value)) {
+      if (context.attachments.length || context.snippets?.length) {
+        useAppStore.setState({ error: "context.compactAlone" });
+        return false;
+      }
+      guard.current = true;
+      try { return await compact(); } finally { guard.current = false; }
+    }
     guard.current = true;
     if (queueing) setQueueSending(true); else setSending(true);
     const submitted = value;
@@ -471,7 +491,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}
       <div className="composer-editor relative">
       {highlighted ? <div ref={mirror} aria-hidden="true" className="composer-highlight pointer-events-none absolute inset-0 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary">
-        {composerSegments(value).map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)}{"\n"}
+        {painted.map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)}{"\n"}
       </div> : null}
       <Textarea
         label={t("session.prompt")}

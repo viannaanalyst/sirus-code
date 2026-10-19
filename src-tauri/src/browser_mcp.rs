@@ -360,11 +360,14 @@ fn browser_tool(
             .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
             .map_err(map_error),
         "browser_open" => {
-            let url = args
-                .get("url")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-                .filter(|url| crate::browser::is_allowed_browser_url(url));
+            let url = match args.get("port") {
+                Some(port) => Some(crate::browser_agent::localhost_url(port)?),
+                None => args
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .filter(|url| crate::browser::is_allowed_browser_url(url)),
+            };
             browser::mcp_open(app, session_id, url)
                 .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
                 .map_err(map_error)
@@ -512,8 +515,147 @@ fn browser_tool(
                 .map_err(map_error)
                 .and_then(|raw| serde_json::from_str(&raw).map_err(|_| "invalid logs".into()))
         }
+        "browser_hover" => {
+            let (reference, selector) = element_arg(&args)?;
+            crate::browser_agent::platform::hover(app, session_id, &reference, &selector)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
+        "browser_select" => {
+            let (reference, selector) = element_arg(&args)?;
+            let values = crate::browser_agent::select_values(&args)?;
+            crate::browser_agent::platform::select(app, session_id, &reference, &selector, values)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
+        "browser_drag" => {
+            let from = crate::browser_agent::parse_drag_end(args.get("from"), "from")?;
+            let to = crate::browser_agent::parse_drag_end(args.get("to"), "to")?;
+            crate::browser_agent::platform::drag(app, session_id, &from, &to)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
+        "browser_upload" => {
+            let (reference, selector) = element_arg(&args)?;
+            let paths: Vec<String> = args
+                .get("paths")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "`paths` must list files".to_string())?
+                .iter()
+                .map(|item| {
+                    item.as_str()
+                        .map(str::to_string)
+                        .ok_or_else(|| "`paths` must be strings".to_string())
+                })
+                .collect::<Result<_, _>>()?;
+            let (workspace, attachments) = upload_roots(app, session_id);
+            let files = crate::browser_agent::validate_upload_paths(
+                &paths,
+                workspace.as_deref(),
+                &attachments,
+            )?;
+            crate::browser_agent::platform::upload(app, session_id, &reference, &selector, &files)
+                .map_err(map_error)
+                .and_then(action_result)
+        }
+        "browser_dialog" => {
+            let accept = match args.get("action").and_then(Value::as_str) {
+                Some("accept") => true,
+                Some("dismiss") => false,
+                _ => return Err("`action` must be accept or dismiss".into()),
+            };
+            let text =
+                match args.get("text") {
+                    None | Some(Value::Null) => None,
+                    Some(_) => Some(arg_str(&args, "text", 16 * 1024).ok_or_else(|| {
+                        "`text` is too long or has control characters".to_string()
+                    })?),
+                };
+            crate::browser_agent::platform::answer_dialog(app, session_id, None, accept, text)
+                .map(|(answered, state)| json!({ "answered": answered, "status": state }))
+                .map_err(map_error)
+        }
+        "browser_evaluate" => {
+            let source = args
+                .get("expression")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|source| {
+                    !source.is_empty()
+                        && source.chars().count() <= crate::browser_agent::EVALUATE_MAX_SOURCE
+                })
+                .ok_or_else(|| {
+                    format!(
+                        "`expression` is required (at most {} characters)",
+                        crate::browser_agent::EVALUATE_MAX_SOURCE
+                    )
+                })?;
+            crate::browser_agent::platform::evaluate(app, session_id, source).map_err(map_error)
+        }
+        "browser_network" => {
+            let limit = args
+                .get("limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(50)
+                .clamp(1, 200) as usize;
+            let clear = args.get("clear").and_then(Value::as_bool).unwrap_or(false);
+            let raw = crate::browser_agent::platform::network(app, session_id, limit, clear)
+                .map_err(map_error)?;
+            let parsed: Value =
+                serde_json::from_str(&raw).map_err(|_| "invalid network log".to_string())?;
+            Ok(json!({ "entries": crate::browser_agent::network_entries(&parsed, limit) }))
+        }
+        "browser_resize" => {
+            let (width, height) = crate::browser_agent::resize_size(&args)?;
+            crate::browser_agent::platform::resize(app, session_id, width, height)
+                .map(|state| json!({ "device": state.device, "note": "Pages lay out at this CSS size; screenshots show it. Use browser_device with fill: true to return to the pane size." }))
+                .map_err(map_error)
+        }
+        "browser_color_scheme" => {
+            let scheme = crate::browser_agent::color_scheme(&args)?;
+            crate::browser_agent::platform::color_scheme(app, session_id, scheme)
+                .map(|state| json!({ "appearance": state.appearance }))
+                .map_err(map_error)
+        }
         _ => Err("unknown browser tool".into()),
     }
+}
+
+/// The element an agent names: a snapshot ref or a CSS selector, never empty.
+#[cfg(all(target_os = "macos", feature = "desktop"))]
+fn element_arg(args: &Value) -> Result<(String, String), String> {
+    let reference = arg_str(args, "ref", 8).unwrap_or_default();
+    let selector = arg_str(args, "selector", 300).unwrap_or_default();
+    if !valid_ref(&reference) || !valid_selector(&selector) {
+        return Err("invalid element reference".into());
+    }
+    if reference.is_empty() && selector.is_empty() {
+        return Err("provide a ref from browser_snapshot or a selector".into());
+    }
+    Ok((reference, selector))
+}
+
+/// The session's workspace and its attachment snapshots: the only places an upload may read.
+#[cfg(all(target_os = "macos", feature = "desktop"))]
+fn upload_roots(
+    app: &crate::runtime::AppHandle,
+    session_id: &str,
+) -> (Option<PathBuf>, Vec<PathBuf>) {
+    use crate::runtime::Manager;
+    let state = app.state::<std::sync::Arc<crate::commands::AppState>>();
+    let workspace = {
+        let data = state.data.lock();
+        data.sessions
+            .iter()
+            .find(|session| session.id == session_id)
+            .and_then(|session| crate::commands::session_cwd(&data, session).ok())
+    };
+    (
+        workspace,
+        state
+            .attachments
+            .paths_for(&format!("session:{session_id}")),
+    )
 }
 
 fn tool_definitions() -> Vec<Value> {
@@ -542,7 +684,7 @@ fn browser_tool_definitions() -> Vec<Value> {
         }
     });
     vec![
-        json!({ "name": "browser_status", "description": "Current browser session: open state, tabs and active tab.", "inputSchema": { "type": "object", "properties": {} } }),
+        json!({ "name": "browser_status", "description": "Current browser session: open state, tabs, active tab, and any JavaScript alert, confirm or prompt the page is waiting on (answer it with browser_dialog).", "inputSchema": { "type": "object", "properties": {} } }),
         json!({ "name": "browser_tabs", "description": "List open browser tabs.", "inputSchema": { "type": "object", "properties": {} } }),
         json!({ "name": "browser_open", "description": "Open the session browser (creates a tab) and optionally navigate to an http(s) URL.", "inputSchema": { "type": "object", "properties": { "url": { "type": "string" } } } }),
         json!({ "name": "browser_navigate", "description": "Navigate the active tab to an http(s) URL.", "inputSchema": { "type": "object", "properties": { "url": { "type": "string" } }, "required": ["url"] } }),
@@ -561,6 +703,15 @@ fn browser_tool_definitions() -> Vec<Value> {
         json!({ "name": "browser_device", "description": "Responsive device mode: pages lay out at a phone or tablet CSS size, so you can check mobile layouts (screenshots show it). Use a preset (iphone-se, iphone-xr, iphone-12-pro, iphone-14-pro-max, pixel-7, galaxy-s8-plus, galaxy-s20-ultra, ipad-mini, ipad-air, ipad-pro, surface-pro-7, surface-duo, galaxy-z-fold-5, zenbook-fold, galaxy-a51-71, nest-hub, nest-hub-max) or width and height (240–3840), with orientation portrait or landscape; fill: true goes back to the normal size. It changes CSS breakpoints, not the user agent. The person sees the same device in their browser pane.", "inputSchema": { "type": "object", "properties": { "preset": { "type": "string" }, "width": { "type": "integer" }, "height": { "type": "integer" }, "orientation": { "type": "string", "enum": ["portrait", "landscape"] }, "fill": { "type": "boolean" } } } }),
         json!({ "name": "browser_record_start", "description": "Start recording the active tab to a video, for example to show the person a flow you tested. Clicks and key presses appear in it when the person's settings say so. Stop with browser_record_stop; recordings end by themselves after 10 minutes.", "inputSchema": { "type": "object", "properties": {} } }),
         json!({ "name": "browser_record_stop", "description": "Stop the recording and save it; returns the video file's path (in Movies/Sirus Code) and shows it to the person.", "inputSchema": { "type": "object", "properties": {} } }),
+        json!({ "name": "browser_hover", "description": "Hover an element by ref or selector (pointer and mouse events), to reveal menus and tooltips.", "inputSchema": element.clone() }),
+        json!({ "name": "browser_select", "description": "Choose options in a native select, or in a listbox or combobox with role=option items, by option text or value. Errors list the available options.", "inputSchema": { "type": "object", "properties": { "ref": { "type": "string" }, "selector": { "type": "string" }, "values": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 20 } }, "required": ["values"] } }),
+        json!({ "name": "browser_drag", "description": "Drag from one element or point to another. Each end is a ref, a selector, or {x, y} in CSS pixels of the visible page. Works with pointer events and HTML5 drag and drop.", "inputSchema": { "type": "object", "properties": { "from": { "type": "object" }, "to": { "type": "object" } }, "required": ["from", "to"] } }),
+        json!({ "name": "browser_upload", "description": "Attach up to 5 files (10 MB in total) to a file input, or drop them on a drop area. Paths may be relative to the conversation's workspace or the absolute path of one of the conversation's attachments; anything else is refused.", "inputSchema": { "type": "object", "properties": { "ref": { "type": "string" }, "selector": { "type": "string" }, "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 5 } }, "required": ["paths"] } }),
+        json!({ "name": "browser_dialog", "description": "Answer the JavaScript alert, confirm or prompt that the page is waiting on (browser_status shows it under dialog). accept confirms or submits (with text for a prompt); dismiss cancels.", "inputSchema": { "type": "object", "properties": { "action": { "type": "string", "enum": ["accept", "dismiss"] }, "text": { "type": "string" } }, "required": ["action"] } }),
+        json!({ "name": "browser_evaluate", "description": "Run JavaScript in the active page and return its JSON value (bounded to 32 KB). Runs with the page's own permissions and can read what the page shows; it is available only while Agent browser access is on in Settings. Use an expression, or statements that end with return.", "inputSchema": { "type": "object", "properties": { "expression": { "type": "string" } }, "required": ["expression"] } }),
+        json!({ "name": "browser_network", "description": "Recent requests of the current page since it loaded (fetch and XHR calls, plus resource timings): method, URL without query values, status, type, duration. Responses and bodies are not recorded; some requests made before the page's scripts ran may be missing.", "inputSchema": { "type": "object", "properties": { "limit": { "type": "number" }, "clear": { "type": "boolean" } } } }),
+        json!({ "name": "browser_resize", "description": "Set the page's viewport to width by height CSS pixels (240–3840), like device mode with a custom size. Use browser_device with fill: true to go back to the pane's size.", "inputSchema": { "type": "object", "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } }, "required": ["width", "height"] } }),
+        json!({ "name": "browser_color_scheme", "description": "Set the colour scheme pages see (prefers-color-scheme): light, dark, or system to follow the app.", "inputSchema": { "type": "object", "properties": { "scheme": { "type": "string", "enum": ["light", "dark", "system"] } }, "required": ["scheme"] } }),
     ]
 }
 

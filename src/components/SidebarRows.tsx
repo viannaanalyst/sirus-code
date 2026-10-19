@@ -9,7 +9,8 @@ import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProjectIdentityField } from "@/components/ProjectIdentityField";
-import { ProjectScriptsFields } from "@/components/ProjectScriptsFields";
+import { ProjectScriptsFields, type ProjectScriptsDraft } from "@/components/ProjectScriptsFields";
+import { isPreviewUrlValid } from "@/lib/preview-url";
 import { SessionActions } from "@/components/SessionActions";
 import { SidebarHoverCard } from "@/components/SidebarHoverCard";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
@@ -76,27 +77,30 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
 export function ProjectEditDialog({ project, open, onOpenChange }: { project: Project; open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslation();
   const [name, setName] = useState(project.name);
-  const [scripts, setScripts] = useState({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" });
+  const savedScripts = (): ProjectScriptsDraft => ({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "", previewUrl: project.scripts?.previewUrl ?? "", openPreview: project.scripts?.openPreview === true });
+  const [scripts, setScripts] = useState<ProjectScriptsDraft>(savedScripts);
   const [busy, setBusy] = useState(false);
   const [shown, setShown] = useState(open);
   // Each opening starts from the saved project.
   if (open !== shown) {
     setShown(open);
-    if (open) { setName(project.name); setScripts({ setup: project.scripts?.setup ?? "", onFinish: project.scripts?.onFinish ?? "" }); }
+    if (open) { setName(project.name); setScripts(savedScripts()); }
   }
   const setEditing = onOpenChange;
   const save = async () => {
     const store = useAppStore.getState();
     if (!await store.renameProject(project.id, name)) return false;
-    const changed = scripts.setup.trim() !== (project.scripts?.setup ?? "") || scripts.onFinish.trim() !== (project.scripts?.onFinish ?? "");
-    return !changed || store.saveProjectScripts(project.id, scripts.setup, scripts.onFinish);
+    const saved = savedScripts();
+    const changed = scripts.setup.trim() !== saved.setup.trim() || scripts.onFinish.trim() !== saved.onFinish.trim()
+      || scripts.previewUrl.trim() !== saved.previewUrl.trim() || scripts.openPreview !== saved.openPreview;
+    return !changed || store.saveProjectScripts(project.id, scripts.setup, scripts.onFinish, scripts.previewUrl, scripts.openPreview);
   };
   return <>
     <Dialog open={open} onOpenChange={(open) => { if (!busy) setEditing(open); }}><DialogContent title={t("Edit project")} description={t("projectLook.dialogHelp")} className="w-[min(460px,calc(100vw-32px))]">
       <form onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void save().then((saved) => { if (saved) setEditing(false); }).finally(() => setBusy(false)); }}>
         <ProjectIdentityField projectId={project.id} name={name} onName={setName} disabled={busy} />
-        <ProjectScriptsFields setup={scripts.setup} onFinish={scripts.onFinish} disabled={busy} onChange={setScripts} />
-        <div className="mt-5 flex justify-end gap-2"><InteractiveButton variant="ghost" disabled={busy} onClick={() => setEditing(false)}>{t("common.cancel")}</InteractiveButton><InteractiveButton type="submit" loading={busy} disabled={!name.trim()}>{t("common.save")}</InteractiveButton></div>
+        <ProjectScriptsFields scripts={scripts} disabled={busy} onChange={setScripts} />
+        <div className="mt-5 flex justify-end gap-2"><InteractiveButton variant="ghost" disabled={busy} onClick={() => setEditing(false)}>{t("common.cancel")}</InteractiveButton><InteractiveButton type="submit" loading={busy} disabled={!name.trim() || !isPreviewUrlValid(scripts.previewUrl)}>{t("common.save")}</InteractiveButton></div>
       </form>
     </DialogContent></Dialog>
   </>;

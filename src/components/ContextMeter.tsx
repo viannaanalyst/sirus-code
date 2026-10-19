@@ -39,7 +39,7 @@ export function ContextMeter({ session }: { session: Session | null }) {
       </div>
       {canCompact ? <button type="button" className={cn("context-meter-compact ui-caption", level !== "normal" && "context-meter-compact-strong")} disabled={active}
         title={active ? t("context.wait") : undefined}
-        onClick={() => { setOpen(false); void useAppStore.getState().sendPrompt("/compact", undefined, session.id); }}>{t("context.compact")}</button> : null}
+        onClick={() => { setOpen(false); void useAppStore.getState().compactSession(session.id); }}>{t("context.compact")}</button> : null}
     </PopoverContent>
   </Popover>;
 }

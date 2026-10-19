@@ -597,6 +597,16 @@ pub enum SidebarListOrder {
     Project,
 }
 
+/// Chat behavior (ADR-149): where a plain click on a web link opens, the conversation's
+/// Sirus browser or the system browser.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum LinkOpenTarget {
+    #[default]
+    App,
+    System,
+}
+
 /// Closed choices for the global window snap shortcut.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -663,8 +673,13 @@ pub struct AppSettings {
     pub browser_recording_keys: bool,
     #[serde(default = "default_true")]
     pub browser_recording_clicks: bool,
+    /// Browser (ADR-151): pages an agent opens or navigates float over the conversation.
+    #[serde(default = "default_true")]
+    pub browser_show_agent_pages: bool,
     /// Chat behavior: GitHub pull request/issue links in replies open the Pull requests page.
     pub github_links_in_app: bool,
+    /// Chat behavior: web links in chat and terminals open in the Sirus browser or the system one.
+    pub link_open_target: LinkOpenTarget,
     /// Chat behavior: diffs wrap long lines by default.
     pub diff_word_wrap: bool,
     /// Chat behavior: ask before archiving a session.
@@ -832,6 +847,11 @@ pub struct AppSettings {
     pub response_streaming: ResponseStreaming,
     /// Agent behavior (ADR-130): agents may use the in-app browser tools.
     pub agent_browser_access: bool,
+    /// Custom persistent browser profiles (ADR-150); Default and Private are built in.
+    pub browser_profiles: Vec<crate::browser_profiles::BrowserProfile>,
+    /// The profile new browser tabs open in: `default`, `private` or a custom profile's id.
+    #[serde(default = "crate::browser_profiles::default_profile_id")]
+    pub default_browser_profile: String,
 }
 
 /// How a streaming reply shows its text (ADR-130).
@@ -882,7 +902,9 @@ impl Default for AppSettings {
             browser_recording_fps: 30,
             browser_recording_keys: true,
             browser_recording_clicks: true,
+            browser_show_agent_pages: true,
             github_links_in_app: true,
+            link_open_target: LinkOpenTarget::App,
             diff_word_wrap: false,
             confirm_archive: false,
             confirm_terminal_close: true,
@@ -988,6 +1010,8 @@ impl Default for AppSettings {
             worktrees_from_origin: true,
             response_streaming: ResponseStreaming::Token,
             agent_browser_access: true,
+            browser_profiles: Vec::new(),
+            default_browser_profile: crate::browser_profiles::default_profile_id(),
         }
     }
 }
@@ -1045,6 +1069,7 @@ impl AppSettings {
             ));
         }
         crate::connectors::validate(&self.connectors)?;
+        crate::browser_profiles::validate(&self.browser_profiles, &self.default_browser_profile)?;
         use crate::error::Error;
         // One entry per provider at most (ten since Hermes).
         if self.usage_providers.len() > 10
@@ -1515,10 +1540,12 @@ mod settings_tests {
         assert!(legacy.sidebar_collapsed);
         assert_eq!(legacy.sidebar_mode, SidebarMode::Rail);
         assert_eq!(legacy.sidebar_list_order, SidebarListOrder::Recent);
+        assert_eq!(legacy.link_open_target, LinkOpenTarget::App);
         assert!(legacy.sidebar_open_folders.is_none());
         for (field, allowed) in [
             ("sidebarMode", &["rail", "list", "project"][..]),
             ("sidebarListOrder", &["recent", "project"][..]),
+            ("linkOpenTarget", &["app", "system"][..]),
         ] {
             for &value in allowed {
                 let settings: AppSettings =

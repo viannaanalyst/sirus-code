@@ -33,6 +33,10 @@ export interface ContextMenuProps {
   onOpenChange?: (open: boolean) => void;
   /** Keeps the trigger in the text flow (a file name inside a sentence). */
   inline?: boolean;
+  /** Layout classes for the trigger wrapper (a terminal that must fill its column). */
+  className?: string;
+  /** With no items, the right-click is left alone (the terminal's native Copy and Paste). Items must already be known when it happens. */
+  nativeWhenEmpty?: boolean;
 }
 
 type Highlight = { index: number; top: number; height: number; danger: boolean; glide: boolean };
@@ -42,7 +46,7 @@ const MENU_WIDTH = 208;
 const POPUP_ENTER = .16;
 const POPUP_EXIT = .1;
 
-export function ContextMenu({ children, items, label = "Context menu", activation = "click-and-context", portal: usePortal = true, onOpenChange, inline = false }: ContextMenuProps) {
+export function ContextMenu({ children, items, label = "Context menu", activation = "click-and-context", portal: usePortal = true, onOpenChange, inline = false, className, nativeWhenEmpty = false }: ContextMenuProps) {
   const reduced = useReducedMotion();
   const [open, setOpen] = useState(false);
   // The portal mounts on first open (client only) and stays so the menu can animate out.
@@ -162,7 +166,7 @@ export function ContextMenu({ children, items, label = "Context menu", activatio
     </AnimatePresence>;
 
   return <>
-    <div ref={targetRef} className={styles.target} style={{ ...(usePortal ? {} : { position: "relative" as const }), ...(inline ? { display: "inline" } : {}) }} tabIndex={activation === "context-only" ? undefined : 0} onPointerDown={event => { if (menuRef.current?.contains(event.target as Node)) return; pressedWhileOpen.current = open && event.button === 0; }} onClick={activation === "context-only" ? undefined : onTargetClick} onContextMenu={event => { event.preventDefault(); showMenu(event.clientX, event.clientY); }} onKeyDown={onTargetKeyDown} aria-label={label} aria-haspopup="menu" aria-expanded={open}>
+    <div ref={targetRef} className={className ? `${styles.target} ${className}` : styles.target} style={{ ...(usePortal ? {} : { position: "relative" as const }), ...(inline ? { display: "inline" } : {}) }} tabIndex={activation === "context-only" ? undefined : 0} onPointerDown={event => { if (menuRef.current?.contains(event.target as Node)) return; pressedWhileOpen.current = open && event.button === 0; }} onClick={activation === "context-only" ? undefined : onTargetClick} onContextMenu={event => { if (nativeWhenEmpty && empty) return; event.preventDefault(); showMenu(event.clientX, event.clientY); }} onKeyDown={onTargetKeyDown} aria-label={label} aria-haspopup="menu" aria-expanded={open}>
       {children}
       {portal && !usePortal ? panel : null}
     </div>

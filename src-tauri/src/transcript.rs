@@ -53,18 +53,44 @@ fn context_limit() -> Error {
     Error::new("context_limit", "This transcript exceeds the 32 KiB fork context limit. Use a shorter session or write a handoff summary.")
 }
 
+/// Whether the next turn resumes the session's own native conversation, rather than
+/// starting one from the reconstructed transcript (a fork's first turn).
+fn resumes_native(session: &Session) -> bool {
+    session.native_thread.as_ref().is_some_and(|thread| {
+        session.fork_origin.as_ref().is_none_or(|origin| {
+            origin.seeded_native_thread_id.as_deref() == Some(thread.thread_id.as_str())
+        })
+    })
+}
+
+/// Why a standalone `/compact` cannot run on this session, if it cannot (ADR-057). It goes to
+/// the provider alone and verbatim, so it is refused rather than ever reaching the model as text.
+pub fn compaction_refusal(
+    session: &Session,
+    attachments: bool,
+    modes: bool,
+) -> Option<&'static str> {
+    if !matches!(
+        session.agent,
+        AgentProviderId::Codex | AgentProviderId::Claude
+    ) {
+        return Some("Only Codex and Claude Code conversations can be compacted.");
+    }
+    if !resumes_native(session) {
+        return Some("There is nothing to compact yet: this conversation has not started.");
+    }
+    if attachments || modes {
+        return Some("Send /compact on its own, without attachments, team or debug mode.");
+    }
+    None
+}
+
 pub fn process_prompt(session: &Session, prompt: &str) -> Result<String> {
     let native = matches!(
         session.agent,
         AgentProviderId::Codex | AgentProviderId::Claude | AgentProviderId::OpenCode
     );
-    if native
-        && session.native_thread.as_ref().is_some_and(|thread| {
-            session.fork_origin.as_ref().is_none_or(|origin| {
-                origin.seeded_native_thread_id.as_deref() == Some(thread.thread_id.as_str())
-            })
-        })
-    {
+    if native && resumes_native(session) {
         return Ok(prompt.to_string());
     }
     if session
@@ -539,6 +565,34 @@ mod tests {
         assert!(process_prompt(&restored, "retry replacement")
             .unwrap()
             .contains("first answer"));
+    }
+
+    #[test]
+    fn compaction_needs_a_resumable_codex_or_claude_conversation_and_nothing_else() {
+        let mut session = source();
+        assert_eq!(compaction_refusal(&session, false, false), None);
+        session.agent = AgentProviderId::Claude;
+        assert_eq!(compaction_refusal(&session, false, false), None);
+        assert!(compaction_refusal(&session, true, false)
+            .is_some_and(|reason| reason.contains("on its own")));
+        assert!(compaction_refusal(&session, false, true).is_some());
+        for agent in [AgentProviderId::OpenCode, AgentProviderId::Cursor] {
+            session.agent = agent;
+            assert!(compaction_refusal(&session, false, false)
+                .is_some_and(|reason| reason.contains("Only Codex and Claude Code")));
+        }
+        session.agent = AgentProviderId::Codex;
+        session.native_thread = None;
+        assert!(compaction_refusal(&session, false, false)
+            .is_some_and(|reason| reason.contains("nothing to compact")));
+        // A fork's first turn rebuilds its context: its thread is not the conversation yet.
+        let source = source();
+        let mut fork =
+            fork_snapshot(&source, "answer", "new", "now", source.worktree.clone()).unwrap();
+        fork.native_thread = source.native_thread.clone();
+        assert!(compaction_refusal(&fork, false, false).is_some());
+        crate::agent::finalize_session(&mut fork, Some(0), false, false, false, None);
+        assert_eq!(compaction_refusal(&fork, false, false), None);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { COMPACT_IDLE_MS, shouldCompactBeforeSend } from "../src/lib/compact-before-send.ts";
+import { COMPACT_IDLE_MS, compactRefusal, isCompactCommand, shouldCompactBeforeSend } from "../src/lib/compact-before-send.ts";
 import type { Session } from "../src/client/types.ts";
 
 const now = Date.parse("2026-10-07T12:00:00Z");
@@ -25,4 +25,20 @@ test("compact and send needs a heavy context, a long pause and a compacting prov
     { status: "waiting" },
   ] as const) assert.equal(shouldCompactBeforeSend({ ...base, ...change } as typeof base, now), false, JSON.stringify(change));
   assert.equal(shouldCompactBeforeSend(null, now), false);
+});
+
+test("only the standalone /compact is the command", () => {
+  assert.equal(isCompactCommand("/compact"), true);
+  assert.equal(isCompactCommand("  /compact\n"), true);
+  for (const text of ["/compact now", "please /compact", "/Compact", "compact", ""]) assert.equal(isCompactCommand(text), false, text);
+});
+
+test("compact runs on an idle native Codex or Claude conversation and says why not otherwise", () => {
+  assert.equal(compactRefusal(base), null);
+  assert.equal(compactRefusal({ ...base, agent: "codex" }), null);
+  assert.equal(compactRefusal({ ...base, agent: "opencode" }), "context.cannotCompact");
+  assert.equal(compactRefusal({ ...base, agent: "cursor", nativeThread: null }), "context.cannotCompact");
+  assert.equal(compactRefusal({ ...base, nativeThread: null }), "context.nothingToCompact");
+  assert.equal(compactRefusal(null), "context.nothingToCompact");
+  for (const status of ["starting", "running", "waiting"] as const) assert.equal(compactRefusal({ ...base, status }), "context.wait");
 });

@@ -26,13 +26,14 @@ export interface Project {
   scripts?: ProjectScripts;
 }
 
-export interface ProjectScripts { setup?: string | null; onFinish?: string | null }
+/** `previewUrl` is a loopback page a script serves; `openPreview` opens it in the browser once it answers (ADR-151). */
+export interface ProjectScripts { setup?: string | null; onFinish?: string | null; previewUrl?: string | null; openPreview?: boolean }
 export type ScriptKind = "setup" | "finish";
 export type ScriptRunStatus = "running" | "succeeded" | "failed" | "timedOut" | "cancelled";
 /** Latest run of one project script in a session's worktree; `output` is the bounded tail. */
 export interface ScriptRun { id: string; kind: ScriptKind; status: ScriptRunStatus; startedAt: string; finishedAt?: string | null; exitCode?: number | null; output: string }
 export type ProjectScriptsAction =
-  | { type: "save"; projectId: string; setup: string | null; onFinish: string | null }
+  | { type: "save"; projectId: string; setup: string | null; onFinish: string | null; previewUrl?: string | null; openPreview?: boolean }
   | { type: "run"; sessionId: string; kind: ScriptKind }
   | { type: "cancel"; sessionId: string }
   | { type: "dismiss"; sessionId: string; kind: ScriptKind };
@@ -211,6 +212,8 @@ export interface BrowserTabState {
   canGoBack: boolean;
   canGoForward: boolean;
   faviconUrl: string;
+  /** The browser profile the tab opened in (ADR-150). */
+  profile?: string;
 }
 
 export interface BrowserSessionState {
@@ -226,8 +229,14 @@ export interface BrowserSessionState {
   zoom?: number;
   /** Colour scheme pages see (ADR-112). */
   appearance?: "system" | "light" | "dark";
+  /** A JavaScript alert, confirm or prompt waiting for an answer (ADR-150). */
+  dialog?: BrowserDialog | null;
 }
 export interface BrowserDevice { width: number; height: number; preset?: string | null }
+/** A page's JavaScript dialog (ADR-150); `url` is the page without its query. */
+export interface BrowserDialog { tabId: string; kind: "alert" | "confirm" | "prompt"; message: string; defaultText?: string | null; url: string }
+/** A custom persistent browser profile (ADR-150). */
+export interface BrowserProfile { id: string; name: string }
 /** An agent asks the renderer to start or stop recording a session's browser (ADR-112). */
 export interface BrowserRecordRequest { requestId: string; sessionId: string; action: "start" | "stop" }
 
@@ -239,6 +248,39 @@ export interface BrowserCaptureEvent {
 export interface BrowserAnnotation {
   selector: string;
   label: string;
+}
+
+/** A marked element with its place in the viewport (CSS px), from `browser_annotate_capture` (ADR-151). */
+export interface BrowserAnnotatedElement extends BrowserAnnotation {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface BrowserAnnotationCapture {
+  url: string;
+  viewportWidth: number;
+  viewportHeight: number;
+  elements: BrowserAnnotatedElement[];
+  /** Base64 PNG of the visible page with the numbered markers. */
+  png?: string | null;
+}
+
+/** A page an agent opened or navigated, or a project script's preview that answered (ADR-151). */
+export interface BrowserPageEvent {
+  sessionId: string;
+  url: string;
+}
+
+/** A listening local server from the native scan (ADR-151). */
+export interface LocalServer {
+  url: string;
+  port: number;
+  pid: number;
+  process: string;
+  owned: boolean;
+  inWorkspace: boolean;
 }
 
 /** One side of a conversation moved between computers (ADR-133). */
@@ -423,6 +465,9 @@ export type PromptLinkOutcome =
   | { kind: "invalid"; reason: PromptLinkError };
 export type WindowSnapAction = { type: "claim"; nonce: string; owner: string } | { type: "discard"; nonce: string };
 
+/** Chat behavior: a plain click on a web link opens the Sirus browser or the system browser (ADR-149). */
+export type LinkOpenTarget = "app" | "system";
+
 export interface AppSettings {
   notifications: NotificationPreferences;
   usageProviders: AgentProviderId[];
@@ -451,7 +496,11 @@ export interface AppSettings {
   browserRecordingFps: number;
   browserRecordingKeys: boolean;
   browserRecordingClicks: boolean;
+  /** Browser (ADR-151): pages an agent opens or navigates float over the conversation. */
+  browserShowAgentPages: boolean;
   githubLinksInApp: boolean;
+  /** Where a plain click on a web link in chat or a terminal opens (ADR-149). */
+  linkOpenTarget: LinkOpenTarget;
   diffWordWrap: boolean;
   confirmArchive: boolean;
   confirmTerminalClose: boolean;
@@ -590,6 +639,10 @@ export interface AppSettings {
   responseStreaming: ResponseStreaming;
   /** Agents may use the in-app browser tools (ADR-130). */
   agentBrowserAccess: boolean;
+  /** Custom persistent browser profiles, at most 10 (ADR-150). */
+  browserProfiles: BrowserProfile[];
+  /** The profile new browser tabs open in: `default`, `private` or a custom id (ADR-150). */
+  defaultBrowserProfile: string;
 }
 
 export type ResponseStreaming = "turn" | "paragraph" | "token";
@@ -1081,6 +1134,8 @@ export interface GithubDetail {
   filesTruncated: boolean;
 }
 export type PullRequestAction =
+  /** GitHub repositories of saved projects (no `gh` call). */
+  | { type: "repositories" }
   | { type: "list"; kind: GithubItemKind; state: GithubItemState }
   | { type: "detail"; repository: string; number: number; kind: GithubItemKind }
   | { type: "diff"; repository: string; number: number }
@@ -1098,6 +1153,7 @@ export type PullRequestAction =
   /** Pushes the session branch and opens a pull request into the default branch. */
   | { type: "create"; sessionId: string; title: string; body: string; draft: boolean; confirm: true };
 export type PullRequestResponse =
+  | { type: "repositories"; repositories: GithubInbox["repositories"] }
   | ({ type: "inbox" } & GithubInbox)
   | ({ type: "detail" } & GithubDetail)
   | { type: "diff"; text: string; truncated: boolean }

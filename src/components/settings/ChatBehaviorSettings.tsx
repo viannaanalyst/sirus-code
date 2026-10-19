@@ -5,10 +5,11 @@ import { AUTO_ARCHIVE_DEFAULT_DAYS, AUTO_ARCHIVE_MAX_DAYS, CHAT_AGENT_KEYS, CHAT
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { Switch } from "@/primitives/Switch";
+import { BrowserProfilesSettings } from "./BrowserProfilesSettings";
 import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
 import "@/styles/general-settings.css";
 
-type ChatKey = (typeof CHAT_SETTING_KEYS)[number];
+type ChatKey = Exclude<(typeof CHAT_SETTING_KEYS)[number], "linkOpenTarget">;
 
 /** Chat behavior: live replies, follow-ups, dictation, review defaults and safety confirmations. */
 export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
@@ -70,11 +71,25 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       </SettingsRow> : null}
     </SettingsGroup>
     <SettingsGroup title={t("chatBehavior.review")} card>
+      {/* How links open (ADR-149): ⌘, Ctrl, Alt or middle click always use the system browser. */}
+      <SettingsRow title={t("chatBehavior.openLinksIn")} description={t("chatBehavior.openLinksInHelp")}>
+        <SegmentedControl label={t("chatBehavior.openLinksIn")} value={settings.linkOpenTarget}
+          options={[{ value: "app", label: t("chatBehavior.sirusBrowser") }, { value: "system", label: t("chatBehavior.systemBrowser") }]}
+          onChange={(next) => onSave({ ...settings, linkOpenTarget: next === "system" ? "system" : "app" })} />
+      </SettingsRow>
       {choice("githubLinksInApp", "chatBehavior.links", "chatBehavior.linksHelp",
         [{ value: "app", label: "chatBehavior.inApp" }, { value: "external", label: "chatBehavior.external" }],
         settings.githubLinksInApp ? "app" : "external", (value) => value === "app")}
       {toggle("diffWordWrap", "chatBehavior.wrap", "chatBehavior.wrapHelp")}
     </SettingsGroup>
+    {/* Pages an agent opens float over the conversation (ADR-151). */}
+    <SettingsGroup title={t("browser.settingsGroup")} card>
+      <SettingsRow title={t("browser.showAgentPages")} description={t("browser.showAgentPagesHelp")}>
+        <Switch checked={settings.browserShowAgentPages} label={t("browser.showAgentPages")} onChange={(value) => onSave({ ...settings, browserShowAgentPages: value })} />
+      </SettingsRow>
+    </SettingsGroup>
+    {/* Browser profiles (ADR-149). */}
+    <BrowserProfilesSettings settings={settings} onSave={onSave} />
     {/* Browser recordings (ADR-112). */}
     <SettingsGroup title={t("browser.recordingSettings")} card>
       <SettingsRow title={t("browser.recordFps")} description={t("browser.recordFpsHelp")}>

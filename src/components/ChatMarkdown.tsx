@@ -1,8 +1,9 @@
 import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons/phosphor";
 import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { client, isRemoteUi } from "@/client";
+import { client } from "@/client";
 import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
+import { ChatLink } from "@/components/ChatLink";
 import { useTranslation } from "@/i18n/use-translation";
 import { fileReference, localMediaKind, parseChatInline, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
 import { parseChatMarkdownStream, type ChatMarkdownParse } from "@/lib/chat-markdown-stream";
@@ -14,6 +15,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { GALLERY_EVENT } from "@/components/ImageLightbox";
 import { readableCodexText } from "@/lib/codex-directives";
+import { isBareLinkText } from "@/lib/link-chips";
 import "@/styles/chat-markdown.css";
 
 type RefKind = "file" | "dir" | null;
@@ -117,28 +119,8 @@ function FileReference({ owner, path, line, children, fallback }: { owner: Owner
   </ContextMenu>;
 }
 
-/** GitHub PR/issue links open the Pull requests page when Chat behavior asks for it (⌘-click: browser). */
-export function openLink(url: string, external: boolean) {
-  const store = useAppStore.getState();
-  const match = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/(?:pull|issues)\/(\d+)(?:[/?#]|$)/i.exec(url);
-  if (match && !external && store.settings.githubLinksInApp) {
-    useAppStore.setState({ pullsSelection: `${match[1]}#${match[2]}` });
-    store.setMainView("pulls");
-    return;
-  }
-  // Web pages open in the conversation's Sirus browser; ⌘-click still uses the system browser.
-  const sessionId = store.selectedSessionId;
-  if (!external && !isRemoteUi && sessionId && /^https?:\/\//i.test(url)) {
-    void (async () => {
-      const state = useAppStore.getState();
-      if (!state.browserBySession[sessionId]?.open && !(await state.openBrowser(sessionId))) return;
-      if (!(await useAppStore.getState().browserNewTab(sessionId, url))) return;
-      useAppStore.getState().openDockPane("browser");
-    })();
-    return;
-  }
-  void client.openExternalUrl(url).catch(() => void navigator.clipboard.writeText(url));
-}
+/** Links open by Chat behavior's rules (ADR-149); kept here for the surfaces that import it. */
+export { openLink } from "@/components/ChatLink";
 
 function openGallery(button: HTMLElement, url: string) {
   // A message (or another gallery scope, like a PR description) opens its own images together.
@@ -188,7 +170,7 @@ function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Own
       }
       case "image": {
         const source = imageSource?.(node.url);
-        if (source === null) return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}>{node.alt || node.url}</a>;
+        if (source === null) return node.alt ? <ChatLink key={index} url={node.url}>{node.alt}</ChatLink> : <ChatLink key={index} url={node.url} chip />;
         const src = source ?? node.url;
         // Images in a reply open together in the gallery, in the order they appear in the message.
         return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, src)}>
@@ -197,7 +179,10 @@ function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Own
       }
       case "link": {
         if (/^https?:\/\//i.test(node.url)) {
-          return <a key={index} href="#" title={node.url} className="chat-link" onClick={(event) => { event.preventDefault(); openLink(node.url, event.metaKey || event.ctrlKey); }}><Inline nodes={node.children} owner={owner} /></a>;
+          // A link whose text is its own address reads as a chip; written text keeps its words after the icon.
+          const only = node.children.length === 1 && node.children[0].kind === "text" ? node.children[0].text : null;
+          return only !== null && isBareLinkText(only, node.url) ? <ChatLink key={index} url={node.url} chip />
+            : <ChatLink key={index} url={node.url}><Inline nodes={node.children} owner={owner} /></ChatLink>;
         }
         const plainLink = () => {
           const reference = owner ? fileReference(node.url, owner.cwd) : null;

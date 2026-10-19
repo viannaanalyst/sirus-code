@@ -663,6 +663,11 @@ export class SirusClient {
     return this.transport.listen<unknown>("ci-autofix-changed", () => handler());
   }
 
+  /** A site's favicon by host only (never the full URL), fetched and cached natively (ADR-149). */
+  siteFavicon(host: string) {
+    return this.transport.invoke<string | null>("site_favicon", { host });
+  }
+
   pullRequestAction(action: import("./types").PullRequestAction) {
     return this.transport.invoke<import("./types").PullRequestResponse>("pull_request_action", { action });
   }
@@ -794,8 +799,9 @@ export class SirusClient {
     return this.transport.invoke<import("./types").BrowserSessionState>("browser_state", { sessionId });
   }
 
-  browserNewTab(sessionId: string, url: string | null) {
-    return this.transport.invoke<import("./types").BrowserSessionState>("browser_new_tab", { sessionId, url });
+  /** A tab in a browser profile (`default`, `private` or a custom id); omitted, the Settings default (ADR-150). */
+  browserNewTab(sessionId: string, url: string | null, profile?: string | null) {
+    return this.transport.invoke<import("./types").BrowserSessionState>("browser_new_tab", { sessionId, url, profile: profile ?? null });
   }
 
   browserCloseTab(sessionId: string, tabId: string) {
@@ -834,6 +840,24 @@ export class SirusClient {
     return this.transport.invoke<import("./types").BrowserAnnotation[]>("browser_annotate_finish", { sessionId, tabId });
   }
 
+  /** Finishes annotating and returns the marked elements with a screenshot of the page (ADR-151). */
+  browserAnnotateCapture(sessionId: string, tabId: string) {
+    return this.transport.invoke<import("./types").BrowserAnnotationCapture>("browser_annotate_capture", { sessionId, tabId });
+  }
+
+  /** Listening local servers worth opening for the session, read on demand (ADR-151). */
+  localServersList(sessionId: string) {
+    return this.transport.invoke<import("./types").LocalServer[]>("local_servers_list", { sessionId });
+  }
+
+  onBrowserAgentPage(handler: (event: import("./types").BrowserPageEvent) => void) {
+    return this.transport.listen<import("./types").BrowserPageEvent>("browser-agent-page", handler);
+  }
+
+  onProjectPreview(handler: (event: import("./types").BrowserPageEvent) => void) {
+    return this.transport.listen<import("./types").BrowserPageEvent>("project-preview", handler);
+  }
+
   browserAnnotateCancel(sessionId: string, tabId: string) {
     return this.transport.invoke<void>("browser_annotate_cancel", { sessionId, tabId });
   }
@@ -870,6 +894,21 @@ export class SirusClient {
 
   browserDevtools(sessionId: string, tabId: string) {
     return this.transport.invoke<void>("browser_devtools", { sessionId, tabId });
+  }
+
+  /** Answers the page's open JavaScript dialog from the pane (ADR-150). */
+  browserDialogReply(sessionId: string, tabId: string, accept: boolean, text: string | null) {
+    return this.transport.invoke<import("./types").BrowserSessionState>("browser_dialog_reply", { sessionId, tabId, accept, text });
+  }
+
+  /** Deletes a custom browser profile's data and closes its tabs (ADR-150). */
+  browserProfileDelete(profileId: string) {
+    return this.transport.invoke<void>("browser_profile_delete", { profileId });
+  }
+
+  /** Whether custom browser profiles work on this Mac (macOS 14 and later) (ADR-150). */
+  browserProfilesSupported() {
+    return this.transport.invoke<boolean>("browser_profiles_supported", {});
   }
 
   /** Clears cookies or the cache of every session's browser (one shared store). */

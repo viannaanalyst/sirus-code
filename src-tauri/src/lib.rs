@@ -25,7 +25,10 @@ mod auto_archive;
 mod auto_pull;
 #[cfg(feature = "desktop")]
 mod browser;
+#[cfg(feature = "desktop")]
+mod browser_agent;
 mod browser_mcp;
+mod browser_profiles;
 #[cfg(feature = "desktop")]
 mod browser_recording;
 mod chat_background;
@@ -99,6 +102,7 @@ mod session_move;
 mod side_chat;
 mod sidebar;
 mod sirus_tools;
+mod site_favicon;
 mod skills;
 mod snooze;
 mod store;
@@ -323,6 +327,7 @@ pub fn run() {
             ci_autofix::ci_autofix_action,
             pr_watch::pr_watch_action,
             local_servers::local_server_action,
+            local_servers::local_servers_list,
             agent_resources::agent_resources,
             agent_resources::agent_resource_action,
             devices::device_action,
@@ -334,6 +339,7 @@ pub fn run() {
             attachments::attachment_image,
             chat_background::chat_background_action,
             chat_background::chat_background_image,
+            site_favicon::site_favicon,
             window_snap::window_snap_action,
             app_update::app_update_action,
             project_look::project_look_action,
@@ -393,6 +399,7 @@ pub fn run() {
             browser::browser_annotate_start,
             browser::browser_annotate_finish,
             browser::browser_annotate_cancel,
+            browser::browser_annotate_capture,
             browser::browser_copy_link,
             browser::browser_capture,
             browser::browser_set_zoom,
@@ -405,6 +412,9 @@ pub fn run() {
             browser::browser_devtools,
             browser::browser_clear_data,
             browser::browser_input_events,
+            browser_agent::browser_dialog_reply,
+            browser_agent::browser_profile_delete,
+            browser_agent::browser_profiles_supported,
             browser_recording::browser_recording_start,
             browser_recording::browser_recording_append,
             browser_recording::browser_recording_finish,

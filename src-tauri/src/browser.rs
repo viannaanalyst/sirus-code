@@ -25,6 +25,9 @@ pub struct BrowserTabState {
     pub can_go_back: bool,
     pub can_go_forward: bool,
     pub favicon_url: String,
+    /// The browser profile the tab opened in (ADR-150).
+    #[serde(default = "crate::browser_profiles::default_profile_id")]
+    pub profile: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -46,6 +49,9 @@ pub struct BrowserSessionState {
     /// Colour scheme pages see: `system`, `light` or `dark` (ADR-112).
     #[serde(default = "system_appearance")]
     pub appearance: String,
+    /// A JavaScript alert, confirm or prompt waiting for an answer (ADR-150), if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dialog: Option<crate::browser_agent::BrowserDialog>,
 }
 
 fn unit_zoom() -> f64 {
@@ -142,6 +148,7 @@ impl BrowserSessionState {
             device: None,
             zoom: 1.0,
             appearance: system_appearance(),
+            dialog: None,
         }
     }
 }
@@ -267,6 +274,119 @@ pub fn appkit_frame(content_height: f64, bounds: &BrowserBounds) -> (f64, f64, f
     let x = bounds.x.max(0.0);
     let y = (content_height - bounds.y - height).max(0.0);
     (x, y, width, height)
+}
+
+// ---- Annotations with a screenshot (ADR-151) ----
+
+/// An annotated element and where it sits in the viewport when the person finishes (CSS px).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotatedElement {
+    pub selector: String,
+    pub label: String,
+    #[serde(default)]
+    pub x: f64,
+    #[serde(default)]
+    pub y: f64,
+    #[serde(default)]
+    pub width: f64,
+    #[serde(default)]
+    pub height: f64,
+}
+
+/// What finishing an annotation returns: the page, its viewport, the elements and a PNG
+/// of the visible page (with the numbered markers) the window crops for the composer.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BrowserAnnotationCapture {
+    pub url: String,
+    pub viewport_width: f64,
+    pub viewport_height: f64,
+    pub elements: Vec<AnnotatedElement>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub png: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct AnnotationMeasure {
+    url: String,
+    width: f64,
+    height: f64,
+    entries: Vec<AnnotatedElement>,
+}
+
+fn finite(value: f64, limit: f64) -> f64 {
+    if value.is_finite() {
+        value.clamp(-limit, limit)
+    } else {
+        0.0
+    }
+}
+
+/// Bounded parse of the fixed measure script's result: at most 20 elements with a
+/// selector, text truncated, numbers finite, and the URL only when it is a page URL.
+pub fn parse_annotation_measure(raw: &str) -> BrowserAnnotationCapture {
+    let measure: AnnotationMeasure = serde_json::from_str(raw).unwrap_or_default();
+    let url = truncate_chars(measure.url.trim(), 2048);
+    BrowserAnnotationCapture {
+        url: if is_allowed_browser_url(&url) {
+            url
+        } else {
+            String::new()
+        },
+        viewport_width: finite(measure.width, 16_384.0).max(0.0),
+        viewport_height: finite(measure.height, 16_384.0).max(0.0),
+        elements: measure
+            .entries
+            .into_iter()
+            .filter(|entry| !entry.selector.trim().is_empty())
+            .take(20)
+            .map(|entry| AnnotatedElement {
+                selector: truncate_chars(entry.selector.trim(), 400),
+                label: truncate_chars(entry.label.trim(), 300),
+                x: finite(entry.x, 1e6),
+                y: finite(entry.y, 1e6),
+                width: finite(entry.width, 1e6).max(0.0),
+                height: finite(entry.height, 1e6).max(0.0),
+            })
+            .collect(),
+        png: None,
+    }
+}
+
+#[cfg(test)]
+mod annotation_capture_tests {
+    use super::*;
+
+    #[test]
+    fn measures_are_bounded_and_urls_checked() {
+        let raw = serde_json::json!({
+            "url": "http://localhost:5173/app",
+            "width": 1280.0,
+            "height": 800.0,
+            "entries": [
+                { "selector": "button#save", "label": "button \"Save\"", "x": 10.5, "y": 20.0, "width": 80.0, "height": 32.0 },
+                { "selector": "  ", "label": "ignored" },
+                { "selector": "div", "label": "div", "x": -5.0, "y": 1e12, "width": -3.0, "height": 4.0 }
+            ]
+        })
+        .to_string();
+        let capture = parse_annotation_measure(&raw);
+        assert_eq!(capture.url, "http://localhost:5173/app");
+        assert_eq!(capture.viewport_width, 1280.0);
+        assert_eq!(capture.elements.len(), 2);
+        assert_eq!(capture.elements[0].label, "button \"Save\"");
+        assert_eq!(capture.elements[1].y, 1e6);
+        assert_eq!(capture.elements[1].width, 0.0);
+        assert!(capture.png.is_none());
+        let hostile = parse_annotation_measure(r#"{"url":"javascript:alert(1)","entries":[]}"#);
+        assert_eq!(hostile.url, "");
+        assert_eq!(
+            parse_annotation_measure("not json"),
+            BrowserAnnotationCapture::default()
+        );
+    }
 }
 
 #[cfg(test)]
@@ -404,7 +524,7 @@ pub(crate) mod platform {
 
     use block2::RcBlock;
     use objc2::rc::Retained;
-    use objc2::runtime::{AnyObject, NSObject, ProtocolObject};
+    use objc2::runtime::{AnyObject, Bool, NSObject, ProtocolObject};
     use objc2::{define_class, msg_send, AllocAnyThread, DeclaredClass, MainThreadOnly};
     use objc2_app_kit::{
         NSBackingStoreType, NSBitmapImageFileType, NSBitmapImageRep, NSFloatingWindowLevel,
@@ -417,7 +537,7 @@ pub(crate) mod platform {
         NSString, NSURLRequest, NSURL,
     };
     use objc2_web_kit::{
-        WKContentWorld, WKNavigation, WKNavigationAction, WKNavigationActionPolicy,
+        WKContentWorld, WKFrameInfo, WKNavigation, WKNavigationAction, WKNavigationActionPolicy,
         WKNavigationDelegate, WKSnapshotConfiguration, WKUIDelegate, WKUserScript,
         WKUserScriptInjectionTime, WKWebView, WKWebViewConfiguration, WKWebsiteDataStore,
         WKWindowFeatures,
@@ -441,6 +561,8 @@ pub(crate) mod platform {
         can_go_forward: bool,
         favicon_url: String,
         bounds: Option<BrowserBounds>,
+        /// The profile the tab opened in (ADR-150).
+        profile: String,
     }
 
     struct SessionRuntime {
@@ -460,6 +582,11 @@ pub(crate) mod platform {
         appearance: String,
         /// The tab floating in its own window (ADR-111).
         pip: Option<Pip>,
+        /// The Private profile's store, shared by this session's private tabs and dropped with
+        /// the browser (ADR-150).
+        private_store: Option<Retained<WKWebsiteDataStore>>,
+        /// A page's JavaScript dialog waiting for an answer (ADR-150).
+        dialog: Option<crate::browser_agent::platform::PendingDialog>,
     }
 
     /// Picture in picture: one tab's view moved into an always-on-top panel.
@@ -500,7 +627,7 @@ pub(crate) mod platform {
         })
     }
 
-    fn on_main<T: Send + 'static>(
+    pub(crate) fn on_main<T: Send + 'static>(
         app: &AppHandle,
         operation: impl FnOnce() -> T + Send + 'static,
     ) -> Result<T> {
@@ -565,6 +692,7 @@ pub(crate) mod platform {
                     can_go_back: tab.can_go_back,
                     can_go_forward: tab.can_go_forward,
                     favicon_url: tab.favicon_url.clone(),
+                    profile: tab.profile.clone(),
                 })
                 .collect(),
             active_tab_id: session.active.clone(),
@@ -572,6 +700,7 @@ pub(crate) mod platform {
             device: session.device.clone(),
             zoom: session.user_zoom,
             appearance: session.appearance.clone(),
+            dialog: session.dialog.as_ref().map(|pending| pending.info.clone()),
         }
     }
 
@@ -662,6 +791,7 @@ pub(crate) mod platform {
             content: &Retained<NSView>,
             content_height: f64,
             mtm: MainThreadMarker,
+            profile: &str,
         ) -> Result<BrowserSessionState> {
             self.clock += 1;
             let used = self.clock;
@@ -678,6 +808,8 @@ pub(crate) mod platform {
                     user_zoom: 1.0,
                     appearance: "system".into(),
                     pip: None,
+                    private_store: None,
+                    dialog: None,
                 })
                 .used = used;
             if self
@@ -686,7 +818,7 @@ pub(crate) mod platform {
                 .is_some_and(|session| session.tabs.is_empty())
             {
                 let page = self.released.remove(session_id);
-                self.new_tab(app, session_id, page, content_height, mtm)?;
+                self.new_tab(app, session_id, page, profile, content_height, mtm)?;
             } else {
                 self.show_active(session_id, content_height);
             }
@@ -703,6 +835,7 @@ pub(crate) mod platform {
             app: &AppHandle,
             session_id: &str,
             url: Option<String>,
+            profile: &str,
             content_height: f64,
             mtm: MainThreadMarker,
         ) -> Result<BrowserSessionState> {
@@ -720,9 +853,11 @@ pub(crate) mod platform {
             let appearance = session.appearance.clone();
             let tab_id = format!("tab-{}", session.next_tab);
             session.next_tab += 1;
+            let store =
+                crate::browser_profiles::platform::store(profile, &mut session.private_store, mtm);
             let (webview, delegate) = unsafe {
                 let config = WKWebViewConfiguration::new(mtm);
-                config.setWebsiteDataStore(&WKWebsiteDataStore::defaultDataStore(mtm));
+                config.setWebsiteDataStore(&store);
                 // A laptop-sized page until the dock pane measures it, so a tab opened by
                 // an agent lays out and captures like a real window (ADR-087).
                 let frame = NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(1280.0, 800.0));
@@ -749,6 +884,7 @@ pub(crate) mod platform {
                     true,
                 );
                 config.userContentController().addUserScript(&bridge);
+                crate::browser_agent::platform::install_scripts(&config, mtm);
                 let delegate = BrowserNavigationDelegate::new(app, session_id, &tab_id, mtm);
                 webview.setNavigationDelegate(Some(ProtocolObject::from_ref(&*delegate)));
                 webview.setUIDelegate(Some(ProtocolObject::from_ref(&*delegate)));
@@ -768,6 +904,7 @@ pub(crate) mod platform {
                     can_go_forward: false,
                     favicon_url: String::new(),
                     bounds: None,
+                    profile: profile.to_string(),
                 },
             ));
             session.active = Some(tab_id);
@@ -804,10 +941,19 @@ pub(crate) mod platform {
                 .map(|(_, tab)| tab.url.clone())
         }
 
+        fn tab_profile(&self, session_id: &str, tab_id: &str) -> String {
+            self.sessions
+                .get(session_id)
+                .and_then(|session| session.tabs.iter().find(|(id, _)| id == tab_id))
+                .map(|(_, tab)| tab.profile.clone())
+                .unwrap_or_else(crate::browser_profiles::default_profile_id)
+        }
+
         fn open_popup_tab(
             &mut self,
             app: &AppHandle,
             session_id: &str,
+            opener: &str,
             url: &str,
             mtm: MainThreadMarker,
         ) -> Option<BrowserSessionState> {
@@ -818,8 +964,16 @@ pub(crate) mod platform {
                 .bounds()
                 .size
                 .height;
-            self.new_tab(app, session_id, Some(url.to_string()), height, mtm)
-                .ok()
+            let profile = self.tab_profile(session_id, opener);
+            self.new_tab(
+                app,
+                session_id,
+                Some(url.to_string()),
+                &profile,
+                height,
+                mtm,
+            )
+            .ok()
         }
 
         fn mark_loading(&mut self, session_id: &str, tab_id: &str, url: &str) {
@@ -1153,6 +1307,65 @@ pub(crate) mod platform {
             self.show_active(session_id, content_height);
         }
 
+        /// Keeps a page's dialog until someone answers it; dropping an unanswered one dismisses it.
+        fn queue_dialog(
+            &mut self,
+            session_id: &str,
+            pending: crate::browser_agent::platform::PendingDialog,
+        ) -> Option<BrowserSessionState> {
+            let session = self.sessions.get_mut(session_id)?;
+            session.dialog = Some(pending);
+            Some(session_state(session_id, session))
+        }
+
+        /// Takes the open dialog of `tab_id` (or of any tab) to answer it.
+        fn take_dialog(
+            &mut self,
+            session_id: &str,
+            tab_id: Option<&str>,
+        ) -> Option<(
+            crate::browser_agent::platform::PendingDialog,
+            BrowserSessionState,
+        )> {
+            let session = self.sessions.get_mut(session_id)?;
+            let wanted = session
+                .dialog
+                .as_ref()
+                .is_some_and(|pending| tab_id.is_none_or(|tab| pending.info.tab_id == tab));
+            if !wanted {
+                return None;
+            }
+            let pending = session.dialog.take()?;
+            let session = self.sessions.get(session_id)?;
+            Some((pending, session_state(session_id, session)))
+        }
+
+        /// Closes every tab opened in `profile`, in every session.
+        fn close_profile_tabs(&mut self, profile: &str) -> Vec<BrowserSessionState> {
+            let targets: Vec<(String, String)> = self
+                .sessions
+                .iter()
+                .flat_map(|(session_id, session)| {
+                    session
+                        .tabs
+                        .iter()
+                        .filter(|(_, tab)| tab.profile == profile)
+                        .map(move |(tab_id, _)| (session_id.clone(), tab_id.clone()))
+                })
+                .collect();
+            let mut states = Vec::new();
+            for (session_id, tab_id) in targets {
+                let height = self
+                    .sessions
+                    .get(&session_id)
+                    .map_or(0.0, |session| session.content_view.bounds().size.height);
+                if let Ok(state) = self.close_tab(&session_id, &tab_id, height) {
+                    states.push(state);
+                }
+            }
+            states
+        }
+
         fn state(&self, session_id: &str) -> BrowserSessionState {
             self.sessions.get(session_id).map_or_else(
                 || BrowserSessionState::closed(session_id),
@@ -1262,6 +1475,7 @@ pub(crate) mod platform {
   if (current && current.active) return "already";
   const entries = [];
   const nodes = [];
+  const targets = [];
   const box = document.createElement("div");
   box.style.cssText = "position:fixed;pointer-events:none;z-index:2147483646;border:2px solid #3b82f6;border-radius:3px;box-shadow:0 0 0 1px rgba(59,130,246,.35);display:none";
   const hud = document.createElement("div");
@@ -1324,7 +1538,25 @@ pub(crate) mod platform {
     marker.style.top = Math.max(0, rect.top - 6) + "px";
     document.body.appendChild(marker);
     nodes.push(marker);
+    targets.push(target);
     entries.push({ selector: selectorFor(target), label: labelFor(target) });
+  };
+  // Hides the hover outline, puts each marker back on its element and returns where they are.
+  const measure = () => {
+    box.style.display = "none";
+    hud.style.display = "none";
+    return {
+      url: location.href, width: window.innerWidth, height: window.innerHeight,
+      entries: entries.map((entry, index) => {
+        const target = targets[index];
+        const rect = target && target.isConnected ? target.getBoundingClientRect() : null;
+        if (rect && nodes[index]) {
+          nodes[index].style.left = Math.max(0, rect.left - 6) + "px";
+          nodes[index].style.top = Math.max(0, rect.top - 6) + "px";
+        }
+        return { selector: entry.selector, label: entry.label, x: rect ? rect.left : 0, y: rect ? rect.top : 0, width: rect ? rect.width : 0, height: rect ? rect.height : 0 };
+      }),
+    };
   };
   const cancel = () => {
     document.removeEventListener("mousemove", move, true);
@@ -1341,7 +1573,7 @@ pub(crate) mod platform {
   document.addEventListener("keydown", key, true);
   document.body.appendChild(box);
   document.body.appendChild(hud);
-  window[KEY] = { active: true, entries, cancel };
+  window[KEY] = { active: true, entries, cancel, measure };
   return "started";
 })()
 "##;
@@ -1353,6 +1585,15 @@ pub(crate) mod platform {
   const raw = JSON.stringify(current.entries || []);
   current.cancel();
   return raw;
+})()
+"#;
+
+    /// Annotations with a screenshot (ADR-151): element rects before the snapshot.
+    const ANNOTATE_MEASURE_SCRIPT: &str = r#"
+(() => {
+  const current = window.__sirusAnnotations;
+  const empty = { url: location.href, width: window.innerWidth, height: window.innerHeight, entries: [] };
+  return JSON.stringify(current && current.measure ? current.measure() : empty);
 })()
 "#;
 
@@ -1668,7 +1909,13 @@ return result;
                 if is_allowed_browser_url(&url) {
                     if let Some(mtm) = MainThreadMarker::new() {
                         let state = with_manager(|manager| {
-                            manager.open_popup_tab(&ivars.app, &ivars.session_id, &url, mtm)
+                            manager.open_popup_tab(
+                                &ivars.app,
+                                &ivars.session_id,
+                                &ivars.tab_id,
+                                &url,
+                                mtm,
+                            )
                         })
                         .ok()
                         .flatten();
@@ -1679,10 +1926,84 @@ return result;
                 }
                 None
             }
+
+            /// JavaScript dialogs are queued for the person or an agent to answer (ADR-150).
+            #[unsafe(method(webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:completionHandler:))]
+            fn run_alert(
+                &self,
+                webview: &WKWebView,
+                message: &NSString,
+                _frame: &WKFrameInfo,
+                handler: &block2::DynBlock<dyn Fn()>,
+            ) {
+                self.dialog(
+                    webview,
+                    crate::browser_agent::platform::DialogHandler::Alert(handler),
+                    message.to_string(),
+                );
+            }
+
+            #[unsafe(method(webView:runJavaScriptConfirmPanelWithMessage:initiatedByFrame:completionHandler:))]
+            fn run_confirm(
+                &self,
+                webview: &WKWebView,
+                message: &NSString,
+                _frame: &WKFrameInfo,
+                handler: &block2::DynBlock<dyn Fn(Bool)>,
+            ) {
+                self.dialog(
+                    webview,
+                    crate::browser_agent::platform::DialogHandler::Confirm(handler),
+                    message.to_string(),
+                );
+            }
+
+            #[unsafe(method(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:completionHandler:))]
+            fn run_prompt(
+                &self,
+                webview: &WKWebView,
+                prompt: &NSString,
+                default_text: Option<&NSString>,
+                _frame: &WKFrameInfo,
+                handler: &block2::DynBlock<dyn Fn(*mut NSString)>,
+            ) {
+                let default = default_text
+                    .map(|text| text.to_string())
+                    .unwrap_or_default();
+                self.dialog(
+                    webview,
+                    crate::browser_agent::platform::DialogHandler::Prompt(handler, default),
+                    prompt.to_string(),
+                );
+            }
         }
     );
 
     impl BrowserNavigationDelegate {
+        fn dialog(
+            &self,
+            webview: &WKWebView,
+            handler: crate::browser_agent::platform::DialogHandler<'_>,
+            message: String,
+        ) {
+            let ivars = self.ivars();
+            let url = unsafe {
+                webview
+                    .URL()
+                    .and_then(|value| value.absoluteString())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default()
+            };
+            crate::browser_agent::platform::on_dialog(
+                &ivars.app,
+                &ivars.session_id,
+                &ivars.tab_id,
+                handler,
+                message,
+                url,
+            );
+        }
+
         fn new(
             app: &AppHandle,
             session_id: &str,
@@ -1789,6 +2110,32 @@ return result;
         evaluate_script(app, session_id, tab_id, ANNOTATE_CANCEL_SCRIPT).map(|_| ())
     }
 
+    /// Annotations with a screenshot (ADR-151): measures the marked elements, takes the
+    /// visible page with its numbered markers, then removes the overlay.
+    pub fn annotate_capture(
+        app: &AppHandle,
+        session_id: &str,
+        tab_id: &str,
+    ) -> Result<super::BrowserAnnotationCapture> {
+        let raw = evaluate_script(app, session_id, tab_id, ANNOTATE_MEASURE_SCRIPT)?;
+        let mut result = super::parse_annotation_measure(&raw);
+        if !result.elements.is_empty() {
+            result.png = capture(app, session_id, tab_id).ok();
+        }
+        let _ = evaluate_script(app, session_id, tab_id, ANNOTATE_FINISH_SCRIPT);
+        Ok(result)
+    }
+
+    /// Agent-opened pages (ADR-151): the window shows them in its floating player.
+    fn reveal_agent_page(app: &AppHandle, session_id: &str, url: &str) {
+        if is_allowed_browser_url(url) && !url.trim().eq_ignore_ascii_case("about:blank") {
+            let _ = app.emit(
+                "browser-agent-page",
+                serde_json::json!({ "sessionId": session_id, "url": url }),
+            );
+        }
+    }
+
     pub fn copy_link(app: &AppHandle, session_id: &str, tab_id: &str) -> Result<()> {
         let session_id = session_id.to_string();
         let tab_id = tab_id.to_string();
@@ -1856,11 +2203,11 @@ return result;
             .map_err(|_| Error::new("native", "the page did not answer in time"))?
     }
 
-    fn call_page(
+    pub(crate) fn call_page(
         app: &AppHandle,
         session_id: &str,
         tab_id: &str,
-        body: &'static str,
+        body: String,
         args: serde_json::Value,
     ) -> Result<String> {
         let (sender, receiver) = mpsc::channel::<String>();
@@ -1889,7 +2236,7 @@ return result;
             });
             unsafe {
                 webview.callAsyncJavaScript_arguments_inFrame_inContentWorld_completionHandler(
-                    &NSString::from_str(body),
+                    &NSString::from_str(&body),
                     Some(&dictionary),
                     None,
                     &WKContentWorld::pageWorld(mtm),
@@ -1913,7 +2260,7 @@ return result;
         })?
     }
 
-    fn opened_active_tab(app: &AppHandle, session_id: &str) -> Result<String> {
+    pub(crate) fn opened_active_tab(app: &AppHandle, session_id: &str) -> Result<String> {
         if let Ok(tab_id) = active_tab(app, session_id) {
             return Ok(tab_id);
         }
@@ -1923,14 +2270,14 @@ return result;
             .ok_or_else(|| Error::new("invalid", "No browser tab is open."))
     }
 
-    fn page_action(
+    pub(crate) fn page_action(
         app: &AppHandle,
         session_id: &str,
         body: &'static str,
         args: serde_json::Value,
     ) -> Result<String> {
         let tab_id = opened_active_tab(app, session_id)?;
-        call_page(app, session_id, &tab_id, body, args)
+        call_page(app, session_id, &tab_id, body.to_string(), args)
     }
 
     pub fn mcp_status(app: &AppHandle, session_id: &str) -> Result<BrowserSessionState> {
@@ -1946,7 +2293,7 @@ return result;
         let Some(url) = url.filter(|url| is_allowed_browser_url(url)) else {
             return Ok(state);
         };
-        match state.active_tab_id {
+        let opened = match state.active_tab_id {
             Some(tab_id)
                 if !state
                     .tabs
@@ -1956,7 +2303,9 @@ return result;
                 navigate(app, session_id, &tab_id, &url)
             }
             _ => Ok(state),
-        }
+        }?;
+        reveal_agent_page(app, session_id, &url);
+        Ok(opened)
     }
 
     pub fn mcp_navigate(
@@ -1965,7 +2314,9 @@ return result;
         url: &str,
     ) -> Result<BrowserSessionState> {
         let tab_id = opened_active_tab(app, session_id)?;
-        navigate(app, session_id, &tab_id, url)
+        let state = navigate(app, session_id, &tab_id, url)?;
+        reveal_agent_page(app, session_id, url);
+        Ok(state)
     }
 
     pub fn mcp_back(app: &AppHandle, session_id: &str) -> Result<BrowserSessionState> {
@@ -2069,6 +2420,7 @@ return result;
     }
 
     pub fn open(app: &AppHandle, session_id: &str) -> Result<BrowserSessionState> {
+        let profile = crate::browser_profiles::resolve_for(app, None)?;
         let main_app = app.clone();
         let session_id = session_id.to_string();
         let pointer = main_window_pointer(app)?;
@@ -2076,7 +2428,9 @@ return result;
             let mtm = MainThreadMarker::new()
                 .ok_or_else(|| Error::new("native", "the browser must start on the main thread"))?;
             let (content, height) = window_content(pointer)?;
-            with_manager(|manager| manager.open(&main_app, &session_id, &content, height, mtm))?
+            with_manager(|manager| {
+                manager.open(&main_app, &session_id, &content, height, mtm, &profile)
+            })?
         })?
     }
 
@@ -2106,11 +2460,14 @@ return result;
         })?
     }
 
+    /// A tab in `profile` (a profile id), or the default profile from settings (ADR-150).
     pub fn new_tab(
         app: &AppHandle,
         session_id: &str,
         url: Option<String>,
+        profile: Option<String>,
     ) -> Result<BrowserSessionState> {
+        let profile = crate::browser_profiles::resolve_for(app, profile.as_deref())?;
         let main_app = app.clone();
         let session_id = session_id.to_string();
         let pointer = main_window_pointer(app)?;
@@ -2119,7 +2476,7 @@ return result;
                 .ok_or_else(|| Error::new("native", "the browser must start on the main thread"))?;
             let (_, height) = window_content(pointer)?;
             with_manager(|manager| {
-                manager.new_tab(&main_app, &session_id, url.clone(), height, mtm)
+                manager.new_tab(&main_app, &session_id, url.clone(), &profile, height, mtm)
             })?
         })?
     }
@@ -2316,6 +2673,39 @@ return result;
         evaluate_script(app, session_id, tab_id, INPUT_SCRIPT)
     }
 
+    /// A page's dialog, queued on its session. `None` when the session is gone; the dialog
+    /// is then dismissed by its drop.
+    pub fn queue_dialog(
+        session_id: &str,
+        pending: crate::browser_agent::platform::PendingDialog,
+    ) -> Option<BrowserSessionState> {
+        let session_id = session_id.to_string();
+        with_manager(|manager| manager.queue_dialog(&session_id, pending))
+            .ok()
+            .flatten()
+    }
+
+    /// Takes the session's open dialog to answer it (main thread).
+    pub fn take_dialog(
+        session_id: &str,
+        tab_id: Option<&str>,
+    ) -> Option<(
+        crate::browser_agent::platform::PendingDialog,
+        BrowserSessionState,
+    )> {
+        let session_id = session_id.to_string();
+        let tab_id = tab_id.map(str::to_string);
+        with_manager(|manager| manager.take_dialog(&session_id, tab_id.as_deref()))
+            .ok()
+            .flatten()
+    }
+
+    /// Closes the tabs of a deleted profile (main thread); the states go to the pane.
+    pub fn close_profile_tabs(profile: &str) -> Vec<BrowserSessionState> {
+        let profile = profile.to_string();
+        with_manager(|manager| manager.close_profile_tabs(&profile)).unwrap_or_default()
+    }
+
     /// Device mode for an agent: opens the browser if needed.
     pub fn mcp_device(
         app: &AppHandle,
@@ -2425,7 +2815,7 @@ return result;
 mod platform {
     use tauri::AppHandle;
 
-    use super::{BrowserAnnotation, BrowserBounds, BrowserSessionState};
+    use super::{BrowserAnnotation, BrowserAnnotationCapture, BrowserBounds, BrowserSessionState};
     use crate::error::{Error, Result};
 
     fn unsupported() -> Error {
@@ -2521,6 +2911,14 @@ mod platform {
     }
 
     pub fn annotate_cancel(_app: &AppHandle, _session_id: &str, _tab_id: &str) -> Result<()> {
+        Err(unsupported())
+    }
+
+    pub fn annotate_capture(
+        _app: &AppHandle,
+        _session_id: &str,
+        _tab_id: &str,
+    ) -> Result<super::BrowserAnnotationCapture> {
         Err(unsupported())
     }
 
@@ -2626,13 +3024,15 @@ pub async fn browser_state(
     crate::commands::native_task(move || platform::state(&app, &session_id)).await
 }
 
+/// A new tab, in a browser profile (ADR-150); `None` is the profile set in Settings.
 #[tauri::command]
 pub async fn browser_new_tab(
     app: tauri::AppHandle,
     session_id: String,
     url: Option<String>,
+    profile: Option<String>,
 ) -> Result<BrowserSessionState> {
-    crate::commands::native_task(move || platform::new_tab(&app, &session_id, url)).await
+    crate::commands::native_task(move || platform::new_tab(&app, &session_id, url, profile)).await
 }
 
 #[tauri::command]
@@ -2725,6 +3125,17 @@ pub async fn browser_annotate_cancel(
     tab_id: String,
 ) -> Result<()> {
     crate::commands::native_task(move || platform::annotate_cancel(&app, &session_id, &tab_id))
+        .await
+}
+
+/// Annotations with a screenshot (ADR-151): the marked elements, the page URL and a PNG.
+#[tauri::command]
+pub async fn browser_annotate_capture(
+    app: tauri::AppHandle,
+    session_id: String,
+    tab_id: String,
+) -> Result<BrowserAnnotationCapture> {
+    crate::commands::native_task(move || platform::annotate_capture(&app, &session_id, &tab_id))
         .await
 }
 

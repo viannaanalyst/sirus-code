@@ -30,7 +30,8 @@ import { appendTranscriptQuote } from "@/lib/transcript-selection";
 import { createDraftWriter } from "@/lib/draft-persistence";
 import { CONTEXT_TEXT_LIMIT, hasContextOwner, normalizeContextTexts } from "@/lib/context-text";
 import { newId, newRequestId } from "@/lib/ids";
-import { scanLocalServers } from "@/lib/local-servers";
+import { scanLocalServers, type NativeLocalServer } from "@/lib/local-servers";
+import type { PlayerCorner } from "@/lib/mini-player";
 import { archiveSidebarSession, pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
 import type { PullRequestLoadState } from "@/lib/pull-requests";
 import { create } from "zustand";
@@ -58,6 +59,7 @@ import type {
   WindowSnapEvent,
 } from "@/client/types";
 import { formatUnknownError } from "@/lib/format-error";
+import { COMPACT_COMMAND, compactRefusal } from "@/lib/compact-before-send";
 import { runningTerminalTarget, withTerminalRunning, type RunningTerminals } from "@/lib/terminal-running";
 import { insertAt, popClosed, pushClosed, rememberBrowserTab, type ClosedItem } from "@/lib/closed-items";
 import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeArmed, resumeAt } from "@/lib/usage-limit";
@@ -226,6 +228,14 @@ interface AppStore {
   /** Selects the session and shows its running terminal in the dock, without starting a new one. */
   revealTerminal: (sessionId: string) => void;
   localServersBySession: Record<string, string[]>;
+  /** The page the floating agent-page player shows, per session (ADR-151); absent when hidden. */
+  agentPageBySession: Record<string, string>;
+  /** Where the floating player rests; a drag ends at the nearest corner (ADR-151). */
+  playerCorner: PlayerCorner;
+  /** Listening local servers from the native scan, per session (ADR-151). */
+  detectedServersBySession: Record<string, NativeLocalServer[]>;
+  /** Bumped when a script or terminal starts, so the open views scan once more (ADR-151). */
+  serverScanTick: Record<string, number>;
   selectedFileBySession: Record<string, string | undefined>;
   editorBuffers: Record<string, EditorBuffer>;
   editorSaving: Record<string, boolean>;
@@ -291,7 +301,7 @@ interface AppStore {
   loadBrowser: (sessionId: string) => Promise<void>;
   openBrowser: (sessionId: string) => Promise<boolean>;
   closeBrowser: (sessionId: string) => Promise<boolean>;
-  browserNewTab: (sessionId: string, url?: string | null) => Promise<boolean>;
+  browserNewTab: (sessionId: string, url?: string | null, profile?: string | null) => Promise<boolean>;
   browserCloseTab: (sessionId: string, tabId: string) => Promise<boolean>;
   browserSelectTab: (sessionId: string, tabId: string) => Promise<boolean>;
   browserNavigate: (sessionId: string, tabId: string, url: string) => Promise<boolean>;
@@ -304,6 +314,16 @@ interface AppStore {
   browserAnnotateCancel: (sessionId: string, tabId: string) => Promise<void>;
   browserCopyLink: (sessionId: string, tabId: string) => Promise<boolean>;
   browserCapture: (sessionId: string, tabId: string) => Promise<string | null>;
+  /** Annotations with a screenshot (ADR-151): the marked elements and a picture of the page. */
+  browserAnnotateCapture: (sessionId: string, tabId: string) => Promise<import("@/client/types").BrowserAnnotationCapture | null>;
+  /** Shows an agent's page in the floating player; hidden while the dock's browser shows the session. */
+  showAgentPage: (sessionId: string, url: string, ignoreSetting?: boolean) => void;
+  hideAgentPage: (sessionId: string) => void;
+  setPlayerCorner: (corner: PlayerCorner) => void;
+  /** Opens a project script's preview in the session's browser (ADR-151). */
+  openProjectPreview: (sessionId: string, url: string) => Promise<void>;
+  refreshLocalServers: (sessionId: string) => Promise<void>;
+  noteServerProcessStarted: (sessionId: string) => void;
   browserHistoryBySession: Record<string, string[]>;
   noteBrowserUrl: (sessionId: string, url: string) => void;
   setMessagePinned: (sessionId: string, messageId: string, pinned: boolean) => Promise<boolean>;
@@ -314,6 +334,11 @@ interface AppStore {
    * send passes its `clientRequestId` again (the phone's outbox); otherwise each call is a new send.
    */
   sendPrompt: (prompt: string, execution?: ExecutionOptions, sessionId?: string, clientRequestId?: string) => Promise<boolean>;
+  /**
+   * Compacts the conversation's native context (ADR-057): `/compact` alone, without the
+   * composer's draft or attachments. Refused with a message when it cannot run now.
+   */
+  compactSession: (sessionId: string) => Promise<boolean>;
   /** Compact and send: runs `/compact`, then queues the request behind it. */
   compactAndSend: (prompt: string, execution: ExecutionOptions | undefined, sessionId: string) => Promise<boolean>;
   /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
@@ -332,7 +357,7 @@ interface AppStore {
   /** What happened to an archived session's worktree when releasing it is on (ADR-078). */
   worktreeReleaseNotice: { id: number; release: import("@/client/types").WorktreeRelease } | null;
   /** Saves a project's Setup and On finish scripts; blank removes one. */
-  saveProjectScripts: (projectId: string, setup: string, onFinish: string) => Promise<boolean>;
+  saveProjectScripts: (projectId: string, setup: string, onFinish: string, previewUrl?: string, openPreview?: boolean) => Promise<boolean>;
   /** Run again, stop or hide a session's project script run. */
   projectScriptAction: (action: Exclude<import("@/client/types").ProjectScriptsAction, { type: "save" }>) => Promise<void>;
   /** CI auto-fix progress per session (ADR-064), refreshed by native events. */
@@ -592,6 +617,13 @@ function recordNavigation() {
   const entry = currentNavEntry(state);
   const navHistory = [...state.navHistory.slice(0, state.navIndex + 1), entry].slice(-MAX_NAV_ENTRIES);
   useAppStore.setState({ navHistory, navIndex: navHistory.length - 1 });
+}
+
+/** True when the dock's browser pane is the one showing `sessionId` (ADR-151). */
+export function isDockBrowserShowing(state: { dockOpen: boolean; dockPanes: DockPane[]; dockActivePaneId: string | null }, sessionId: string): boolean {
+  if (!state.dockOpen) return false;
+  const pane = state.dockPanes.find((item) => item.id === state.dockActivePaneId);
+  return pane?.kind === "browser" && pane.sessionId === sessionId;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -945,6 +977,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     get().openDockPane("terminal");
   },
   localServersBySession: {},
+  agentPageBySession: {},
+  playerCorner: "bottom-right",
+  detectedServersBySession: {},
+  serverScanTick: {},
   selectedFileBySession: {},
   browserBySession: {},
   windowSnapNotice: null,
@@ -1018,15 +1054,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   worktreeReleaseNotice: null,
   snoozeNotice: null,
-  saveProjectScripts: async (projectId, setup, onFinish) => {
+  saveProjectScripts: async (projectId, setup, onFinish, previewUrl = "", openPreview = false) => {
     try {
-      const updated = await client.projectScriptsAction({ type: "save", projectId, setup: setup.trim() || null, onFinish: onFinish.trim() || null });
+      const updated = await client.projectScriptsAction({ type: "save", projectId, setup: setup.trim() || null, onFinish: onFinish.trim() || null, previewUrl: previewUrl.trim() || null, openPreview });
       if (updated) set((state) => ({ error: null, projects: state.projects.map((project) => project.id === updated.id ? { ...project, scripts: updated.scripts } : project) }));
       return Boolean(updated);
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
   projectScriptAction: async (action) => {
-    try { await client.projectScriptsAction(action); } catch (error) { set({ error: formatUnknownError(error) }); }
+    try {
+      await client.projectScriptsAction(action);
+      if (action.type === "run") get().noteServerProcessStarted(action.sessionId);
+    } catch (error) { set({ error: formatUnknownError(error) }); }
   },
   ciAutoFix: [],
   prWatches: [],
@@ -1524,9 +1563,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
 
-  browserNewTab: async (sessionId, url = null) => {
+  browserNewTab: async (sessionId, url = null, profile = null) => {
     try {
-      const browser = await client.browserNewTab(sessionId, url ?? null);
+      const browser = await client.browserNewTab(sessionId, url ?? null, profile);
       set((state) => ({ error: null, browserBySession: { ...state.browserBySession, [browser.sessionId]: browser } }));
       return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
@@ -1621,6 +1660,43 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       return await client.browserCapture(sessionId, tabId);
     } catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  browserAnnotateCapture: async (sessionId, tabId) => {
+    try {
+      return await client.browserAnnotateCapture(sessionId, tabId);
+    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
+  },
+
+  // The floating player (ADR-151). The dock's browser pane for the session shows the page itself,
+  // so the player stays out of its way; `ignoreSetting` is for pages the person asked for.
+  showAgentPage: (sessionId, url, ignoreSetting = false) => {
+    const state = get();
+    if (!ignoreSetting && !state.settings.browserShowAgentPages) return;
+    if (isDockBrowserShowing(state, sessionId)) return;
+    set((current) => ({ agentPageBySession: { ...current.agentPageBySession, [sessionId]: url } }));
+  },
+  hideAgentPage: (sessionId) => set((state) => {
+    const agentPageBySession = { ...state.agentPageBySession };
+    delete agentPageBySession[sessionId];
+    return { agentPageBySession };
+  }),
+  setPlayerCorner: (corner) => set({ playerCorner: corner }),
+  openProjectPreview: async (sessionId, url) => {
+    const state = get();
+    if (!state.browserBySession[sessionId]?.open && !(await state.openBrowser(sessionId))) return;
+    if (!(await get().browserNewTab(sessionId, url))) return;
+    get().showAgentPage(sessionId, url, true);
+  },
+  refreshLocalServers: async (sessionId) => {
+    try {
+      const servers = await client.localServersList(sessionId);
+      set((state) => ({ detectedServersBySession: { ...state.detectedServersBySession, [sessionId]: servers } }));
+    } catch { /* the scan is best effort; the scanned output still lists servers */ }
+  },
+  noteServerProcessStarted: (sessionId) => {
+    // A listener binds a moment after its process starts, so the rescan waits briefly.
+    setTimeout(() => set((state) => ({ serverScanTick: { ...state.serverScanTick, [sessionId]: (state.serverScanTick[sessionId] ?? 0) + 1 } })), 1500);
   },
 
 
@@ -1781,13 +1857,30 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  compactSession: async (sessionId) => {
+    const refusal = compactRefusal(get().sessions.find(item => item.id === sessionId));
+    if (refusal) {
+      set({ error: refusal });
+      return false;
+    }
+    try {
+      // Straight to IPC: the composer's draft, attachments and modes stay where they are.
+      await client.sendPrompt({ sessionId, prompt: COMPACT_COMMAND, attachmentIds: [], attachmentOwner: `session:${sessionId}` });
+      set({ error: null });
+      return true;
+    } catch (error) {
+      set({ error: formatUnknownError(error) });
+      return false;
+    }
+  },
+
   compactAndSend: async (prompt, execution, sessionId) => {
     const session = get().sessions.find(item => item.id === sessionId);
     if (!session || activeSession(session)) return get().sendPrompt(prompt, execution, sessionId);
     const before = lastAssistantId(session);
     try {
       // Straight to IPC, so the draft and its attachments stay for the request itself.
-      await client.sendPrompt({ sessionId, prompt: "/compact", attachmentIds: [], attachmentOwner: `session:${sessionId}` });
+      await client.sendPrompt({ sessionId, prompt: COMPACT_COMMAND, attachmentIds: [], attachmentOwner: `session:${sessionId}` });
     } catch (error) {
       set({ error: formatUnknownError(error) });
       return false;
@@ -2882,6 +2975,9 @@ export async function bindRealtime() {
     }));
     unlisteners.push(await client.onComputerState((computer) => useAppStore.setState({ computer })));
     unlisteners.push(await client.onSecretState((secrets) => useAppStore.setState({ secrets })));
+    // Pages an agent opens float over the conversation; a project script's preview opens in the browser (ADR-151).
+    unlisteners.push(await client.onBrowserAgentPage((event) => useAppStore.getState().showAgentPage(event.sessionId, event.url)));
+    unlisteners.push(await client.onProjectPreview((event) => void useAppStore.getState().openProjectPreview(event.sessionId, event.url)));
     unlisteners.push(await client.onBrowserCapture((event) => {
       const owner = `session:${event.sessionId}`;
       void (async () => {

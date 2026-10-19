@@ -5,11 +5,12 @@ import { terminalSurface } from "@/lib/terminal-surface";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { openLink } from "@/components/ChatMarkdown";
+import { openLinkFrom, useLinkMenuItems } from "@/components/ChatLink";
+import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { terminalLinkTarget } from "@/lib/terminal-links";
 import { Terminal } from "@xterm/xterm";
 import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import { queueTerminalOperation } from "@/lib/terminal-lifecycle";
 import { formatUnknownError } from "@/lib/format-error";
@@ -215,7 +216,7 @@ interface LiveTerminal {
   ended: boolean;
   error: string | null;
   attached: boolean;
-  view: { ended: (value: boolean) => void; error: (value: string | null) => void; selection: (value: string) => void } | null;
+  view: { ended: (value: boolean) => void; error: (value: string | null) => void; selection: (value: string) => void; link: (url: string | null) => void } | null;
   dispose: () => void;
 }
 const liveTerminals = new Map<string, LiveTerminal>();
@@ -243,6 +244,8 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
   const element = document.createElement("div");
   element.className = "h-full w-full";
   host.appendChild(element);
+  // The link under the pointer, for the view's right-click menu (`live` exists by the time a link is hovered).
+  const hoverLink = (uri: string | null) => live.view?.link(uri ? terminalLinkTarget(uri) : null);
   const term = new Terminal({
     convertEol: true,
     cursorBlink: true,
@@ -262,14 +265,18 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
         const target = terminalLinkTarget(uri);
         if (!target) return;
         event.preventDefault();
-        openLink(target, event.metaKey);
+        void openLinkFrom(target, event);
       },
+      hover: (_event, uri) => hoverLink(uri),
+      leave: () => hoverLink(null),
     },
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
-  // http(s) addresses (localhost included) open like links in replies.
-  term.loadAddon(new WebLinksAddon((event, uri) => { event.preventDefault(); openLink(uri, event.metaKey); }));
+  // http(s) addresses (localhost included) open like links in replies (ADR-149); the one
+  // under the pointer gives the right-click its link actions.
+  term.loadAddon(new WebLinksAddon((event, uri) => { event.preventDefault(); void openLinkFrom(uri, event); },
+    { hover: (_event, uri) => hoverLink(uri), leave: () => hoverLink(null) }));
   term.open(element);
   let disposed = false;
   let exited = false;
@@ -309,6 +316,8 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
     }
     if (disposed) return;
     await client.startTerminal(sessionId, terminalId, term.cols, term.rows);
+    // A server started in the shell may now listen; the open views rescan once (ADR-151).
+    useAppStore.getState().noteServerProcessStarted(sessionId);
     live.started = !exited;
     if (!disposed) { setEnded(exited); live.error = null; live.view?.error(null); }
   }).catch((reason: unknown) => { report(reason); if (!disposed) setEnded(true); });
@@ -338,6 +347,12 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const [ended, setEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
+  // Right-click on a link offers its actions; elsewhere the terminal keeps the native menu.
+  // The link stays pinned while its menu is open, since the pointer leaves it for the menu.
+  const [linkUrl, setLinkUrl] = useState<string | null>(null);
+  const [menuUrl, setMenuUrl] = useState<string | null>(null);
+  const linkItems = useLinkMenuItems(menuUrl ?? linkUrl);
+  const linkMenuChanged = useCallback((open: boolean) => { if (!open) setMenuUrl(null); }, []);
   const visibleRef = useRef(visible);
   visibleRef.current = visible;
   const t = (key: string) => translate(locale, key);
@@ -350,7 +365,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     const live = existing ?? createLiveTerminal(sessionId, terminalId, node);
     if (live === existing) node.appendChild(live.element);
     live.attached = true;
-    live.view = { ended: (value) => { if (!cancelled) setEnded(value); }, error: (value) => { if (!cancelled) setError(value); }, selection: (value) => { if (!cancelled) setSelected(value); } };
+    live.view = { ended: (value) => { if (!cancelled) setEnded(value); }, error: (value) => { if (!cancelled) setError(value); }, selection: (value) => { if (!cancelled) setSelected(value); }, link: (value) => { if (!cancelled) setLinkUrl(value); } };
     setEnded(live.ended);
     setError(live.error);
     const { term, fit } = live;
@@ -432,7 +447,9 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     <div className={cn("absolute inset-0 flex flex-col transition-opacity duration-[var(--motion-fast)]", visible ? "opacity-100" : "pointer-events-none invisible opacity-0 [content-visibility:hidden]")} aria-hidden={!visible}>
       {error ? <p role="alert" className="p-2 ui-control text-danger">{error}</p> : null}
       {ended ? <button type="button" onClick={() => { liveTerminals.get(terminalId)?.dispose(); setGeneration((value) => value + 1); }} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
-      <div ref={host} className="min-h-0 flex-1 p-2" />
+      <ContextMenu activation="context-only" nativeWhenEmpty className="flex min-h-0 flex-1 flex-col" label={translate(locale, "link.actions", { url: menuUrl ?? linkUrl ?? "" })} items={linkItems} onOpenChange={linkMenuChanged}>
+        <div ref={host} className="min-h-0 flex-1 p-2" onContextMenuCapture={() => setMenuUrl(linkUrl)} />
+      </ContextMenu>
       {selected.trim() && visible ? <button type="button" className="terminal-add-to-chat" onMouseDown={(event) => event.preventDefault()} onClick={() => {
         // The selection becomes a Terminal chip in this session's composer as context.
         const state = useAppStore.getState(), owner = `session:${sessionId}`;

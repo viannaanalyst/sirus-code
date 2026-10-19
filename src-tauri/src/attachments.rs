@@ -173,6 +173,16 @@ impl AttachmentState {
         entries.retain(|_, (key, _)| owner_exists(data, key));
         self.sent.lock().retain(|id| entries.contains_key(id));
     }
+    /// Snapshot files of one owner's attachments, for browser uploads (ADR-150).
+    pub fn paths_for(&self, owner: &str) -> Vec<std::path::PathBuf> {
+        self.entries
+            .lock()
+            .values()
+            .filter(|(key, _)| key == owner)
+            .filter_map(|(_, file)| file.path().map(Path::to_path_buf))
+            .collect()
+    }
+
     pub fn mark_sent(&self, ids: &[String]) {
         let entries = self.entries.lock();
         self.sent
