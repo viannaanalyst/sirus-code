@@ -8,6 +8,7 @@ import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
 import { useProjectMenu } from "@/components/ProjectActions";
+import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { SessionActionDialog } from "@/components/SessionActions";
 import { ArchiveConfirm } from "@/components/SidebarRows";
@@ -377,7 +378,7 @@ const FolderRow = memo(function FolderRow({ project, count, status, open, onTogg
       {/* No chevron: the whole row opens and closes the folder. Closed, its most urgent state shows at the end. */}
       {dot && !open ? <span className="conversation-folder-end"><span className="header-tab-status conversation-folder-dot" data-status={dot} aria-hidden="true" /></span> : null}
     </button>
-    <button type="button" className="conversation-group-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => void sidebarProjectAction(project.id, "new")}><SquarePen size={13} aria-hidden="true" /></button>
+    <ProjectHoverActions projectId={project.id} className="header-switcher-actions conversation-hover-actions" />
   </div>;
 });
 
@@ -430,6 +431,8 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
       {title}
       {variant === "full" ? detail : null}
     </button>
+    {/* Pin and Archive while pointed at, as in the header switcher; they take the age's place. */}
+    <SessionHoverActions sessionId={session.id} pinned={pinned} className="header-switcher-actions conversation-hover-actions" />
   </div>;
 });
 

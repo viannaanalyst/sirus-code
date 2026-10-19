@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, FolderPlus, GitCompareArrows, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, FolderPlus, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
 import type { Project, ProjectFolder, Session } from "@/client/types";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ComputerBadge, SwitcherElsewhereProjects, SwitcherRemoteSessions, memberKey, useMergedComputers } from "@/components/ComputerSwitcher";
@@ -10,7 +10,7 @@ import { SnoozeCountdown, SnoozePicker } from "@/components/SnoozePicker";
 import { canSnooze, snoozeDeadline } from "@/lib/snooze";
 import { relativeTime } from "@/lib/session-board";
 import { holdSessionOrder, moveSidebarProject, sessionOrderSignature, sessionSortKeys, sidebarGroups, toggleSidebarId, type SessionOrderSnapshot } from "@/lib/sidebar-layout";
-import { sidebarProjectAction } from "@/lib/sidebar-actions";
+import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProjectFolderDialog } from "@/components/ProjectFolderDialog";
@@ -244,12 +244,7 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
                   <ComputerBadge members={merged.alsoOn[row.id]} />
                   <StatusDot status={status} label={t(`tabs.status.${status}`)} />
                   <span className="header-switcher-trail">
-                    <span className="header-switcher-actions">
-                      {([["review", "Review changes", GitCompareArrows], ["terminal", "New terminal session", SquareTerminal], ["new", "New thread", SquarePen]] as const).map(([kind, label, Icon]) =>
-                        <span key={kind} role="button" tabIndex={-1} aria-label={t(label)} title={t(label)} data-no-reorder=""
-                          onPointerDown={event => event.stopPropagation()}
-                          onClick={event => { event.stopPropagation(); close(); void sidebarProjectAction(row.id, kind); }}><Icon size={13} /></span>)}
-                    </span>
+                    <ProjectHoverActions projectId={row.id} className="header-switcher-actions" onDone={close} />
                   </span>
                 </button>
               </ContextMenu>;
@@ -321,10 +316,7 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
               <TerminalBadge sessionId={session.id} count={runningTerminals[session.id]?.length ?? 0} onReveal={close} />
               <span className="header-switcher-trail">
                 <span className="header-switcher-time">{time === "now" ? t("Now") : time}</span>
-                <span className="header-switcher-actions">
-                  <button type="button" aria-label={t(isPinned ? "Unpin session" : "Pin session")} title={t(isPinned ? "Unpin session" : "Pin session")} onClick={() => togglePin(session.id)}>{isPinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
-                  <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onClick={() => useAppStore.getState().requestArchive(session.id)}><Archive size={13} /></button>
-                </span>
+                <SessionHoverActions sessionId={session.id} pinned={isPinned} className="header-switcher-actions" />
               </span>
             </div></ContextMenu>;
           })}

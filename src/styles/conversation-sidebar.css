@@ -59,12 +59,15 @@
   .conversation-folder-end > .conversation-folder-dot { position: absolute; transition: opacity var(--motion-fast) var(--ease-out); }
   /* A closed folder with a status shows the dot; pointing at it brings the chevron back. */
   .conversation-folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .conversation-group-new { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out); }
-  /* New conversation shows on hover just before the chevron, which stays at the end. */
-  .conversation-folder > .conversation-group-new { position: absolute; right: 6px; top: 50%; translate: 0 -50%; }
-  .conversation-folder:is(:hover, :focus-within) .conversation-group-new { opacity: 1; }
-  .conversation-folder:is(:hover, :focus-within) .conversation-folder-name { margin-right: 24px; }
-  .conversation-group-new:hover { background: var(--navigation-hover); color: var(--text-primary); }
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-name { margin-right: 76px; }
+  /* Hover actions shared with the header switcher (HoverActions.tsx): at the row's right edge, in place of
+     the folder's numbers or the conversation's age. */
+  .conversation-hover-actions { position: absolute; top: 50%; right: 6px; translate: 0 -50%; z-index: 1; }
+  .conversation-row { position: relative; }
+  .conversation-row[data-variant="full"] .conversation-hover-actions { top: 8px; translate: 0 0; }
+  .conversation-row:is(:hover, :focus-within) .conversation-hover-actions { visibility: visible; }
+  .conversation-row:is(:hover, :focus-within) .conversation-row-age { visibility: hidden; }
+  .conversation-folder:is(:hover, :focus-within) .conversation-hover-actions { visibility: visible; }
 
   /* Project style: Pinned, Today, This week, Older. */
   .conversation-time-group { display: flex; align-items: flex-end; height: 28px; flex-shrink: 0; padding: 0 10px 4px; color: var(--text-muted); font-size: var(--text-ui-12); }
@@ -158,6 +161,6 @@
   @media (prefers-reduced-motion: reduce) {
     :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
     [data-radix-popper-content-wrapper]:has(> .conversation-hover-card) { transition: none; }
-    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-group-new, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
+    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
   }
 }
