@@ -22,7 +22,7 @@ The turn fails with code `usage_limit`, and `Session.usageLimit = { resetsAt }` 
 ## Consequences
 
 - **Positive:** a long task survives a usage limit without the person watching the clock.
-- **Negative:** the automatic continue is the second exception, after automations, to "turns start from an explicit Send". (Since the 2026-10-18 amendment it is on by default; it can be turned off in Settings or cancelled per notice.)
+- **Negative:** the automatic continue is the second exception, after automations, to "turns start from an explicit Send". (Since the 2026-10-18 amendment one setting arms every notice; it is off by default and each notice can still be cancelled.)
 
 ## Alternatives considered
 
@@ -31,4 +31,4 @@ The turn fails with code `usage_limit`, and `Session.usageLimit = { resetsAt }` 
 
 ## Amendment (2026-10-18): automatic by default
 
-The owner asked for the resume to be automatic. A new setting, `usageAutoResume` (Settings → General → Application, on by default), arms every usage-limit notice whose reset is known and later than the moment the turn stopped; a reset that had already passed when the limit was reported never arms itself, so a stale report cannot loop. The notice shows "Resuming at reset" with Cancel; cancelling records that reset for the session (`usageResumeCancelled`, kept in local storage so it survives a restart) and a later limit with a new reset arms again. With the setting off, "Resume at reset" still arms one notice by hand. The timer now rechecks every minute and again when the window regains focus or becomes visible, so a resume missed while the Mac slept or the app was in the background fires within moments of coming back; a reset that passed while the app was closed fires on the next launch. What is sent and the queue that follows are unchanged.
+The owner asked for the resume to be automatic. A new setting, `usageAutoResume` (Settings → General → Application; off by default, like the reference app the owner compared), arms every usage-limit notice whose reset is known and later than the moment the turn stopped; a reset that had already passed when the limit was reported never arms itself, so a stale report cannot loop. The notice shows "Resuming at reset" with Cancel; cancelling records that reset for the session (`usageResumeCancelled`, kept in local storage so it survives a restart) and a later limit with a new reset arms again. With the setting off, "Resume at reset" still arms one notice by hand. The timer now rechecks every minute and again when the window regains focus or becomes visible, so a resume missed while the Mac slept or the app was in the background fires within moments of coming back; a reset that passed while the app was closed fires on the next launch. What is sent and the queue that follows are unchanged.
