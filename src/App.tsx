@@ -13,7 +13,7 @@ import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Archive, Folder, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
+import { Archive, ChartBar, Folder, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -58,6 +58,7 @@ const CreateProjectDialog = lazy(() => import("@/components/CreateProjectDialog"
 const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then((module) => ({ default: module.NewSessionDialog })));
 const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
 const ArchivedPage = lazy(() => import("@/components/ArchivedPage").then((module) => ({ default: module.ArchivedPage })));
+const UsagePage = lazy(() => import("@/components/usage/UsagePage").then((module) => ({ default: module.UsagePage })));
 const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
 const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
@@ -287,8 +288,8 @@ export default function App() {
           >
             {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
             {mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : mainView === "archived" ? <Archive size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : mainView === "archived" ? t("Archived sessions") : sessionTitle ?? t("session.new")}</span>
+              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : mainView === "archived" ? <Archive size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : mainView === "archived" ? t("Archived sessions") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               <EnvironmentToggle />
@@ -316,6 +317,7 @@ export default function App() {
             {mainView === "inbox" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><InboxPage /></Suspense> : null}
             {mainView === "tasks" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><TasksPage /></Suspense> : null}
             {mainView === "archived" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><ArchivedPage /></Suspense> : null}
+            {mainView === "usage" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><UsagePage /></Suspense> : null}
             {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}
             <EnvironmentPanel />
           </div>

@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, ChevronDown, ChevronLeft, ChevronRight, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { RailGlyph } from "@/components/SidebarRailMore";
@@ -96,7 +96,7 @@ function ListSidebar({ sample }: { sample: Sample }) {
       </span> : null)}
       {!sample.recent.length ? <span className="conversation-sidebar-empty">{t("sidebarList.empty")}</span> : null}
     </span></span>
-    <span className="conversation-sidebar-foot"><span className="flex-1" /><RailGlyph id="archived" size={17} /><Settings size={17} /></span>
+    <span className="conversation-sidebar-foot"><span className="flex-1" /><ChartBar size={17} /><RailGlyph id="archived" size={17} /><Settings size={17} /></span>
   </span>;
 }
 

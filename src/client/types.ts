@@ -1213,3 +1213,31 @@ export interface AppUpdateStatus {
   automatic: boolean;
 }
 export type AppUpdateAction = { type: "status" } | { type: "check" } | { type: "install" } | { type: "restart" };
+
+/** Usage page history (ADR-141): tokens per hour bucket, provider, model and session, read from the provider CLIs' own local logs. */
+export interface UsageHistoryEntry {
+  /** Start of the local-time hour bucket, Unix ms. */
+  at: number;
+  /** Only "claude", "codex" and "opencode" keep logs this reads. */
+  provider: AgentProviderId;
+  /** As logged, e.g. "claude-opus-5-5", "gpt-6.1-sol". */
+  model: string;
+  /** Opaque per-provider session key (a hash, never a path). Used only to count distinct sessions. */
+  session: string;
+  /** Uncached input. */
+  inputTokens: number;
+  /** Cache reads. */
+  cachedInputTokens: number;
+  /** Cache creation (Claude); 0 when the provider has none. */
+  cacheWriteTokens: number;
+  /** Includes reasoning tokens. */
+  outputTokens: number;
+  /** Cost the provider itself logged (OpenCode does), USD; null when it logs none. */
+  reportedCostUsd: number | null;
+}
+export interface UsageHistory {
+  entries: UsageHistoryEntry[];
+  /** Providers whose logs could not be read, with a short English reason (shown as a notice). */
+  problems: { provider: AgentProviderId; message: string }[];
+  generatedAt: number;
+}

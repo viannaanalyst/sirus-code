@@ -1,0 +1,28 @@
+# ADR-141: Usage page
+
+- Status: accepted
+- Date: 2026-10-18
+
+## Context
+
+The owner wants to see what the coding agents have used over the past 24 hours, 7, 30 or 90 days: tokens and cost per provider and model. Sirus Code does not record usage itself, and the quota probes of `provider_usage.rs` only report current limits. The provider CLIs already keep detailed local logs of every response, so the history can be read from them without a new recorder or any network call.
+
+## Decision
+
+- **Sources.** `usage_history.rs` reads three providers' own logs:
+  - Claude Code: `<config>/projects/**/*.jsonl` (subagent files included), `type: "assistant"` lines with `message.usage` (`input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`, `output_tokens`), `message.model`, `timestamp` and `sessionId`. `<synthetic>` replies are skipped.
+  - Codex: `<home>/sessions/YYYY/MM/DD/rollout-*.jsonl` and `<home>/archived_sessions/`. Current CLIs write one `token_usage_record` per response (`usage`, `response_id`); older ones only `event_msg` `token_count` events, used when a file has no records (`last_token_usage`, else the difference of `total_token_usage`; repeats with unchanged totals are ignored). The model is the latest `turn_context.model`. Codex's `input_tokens` includes the cached part, so uncached input is `input − cached − cache write`; output includes reasoning.
+  - OpenCode: `opencode.db` (SQLite, opened read-only) in `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`, assistant rows of `message` with `modelID`, `tokens` and the `cost` OpenCode logged itself (passed through as `reportedCostUsd`); output is `output + reasoning`. `octet_length(data)` filters out attachment-laden user rows without reading them (the owner's database is tens of GB). Older versions' `storage/message/<session>/*.json` are read the same way.
+  - Folders: `CLAUDE_CONFIG_DIR` / `CODEX_HOME` when set (absolute), else `~/.claude` and `~/.codex`, plus each named provider account's private profile (`provider_accounts.rs`).
+- **Dedupe.** Claude writes the same response on several lines while it streams (later lines carry the final `output_tokens`) and forks copy history into new files, so responses are keyed by `(message.id, requestId)` across all files and counted once with the largest counts. Codex records are keyed by `response_id` the same way.
+- **Result.** Records in range (now minus `days`, clamped 1–90) are summed per local-time hour bucket, provider, model and session and returned as `UsageHistory` (`usage_history { days }`, `SirusClient.usageHistory(days)`). Providers whose logs exist but could not be read, or matched no known shape, come back as `problems` with a short English message; an unused provider is not a problem.
+- **Cost of reading.** Files whose modification time is before the range are never opened (Codex day folders are listed but not skipped by date, because a resumed session keeps appending to the file of the day it began). Lines are streamed and only those containing the usage markers are parsed. A process-wide cache keeps each file's parsed records by path, length and modification time; a log that only grew is read from where the last pass stopped. The OpenCode query result is reused while the database and its WAL are unchanged. The cache drops files that no longer exist and holds at most 20,000. The work runs on a blocking thread. On the owner's Mac a cold 90-day read takes about 2.5–4 s and a warm one about 20 ms.
+- **Privacy.** Everything stays on the Mac: nothing is sent anywhere, and no path, prompt or reply text leaves the module. Sessions reach the UI only as a 16-character hash of the provider's session id, used to count distinct sessions. Symlinks inside the log folders are not followed.
+- **Paired devices.** The command is read-only and not in `remote.rs`'s denied list, like `provider_usage`; on a paired device or the headless host it reads the logs of the computer that runs the agents.
+
+## Usage page UI
+
+- **Where it opens.** `mainView` gains `usage`. In the list and Project sidebar styles the foot shows a Usage icon beside Archived and Settings, and the provider quota rings stay only on the 52 px rail, where the column is too narrow for a page link and the rings are the summary.
+- **Cost and Tokens.** One `usage_history(90)` read per visit (kept for the window), cut on the client into 24 hours (hourly buckets) or 7, 30 and 90 local days (`lib/usage-summary.ts`). The page shows the total and session count, one card per provider with its share, stacked bars per bucket (one segment per provider), totals (processed, cached input, uncached input, output, cache savings), the split by type and a table by model. Cost is an estimate at Anthropic's first-party list prices (longest model-id prefix wins; cache reads at the published rate, cache writes at 1.25× input); a cost the provider logged itself (OpenCode) wins; models without a known price (OpenAI's) show "No price" and mark the total as partial rather than guessing.
+- **Limits.** Every enabled provider that reports quota windows (`USAGE_PROVIDER_IDS`): each window's remaining share, a bar and the time to reset, the account in use, the provider's named accounts and Add account, which opens the existing accounts panel (Claude and Codex).
+- Motion: bars grow in once; none with reduced motion. Labels are localized (English and Portuguese).

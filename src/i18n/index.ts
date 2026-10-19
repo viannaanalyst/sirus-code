@@ -20,6 +20,7 @@ import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
 import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
 import { sidebarListEnglish, sidebarListPortuguese } from "./sidebar-list-strings";
+import { usageEnglish, usagePortuguese } from "./usage-strings";
 import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
 import { activityEnglish, activityPortuguese } from "./activity-strings";
 import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
@@ -68,6 +69,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...teamPortuguese,
     ...sidebarUsagePortuguese,
     ...sidebarListPortuguese,
+    ...usagePortuguese,
     ...sideChatPortuguese,
     ...activityPortuguese,
     ...backgroundPortuguese,
@@ -156,6 +158,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...teamEnglish,
     ...sidebarUsageEnglish,
     ...sidebarListEnglish,
+    ...usageEnglish,
     ...sideChatEnglish,
     ...activityEnglish,
     ...backgroundEnglish,

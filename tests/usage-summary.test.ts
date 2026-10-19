@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import type { UsageHistoryEntry } from "../src/client/types.ts";
+import { entryCost, formatShare, modelPrice, sortModelRows, summarizeUsage, usageBuckets } from "../src/lib/usage-summary.ts";
+
+const HOUR = 60 * 60 * 1000;
+const now = new Date(2026, 9, 18, 15, 30).getTime();
+const entry = (hoursAgo: number, provider: UsageHistoryEntry["provider"], model: string, extra: Partial<UsageHistoryEntry> = {}): UsageHistoryEntry => ({
+  at: Math.floor((now - hoursAgo * HOUR) / HOUR) * HOUR, provider, model, session: `${provider}-s1`,
+  inputTokens: 1_000_000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 0, reportedCostUsd: null, ...extra,
+});
+
+test("prices: the longest prefix wins, unknown models have none, a logged cost wins over the estimate", () => {
+  assert.equal(modelPrice("claude-opus-5-5")?.input, 4);
+  assert.equal(modelPrice("claude-opus-5")?.input, 5);
+  assert.equal(modelPrice("claude-sonnet-4-6")?.output, 15);
+  assert.equal(modelPrice("gpt-6.1-sol"), null);
+  assert.equal(entryCost(entry(1, "claude", "claude-opus-5-5", { cachedInputTokens: 1_000_000, outputTokens: 1_000_000 })), 4 + 0.2 + 20);
+  assert.equal(entryCost(entry(1, "codex", "gpt-6.1-sol")), null);
+  assert.equal(entryCost(entry(1, "opencode", "big-pickle", { reportedCostUsd: 0.5 })), 0.5);
+});
+
+test("buckets: 24 hourly ones for a day, local days otherwise, oldest first", () => {
+  const hours = usageBuckets(1, now);
+  assert.equal(hours.length, 24);
+  assert.equal(hours[23], Math.floor(now / HOUR) * HOUR);
+  const days = usageBuckets(7, now);
+  assert.equal(days.length, 7);
+  assert.equal(new Date(days[6]).getDate(), 18);
+  assert.equal(new Date(days[0]).getDate(), 12);
+  assert.equal(new Date(days[0]).getHours(), 0);
+});
+
+test("summary: totals, distinct sessions, unpriced models, buckets and the range cut", () => {
+  const entries = [
+    entry(2, "claude", "claude-opus-5-5", { outputTokens: 100_000 }),
+    entry(30, "claude", "claude-opus-5-5", { session: "claude-s2", cachedInputTokens: 2_000_000 }),
+    entry(5, "codex", "gpt-6.1-sol"),
+    entry(24 * 40, "claude", "claude-opus-5-5"),
+  ];
+  const week = summarizeUsage(entries, 7, now);
+  assert.equal(week.tokens, 1_000_000 + 100_000 + 1_000_000 + 2_000_000 + 1_000_000);
+  assert.equal(week.sessions, 3);
+  assert.ok(week.partialCost);
+  assert.deepEqual(week.providers.map(total => [total.provider, total.sessions, total.unpriced]), [["claude", 2, false], ["codex", 1, true]]);
+  assert.equal(Math.round(week.cost * 100) / 100, Math.round((4 + 2 + 4 + 0.4) * 100) / 100);
+  assert.ok(Math.abs(week.cacheSavings - 2 * (4 - 0.2)) < 1e-9);
+  assert.equal(week.buckets.reduce((sum, bucket) => sum + bucket.values.claude.tokens + bucket.values.codex.tokens, 0), week.tokens);
+  assert.deepEqual(sortModelRows(week.models, "cost").map(row => row.model), ["claude-opus-5-5", "gpt-6.1-sol"]);
+  const day = summarizeUsage(entries, 1, now);
+  assert.equal(day.bucket, "hour");
+  assert.equal(day.sessions, 2);
+  assert.equal(summarizeUsage(entries, 90, now).tokens, week.tokens + 1_000_000);
+});
+
+test("shares read as percentages, with a floor label below a tenth", () => {
+  assert.equal(formatShare(1, 4, "en"), "25%");
+  assert.equal(formatShare(1, 10_000, "en"), "<0.1%");
+  assert.equal(formatShare(0, 0, "en"), "—");
+});

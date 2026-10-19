@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -9,7 +9,6 @@ import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { SessionActionDialog } from "@/components/SessionActions";
 import { ArchiveConfirm } from "@/components/SidebarRows";
 import { RailGlyph } from "@/components/SidebarRailMore";
-import { SidebarUsageRings } from "@/components/SidebarUsageRings";
 import { SnoozePicker } from "@/components/SnoozePicker";
 import { useTranslation } from "@/i18n/use-translation";
 import { conversationListItems, conversationOrderSettings, conversationSortKeys, CONVERSATION_LIST_MAX_WIDTH, CONVERSATION_LIST_MIN_WIDTH, expandOpenFolder, itemOffsets, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, type ConversationListSettings, type ConversationTimeGroup } from "@/lib/conversation-list";
@@ -125,9 +124,12 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
     </nav>
     {hidden ? <div className="flex-1" /> : <ConversationList style={style} />}
     {style === "project" && !hidden ? <ProjectStrip /> : null}
+    {/* The quota rings stay on the 52 px rail; here the Usage page sits beside Archived and Settings. */}
     <div className="conversation-sidebar-foot">
-      <SidebarUsageRings />
       <span className="flex-1" />
+      <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" aria-label={t("usage.title")} title={t("usage.title")} aria-current={mainView === "usage" ? "page" : undefined} onClick={() => store().setMainView("usage")}>
+        <ChartBar size={17} weight={mainView === "usage" ? "fill" : undefined} />
+      </button>
       <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" aria-label={t(RAIL_LABELS.archived)} title={t(RAIL_LABELS.archived)} aria-current={mainView === "archived" ? "page" : undefined} onClick={() => store().setMainView("archived")}>
         <RailGlyph id="archived" active={mainView === "archived"} size={17} />
       </button>

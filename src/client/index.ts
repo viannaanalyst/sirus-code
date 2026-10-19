@@ -91,6 +91,11 @@ export class SirusClient {
     return this.transport.invoke<import("./types").ProviderUsage>("provider_usage", { provider, refresh, accountId });
   }
 
+  /** Usage page (ADR-141): token history from the provider CLIs' local logs over the past `days` (1–90). */
+  usageHistory(days: number) {
+    return this.transport.invoke<import("./types").UsageHistory>("usage_history", { days });
+  }
+
   createProviderAccount(provider: AgentProviderId, name: string) {
     return this.transport.invoke<import("./types").ProviderAccount>("create_provider_account", { provider, name });
   }
