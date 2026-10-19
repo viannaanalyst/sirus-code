@@ -31,6 +31,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # Plain logs, so the summary's error count can match the lines.
+      CARGO_TERM_COLOR: never
     steps:
       - uses: actions/checkout@v4
 
