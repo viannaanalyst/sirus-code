@@ -1,0 +1,80 @@
+# Windows port, stage 1: compile the app for Windows and report what breaks.
+# The desktop app and the headless host are checked separately, so one
+# failing does not hide the other's errors. Each log is uploaded as an artifact
+# and the error count goes to the run summary.
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/**"
+      - ".github/workflows/windows.yml"
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: cargo check (${{ matrix.name }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: desktop
+            features: ""
+          - name: host
+            features: "--no-default-features --features host"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.name }}
+
+      # Tauri embeds the built front end at compile time.
+      - name: Build the front end
+        run: |
+          npm ci
+          npm run build
+
+      - name: cargo check
+        working-directory: src-tauri
+        run: |
+          set +e
+          cargo check --all-targets ${{ matrix.features }} --message-format short 2>&1 | tee ../check-${{ matrix.name }}.log
+          status=${PIPESTATUS[0]}
+          errors=$(grep -c '^[^ ].*: error' ../check-${{ matrix.name }}.log)
+          warnings=$(grep -c '^[^ ].*: warning' ../check-${{ matrix.name }}.log)
+          {
+            echo "### Windows · ${{ matrix.name }}"
+            echo ""
+            echo "- errors: $errors"
+            echo "- warnings: $warnings"
+            echo ""
+            echo '```'
+            grep '^[^ ].*: error' ../check-${{ matrix.name }}.log | sort | uniq | head -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Upload the log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-check-${{ matrix.name }}
+          path: check-${{ matrix.name }}.log
