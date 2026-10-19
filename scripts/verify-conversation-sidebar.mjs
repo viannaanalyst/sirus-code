@@ -63,7 +63,7 @@ try {
     snapshot.settings = { ...snapshot.settings, sidebarMode: "project", sidebarListOrder: "recent", sidebarOpenFolders: null };
     const project = render(createElement(ConversationSidebar));
     assert.deepEqual([...project.matchAll(/data-conversation="([^"]+)"/g)].map(match => match[1]), ["alpha-working", "alpha-old"]);
-    assert.ok(project.includes('data-variant="compact"') && project.includes('title="branch/alpha-old · gpt-5"'));
+    assert.ok(project.includes('data-variant="compact"') && !project.includes('title="branch/alpha-old · gpt-5"'), "branch and model live in the hover card, not a native tooltip");
     assert.ok(project.includes('data-list-kind="time"') && project.includes(locale === "en" ? "Older" : "Mais antigas"));
     assert.ok(project.includes("conversation-sidebar-project") && !project.includes("conversation-sidebar-brand"));
     assert.equal((project.match(/class="conversation-strip-project"/g) ?? []).length, 2);

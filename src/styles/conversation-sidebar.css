@@ -48,6 +48,8 @@
   .conversation-folder-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-folder-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   .conversation-folder-end { position: relative; display: grid; place-items: center; width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; }
+  .conversation-folder-diff { margin-left: auto; }
+  .conversation-folder-diff + .conversation-folder-end { margin-left: 8px; }
   .conversation-folder-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
   .conversation-folder-end > .conversation-folder-dot { position: absolute; transition: opacity var(--motion-fast) var(--ease-out); }
   /* A closed folder with a status shows the dot; pointing at it brings the chevron back. */
@@ -146,8 +148,6 @@
   .conversation-hover-diff { display: inline-flex; flex-shrink: 0; gap: 5px; font-family: var(--font-mono); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
   .conversation-hover-diff [data-kind="added"] { color: var(--success); }
   .conversation-hover-diff [data-kind="removed"] { color: var(--danger); }
-  .conversation-hover-separator { height: 1px; margin: 2px 0; background: var(--border-subtle); }
-  .conversation-hover-snippet { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
 
   /* The content frame starts after the column instead of the rail. */
   [data-rail="list"] > .app-content-frame { left: var(--sidebar-list-width, 280px); transition: none; }

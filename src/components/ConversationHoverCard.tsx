@@ -4,7 +4,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/arc/popover
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { useTranslation } from "@/i18n/use-translation";
-import { diffParts, hoverPill, HoverCardController, lastReplySnippet, workspaceDiff } from "@/lib/conversation-hover";
+import { diffParts, hoverPill, HoverCardController, workspaceDiff } from "@/lib/conversation-hover";
 import { environmentLabel, HOME_ENVIRONMENT } from "@/lib/environments";
 import { modelDisplayName } from "@/lib/model-registry";
 import { providerById } from "@/lib/provider-registry";
@@ -103,7 +103,6 @@ function HoverBody({ sessionId }: { sessionId: string }) {
     if (!item) return null;
     return item.id === HOME_ENVIRONMENT ? item.label.trim() || state.hostInfo[HOME_ENVIRONMENT]?.hostName?.trim() || null : environmentLabel(item);
   });
-  const snippet = useMemo(() => session ? lastReplySnippet(session) : null, [session]);
   if (!session) return null;
   const pill = hoverPill(session, computerWaiting);
   const age = relativeTime(session.lastActivityAt);
@@ -128,6 +127,5 @@ function HoverBody({ sessionId }: { sessionId: string }) {
       <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
       <span className="conversation-hover-grow">{computer ? `${model} · ${computer}` : model}</span>
     </div>
-    {snippet ? <><div className="conversation-hover-separator" /><p className="conversation-hover-snippet">{snippet}</p></> : null}
   </>;
 }

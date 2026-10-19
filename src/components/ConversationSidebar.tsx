@@ -350,11 +350,16 @@ function statusDotOf(status: TabStatus, active: boolean): "running" | "waiting" 
 const FolderRow = memo(function FolderRow({ project, count, status, open, onToggle }: { project: Project; count: number; status: TabStatus; open: boolean; onToggle: (projectId: string) => void }) {
   const t = useTranslation();
   const dot = statusDotOf(status, false);
-  const label = [t("sidebarList.projectCount", { project: project.name, count }), dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
+  // The project's uncommitted lines, as the header switcher shows them.
+  const diff = useAppStore(state => state.projectDiffs[project.id]);
+  const label = [t("sidebarList.projectCount", { project: project.name, count }), diff && (diff.additions || diff.deletions) ? t("project.diff", { additions: diff.additions, deletions: diff.deletions }) : null, dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
   return <div className="conversation-folder" data-list-kind="folder" data-open={open || undefined}>
     <button type="button" className="conversation-folder-toggle" aria-expanded={open} aria-label={label} onClick={() => onToggle(project.id)}>
       <ProjectGlyph project={project} expanded={open} size={14} />
       <span className="conversation-folder-name">{project.name}</span>
+      {diff && (diff.additions || diff.deletions) ? <span className="header-switcher-diff conversation-folder-diff" aria-hidden="true">
+        <span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span>
+      </span> : null}
       {/* Closed, the most urgent state takes the chevron's place; open, the rows show their own. */}
       <span className="conversation-folder-end">
         <ChevronRight size={12} aria-hidden="true" className="conversation-folder-chevron" />
@@ -403,7 +408,6 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
     data-motion={motion} style={motion ? { "--row-index": depth } as CSSProperties : undefined}>
     <button type="button" className="conversation-row-open" aria-current={active ? "page" : undefined}
       aria-label={[session.title, variant === "full" ? project.name : null, statusLabel].filter(Boolean).join(" · ")}
-      title={variant !== "full" ? [session.worktree.branch, session.model ?? session.agent].filter(Boolean).join(" · ") : undefined}
       onPointerDown={event => beginSplitDrag(event, session.id, session.title)}
       onClick={() => void useAppStore.getState().selectSession(session.id)}>
       {variant === "full" ? <span className="conversation-row-meta">
