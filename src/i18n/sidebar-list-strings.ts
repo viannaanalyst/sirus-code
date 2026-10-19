@@ -9,6 +9,7 @@ const strings: Record<string, [string, string]> = {
   "sidebarList.pulls": ["PRs", "PRs"],
   "sidebarList.newConversation": ["New conversation", "Nova conversa"],
   "sidebarList.unread": ["Unread", "Não lida"],
+  "sidebarList.newIn": ["New conversation in {project}", "Nova conversa em {project}"],
   "sidebarList.showMore": ["Show {count} more", "Mostrar mais {count}"],
   "sidebarList.showLess": ["Show less", "Mostrar menos"],
   "sidebarList.projectCount": ["{project}, {count} conversations", "{project}, {count} conversas"],

@@ -12,6 +12,12 @@
   /* Project style: the project switcher and New conversation under the window controls. */
   .conversation-sidebar-switch { display: flex; align-items: center; gap: 4px; padding: 0 8px 6px; flex-shrink: 0; }
   .conversation-sidebar-switch > .conversation-sidebar-tool { margin-left: auto; }
+  /* The switcher's chevron stays faint until the pointer is on the title, leaving room for the name. */
+  .conversation-sidebar-project > svg:last-child { opacity: 0.35; transition: opacity var(--motion-fast) var(--ease-out), rotate var(--motion-normal) var(--ease-out); }
+  .conversation-sidebar-project:is(:hover, :focus-visible, [data-state="open"]) > svg:last-child { opacity: 1; }
+  .conversation-new-hint { display: flex; align-items: center; gap: 7px; height: 32px; margin: 6px 8px 0; padding: 0 10px; border: 1px dashed color-mix(in srgb, var(--text-primary) 12%, transparent); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-ui-12); text-align: left; transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+  .conversation-new-hint:hover { border-color: color-mix(in srgb, var(--text-primary) 22%, transparent); background: var(--navigation-hover); color: var(--text-secondary); }
+  .conversation-new-hint:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
   .header-project.conversation-sidebar-project { flex: 0 1 auto; max-width: none; height: 30px; gap: 8px; padding: 0 8px; color: var(--text-primary); font-size: var(--text-ui-13); font-weight: 600; }
 
   .conversation-sidebar-tools { display: flex; align-items: center; gap: 2px; padding: 2px 8px 6px; flex-shrink: 0; }
@@ -109,9 +115,11 @@
 
   /* Project style: the projects' icons, scrolling sideways between two arrows. */
   .conversation-strip { display: flex; align-items: center; gap: 2px; flex-shrink: 0; padding: 6px 6px; border-top: 1px solid var(--border-subtle); }
-  .conversation-strip-items { position: relative; display: flex; min-width: 0; flex: 1; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+  .conversation-strip-items { position: relative; display: flex; min-width: 0; flex: 1; justify-content: space-between; gap: 2px; overflow-x: auto; scrollbar-width: none; }
   .conversation-strip-items::-webkit-scrollbar { display: none; }
-  .conversation-strip-project { display: grid; place-items: center; min-width: 34px; height: 30px; flex: 1 0 34px; border-radius: var(--radius-md); transition: background var(--motion-fast) var(--ease-out); }
+  /* Square tiles, so the selected one's highlight sits evenly around its icon. */
+  .conversation-strip-project { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--radius-md); transition: background var(--motion-fast) var(--ease-out); }
+  .conversation-strip-project > * { display: grid; place-items: center; }
   .conversation-strip-project:hover { background: var(--navigation-hover); }
   .conversation-strip-project[aria-current] { background: var(--navigation-selected); }
   .conversation-strip-project:focus-visible, .conversation-strip-arrow:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }

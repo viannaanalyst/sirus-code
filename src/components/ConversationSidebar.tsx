@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -167,6 +167,8 @@ function OrderMenu({ style }: { style: ColumnStyle }) {
  */
 /** Folder rows grow in over this long (with their stagger), and fold away before leaving. */
 const FOLDER_OPEN_MS = 420;
+/** The Project style offers "New conversation in …" below this many conversations. */
+const FEW_CONVERSATIONS = 3;
 const FOLDER_CLOSE_MS = 170;
 
 function ConversationList({ style }: { style: ColumnStyle }) {
@@ -303,6 +305,7 @@ function ConversationList({ style }: { style: ColumnStyle }) {
 
   // Position under its folder, for the open stagger.
   let depth = 0;
+  const selectedProject = projects.find(project => project.id === selectedProjectId) ?? null;
   const empty = order === "time" && !projects.some(project => project.id === selectedProjectId) ? t("sidebarList.noProject") : t(order === "time" ? "sidebarList.emptyProject" : "sidebarList.empty");
   return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
     onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)}>
@@ -323,6 +326,11 @@ function ConversationList({ style }: { style: ColumnStyle }) {
         })}
       </div>
     </ContextMenu> : <p className="conversation-sidebar-empty">{empty}</p>}
+    {/* The Project style with few conversations offers the next one right under them. */}
+    {order === "time" && selectedProject && items.filter(item => item.kind === "session").length <= FEW_CONVERSATIONS
+      ? <button type="button" className="conversation-new-hint" onClick={() => void sidebarProjectAction(selectedProject.id, "new")}>
+        <Plus size={13} aria-hidden="true" /><span className="truncate">{t("sidebarList.newIn", { project: selectedProject.name })}</span>
+      </button> : null}
     {action ? <SessionActionDialog session={action.session} action={action.kind} onClose={() => setAction(null)} /> : null}
     <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
   </div>;
@@ -449,7 +457,7 @@ function ProjectStrip() {
     <div ref={strip} className="conversation-strip-items" role="group" aria-label={t("sidebarList.projects")}>
       {ordered.map(project => <button key={project.id} type="button" className="conversation-strip-project" aria-label={project.name} title={project.name}
         aria-current={project.id === selectedProjectId ? "true" : undefined} onClick={() => { if (project.id !== selectedProjectId) void store().switchProject(project.id); }}>
-        <ProjectGlyph project={project} size={16} />
+        <ProjectGlyph project={project} size={14} />
       </button>)}
     </div>
     <button type="button" className="conversation-strip-arrow" aria-label={t("sidebarList.nextProjects")} disabled={edges.end} onClick={() => page(1)}><ChevronRight size={14} aria-hidden="true" /></button>

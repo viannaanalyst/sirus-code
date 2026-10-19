@@ -209,7 +209,7 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
   return <>
   <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) { setQuery(""); setFocus(null); setHovering(false); } setCursor(0); }}>
     <PopoverTrigger asChild>
-      <button type="button" className={placement === "sidebar" ? "header-project conversation-sidebar-project" : "header-project"} aria-label={t("tabs.switchProject")}
+      <button type="button" className={placement === "sidebar" ? "header-project conversation-sidebar-project" : "header-project"} aria-label={t("tabs.switchProject")} title={placement === "sidebar" ? project?.name : undefined}
         onPointerEnter={placement === "header" ? hoverIn : undefined} onPointerLeave={placement === "header" ? hoverOut : undefined}
         // A click right after the hover opened it keeps it open instead of toggling it shut.
         onClick={event => { if (open && hover.current.opened && Date.now() - hover.current.at < 600) { event.preventDefault(); used(); } else if (open) hover.current.opened = false; else { hover.current.opened = false; window.clearTimeout(hover.current.timer); } }}>
