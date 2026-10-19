@@ -622,6 +622,7 @@ mod tests {
     /// simulator `SIRUS_DEVICE_HUB_UDID`, relays it and stops the hub:
     /// `cargo test devices::tests::installs_and_runs -- --ignored --nocapture`.
     #[test]
+    #[cfg(unix)]
     #[ignore = "downloads expo-device-hub and needs Xcode and a booted simulator"]
     fn installs_and_runs_the_real_hub() {
         let tools =

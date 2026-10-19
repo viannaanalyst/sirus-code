@@ -1324,6 +1324,7 @@ mod discard_tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn symlinks_cannot_lead_discard_outside_the_repository() {
         let repo = Repo::new();
         let outside = repo.0.join("outside");

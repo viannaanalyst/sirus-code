@@ -127,7 +127,8 @@ pub(crate) fn clear() {
     }
 }
 
-#[cfg(test)]
+// The tests drive `/bin/cat` in its own process group.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use std::process::Stdio;

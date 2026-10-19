@@ -2841,6 +2841,7 @@ mod platform {
         _app: &AppHandle,
         _session_id: &str,
         _url: Option<String>,
+        _profile: Option<String>,
     ) -> Result<BrowserSessionState> {
         Err(unsupported())
     }
