@@ -44,3 +44,11 @@ The owner approved a hover card for the conversation rows (Recent, folder and Pr
 
 
 *2026-10-19:* the owner dropped the reply snippet from the hover card (the session metadata keeps `lastReplyPreview` for other surfaces) and the rows' native tooltip, which showed over the card. Folder rows in By project show the project's uncommitted `+N −M`, as the header switcher does.
+
+## Amendment: one project menu (2026-10-19)
+
+Right-clicking a project now opens the same menu everywhere: the header switcher's rows, a By project folder row, the Project style's title (a left click still opens the switcher) and each icon in its strip (without switching project). The icon rail's project shortcuts have no context menu and keep none. Before, folder rows opened an empty menu and the Project style's title and strip had none.
+
+- **Items, in order:** New conversation (in that project, through the same path as the folder's New conversation button); Edit project; Move to each other folder, Remove from its folder, New folder with this project; Open in Finder (`open_path`, which only opens project, worktree and app data folders) and Copy path; Remove from list, with its confirmation. Rules separate the groups.
+- **One builder.** `useProjectMenu(onAction?)` in `ProjectActions.tsx` returns `items(project)` and the dialogs (Edit project, the folder dialog, the Remove confirmation) to render once per surface; the rows come from the pure `projectMenuEntries` in `src/lib/project-menu.ts`. `onAction` runs before the items that leave the surface, so the header switcher closes before New conversation or a dialog, as it did for Edit; Remove from list now closes it too.
+- **No empty menus.** The conversation list keeps one delegated menu, which reads the row under the pointer: a conversation's menu, or the project's on a folder row. On a time group or Show more, and on the strip's arrows, nothing opens; and a `ContextMenu` with no items never shows an empty pill (the header tab list's empty area had the same flaw).

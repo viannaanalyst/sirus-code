@@ -977,6 +977,35 @@ export type GitWorkspaceResponse =
   | { type: "history"; entries: GitHistoryEntry[]; truncated: boolean }
   | { type: "pulled"; branch: string; summary: string };
 
+/** One commit the workspace branch's upstream has and the branch does not (ADR-148). */
+export interface IncomingCommit {
+  /** Abbreviated hash. */
+  sha: string;
+  subject: string;
+  author: string;
+  /** Committer time, Unix seconds. */
+  time: number;
+}
+
+/** What the selected conversation's workspace branch can pull (`git_incoming`, ADR-148). */
+export interface GitIncoming {
+  branch: string;
+  /** Short upstream name, e.g. `origin/main`. */
+  upstream: string;
+  ahead: number;
+  behind: number;
+  /** Newest first, at most 20. */
+  commits: IncomingCommit[];
+  /** Unix milliseconds of the last successful fetch of this upstream. */
+  checkedAt: number | null;
+}
+
+/** The header's fast-forward-only pull (`git_pull_ff`, ADR-148). */
+export type GitPullOutcome =
+  | { status: "pulled"; incoming: GitIncoming | null }
+  | { status: "blocked"; files: string[] }
+  | { status: "diverged"; incoming: GitIncoming | null };
+
 export type CommitTitleAction =
   | { type: "generate"; sessionId: string; expectedIndex: string; requestId: string }
   | { type: "cancel"; sessionId: string; requestId: string };

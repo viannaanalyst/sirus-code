@@ -12,6 +12,8 @@
   /* Project style: the project switcher and New conversation under the window controls. */
   .conversation-sidebar-switch { display: flex; align-items: center; gap: 4px; padding: 0 8px 6px; flex-shrink: 0; }
   .conversation-sidebar-switch > .conversation-sidebar-tool { margin-left: auto; }
+  /* The project menu's right-click target wraps the title; it lets a long name shrink and truncate. */
+  .conversation-sidebar-switch > [aria-haspopup="menu"] { display: flex; min-width: 0; }
   /* The switcher's chevron stays faint until the pointer is on the title, leaving room for the name. */
   .conversation-sidebar-project > svg:last-child { opacity: 0.35; transition: opacity var(--motion-fast) var(--ease-out), rotate var(--motion-normal) var(--ease-out); }
   .conversation-sidebar-project:is(:hover, :focus-visible, [data-state="open"]) > svg:last-child { opacity: 1; }

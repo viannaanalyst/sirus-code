@@ -663,6 +663,7 @@ export const messages: Record<string, [string, string]> = {
   "common.retry": ["Try again", "Tentar novamente"],
   "git.notLoaded": ["Git status is not loaded yet.", "O status do Git ainda não foi carregado."],
   "project.actions": ["Project actions", "Ações do projeto"],
+  "project.openInFinder": ["Open in Finder", "Abrir no Finder"],
   "session.actions": ["Session actions", "Ações da sessão"],
   "session.rename": ["Rename session", "Renomear sessão"],
   "session.renameHelp": ["Change the title used in the sidebar.", "Altere o título mostrado na barra lateral."],

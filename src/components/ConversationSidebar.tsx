@@ -7,6 +7,7 @@ import { ConversationHoverCard, useConversationHover } from "@/components/Conver
 import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
+import { useProjectMenu } from "@/components/ProjectActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { SessionActionDialog } from "@/components/SessionActions";
 import { ArchiveConfirm } from "@/components/SidebarRows";
@@ -280,13 +281,17 @@ function ConversationList({ style }: { style: ColumnStyle }) {
 
   // One hover card for the whole list, driven by delegated pointer events (rows never re-render for it).
   const hover = useConversationHover();
-  // One context menu for the whole list: the row under the pointer picks its items.
-  const [menuId, setMenuId] = useState<string | null>(null);
+  // One context menu for the whole list: the row under the pointer picks its items (a
+  // conversation's, or its project's on a folder row); elsewhere no menu opens.
+  const [menuTarget, setMenuTarget] = useState<{ kind: "session" | "project"; id: string } | null>(null);
   const [action, setAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
   const [snoozing, setSnoozing] = useState<{ session: Session; anchor: HTMLElement } | null>(null);
   const moveItems = useMoveMenu();
-  const menuSession = menuId ? sessions.find(session => session.id === menuId) ?? null : null;
+  const { items: projectItems, dialogs: projectDialogs } = useProjectMenu();
+  const menuSession = menuTarget?.kind === "session" ? sessions.find(session => session.id === menuTarget.id) ?? null : null;
+  const menuProject = menuTarget?.kind === "project" ? projects.find(project => project.id === menuTarget.id) ?? null : null;
   const menuItems = useMemo<ContextMenuItem[]>(() => {
+    if (menuProject) return projectItems(menuProject);
     if (!menuSession) return [];
     const state = useAppStore.getState();
     const leaves = splitLeaves(state.splitLayout.root);
@@ -304,7 +309,7 @@ function ConversationList({ style }: { style: ColumnStyle }) {
       ...moveItems(menuSession),
       { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: busy, onSelect: () => setAction({ session: menuSession, kind: "delete" }) },
     ];
-  }, [menuSession, moveItems, t]);
+  }, [menuSession, menuProject, moveItems, projectItems, t]);
 
   // Position under its folder, for the open stagger.
   let depth = 0;
@@ -312,10 +317,17 @@ function ConversationList({ style }: { style: ColumnStyle }) {
   const empty = order === "time" && !projects.some(project => project.id === selectedProjectId) ? t("sidebarList.noProject") : t(order === "time" ? "sidebarList.emptyProject" : "sidebarList.empty");
   return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
     onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)} onScroll={hover.onScroll}>
-    {items.length ? <ContextMenu activation="context-only" label={t("session.actions")} items={menuItems} onOpenChange={hover.onMenuOpenChange}>
+    {items.length ? <ContextMenu activation="context-only" label={t(menuProject ? "project.actions" : "session.actions")} items={menuItems} onOpenChange={hover.onMenuOpenChange}>
       <div ref={inner} className="conversation-sidebar-rows" style={windowed ? { paddingTop: offsets[start], paddingBottom: offsets[items.length] - offsets[end] } : undefined}
         onPointerOver={hover.onPointerOver} onPointerLeave={hover.onPointerLeave} onPointerDown={hover.onPointerDown}
-        onContextMenuCapture={event => setMenuId((event.target as HTMLElement).closest<HTMLElement>("[data-conversation]")?.dataset.conversation ?? null)}>
+        onContextMenuCapture={event => {
+          const target = event.target as HTMLElement;
+          const conversation = target.closest<HTMLElement>("[data-conversation]")?.dataset.conversation;
+          const folder = conversation ? undefined : target.closest<HTMLElement>("[data-project-folder]")?.dataset.projectFolder;
+          setMenuTarget(conversation ? { kind: "session", id: conversation } : folder ? { kind: "project", id: folder } : null);
+          // Nothing to offer here (a time group, Show more): no menu, not even an empty one.
+          if (!conversation && !folder) { event.preventDefault(); event.stopPropagation(); }
+        }}>
         {items.slice(start, end).map(item => {
           if (item.kind === "folder") depth = 0;
           if (item.kind === "folder") return <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} open={item.open && folderMotion?.kind !== "close"} onToggle={toggleFolder} />;
@@ -338,6 +350,7 @@ function ConversationList({ style }: { style: ColumnStyle }) {
     <ConversationHoverCard controller={hover.controller} />
     {action ? <SessionActionDialog session={action.session} action={action.kind} onClose={() => setAction(null)} /> : null}
     <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
+    {projectDialogs}
   </div>;
 }
 
@@ -353,7 +366,7 @@ const FolderRow = memo(function FolderRow({ project, count, status, open, onTogg
   // The project's uncommitted lines, as the header switcher shows them.
   const diff = useAppStore(state => state.projectDiffs[project.id]);
   const label = [t("sidebarList.projectCount", { project: project.name, count }), diff && (diff.additions || diff.deletions) ? t("project.diff", { additions: diff.additions, deletions: diff.deletions }) : null, dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
-  return <div className="conversation-folder" data-list-kind="folder" data-open={open || undefined}>
+  return <div className="conversation-folder" data-list-kind="folder" data-project-folder={project.id} data-open={open || undefined}>
     <button type="button" className="conversation-folder-toggle" aria-expanded={open} aria-label={label} onClick={() => onToggle(project.id)}>
       <ProjectGlyph project={project} expanded={open} size={14} />
       <span className="conversation-folder-name">{project.name}</span>
@@ -425,7 +438,7 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
 /**
  * The Project style's foot (ADR-139, round 2): every project's icon in the switcher's order,
  * scrolling sideways with arrows at the ends; the selected one is highlighted and a click
- * switches to that project.
+ * switches to that project. Right-clicking an icon opens that project's menu without switching.
  */
 function ProjectStrip() {
   const t = useTranslation();
@@ -460,15 +473,26 @@ function ProjectStrip() {
     else if (item.offsetLeft + item.offsetWidth > node.scrollLeft + node.clientWidth) node.scrollLeft = item.offsetLeft + item.offsetWidth - node.clientWidth;
   }, [selectedProjectId]);
   const page = (direction: -1 | 1) => { const node = strip.current; if (node) node.scrollBy({ left: direction * Math.max(60, node.clientWidth - 40), behavior: reduced ? "auto" : "smooth" }); };
+  // One menu for the strip; the icon under the pointer picks the project.
+  const { items: projectItems, dialogs } = useProjectMenu();
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const menuProject = menuId ? ordered.find(project => project.id === menuId) ?? null : null;
   if (!ordered.length) return null;
-  return <div className="conversation-strip">
+  return <><ContextMenu activation="context-only" label={t("project.actions")} items={menuProject ? projectItems(menuProject) : []}>
+  <div className="conversation-strip" onContextMenuCapture={event => {
+    const id = (event.target as HTMLElement).closest<HTMLElement>("[data-strip-project]")?.dataset.stripProject ?? null;
+    setMenuId(id);
+    // The arrows and the gaps have no menu.
+    if (!id) { event.preventDefault(); event.stopPropagation(); }
+  }}>
     <button type="button" className="conversation-strip-arrow" aria-label={t("sidebarList.previousProjects")} disabled={edges.start} onClick={() => page(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
     <div ref={strip} className="conversation-strip-items" role="group" aria-label={t("sidebarList.projects")}>
-      {ordered.map(project => <button key={project.id} type="button" className="conversation-strip-project" aria-label={project.name} title={project.name}
+      {ordered.map(project => <button key={project.id} type="button" className="conversation-strip-project" data-strip-project={project.id} aria-label={project.name} title={project.name}
         aria-current={project.id === selectedProjectId ? "true" : undefined} onClick={() => { if (project.id !== selectedProjectId) void store().switchProject(project.id); }}>
         <ProjectGlyph project={project} size={14} />
       </button>)}
     </div>
     <button type="button" className="conversation-strip-arrow" aria-label={t("sidebarList.nextProjects")} disabled={edges.end} onClick={() => page(1)}><ChevronRight size={14} aria-hidden="true" /></button>
-  </div>;
+  </div>
+  </ContextMenu>{dialogs}</>;
 }

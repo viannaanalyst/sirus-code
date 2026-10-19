@@ -55,6 +55,7 @@ mod execution;
 mod fs_tree;
 mod gh_gate;
 mod git;
+mod git_incoming;
 mod git_workspace;
 mod github_inbox;
 mod goals;
@@ -427,6 +428,8 @@ pub fn run() {
             commands::create_branch,
             commands::git_commit,
             commands::git_workspace_action,
+            git_incoming::git_incoming,
+            git_incoming::git_pull_ff,
             commands::transcript_action,
             commit_title::commit_title_action,
             commands::git_push,

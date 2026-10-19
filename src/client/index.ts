@@ -4,6 +4,7 @@ import { RemoteTransport, type RemoteConnection } from "./remote-transport";
 import { SwitchingTransport } from "./switching-transport";
 import { ACTIVE_ENVIRONMENT_KEY, HOME_ENVIRONMENT, chooseActive, readEnvironments } from "@/lib/environments";
 import { eventFromThisMac, runsOnThisMac } from "@/lib/computers";
+import { readIncoming, readPullOutcome } from "@/lib/git-incoming";
 import type { Transport } from "./transport";
 import type {
   AgentEvent,
@@ -329,6 +330,18 @@ export class SirusClient {
     const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action: { type: "pull", sessionId, confirm: true } });
     if (result.type !== "pulled") throw new Error("Unexpected Git pull response");
     return result;
+  }
+
+  /** What the session's workspace branch can pull, after a background fetch the native cache allows (ADR-148). */
+  async gitIncoming(sessionId: string) {
+    return readIncoming(await this.transport.invoke<unknown>("git_incoming", { sessionId }));
+  }
+
+  /** The header's Pull: fast-forward only from the branch's upstream (ADR-148). */
+  async gitPullFastForward(sessionId: string) {
+    const outcome = readPullOutcome(await this.transport.invoke<unknown>("git_pull_ff", { sessionId }));
+    if (!outcome) throw new Error("Unexpected Git pull response");
+    return outcome;
   }
 
   /** Pushes the session branch and opens a pull request; resolves to its GitHub URL. */

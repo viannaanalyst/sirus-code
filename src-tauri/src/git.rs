@@ -443,16 +443,47 @@ pub fn origin_default_branch(cwd: &Path) -> Option<String> {
 /// Fetches one branch from `origin` into `refs/remotes/origin/<branch>`, bounded to 30 s and
 /// refused under the same project network-helper rule as push and pull (ADR-130).
 pub fn fetch_origin_branch(cwd: &Path, branch: &str) -> Result<()> {
-    if !valid_branch_chars(branch) {
+    fetch_branch(
+        cwd,
+        "origin",
+        branch,
+        &format!("refs/remotes/origin/{branch}"),
+        std::time::Duration::from_secs(30),
+    )
+}
+
+/// Fetches `refs/heads/<branch>` of `remote` into the remote-tracking ref `tracking` and
+/// nothing else (no tags, no FETCH_HEAD), bounded by `timeout`, under the same hook and
+/// project network-helper refusals as push and pull (ADR-130, ADR-148).
+pub(crate) fn fetch_branch(
+    cwd: &Path,
+    remote: &str,
+    branch: &str,
+    tracking: &str,
+    timeout: std::time::Duration,
+) -> Result<()> {
+    if !valid_remote_name(remote)
+        || !valid_branch_chars(branch)
+        || !tracking
+            .strip_prefix("refs/remotes/")
+            .is_some_and(valid_branch_chars)
+    {
         return Err(Error::git("invalid branch name"));
     }
     refuse_configured_hooks(cwd)?;
     refuse_project_network_helpers(cwd)?;
-    let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
+    let refspec = format!("+refs/heads/{branch}:{tracking}");
     let output = capture_git(
         cwd,
-        &["fetch", "--quiet", "--no-tags", "origin", &refspec],
-        std::time::Duration::from_secs(30),
+        &[
+            "fetch",
+            "--quiet",
+            "--no-tags",
+            "--no-write-fetch-head",
+            remote,
+            &refspec,
+        ],
+        timeout,
     )
     .map_err(|_| Error::git("git fetch did not finish in time"))?;
     if output.status.success() {
@@ -460,6 +491,42 @@ pub fn fetch_origin_branch(cwd: &Path, branch: &str) -> Result<()> {
     } else {
         Err(Error::git("git fetch failed"))
     }
+}
+
+/// `git pull --ff-only <remote> <branch>` for the header's Pull (ADR-148): never a merge or
+/// rebase, bounded to 30 s, under the same hook and network-helper refusals as push. The raw
+/// output is returned so the caller can tell blocking files and divergence apart.
+pub(crate) fn pull_fast_forward(cwd: &Path, remote: &str, branch: &str) -> Result<Output> {
+    if !valid_remote_name(remote) || !valid_branch_chars(branch) {
+        return Err(Error::git("invalid branch name"));
+    }
+    refuse_configured_hooks(cwd)?;
+    refuse_project_network_helpers(cwd)?;
+    capture_git(
+        cwd,
+        &[
+            "pull",
+            "--ff-only",
+            "--no-rebase",
+            "--no-edit",
+            "--no-stat",
+            remote,
+            branch,
+        ],
+        std::time::Duration::from_secs(30),
+    )
+    .map_err(|_| Error::git("git pull did not finish in 30 seconds."))
+}
+
+/// A remote's name as Git config keeps it; no option-like or path-like names.
+pub(crate) fn valid_remote_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 100
+        && !name.starts_with(['-', '.'])
+        && !name.contains("..")
+        && name.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '-' | '_')
+        })
 }
 
 /// Normalize an `origin` remote to a web URL. Only GitHub is exposed, and the
@@ -498,7 +565,7 @@ pub(crate) fn normalize_github_web_url(raw: &str) -> Option<String> {
 const MAX_BRANCHES: usize = 500;
 const MAX_BRANCH_NAME: usize = 120;
 
-fn valid_branch_chars(name: &str) -> bool {
+pub(crate) fn valid_branch_chars(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= MAX_BRANCH_NAME
         && !name.starts_with('-')

@@ -38,6 +38,8 @@ try {
       const folders = [...html.matchAll(/aria-expanded="(true|false)" aria-label="([^"]+)"/g)].map(match => `${match[1]}:${match[2].split(",")[0]}`);
       assert.deepEqual(folders, order === "project" ? ["false:Project beta", "true:Project alpha"] : []);
       assert.equal((html.match(/data-list-kind="folder"/g) ?? []).length, order === "project" ? 2 : 0);
+      // Right-clicking a folder opens its project's menu (the list's one menu reads this mark).
+      assert.equal((html.match(/data-project-folder="/g) ?? []).length, order === "project" ? 2 : 0);
       // Rows in a folder leave the project line out.
       assert.equal(html.includes("conversation-row-project"), order === "recent");
       assert.ok(html.includes("Project alpha") && html.includes("Sirus") && html.includes("Code"));
@@ -68,6 +70,10 @@ try {
     assert.ok(project.includes("conversation-sidebar-project") && !project.includes("conversation-sidebar-brand"));
     assert.equal((project.match(/class="conversation-strip-project"/g) ?? []).length, 2);
     assert.ok(/aria-label="Project alpha" title="Project alpha" aria-current="true"/.test(project), "the selected project is highlighted in the strip");
+    // The title and the strip's icons open the shared project menu on right-click.
+    const projectActions = locale === "en" ? "Project actions" : "Ações do projeto";
+    assert.equal(project.split(`aria-label="${projectActions}" aria-haspopup="menu"`).length - 1, 2);
+    assert.equal((project.match(/data-strip-project="/g) ?? []).length, 2);
     assert.ok((project.match(/conversation-sidebar-tool(?!s)/g) ?? []).length === 3 && project.includes('data-section="settings"'));
     assert.ok(!/uppercase/.test(project));
     snapshot.settings = { ...snapshot.settings, showSessionTabs: true };
@@ -105,5 +111,5 @@ try {
   snapshot.sessions = Array.from({ length: 300 }, (_, index) => session(`many-${index}`, "alpha", 1 + (index % 28)));
   const longProject = (render(createElement(ConversationSidebar)).match(/data-conversation=/g) ?? []).length;
   assert.ok(longProject > 0 && longProject <= 60, `windowed: ${longProject} rows mounted`);
-  console.log("Conversation sidebar: Recent and folder-only By project (open state saved), the Project style (switcher, time groups, project strip), status dots, search/order/New project/nav/footer, header switcher hidden while a column shows, Settings miniatures, long lists windowed, in both locales");
+  console.log("Conversation sidebar: Recent and folder-only By project (open state saved), the Project style (switcher, time groups, project strip), the shared project menu on folders, title and strip, status dots, search/order/New project/nav/footer, header switcher hidden while a column shows, Settings miniatures, long lists windowed, in both locales");
 } finally { await server.close(); }

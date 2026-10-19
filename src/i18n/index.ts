@@ -43,6 +43,7 @@ import { promptLinkEnglish, promptLinkPortuguese } from "./prompt-link-strings";
 import { deviceEnglish, devicePortuguese } from "./device-strings";
 import { reviewGuideEnglish, reviewGuidePortuguese } from "./review-guide-strings";
 import { appUpdateEnglish, appUpdatePortuguese } from "./app-update-strings";
+import { gitIncomingEnglish, gitIncomingPortuguese } from "./git-incoming-strings";
 export type Locale = "pt-BR" | "en";
 
 const dictionaries: Record<Locale, Record<string, string>> = {
@@ -92,6 +93,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...devicePortuguese,
     ...reviewGuidePortuguese,
     ...appUpdatePortuguese,
+    ...gitIncomingPortuguese,
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[1]])),
     "common.search": "Buscar",
     "Add to chat": "Adicionar ao chat",
@@ -184,6 +186,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...deviceEnglish,
     ...reviewGuideEnglish,
     ...appUpdateEnglish,
+    ...gitIncomingEnglish,
     "shortcut.unsupported": "Use Command with a letter, number or punctuation. System and editing shortcuts are reserved.",
     "shortcut.conflict": "This combination belongs to another action. Choose another.",
     ...Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value[0]])),

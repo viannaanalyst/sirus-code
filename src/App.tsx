@@ -27,6 +27,7 @@ import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
 import { AppUpdatePill, WhatsNewDialog } from "@/components/AppUpdatePill";
 import { CommandPalette } from "@/components/CommandPalette";
 import { EnvironmentPanel, EnvironmentToggle } from "@/components/EnvironmentPanel";
+import { GitIncomingButton } from "@/components/GitIncomingButton";
 import { RightDock } from "@/components/RightDock";
 import { SplitWorkspace } from "@/components/SplitWorkspace";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -294,6 +295,7 @@ export default function App() {
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               {localClient ? <span className="mr-1.5 inline-flex"><AppUpdatePill /></span> : null}
+              {mainView === "session" ? <GitIncomingButton /> : null}
               <EnvironmentToggle />
               <IconButton
                 label={t(dockOpen ? "Collapse panel" : "Open right panel")}
