@@ -902,6 +902,10 @@ async fn run_turn(
             emit(Event::Delta(format!("{lead}{update}\n\n")))?;
             wrote_text = true;
         }
+        // A subagent's own messages stream into its live view (ADR-146).
+        if let Some(update) = crate::subagent_feed::from_claude(&value) {
+            emit(Event::Feed(update))?;
+        }
         let mut items = crate::activity::claude(&value);
         // A running workflow member's answer so far, from its transcript (ADR-115).
         transcripts.refresh(&value, &mut items).await;
@@ -2121,7 +2125,8 @@ assert sys.stdin.read()==''
                 | Event::Activity(_)
                 | Event::Model(_)
                 | Event::Context(_)
-                | Event::UsageLimit(_) => {}
+                | Event::UsageLimit(_)
+                | Event::Feed(_) => {}
             }
             Ok(())
         };

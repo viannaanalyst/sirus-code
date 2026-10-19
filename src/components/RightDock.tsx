@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
+  Bot,
   Files,
   FileCode2,
   FileText,
@@ -28,6 +29,7 @@ import { BrowserPanel } from "@/components/BrowserPanel";
 import { FileTree } from "@/components/FileTree";
 import { ChangesPane } from "@/components/ChangesPane";
 import { SideChatPane } from "@/components/SideChatPane";
+import { SubagentPane } from "@/components/SubagentPane";
 import { editorKey } from "@/lib/editor-state";
 import type { EditorReveal } from "@/components/editor/CodeEditor";
 import { usePointerReorder } from "@/lib/use-pointer-reorder";
@@ -67,6 +69,7 @@ const paneMeta: Record<DockPaneKind, { label: string; icon: typeof Files }> = {
   document: { label: "reader.title", icon: FileText },
   sidechat: { label: "sideChat.title", icon: MessagesSquare },
   devices: { label: "devices.title", icon: Smartphone },
+  subagent: { label: "subagentView.title", icon: Bot },
 };
 
 const allLaunchers: DockPaneKind[] = ["terminal", "files", "changes", "browser", "sidechat", "devices"];
@@ -111,7 +114,7 @@ export function RightDock() {
   };
 
   const visible = useMemo(
-    () => panes.filter((pane) => pane.kind === "document" ? pane.document?.scope === (session ? `session:${session.id}` : `project:${project?.id}`) : (pane.kind !== "editor" && pane.kind !== "review" && pane.kind !== "sidechat") || (session !== null && pane.sessionId === session.id)),
+    () => panes.filter((pane) => pane.kind === "document" ? pane.document?.scope === (session ? `session:${session.id}` : `project:${project?.id}`) : (pane.kind !== "editor" && pane.kind !== "review" && pane.kind !== "sidechat" && pane.kind !== "subagent") || (session !== null && pane.sessionId === session.id)),
     [panes, session, project],
   );
   const active = visible.find((pane) => pane.id === activePaneId) ?? visible[0] ?? null;
@@ -250,6 +253,8 @@ export function RightDock() {
               <Suspense fallback={<p className="px-3 py-6 ui-control text-text-muted">{t("common.loading")}</p>}>
                 <DevicesPane paneId={active.id} />
               </Suspense>
+            ) : active.kind === "subagent" && active.sessionId && active.subagent ? (
+              <SubagentPane key={active.id} paneId={active.id} sessionId={active.sessionId} view={active.subagent} />
             ) : active.kind === "sidechat" && active.sessionId ? (
               <SideChatPane key={active.sessionId} parentSessionId={active.sessionId} paneId={active.id} />
             ) : null}
@@ -293,7 +298,7 @@ export function RightDock() {
 function DockTab({ pane, active, dirty, reorder, dragging, onSelect, onClose }: { pane: DockPane; active: boolean; dirty: boolean; reorder: ReturnType<ReturnType<typeof usePointerReorder>["bind"]>; dragging: boolean; onSelect: () => void; onClose: () => void }) {
   const t = useTranslation();
   const meta = paneMeta[pane.kind];
-  const label = pane.document?.name ?? (pane.kind === "editor" && pane.path ? pane.path.split("/").at(-1) ?? meta.label : meta.label);
+  const label = pane.document?.name ?? pane.subagent?.label ?? (pane.kind === "editor" && pane.path ? pane.path.split("/").at(-1) ?? meta.label : meta.label);
   return (
     <div {...reorder} data-dock-pane={pane.id} data-active={active || undefined} data-dragging={dragging || undefined} className="dock-tab group">
       <button type="button" className="dock-tab-open" aria-pressed={active} onClick={onSelect} title={t(label)}>

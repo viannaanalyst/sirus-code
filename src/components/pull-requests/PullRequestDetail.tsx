@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { Bot, ChevronDown, MessagesSquare, CircleAlert, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw, Signpost } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
-import { DiffViewer } from "@/components/DiffViewer";
+import { DiffViewer, type DiffReviewFile } from "@/components/DiffViewer";
+import { BoundedCache } from "@/lib/diff-cache";
+import { diffViewState } from "@/lib/diff-view-state";
 import { GithubMarkdown } from "@/components/pull-requests/GithubMarkdown";
 import { PullRequestChecks, type Failures } from "@/components/pull-requests/PullRequestChecks";
 import { PullRequestGuide } from "@/components/pull-requests/PullRequestGuide";
@@ -29,6 +31,11 @@ type Pending =
   | { type: "setDraft"; draft: boolean }
   | { type: "setOpen"; open: boolean };
 
+/** Fetched diffs per pull request head commit (ADR-145): coming back to a pull request reuses them. */
+const pullDiffs = new BoundedCache<string, { files: ReturnType<typeof splitDiff>; truncated: boolean }>(8, 32 * 1024 * 1024);
+/** The detail tab each pull request was left on, in memory. */
+const pullTabs = new BoundedCache<string, Tab>(64);
+
 const METHOD_LABEL: Record<GithubMergeMethod, string> = { squash: "pulls.method.squash", merge: "pulls.method.merge", rebase: "pulls.method.rebase" };
 
 export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false, onAsk, onBody }: {
@@ -39,14 +46,15 @@ export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false
   const t = useTranslation();
   const [detail, setDetail] = useState<GithubDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("summary");
+  const key = itemKey(item);
+  const [tab, setShownTab] = useState<Tab>(() => pullTabs.get(key) ?? "summary");
+  const setTab = (value: Tab) => { pullTabs.set(key, value); setShownTab(value); };
   const [method, setMethod] = useState<GithubMergeMethod | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [fixing, setFixing] = useState(false);
   const isPull = item.kind === "pullRequest";
   const allWatches = useAppStore((store) => store.prWatches);
   const watches = useMemo(() => isPull ? watchesFor(allWatches, item.repository, item.number) : [], [allWatches, isPull, item.repository, item.number]);
-  const key = itemKey(item);
   const autoFixStates = useAppStore((store) => store.ciAutoFix);
   const request = useSyncExternalStore(subscribeFixRequests, () => fixRequest(key));
 
@@ -66,14 +74,19 @@ export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false
   const diffKey = `${item.repository}#${item.number}`;
   const diff = diffState?.key === diffKey ? diffState.value : null;
   const hasDiff = diff !== null;
+  // A diff already fetched for this head commit is reused instead of fetched again.
+  const headOid = detail?.headOid ?? null;
+  const cachedDiff = headOid ? pullDiffs.get(`${diffKey}@${headOid}`) : undefined;
+  useEffect(() => { if (!hasDiff && cachedDiff) setDiffState({ key: diffKey, value: cachedDiff }); }, [hasDiff, cachedDiff, diffKey]);
+  useEffect(() => { if (headOid && diff && "files" in diff) pullDiffs.set(`${diffKey}@${headOid}`, diff, diff.files.reduce((sum, file) => sum + file.diff.length, 0)); }, [headOid, diff, diffKey]);
   useEffect(() => {
-    if (!wantsDiff || hasDiff) return;
+    if (!wantsDiff || hasDiff || cachedDiff) return;
     let live = true;
     void client.pullRequestAction({ type: "diff", repository: item.repository, number: item.number }).then((response) => {
       if (live && response.type === "diff") setDiffState({ key: diffKey, value: { files: splitDiff(response.text), truncated: response.truncated } });
     }, (reason: unknown) => { if (live) setDiffState({ key: diffKey, value: { error: formatUnknownError(reason) } }); });
     return () => { live = false; };
-  }, [wantsDiff, hasDiff, diffKey, item.repository, item.number]);
+  }, [wantsDiff, hasDiff, cachedDiff, diffKey, item.repository, item.number]);
 
   const view = detail?.item ?? item;
   const chosen = method && detail?.mergeMethods.includes(method) ? method : detail?.mergeMethods[0] ?? "squash";
@@ -188,7 +201,7 @@ export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false
       {detail && shown === "timeline" ? <Timeline detail={detail} threads={isPull ? threads : null} onThreadsChanged={reloadThreads} onCommented={() => { void load(); onChanged(); }} /> : null}
       {detail && shown === "checks" ? <PullRequestChecks detail={detail} canFix={view.state === "open" && projectIds.length > 0} fixing={fixing} progress={progress}
         onFix={(selected, failures) => void sendToAgent("fix", { selected, failures })} onDismissProgress={() => forgetFixRequest(key)} /> : null}
-      {detail && shown === "code" ? <Code diff={diff} /> : null}
+      {detail && shown === "code" ? <Code diff={diff} viewKey={`pull:${key}`} /> : null}
       {detail && isPull && shown === "guide" ? <PullRequestGuide item={view} headOid={detail.headOid} diff={diff && "files" in diff ? diff : null} diffError={diff && "error" in diff ? diff.error : null} canAsk={projectIds.length > 0} onAsk={() => void sendToAgent("guide")} /> : null}
     </div>
     <ConfirmDialog open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }}
@@ -280,18 +293,20 @@ function Entry({ author, at, badge, body, repository, number }: { author: string
   </div>;
 }
 
-function Code({ diff }: { diff: PullDiff | null }) {
+function Code({ diff, viewKey }: { diff: PullDiff | null; viewKey: string }) {
   const t = useTranslation();
-  const [selected, setSelected] = useState<string | null>(null);
+  // The whole pull request is one virtualized review (ADR-145); the list follows the file in view.
+  const [selected, setSelected] = useState<string | null>(() => diffViewState(viewKey)?.selected ?? null);
   const error = diff && "error" in diff ? diff.error : null;
   const files = diff && "files" in diff ? diff.files : null;
   const truncated = diff && "files" in diff ? diff.truncated : false;
+  const changes = useMemo<FileChange[]>(() => (files ?? []).map((file) => ({ path: file.path, kind: "modified", additions: file.additions, deletions: file.deletions })), [files]);
+  const documents = useMemo<DiffReviewFile[]>(() => (files ?? []).map((file) => ({ path: file.path, diff: file.diff })), [files]);
   if (error) return <p role="alert" className="ui-description text-danger">{t(error)}</p>;
   if (!files) return <p role="status" className="ui-description text-text-muted">{t("common.loading")}</p>;
-  const changes: FileChange[] = files.map((file) => ({ path: file.path, kind: "modified", additions: file.additions, deletions: file.deletions }));
   const current = changes.find((change) => change.path === selected) ?? changes[0] ?? null;
-  return <div className="flex min-h-[420px] flex-col">
+  return <div className="flex h-full min-h-[420px] flex-col">
     {truncated ? <p className="mb-2 ui-caption text-text-muted">{t("pulls.diffTruncated")}</p> : null}
-    <DiffViewer changes={changes} selected={current} diff={current ? files.find((file) => file.path === current.path)?.diff ?? null : null} onSelect={(change) => setSelected(change.path)} emptyDiffMessage={t("pulls.noDiff")} />
+    <div className="min-h-0 flex-1"><DiffViewer changes={changes} selected={current} diff={null} files={documents} viewKey={viewKey} onSelect={(change) => setSelected(change.path)} emptyDiffMessage={t("pulls.noDiff")} /></div>
   </div>;
 }

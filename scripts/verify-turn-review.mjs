@@ -79,24 +79,29 @@ try {
   // This response's retained data stays usable even when current git_status has unrelated files.
   useAppStore.setState({ gitStatus: { changes: [{ path: "unrelated.ts", kind: "modified", additions: 999, deletions: 999 }] } });
   assert.deepEqual(store().sessions[0].messages[0].activity.review.files.map((f) => f.path), review.files.map((f) => f.path));
-  // Large diffs mount one chunk first and reserve the rest behind a sentinel.
+  // Large diffs are virtualized (ADR-145): only the rows near the viewport mount, inside a box as tall as the whole diff.
   const { DiffViewer } = await server.ssrLoadModule("/src/components/DiffViewer.tsx");
-  const { DIFF_CHUNK } = await server.ssrLoadModule("/src/lib/diff-window.ts");
+  const { DIFF_ROW_HEIGHT } = await server.ssrLoadModule("/src/lib/diff-window.ts");
   const bigDiff = `--- a/big.ts\n+++ b/big.ts\n@@ -0,0 +1,1000 @@\n${Array.from({ length: 1000 }, (_, i) => `+line ${i}`).join("\n")}\n`;
   const big = { path: "big.ts", kind: "modified", additions: 1000, deletions: 0 };
   const bigHtml = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: bigDiff, onSelect: () => {} }));
-  assert.equal(bigHtml.match(/data-diff-index=/g)?.length, DIFF_CHUNK, "only the first chunk is mounted");
-  assert.ok(bigHtml.includes(`data-diff-index="${DIFF_CHUNK - 1}"`) && !bigHtml.includes(`data-diff-index="${DIFF_CHUNK}"`));
-  const { reviewDiffLines } = await server.ssrLoadModule("/src/lib/diff-comment.ts");
-  assert.ok(bigHtml.includes(`data-diff-pending="${reviewDiffLines(bigDiff).length - DIFF_CHUNK}"`), "the remaining rows are reserved behind the sentinel");
+  const mounted = bigHtml.match(/data-diff-index=/g)?.length ?? 0;
+  assert.ok(mounted > 20 && mounted <= 100, `only the rows near the viewport are mounted (${mounted})`);
+  assert.ok(bigHtml.includes('data-diff-index="0"') && !bigHtml.includes('data-diff-index="999"'));
+  assert.ok(bigHtml.includes(`height:${1003 * DIFF_ROW_HEIGHT + 16}px`), "the content box keeps the whole diff's height");
   const smallHtml = renderToString(createElement(DiffViewer, { changes: [file], selected: file, diff: file.diff, onSelect: () => {} }));
-  assert.ok(!smallHtml.includes("data-diff-pending"), "short diffs mount whole");
+  assert.equal(smallHtml.match(/data-diff-index=/g)?.length, 6, "short diffs mount whole");
   const untracked = (count) => `+++ untracked\n${Array.from({ length: count }, (_, i) => `const v${i} = ${i};`).join("\n")}\n`;
-  assert.ok(!renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(10), onSelect: () => {} })).includes("data-diff-index"), "short untracked files keep the highlighted block");
-  const longUntracked = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(DIFF_CHUNK * 3), onSelect: () => {} }));
-  assert.equal(longUntracked.match(/data-diff-index=/g)?.length, DIFF_CHUNK, "long untracked files use the chunked plain rows");
+  const untrackedHtml = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(10), onSelect: () => {} }));
+  assert.equal(untrackedHtml.match(/data-diff-index=/g)?.length, 10, "untracked files are rows with their own line numbers");
+  // A whole review: every file gets a collapsible header, and only the first screen mounts.
+  const many = Array.from({ length: 50 }, (_, index) => ({ path: `src/file${index}.ts`, diff: bigDiff.replaceAll("big.ts", `file${index}.ts`) }));
+  const manyChanges = many.map((entry) => ({ path: entry.path, kind: "modified", additions: 1000, deletions: 0 }));
+  const reviewHtml = renderToString(createElement(DiffViewer, { changes: manyChanges, selected: manyChanges[0], diff: null, files: many, onSelect: () => {} }));
+  assert.ok(reviewHtml.includes('aria-expanded="true"') && reviewHtml.includes("Collapse src/file0.ts"));
+  assert.ok((reviewHtml.match(/data-diff-index=/g)?.length ?? 0) <= 100 && !reviewHtml.includes("Collapse src/file1.ts"), "later files are not mounted");
   useAppStore.setState({ selectedSessionId: "another", dockPanes: [] });
   store().openTurnReview("s", "m");
   assert.equal(store().dockPanes.length, 0);
-  console.log("Turn review: compact/localized/escaped historical summaries, chunked large diffs, owner-scoped dock and acknowledgment races verified.");
+  console.log("Turn review: compact/localized/escaped historical summaries, virtualized large diffs and reviews, owner-scoped dock and acknowledgment races verified.");
 } finally { await server.close(); }

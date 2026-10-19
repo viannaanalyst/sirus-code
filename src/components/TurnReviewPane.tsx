@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { DiffViewer } from "@/components/DiffViewer";
+import { DiffViewer, type DiffReviewFile } from "@/components/DiffViewer";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
+import { diffViewState } from "@/lib/diff-view-state";
 
 /** Uses retained turn data, never mutable git_diff/current worktree status. */
 export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: string; messageId: string; path?: string }) {
@@ -13,7 +14,13 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
   const stored = useAppStore((s) => s.sessions.find((session) => session.id === sessionId)?.messages.find((m) => m.id === messageId && m.sessionId === sessionId)?.activity?.review);
   // Files committed through Sirus have left the review (ADR-108).
   const review = useMemo(() => stored && stored.files.some((file) => file.committedAt) ? { ...stored, files: stored.files.filter((file) => !file.committedAt) } : stored, [stored]);
-  const [selectedPath, setSelectedPath] = useState(path);
+  // The tab keeps its place (ADR-145): the file in view comes back with it, unless the tab was reopened on another file.
+  const viewKey = `review:${sessionId}:${messageId}`;
+  const [selectedPath, setSelectedPath] = useState(() => { const saved = diffViewState(viewKey); return saved && (saved.origin ?? null) === (path ?? null) ? saved.selected ?? path : path; });
+  const documents = useMemo<DiffReviewFile[]>(() => (review?.files ?? []).map((file) => ({
+    path: file.path, diff: review?.expired || file.binary ? null : file.diff,
+    message: t(review?.expired ? "review.expired" : file.binary ? "review.binaryDiff" : file.diff === null ? "review.omittedDiff" : "review.noTextDiff"),
+  })), [review, t]);
   if (!review) return <p className="p-4 ui-control text-text-muted">{t("review.missing")}</p>;
   const selected = review.files.find((file) => file.path === selectedPath) ?? review.files[0] ?? null;
   const unavailable = review.expired ? "review.expired" : selected?.binary ? "review.binaryDiff" : selected?.diff === null ? "review.omittedDiff" : "review.noTextDiff";
@@ -26,7 +33,7 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
       {selected && !review.expired ? <div className="flex items-center gap-2 pt-1"><UndoTurnButton key={selected.path} sessionId={sessionId} messageId={messageId} review={review} path={selected.path} className="inline-flex items-center gap-1 rounded-[7px] border border-border-default px-2 py-1 ui-caption text-text-secondary hover:bg-background-3 disabled:opacity-60" /></div> : null}
     </div>
     <div className="min-h-0 flex-1">
-      {review.files.length ? <DiffViewer changes={review.files} selected={selected} diff={selected?.diff ?? ""} onSelect={(file) => setSelectedPath(file.path)} emptyDiffMessage={t(unavailable)} onComment={!review.expired && selected?.diff && !selected.binary ? selection => {
+      {review.files.length ? <DiffViewer changes={review.files} selected={selected} diff={null} files={documents} viewKey={viewKey} viewOrigin={path ?? null} onSelect={(file) => setSelectedPath(file.path)} emptyDiffMessage={t(unavailable)} onComment={!review.expired ? selection => {
         const state = useAppStore.getState();
         if (!state.addReviewComment(sessionId, messageId, selection)) return false;
         window.getSelection()?.removeAllRanges();

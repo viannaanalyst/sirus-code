@@ -71,7 +71,7 @@ import {
   type SettingsSectionId,
 } from "@/lib/settings";
 
-export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review" | "sidechat" | "devices";
+export type DockPaneKind = "terminal" | "files" | "changes" | "editor" | "browser" | "document" | "review" | "sidechat" | "devices" | "subagent";
 export interface DockPane {
   id: string;
   kind: DockPaneKind;
@@ -80,6 +80,8 @@ export interface DockPane {
   path?: string;
   review?: { messageId: string; path?: string };
   document?: { owner: string; scope: string; attachmentId: string; name: string };
+  /** A subagent's live view (ADR-146): its turn, its child row and the feed it reads. */
+  subagent?: { messageId: string; itemId: string; key: string; label: string };
 }
 export interface TerminalRef {
   id: string;
@@ -379,6 +381,8 @@ interface AppStore {
   toggleDockMaximized: () => void;
   openDockPane: (kind: DockPaneKind, path?: string) => void;
   openTurnReview: (sessionId: string, messageId: string, path?: string) => void;
+  /** Opens a subagent's live view in the right dock (ADR-146); one pane per subagent, at most six. */
+  openSubagentView: (sessionId: string, messageId: string, item: { id: string; key: string; label: string }) => void;
   keepTurnChanges: (sessionId: string, messageId: string) => Promise<void>;
   openAttachmentReader: (scope: string, attachment: import("@/client/types").PromptAttachment) => void;
   /** The attachment open in the centered attachment modal: a draft one, or a
@@ -1331,7 +1335,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const terminalWorkspacesBySession = Object.fromEntries(Object.entries(get().terminalWorkspacesBySession).filter(([key]) => !removedSessionIds.has(key)));
     const localServersBySession = Object.fromEntries(Object.entries(get().localServersBySession).filter(([key]) => !removedSessionIds.has(key)));
     const selectedFileBySession = Object.fromEntries(Object.entries(get().selectedFileBySession).filter(([key]) => !removedSessionIds.has(key)));
-    const dockPanes = get().dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review") && pane.sessionId && removedSessionIds.has(pane.sessionId)) && (!pane.document || (![pane.document.owner, pane.document.scope].some((key) => key === `project:${projectId}` || removedSessions.has(key)))));
+    const dockPanes = get().dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review" || pane.kind === "subagent") && pane.sessionId && removedSessionIds.has(pane.sessionId)) && (!pane.document || (![pane.document.owner, pane.document.scope].some((key) => key === `project:${projectId}` || removedSessions.has(key)))));
     const dockActivePaneId = dockPanes.some((pane) => pane.id === get().dockActivePaneId) ? get().dockActivePaneId : (dockPanes[dockPanes.length - 1]?.id ?? null);
     const editorBuffers = Object.fromEntries(Object.entries(get().editorBuffers).filter(([key]) => ![...removedSessionIds].some((id) => key.startsWith(`${id}:`))));
     for (const sessionId of removedSessionIds) {
@@ -1852,7 +1856,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const localServersBySession = { ...state.localServersBySession }; delete localServersBySession[sessionId];
         const selectedFileBySession = { ...state.selectedFileBySession }; delete selectedFileBySession[sessionId];
         const sideParent = state.sessions.find((session) => session.id === sessionId)?.sideChat?.parentSessionId;
-        const dockPanes = state.dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review" || pane.kind === "sidechat") && pane.sessionId === sessionId) &&
+        const dockPanes = state.dockPanes.filter((pane) => !((pane.kind === "editor" || pane.kind === "review" || pane.kind === "sidechat" || pane.kind === "subagent") && pane.sessionId === sessionId) &&
           !(pane.kind === "sidechat" && pane.sessionId === sideParent) && (!pane.document || (pane.document.scope !== `session:${sessionId}` && pane.document.owner !== `session:${sessionId}`)));
         const dockActivePaneId = dockPanes.some((pane) => pane.id === state.dockActivePaneId) ? state.dockActivePaneId : (dockPanes[dockPanes.length - 1]?.id ?? null);
         const editorBuffers = Object.fromEntries(Object.entries(state.editorBuffers).filter(([key]) => !key.startsWith(`${sessionId}:`)));
@@ -2040,6 +2044,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       } : message),
     } : session) }));
   },
+  openSubagentView: (sessionId, messageId, item) => {
+    set((state) => {
+      if (state.selectedSessionId !== sessionId) return state;
+      const existing = state.dockPanes.find((pane) => pane.kind === "subagent" && pane.sessionId === sessionId && pane.subagent?.itemId === item.id && pane.subagent.messageId === messageId);
+      const pane: DockPane = existing ?? { id: newId(), kind: "subagent", sessionId, subagent: { messageId, itemId: item.id, key: item.key, label: item.label } };
+      const panes = existing ? state.dockPanes : [...state.dockPanes, pane];
+      const views = panes.filter((entry) => entry.kind === "subagent");
+      return { dockPanes: views.length > 6 ? panes.filter((entry) => entry !== views[0]) : panes,
+        dockActivePaneId: pane.id, dockOpen: true, dockWidth: clampDockWidth(state.dockWidth, state) };
+    });
+  },
   openTurnReview: (sessionId, messageId, path) => {
     set((state) => {
       const session = state.sessions.find((item) => item.id === sessionId);
@@ -2079,7 +2094,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ attachmentModal: { scope, attachmentId: attachment.id } });
   },
   openDockPane: (kind, path) => {
-    if (kind === "document" || kind === "review") return;
+    if (kind === "document" || kind === "review" || kind === "subagent") return;
     if (kind === "sidechat") {
       const parent = get().selectedSessionId;
       if (parent) void get().openSideChat(parent);
@@ -2113,7 +2128,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         : state.dockActivePaneId;
       // Document panes depend on attachments that may be released; they are not remembered.
       const { id, kind, sessionId, path, review } = state.dockPanes[index];
-      const closedItems = kind === "document" ? state.closedItems : pushClosed(state.closedItems, [{ kind: "dock", pane: { id, kind, sessionId, path, review }, index }]);
+      const closedItems = kind === "document" || kind === "subagent" ? state.closedItems : pushClosed(state.closedItems, [{ kind: "dock", pane: { id, kind, sessionId, path, review }, index }]);
       return { dockPanes, dockActivePaneId: active, closedItems };
     }),
   setActiveDockPane: (paneId) => set({ dockActivePaneId: paneId }),

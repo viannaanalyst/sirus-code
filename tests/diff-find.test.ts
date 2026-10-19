@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DIFF_CHUNK } from "../src/lib/diff-window.ts";
-import { DIFF_FIND_LIMIT, findDiffMatches, firstMatchFrom, mountedForMatch, splitByRanges, stepDiffMatch } from "../src/lib/diff-find.ts";
+import { DIFF_FIND_LIMIT, findDiffMatches, firstMatchFrom, splitByRanges, stepDiffMatch } from "../src/lib/diff-find.ts";
 
 const lines = (...content: string[]) => content.map((text) => ({ content: text }));
 
@@ -26,13 +25,6 @@ test("↑/↓/Enter wrap around the matches", () => {
   const found = findDiffMatches(lines("x", "y", "x"), "x").matches;
   assert.equal(firstMatchFrom(found, 1), 1);
   assert.equal(firstMatchFrom(found, 5), 0);
-});
-
-test("a match beyond the mounted rows mounts whole chunks up to it", () => {
-  const total = DIFF_CHUNK * 5;
-  assert.equal(mountedForMatch({ line: DIFF_CHUNK * 3 + 7, start: 0, end: 1 }, DIFF_CHUNK, total), DIFF_CHUNK * 4);
-  assert.equal(mountedForMatch({ line: 3, start: 0, end: 1 }, DIFF_CHUNK * 2, total), DIFF_CHUNK * 2, "never unmounts");
-  assert.equal(mountedForMatch(undefined, DIFF_CHUNK, total), DIFF_CHUNK);
 });
 
 test("rows split their text around the matches and mark the current one", () => {

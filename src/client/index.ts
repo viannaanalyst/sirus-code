@@ -311,6 +311,13 @@ export class SirusClient {
     return result;
   }
 
+  /** A command row's full output when it is stored apart (ADR-147); `stepId` is the activity row's id. */
+  async toolOutput(sessionId: string, messageId: string, stepId: string) {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "toolOutput", sessionId, messageId, stepId } });
+    if (result.type !== "toolOutput") throw new Error("Unexpected tool output response");
+    return result.text;
+  }
+
   async gitWorkspaceHistory(sessionId: string, from: string, skip: number) {
     const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action: { type: "history", sessionId, from, skip } });
     if (result.type !== "history") throw new Error("Unexpected Git history response");
@@ -689,6 +696,15 @@ export class SirusClient {
 
   stopTerminal(sessionId: string, terminalId: string) {
     return this.transport.invoke<void>("stop_terminal", { sessionId, terminalId });
+  }
+
+  /** One subagent's own messages, thinking and tools (ADR-146); `key` is its launching call, else its row id. */
+  subagentFeed(sessionId: string, key: string) {
+    return this.transport.invoke<import("./types").SubagentFeed>("subagent_feed", { sessionId, key });
+  }
+
+  onSubagentFeed(handler: (event: import("./types").SubagentFeedEvent) => void) {
+    return this.transport.listen<import("./types").SubagentFeedEvent>("subagent-feed", handler);
   }
 
   onAgentOutput(handler: (event: AgentEvent) => void) {

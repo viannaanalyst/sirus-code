@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::path::Path;
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -318,6 +319,13 @@ pub enum Action {
     /// Messages that may contain `query` (case-insensitive literal), for the
     /// renderer's exact all-conversations search.
     Search { query: String },
+    /// The full output of one command row whose output is stored apart (ADR-147), when the
+    /// person opens it. `stepId` is the activity row's id.
+    ToolOutput {
+        session_id: String,
+        message_id: String,
+        step_id: String,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -339,6 +347,8 @@ pub enum Response {
         sessions: Vec<CandidateSession>,
         truncated: bool,
     },
+    /// One command row's full output (at most 1 MiB, its end).
+    ToolOutput { text: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -385,6 +395,7 @@ pub fn load(
                 activity.review = None;
                 for item in &mut activity.items {
                     item.output.clear();
+                    item.output_bytes = None;
                 }
             }
         }
@@ -401,6 +412,40 @@ pub fn load(
         messages,
         start,
         total,
+    })
+}
+
+/// One command row's full output (ADR-147): from the loaded transcript when it still holds
+/// it, otherwise from the store. The state lock is held only to find the row.
+pub fn tool_output(
+    state: &Mutex<AppData>,
+    state_path: &Path,
+    session_id: &str,
+    message_id: &str,
+    step_id: &str,
+) -> Result<Response> {
+    use crate::tool_output::{bounded, locate, valid_id, Located};
+    if ![session_id, message_id, step_id].into_iter().all(valid_id) {
+        return Err(Error::new("invalid", "Invalid output request."));
+    }
+    let gone = || Error::not_found("This output is no longer available.");
+    let located = {
+        let data = state.lock();
+        let session = owned(&data)
+            .find(|session| session.id == session_id)
+            .ok_or_else(|| Error::not_found("session not found"))?;
+        locate(session.messages.loaded(), message_id, step_id).ok_or_else(gone)?
+    };
+    let text = match located {
+        Located::Here(text) => text,
+        Located::Stored if crate::persist::uses_database(state_path) => {
+            crate::store::read_tool_output(state_path, session_id, message_id, step_id)?
+                .ok_or_else(gone)?
+        }
+        Located::Stored => return Err(gone()),
+    };
+    Ok(Response::ToolOutput {
+        text: bounded(text),
     })
 }
 
@@ -779,7 +824,7 @@ mod tests {
                 total,
                 ..
             } => (messages.len(), start, total),
-            Response::Candidates { .. } => panic!(),
+            Response::Candidates { .. } | Response::ToolOutput { .. } => panic!(),
         };
         assert_eq!(page(None, Some(3)), (3, 1, 4));
         assert_eq!(page(Some(1), Some(3)), (1, 0, 4));

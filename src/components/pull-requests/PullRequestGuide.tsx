@@ -5,7 +5,7 @@ import { DiffViewer, type DiffFocus } from "@/components/DiffViewer";
 import { ReviewGuideTour } from "@/components/review-guide/ReviewGuideTour";
 import { useReviewGuide } from "@/components/review-guide/use-review-guide";
 import { useTranslation } from "@/i18n/use-translation";
-import { reviewDiffLines } from "@/lib/diff-comment";
+import { cachedDiffLines } from "@/lib/diff-cache";
 import { formatUnknownError } from "@/lib/format-error";
 import { anchorRows, clampStep, findGuideFile, guideIsStale } from "@/lib/review-guide";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
@@ -32,10 +32,10 @@ export function PullRequestGuide({ item, headOid, diff, diffError, canAsk, onAsk
   const anchors = guide?.steps[step]?.anchors ?? [];
   const anchor = anchors[Math.min(position.anchor, anchors.length - 1)] ?? null;
   const file = anchor && diff ? findGuideFile(diff.files, anchor.path) : null;
-  const lines = useMemo(() => reviewDiffLines(file?.diff ?? ""), [file?.diff]);
+  const lines = useMemo(() => cachedDiffLines(file?.diff ?? ""), [file?.diff]);
   const rows = anchor && file ? anchorRows(lines, anchor) : null;
   const focus: DiffFocus | null = rows && guide ? { key: `${guide.revision}:${step}:${position.anchor}`, ...rows } : null;
-  const fileLines = useMemo(() => new Map((diff?.files ?? []).map((entry) => [entry.path, reviewDiffLines(entry.diff)])), [diff]);
+  const fileLines = useMemo(() => new Map((diff?.files ?? []).map((entry) => [entry.path, cachedDiffLines(entry.diff)])), [diff]);
   const missing = (candidate: ReviewGuideAnchor) => {
     if (!diff) return null;
     const found = findGuideFile(diff.files, candidate.path);

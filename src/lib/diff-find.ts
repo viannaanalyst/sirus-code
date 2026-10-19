@@ -1,6 +1,5 @@
-// Find in a diff (⌘F inside the diff viewer, ADR-102). Matching runs over every line of the
-// diff, mounted or not; navigating mounts the chunks up to the match (see diff-window.ts).
-import { diffCountFor } from "./diff-window";
+// Find in a diff (⌘F inside the diff viewer, ADR-102). Matching runs over every row of the
+// review, mounted or not; navigating scrolls the match into the mounted window (ADR-145).
 
 /** Bounded so a one-letter query in a huge diff stays cheap to paint. */
 export const DIFF_FIND_LIMIT = 2000;
@@ -48,11 +47,6 @@ export function firstMatchFrom(matches: readonly DiffMatch[], line: number): num
   if (!matches.length) return -1;
   const index = matches.findIndex((match) => match.line >= line);
   return index === -1 ? 0 : index;
-}
-
-/** Rows that must be mounted so the match is on screen (whole chunks, never fewer than now). */
-export function mountedForMatch(match: DiffMatch | undefined, mounted: number, total: number): number {
-  return match ? Math.max(mounted, diffCountFor(match.line, total)) : mounted;
 }
 
 /** Text split around the ranges, for rendering marks; `current` marks the active match. */

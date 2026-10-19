@@ -162,6 +162,8 @@ pub enum Event {
     Context(crate::models::ContextUsage),
     /// The turn hit the account's usage limit; the reset time when the provider reported it.
     UsageLimit(Option<i64>),
+    /// A subagent's own message, thought or tool (ADR-146): live view only, never in the session.
+    Feed(crate::subagent_feed::FeedUpdate),
 }
 
 /// `-c` overrides for the integrated browser MCP server, and the environment the
@@ -739,6 +741,13 @@ async fn execute(
             // display-only and attaches to an observed child row; unknown threads are discarded.
             if let Some(thread) = params["threadId"].as_str() {
                 if matches!(method, "item/started" | "item/completed") {
+                    if let Some(update) = crate::subagent_feed::from_codex(
+                        &params["item"],
+                        method == "item/started",
+                        thread,
+                    ) {
+                        emit(Event::Feed(update))?;
+                    }
                     let items = crate::activity::codex_child(
                         &params["item"],
                         method == "item/started",
@@ -1043,6 +1052,14 @@ pub fn monitor(
         };
         let mut cursor = crate::agent::OutputCursor::default();
         let mut emit = |event| -> Result<()> {
+            // A subagent's own work goes to its live view only, outside the session (ADR-146).
+            let event = match event {
+                Event::Feed(update) => {
+                    crate::subagent_feed::publish(&app, &session_id, update);
+                    return Ok(());
+                }
+                event => event,
+            };
             let mut data = state.data.lock();
             let session = data
                 .sessions
@@ -1071,6 +1088,8 @@ pub fn monitor(
                     }
                 }
                 Event::Model(model) => crate::activity::model(session, &model),
+                // Handled before the lock.
+                Event::Feed(_) => publish = false,
                 Event::UsageLimit(resets_at) => {
                     session.usage_limit = Some(crate::models::UsageLimit { resets_at })
                 }
@@ -1588,7 +1607,8 @@ else:
                     | Event::Activity(_)
                     | Event::Model(_)
                     | Event::Context(_)
-                    | Event::UsageLimit(_) => {}
+                    | Event::UsageLimit(_)
+                    | Event::Feed(_) => {}
                 }
                 Ok(())
             };

@@ -1146,7 +1146,8 @@ send({'method':'session/update','params':{'sessionId':'native','update':{'sessio
                 | Event::Activity(_)
                 | Event::Model(_)
                 | Event::Context(_)
-                | Event::UsageLimit(_) => {}
+                | Event::UsageLimit(_)
+                | Event::Feed(_) => {}
             }
             Ok(())
         };

@@ -100,10 +100,12 @@ mod sirus_tools;
 mod skills;
 mod snooze;
 mod store;
+mod subagent_feed;
 mod tasks;
 mod team;
 mod text_search;
 mod thumbnails;
+mod tool_output;
 mod transcript;
 mod transcript_store;
 mod transcript_view;
@@ -453,6 +455,7 @@ pub fn run() {
             commands::stop_background_task,
             commands::background_subagent,
             commands::steer_subagent,
+            subagent_feed::subagent_feed,
             commands::start_terminal,
             commands::write_terminal,
             commands::resize_terminal,

@@ -276,7 +276,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
 
 /// Claude names a project folder after the working directory, every character other than
 /// an ASCII letter or digit becoming `-`.
-fn claude_project_name(cwd: &str) -> String {
+pub(crate) fn claude_project_name(cwd: &str) -> String {
     cwd.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect()

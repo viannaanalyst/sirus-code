@@ -14,7 +14,7 @@ import { changeRowLabel } from "@/lib/change-row-label";
 import { DiffViewer, type DiffFocus } from "./DiffViewer";
 import { ReviewGuideTour } from "./review-guide/ReviewGuideTour";
 import { useReviewGuide } from "./review-guide/use-review-guide";
-import { reviewDiffLines } from "@/lib/diff-comment";
+import { cachedDiffLines, BoundedCache } from "@/lib/diff-cache";
 import { anchorRows, clampStep, findGuideFile, sessionGuidePrompt } from "@/lib/review-guide";
 import type { DiffComment } from "@/lib/diff-comment";
 import { GitHistory } from "./GitHistory";
@@ -24,6 +24,8 @@ type Api = Pick<SirusClient, "gitWorkspace" | "gitWorkspaceDiff" | "gitCommit" |
 /** `onComment` lets the person comment on diff lines (the phone review, ADR-086). */
 type Props = { sessionId: string; workspacePath: string; api?: Api; onComment?: (selection: DiffComment) => boolean };
 type Selection = { entry: GitWorkspaceEntry; staged: boolean };
+/** The file each session's Changes pane had open, so switching panes and back reopens it (ADR-145). */
+const openFiles = new BoundedCache<string, { path: string; staged: boolean }>(32);
 
 /** Session/workspace remount makes obsolete reads and writes unable to populate another view. */
 export function ChangesPane(props: Props) {
@@ -166,6 +168,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
   };
   const select = async (entry: GitWorkspaceEntry, staged: boolean) => {
     if (!snapshot || gate.current) return;
+    openFiles.set(sessionId, { path: entry.path, staged });
     const revision = ++diffs.current;
     setSelection({ entry, staged }); setDiff(null); setDiffError(null);
     try {
@@ -173,6 +176,17 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
       if (alive.current && diffs.current === revision) setDiff(value);
     } catch (reason) { if (alive.current && diffs.current === revision) setDiffError(formatUnknownError(reason)); }
   };
+  // The first snapshot after the pane comes back reopens the file it had open.
+  const reopened = useRef(false);
+  useEffect(() => {
+    if (!snapshot || reopened.current || gate.current) return;
+    reopened.current = true;
+    const last = openFiles.get(sessionId);
+    const entry = last ? (last.staged ? snapshot.staged : snapshot.unstaged).find((candidate) => candidate.path === last.path) : undefined;
+    if (last && entry) void select(entry, last.staged);
+    // Once per mount, after the first snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot, busy]);
   const blocked = busy || !snapshot?.identity.isRepo || snapshot.truncated || snapshot.conflicts;
   const commitBlocked = blocked || !!snapshot?.outsideScope || !snapshot?.staged.length || snapshot.staged.some(file => !file.actionable);
   const pushBlocked = busy || !snapshot?.identity.isRepo || !snapshot.head || snapshot.identity.detached;
@@ -204,7 +218,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
   };
   const guideStep = guide ? clampStep(tour.step, guide.steps.length) : 0;
   const activeAnchor = touring ? guideAnchor(guideStep, tour.anchor) : null;
-  const guideRows = activeAnchor && selection && diff !== null && findGuideFile([selection.entry], activeAnchor.path) ? anchorRows(reviewDiffLines(diff), activeAnchor) : null;
+  const guideRows = activeAnchor && selection && diff !== null && findGuideFile([selection.entry], activeAnchor.path) ? anchorRows(cachedDiffLines(diff), activeAnchor) : null;
   const guideFocus: DiffFocus | null = guide && guideRows ? { key: `${guide.revision}:${guideStep}:${tour.anchor}`, ...guideRows } : null;
   const guideMissing = (anchor: ReviewGuideAnchor) => {
     if (!guideEntry(anchor.path)) return t("guide.notInChanges", { path: anchor.path });
@@ -276,7 +290,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
           const kindLabel = t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`);
           return <div key={entry.path}>
             <div className="changes-row" data-open={open || undefined}>
-              <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
+              <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; openFiles.delete(sessionId); setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
                 aria-label={changeRowLabel({ path: entry.path, kind: kindLabel, status: entry.actionable ? undefined : t("workspaceGit.unavailable") })}
                 className="changes-row-main" title={entry.actionable ? `${entry.path} · ${kindLabel}` : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
                 <FileGlyph name={name} size={14} />
@@ -287,7 +301,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
               <span aria-hidden="true" className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
             </div>
             {open && selected ? <div className="changes-diff">
-              {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} onComment={onComment && diff ? onComment : undefined} focus={guideFocus} />}
+              {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} onComment={onComment && diff ? onComment : undefined} focus={guideFocus} viewKey={`changes:${sessionId}:${group.staged ? "staged" : "unstaged"}:${entry.path}`} />}
             </div> : null}
           </div>;
         })}

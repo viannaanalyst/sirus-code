@@ -262,6 +262,17 @@ pub async fn transcript_action(
             let snapshot = view::search_snapshot(&state.data.lock());
             view::search(snapshot, &query)
         }
+        Action::ToolOutput {
+            session_id,
+            message_id,
+            step_id,
+        } => view::tool_output(
+            &state.data,
+            &state.data_path,
+            &session_id,
+            &message_id,
+            &step_id,
+        ),
     })
     .await
 }
@@ -482,6 +493,9 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
         .into_iter()
         .partition(|session| session.project_id == project_id);
     data.sessions = kept;
+    for session in &removed {
+        crate::subagent_feed::forget(&session.id);
+    }
     crate::tasks::prune(&mut data);
     let scheduled = crate::scheduled_tasks::prune(&mut data);
     crate::review_guides::prune(&mut data);
@@ -1329,6 +1343,8 @@ fn fork_session_native(state: &AppState, session_id: &str, message_id: &str) -> 
         &now_rfc3339(),
         source.worktree.clone(),
     )?;
+    // Outputs stored apart travel with the copy, which saves them under its own ids (ADR-147).
+    crate::tool_output::restore_fork(&state.data_path, source, &mut fork.messages[..]);
     let identity = git::identity(&cwd)?;
     fork.worktree = if identity.is_repo {
         let parent = if matches!(

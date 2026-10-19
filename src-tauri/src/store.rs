@@ -5,6 +5,8 @@
 //! - `projects`, `tasks`, `review_guides`, `scheduled_tasks`: one row per item (id, position, JSON);
 //! - `sessions`: one row per session without its messages, with the transcript counts;
 //! - `messages`: one row per message, so a save writes only the messages that changed;
+//! - `tool_outputs`: the full output of settled command rows over 1 KiB, written with their
+//!   message row, which keeps only a preview and the size (ADR-147, `tool_output.rs`);
 //! - `settings`: one row; `app_state`: the remaining top-level fields, one row each.
 //!
 //! Every save is one transaction that writes only rows whose JSON changed since they were
@@ -78,6 +80,19 @@ CREATE TABLE IF NOT EXISTS review_guides (id TEXT PRIMARY KEY, position INTEGER 
 /// Scheduled tasks (ADR-142): one row per task. Not `automations`, which version 2 drops.
 const SCHEMA_V5: &str = r#"
 CREATE TABLE IF NOT EXISTS scheduled_tasks (id TEXT PRIMARY KEY, position INTEGER NOT NULL, json TEXT NOT NULL);
+"#;
+
+/// Large command output stored apart from its message (ADR-147). Rows written before it are
+/// split once by [`split_tool_outputs`].
+const SCHEMA_V6: &str = r#"
+CREATE TABLE IF NOT EXISTS tool_outputs (
+  session_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  step_id TEXT NOT NULL,
+  text TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  PRIMARY KEY (session_id, message_id, step_id)
+) WITHOUT ROWID;
 "#;
 
 /// The database beside a state file: `state.json` → `state.db`.
@@ -300,12 +315,13 @@ fn migrate(conn: &Connection, state_path: &Path) -> Result<()> {
             .map_err(sql)?;
         versions
     };
-    let steps: [(i64, Step); 5] = [
+    let steps: [(i64, Step); 6] = [
         (1, Step::Sql(SCHEMA_V1)),
         (2, Step::Sql(SCHEMA_V2)),
         (3, Step::Code(restore_project_astros)),
         (4, Step::Sql(SCHEMA_V4)),
         (5, Step::Sql(SCHEMA_V5)),
+        (6, Step::Code(split_tool_outputs)),
     ];
     for (version, step) in steps {
         if applied.contains(&version) {
@@ -323,6 +339,145 @@ fn migrate(conn: &Connection, state_path: &Path) -> Result<()> {
             )
             .map_err(sql)?;
         transaction.commit().map_err(sql)?;
+    }
+    Ok(())
+}
+
+/// Version 6 (ADR-147): creates `tool_outputs` and moves the large outputs of rows saved
+/// before it there, once and in the migration's transaction (a few hundred milliseconds for
+/// tens of MB of messages; only rows long enough to hold one are parsed). A row that does
+/// not parse is left as it is.
+fn split_tool_outputs(conn: &Connection, _state_path: &Path) -> Result<()> {
+    conn.execute_batch(SCHEMA_V6).map_err(sql)?;
+    let rows = {
+        let mut statement = conn
+            .prepare(
+                "SELECT session_id, position, id, json FROM messages
+                 WHERE length(json) > ?1 AND instr(json, '\"output\":') > 0",
+            )
+            .map_err(sql)?;
+        let rows = statement
+            .query_map([crate::tool_output::APART_BYTES as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .map_err(sql)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql)?;
+        rows
+    };
+    for (session_id, position, id, json) in rows {
+        let Ok(mut value) = serde_json::from_str::<Value>(&json) else {
+            continue;
+        };
+        let moved = crate::tool_output::split_value(&mut value);
+        if moved.is_empty() {
+            continue;
+        }
+        conn.execute(
+            "UPDATE messages SET json = ?1 WHERE session_id = ?2 AND position = ?3",
+            params![serde_json::to_string(&value)?, session_id, position],
+        )
+        .map_err(sql)?;
+        write_tool_outputs(conn, &session_id, &id, &moved)?;
+    }
+    Ok(())
+}
+
+/// Upserts outputs moved out of one message (unchanged text is not rewritten).
+fn write_tool_outputs(
+    conn: &Connection,
+    session_id: &str,
+    message_id: &str,
+    moved: &[crate::tool_output::Moved],
+) -> Result<()> {
+    let mut upsert = conn
+        .prepare_cached(
+            "INSERT INTO tool_outputs (session_id, message_id, step_id, text, bytes) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(session_id, message_id, step_id) DO UPDATE SET text = excluded.text, bytes = excluded.bytes
+             WHERE text <> excluded.text",
+        )
+        .map_err(sql)?;
+    for (step_id, text) in moved {
+        upsert
+            .execute(params![
+                session_id,
+                message_id,
+                step_id,
+                text,
+                text.len() as i64
+            ])
+            .map_err(sql)?;
+    }
+    Ok(())
+}
+
+/// Keeps only the outputs a just-written message row still points at.
+fn prune_tool_outputs(
+    conn: &Connection,
+    session_id: &str,
+    message_id: &str,
+    apart: &[String],
+) -> Result<()> {
+    if apart.is_empty() {
+        conn.prepare_cached("DELETE FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2")
+            .map_err(sql)?
+            .execute(params![session_id, message_id])
+            .map_err(sql)?;
+        return Ok(());
+    }
+    let stored = {
+        let mut statement = conn
+            .prepare_cached(
+                "SELECT step_id FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2",
+            )
+            .map_err(sql)?;
+        let ids = statement
+            .query_map(params![session_id, message_id], |row| {
+                row.get::<_, String>(0)
+            })
+            .map_err(sql)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql)?;
+        ids
+    };
+    for step_id in stored.iter().filter(|id| !apart.contains(id)) {
+        conn.execute(
+            "DELETE FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2 AND step_id = ?3",
+            params![session_id, message_id, step_id],
+        )
+        .map_err(sql)?;
+    }
+    Ok(())
+}
+
+/// Deletes the outputs of a session's messages that are not in `kept`.
+fn drop_tool_outputs_except(
+    conn: &Connection,
+    session_id: &str,
+    kept: &HashSet<&str>,
+) -> Result<()> {
+    let stored = {
+        let mut statement = conn
+            .prepare_cached("SELECT DISTINCT message_id FROM tool_outputs WHERE session_id = ?1")
+            .map_err(sql)?;
+        let ids = statement
+            .query_map([session_id], |row| row.get::<_, String>(0))
+            .map_err(sql)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql)?;
+        ids
+    };
+    for message_id in stored.iter().filter(|id| !kept.contains(id.as_str())) {
+        conn.execute(
+            "DELETE FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2",
+            params![session_id, message_id],
+        )
+        .map_err(sql)?;
     }
     Ok(())
 }
@@ -622,6 +777,51 @@ pub fn read_raw(state_path: &Path, session_id: &str) -> Option<Vec<u8>> {
     .ok()
 }
 
+/// The full output of one command row stored apart (ADR-147); `None` when none is stored.
+pub fn read_tool_output(
+    state_path: &Path,
+    session_id: &str,
+    message_id: &str,
+    step_id: &str,
+) -> Result<Option<String>> {
+    with_db(state_path, |db| {
+        db.conn
+            .prepare_cached(
+                "SELECT text FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2 AND step_id = ?3",
+            )
+            .map_err(sql)?
+            .query_row(params![session_id, message_id, step_id], |row| {
+                row.get::<_, String>(0)
+            })
+            .optional()
+            .map_err(sql)
+    })
+}
+
+/// Every output stored apart for one message, as `(row id, text)`.
+pub fn read_tool_outputs(
+    state_path: &Path,
+    session_id: &str,
+    message_id: &str,
+) -> Result<Vec<(String, String)>> {
+    with_db(state_path, |db| {
+        let mut statement = db
+            .conn
+            .prepare_cached(
+                "SELECT step_id, text FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2",
+            )
+            .map_err(sql)?;
+        let rows = statement
+            .query_map(params![session_id, message_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(sql)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(sql)?;
+        Ok(rows)
+    })
+}
+
 /// A transcript just read is what the rows hold at `revision`.
 pub fn mark_saved(state_path: &Path, session_id: &str, revision: u64) {
     let _ = with_db(state_path, |db| {
@@ -822,8 +1022,17 @@ fn write_with(
     })
 }
 
-/// Each transcript's messages as `(id, JSON)`, in order.
-fn encode_transcripts(transcripts: &[TranscriptWrite<'_>]) -> Result<Vec<Vec<(String, String)>>> {
+/// One message as it is stored: id, row JSON, the outputs it moves apart now and the ids of
+/// every row whose output is stored apart (ADR-147).
+struct EncodedMessage {
+    id: String,
+    json: String,
+    moved: Vec<crate::tool_output::Moved>,
+    apart: Vec<String>,
+}
+
+/// Each transcript's messages as stored, in order.
+fn encode_transcripts(transcripts: &[TranscriptWrite<'_>]) -> Result<Vec<Vec<EncodedMessage>>> {
     transcripts
         .iter()
         .map(|write| {
@@ -832,7 +1041,15 @@ fn encode_transcripts(transcripts: &[TranscriptWrite<'_>]) -> Result<Vec<Vec<(St
                 write
                     .messages
                     .iter()
-                    .map(|message| Ok((message.id.clone(), serde_json::to_string(message)?)))
+                    .map(|message| {
+                        let (stored, moved) = crate::tool_output::split(message);
+                        Ok(EncodedMessage {
+                            id: message.id.clone(),
+                            json: serde_json::to_string(stored.as_ref())?,
+                            apart: crate::tool_output::apart_ids(&stored),
+                            moved,
+                        })
+                    })
                     .collect::<std::result::Result<Vec<_>, serde_json::Error>>()
             })?;
             Ok(rows)
@@ -974,6 +1191,8 @@ fn write_index(
                     .map_err(sql)?;
                 tx.execute("DELETE FROM messages WHERE session_id = ?1", [&key])
                     .map_err(sql)?;
+                tx.execute("DELETE FROM tool_outputs WHERE session_id = ?1", [&key])
+                    .map_err(sql)?;
                 removed.push(key.clone());
             }
             known if ROW_TABLES.iter().any(|(_, table)| *table == known) => {
@@ -989,13 +1208,15 @@ fn write_index(
 
 /// Writes one transcript's changed messages from position `offset` on (the rows
 /// before it are kept): rows whose id or JSON differ at their position are replaced,
-/// rows past the new length are deleted. Returns the rows from `offset` on.
+/// rows past the new length are deleted. A written row's outputs stored apart are written
+/// with it, and outputs of messages that are gone are deleted (ADR-147). Returns the rows
+/// from `offset` on.
 fn write_messages(
     tx: &rusqlite::Transaction<'_>,
     session_id: &str,
     previous: &Transcript,
     offset: usize,
-    messages: &[(String, String)],
+    messages: &[EncodedMessage],
 ) -> Result<Vec<(String, u64)>> {
     // Unknown rows (never read in this process): replace the whole transcript. A
     // tail is only written over known rows.
@@ -1003,8 +1224,11 @@ fn write_messages(
     if !known && offset == 0 {
         tx.execute("DELETE FROM messages WHERE session_id = ?1", [session_id])
             .map_err(sql)?;
+        let kept = messages.iter().map(|message| message.id.as_str()).collect();
+        drop_tool_outputs_except(tx, session_id, &kept)?;
     }
     let mut next = Vec::with_capacity(messages.len());
+    let mut replaced = Vec::new();
     {
         let mut upsert = tx
             .prepare_cached(
@@ -1012,19 +1236,26 @@ fn write_messages(
                  ON CONFLICT(session_id, position) DO UPDATE SET id = excluded.id, json = excluded.json",
             )
             .map_err(sql)?;
-        for (position, (id, json)) in (offset..).zip(messages) {
-            let digest = hash(json);
-            let same = known
-                && previous
-                    .rows
-                    .get(position)
-                    .is_some_and(|(old_id, old)| old_id == id && *old == digest);
+        for (position, message) in (offset..).zip(messages) {
+            let digest = hash(&message.json);
+            let old = known.then(|| previous.rows.get(position)).flatten();
+            let same = old.is_some_and(|(old_id, old)| *old_id == message.id && *old == digest);
             if !same {
                 upsert
-                    .execute(params![session_id, position as i64, id, json])
+                    .execute(params![
+                        session_id,
+                        position as i64,
+                        message.id,
+                        message.json
+                    ])
                     .map_err(sql)?;
+                write_tool_outputs(tx, session_id, &message.id, &message.moved)?;
+                prune_tool_outputs(tx, session_id, &message.id, &message.apart)?;
+                if let Some((old_id, _)) = old.filter(|(old_id, _)| *old_id != message.id) {
+                    replaced.push(old_id.as_str());
+                }
             }
-            next.push((id.clone(), digest));
+            next.push((message.id.clone(), digest));
         }
     }
     let end = offset + messages.len();
@@ -1034,6 +1265,22 @@ fn write_messages(
             params![session_id, end as i64],
         )
         .map_err(sql)?;
+        replaced.extend(previous.rows[end..].iter().map(|(id, _)| id.as_str()));
+    }
+    if !replaced.is_empty() {
+        // A message that moved to another position keeps its outputs.
+        let kept: HashSet<&str> = previous.rows[..offset.min(previous.rows.len())]
+            .iter()
+            .map(|(id, _)| id.as_str())
+            .chain(messages.iter().map(|message| message.id.as_str()))
+            .collect();
+        for message_id in replaced.into_iter().filter(|id| !kept.contains(id)) {
+            tx.execute(
+                "DELETE FROM tool_outputs WHERE session_id = ?1 AND message_id = ?2",
+                params![session_id, message_id],
+            )
+            .map_err(sql)?;
+        }
     }
     Ok(next)
 }

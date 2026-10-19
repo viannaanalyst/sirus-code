@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
-import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, TurnActivity, WorkflowProgress } from "@/client/types";
+import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, Message, TurnActivity, WorkflowProgress } from "@/client/types";
 import { memberAnswer, workflowGroups } from "@/lib/workflow-groups";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -17,6 +17,7 @@ import { cascadeIndex } from "@/lib/cascade";
 import { backgroundTaskId, backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
 import { client } from "@/client";
 import { formatUnknownError } from "@/lib/format-error";
+import { ActivityMessage, ToolOutputBlock } from "@/components/ToolOutputBlock";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 const stateLabels = { running: "status.running", completed: "status.completed", failed: "status.failed", stopped: "status.stopped", unknown: "Not reported" } as const;
@@ -222,7 +223,7 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
   if (!output) return <div className="tl-line" data-state={item.state} data-category={category}>{body}</div>;
   return <>
     <button type="button" className="tl-line tl-toggle" data-state={item.state} data-category={category} aria-expanded={expanded} aria-controls={outputId} onClick={() => setOpen(!expanded)}>{body}</button>
-    {expanded ? <pre id={outputId} className="tl-output">{output}</pre> : null}
+    {expanded ? <ToolOutputBlock id={outputId} item={item} preview={output} /> : null}
   </>;
 }
 
@@ -275,8 +276,10 @@ function WorkGroup({ items, cwd, live, active, modelLabel, now, moving, controls
  * steps fold into one sentence; a finished turn folds everything before its final answer behind
  * "Worked for …". Without `renderText` (side chat) only the work shows, under the header.
  */
-export function AgentActivity({ activity, content = "", steers = [], renderText, renderSteer, cwd, onResume, subagentControls }: {
-  activity: TurnActivity; content?: string; steers?: readonly { offset: number; text: string }[];
+export function AgentActivity({ activity, message = null, content = "", steers = [], renderText, renderSteer, cwd, onResume, subagentControls }: {
+  activity: TurnActivity;
+  /** The reply this activity belongs to: its rows fetch output stored apart (ADR-147). */
+  message?: Pick<Message, "id" | "sessionId"> | null; content?: string; steers?: readonly { offset: number; text: string }[];
   renderText?: (start: number, end: number) => ReactNode; renderSteer?: (text: string) => ReactNode; cwd?: string;
   /** The latest reply only: sends a follow-up through the composer (Retomar, ADR-097). */
   onResume?: (prompt: string) => void;
@@ -360,7 +363,7 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
   const resume = interrupted.length && onResume
     ? <button type="button" className="background-resume ui-control" title={t("background.resumeHint")} onClick={() => onResume(resumeBackgroundPrompt(interrupted, t))}><RotateCcw size={12} aria-hidden="true" />{t("background.resume")}</button>
     : null;
-  return <div ref={node} className="agent-activity tl-turn" data-status={activity.status} data-live={live || undefined} data-active={active || undefined} data-resting={(waiting && !waitingMotion) || undefined}>
+  return <ActivityMessage.Provider value={message}><div ref={node} className="agent-activity tl-turn" data-status={activity.status} data-live={live || undefined} data-active={active || undefined} data-resting={(waiting && !waitingMotion) || undefined}>
     {resume ? <div className="tl-header-row">{header}{resume}</div> : header}
     <div id={bodyId} className="tl-body">
       {liveBoundary > 0 ? <button type="button" className="tl-line tl-toggle tl-live-fold" aria-expanded={liveOpen} onClick={() => setLiveOpen(value => !value)}>
@@ -382,5 +385,5 @@ export function AgentActivity({ activity, content = "", steers = [], renderText,
       </div> : null}
       {activity.truncated && !folded ? <p className="ui-micro text-text-muted">{t("Showing the first 128 activity items. Later updates to these items are retained.")}</p> : null}
     </div>
-  </div>;
+  </div></ActivityMessage.Provider>;
 }

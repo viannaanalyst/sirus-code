@@ -175,7 +175,12 @@ fn migrate_into_database(path: &Path, data: &AppData) -> Result<()> {
         return Err(Error::new("persist", "the migrated index differs"));
     }
     for (id, _, messages) in &transcripts {
-        let expected = crate::activity::persisting(|| serde_json::to_value(messages))?;
+        // Large command output is stored apart (ADR-147): the rows hold its preview.
+        let stored: Vec<_> = messages
+            .iter()
+            .map(|message| crate::tool_output::split(message).0)
+            .collect();
+        let expected = crate::activity::persisting(|| serde_json::to_value(&stored))?;
         let read = crate::store::read_messages_only(path, id)
             .ok_or_else(|| Error::new("persist", "a migrated transcript cannot be read"))?;
         let read = crate::activity::persisting(|| serde_json::to_value(&read))?;

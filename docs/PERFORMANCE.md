@@ -431,6 +431,18 @@ The owner's daily app was an unoptimized debug build. `[profile.dev]` now builds
 - **GitHub reads.** One gate for every `gh` read: 5 concurrent, a 60 s fail-fast pause after any rate limit, reuse of an identical read from the last 10 s.
 - **Not measured** in the running app (no build or launch in this pass).
 
+## Virtualized diffs (2026-10-19, ADR-145)
+
+Synthetic fixture: 50 files with 20 000 changed lines, plus one 20 000-line file, rendered with `renderToString` through Vite (median of 15, on a busy machine, so ranges):
+
+| | Before | After |
+| --- | --- | --- |
+| Open the 20 000-line file | 400 rows, 172 KB, 12–14 ms | 80 rows, 37 KB, 3–16 ms |
+| Scrolled to its end | 20 000 rows, 8.7 MB, 416–505 ms | 80 rows, 37 KB, 3–14 ms |
+| Open the 50-file review | one file, 400 rows | all files, 79 rows, 4–10 ms |
+
+Document and layout for 20 000 rows: about 2 ms; window per scroll frame: under 1 µs; parsed-diff cache hit: under 1 µs. Tokenizing one 400-line segment in the worker: about 6 ms (the whole 20 000-line file: about 120 ms, never asked for at once). Checked in a browser on the 50-file review: about 60–110 rows mounted at any position, colours arriving after the rows, pinned headers, collapse and the place restored after unmounting. Not measured in the native app.
+
 ## Remaining risks and unknowns
 
 - Behaviour with a large `state.json` (hundreds of sessions, long transcripts) was **not measured** on the native app. The current user state is small. Stage 3 or 4 needs a synthetic fixture with a separate data directory, never the user's own state.

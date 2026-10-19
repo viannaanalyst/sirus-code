@@ -67,7 +67,9 @@ export type ActivityState = "running" | "completed" | "failed" | "stopped" | "un
 export interface ActivityStep { id: string; kind: ActivityKind; label: string; state: ActivityState; }
 /** Child rows (`kind: "agent"`) may carry their native observation window and their own generic steps. */
 /** `detail` names what the step touched (path, command line, query, skill); `offset` is the reply length when it began (UTF-16), placing it in the text. */
-export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; detail?: string; offset?: number; output?: string; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number;
+export interface ActivityItem { id: string; kind: ActivityKind; label: string; state: ActivityState; model: string | null; detail?: string; offset?: number; output?: string;
+  /** Set when the full output is stored apart (ADR-147): `output` is its last lines, this its full size in bytes; `toolOutput` fetches it. */
+  outputBytes?: number; startedAt?: number | null; endedAt?: number | null; steps?: ActivityStep[]; hiddenSteps?: number;
   /** Claude subagent launched with `run_in_background` (ADR-097); `timedOut` when the turn's limit stopped it. */
   background?: boolean; timedOut?: boolean;
   /** A background shell command rather than a subagent (its `Bash` call is a row of its own). */
@@ -80,6 +82,12 @@ export interface ActivityItem { id: string; kind: ActivityKind; label: string; s
   workflow?: WorkflowProgress; }
 export interface WorkflowProgress { name?: string; phases: { index: number; title: string }[]; agents: WorkflowAgent[] }
 export interface WorkflowAgent { index: number; label: string; state: "queued" | "running" | "completed" | "failed"; phaseIndex?: number; model?: string; attempt?: number; tokens?: number; toolCalls?: number; durationMs?: number; result?: string; /** While it runs: the end of its answer so far (live only, never saved). */ partial?: string }
+/** One entry of a subagent's own conversation, for its live view (ADR-146). Ids are stable while it streams. */
+export interface SubagentFeedEntry { id: string; kind: "prompt" | "text" | "thinking" | "tool"; text?: string; label?: string; tool?: ActivityKind; detail?: string; output?: string; state?: ActivityState }
+/** `subagent_feed`: `live` while this run of the app saw it stream, `transcript` read from the provider's own file, `none` when neither exists. */
+export interface SubagentFeed { key: string; entries: SubagentFeedEntry[]; dropped: number; source: "live" | "transcript" | "none" }
+/** `subagent-feed`: entries a native frame added or changed, already merged. */
+export interface SubagentFeedEvent { sessionId: string; key: string; entries: SubagentFeedEntry[]; dropped: number }
 export interface TurnReview {
   /** `committedAt`: included in a commit made through Sirus; it leaves the review (ADR-108). */
   files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null; committedAt?: string | null })[];
@@ -982,7 +990,9 @@ export type TranscriptAction =
 export type TranscriptResponse =
   /** `start` is the first message's index in the transcript of `total` (older hosts omit both). */
   | { type: "transcript"; sessionId: string; messages: Message[]; start?: number; total?: number }
-  | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean };
+  | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean }
+  /** One command row's full output stored apart (ADR-147). */
+  | { type: "toolOutput"; text: string };
 
 // Review inbox (ADR-050): pull requests and issues of owned GitHub repositories.
 export type GithubItemKind = "pullRequest" | "issue";

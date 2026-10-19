@@ -82,7 +82,7 @@ export const SideMessage = memo(function SideMessage({ message, parentSessionId 
   }
   const settled = !message.streaming && message.content.trim().length > 0;
   return <div className="min-w-0">
-    {message.activity ? <AgentActivity activity={message.activity} /> : null}
+    {message.activity ? <AgentActivity activity={message.activity} message={message} /> : null}
     <div className="selectable min-w-0 whitespace-pre-wrap ui-chat text-text-secondary [overflow-wrap:anywhere]">
       {blocks ? blocks.map((block, index) => block.kind === "code"
         ? <div className="my-2" key={index}><SideCodeBlock code={block.content} language={block.language} maxLines={14} animateChanges={false} /></div>

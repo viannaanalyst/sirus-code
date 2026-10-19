@@ -9,6 +9,7 @@
 @import "./opening.css";
 @import "./composer.css";
 @import "./agent-activity.css";
+@import "./subagent-team.css";
 @import "../components/arc/foundation.css";
 
 :root {

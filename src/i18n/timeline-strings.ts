@@ -21,6 +21,11 @@ const strings: Record<string, [string, string]> = {
   "timeline.marker.shell.failed": ["Command {name} failed", "Comando {name} falhou"],
   "timeline.marker.shell.stopped": ["Command {name} stopped", "Comando {name} parado"],
   "timeline.marker.shell.ended": ["Command {name} ended", "Comando {name} encerrado"],
+  // Command output stored apart (ADR-147): the row shows its last lines first.
+  "timeline.output.full": ["Show full output ({size})", "Ver saída completa ({size})"],
+  "timeline.output.loading": ["Loading the full output…", "Carregando a saída completa…"],
+  "timeline.output.retry": ["Try again", "Tentar de novo"],
+  "timeline.output.failed": ["Could not load the full output.", "Não foi possível carregar a saída completa."],
   "timeline.and": ["and", "e"],
   "timeline.failedCount.one": ["1 failed", "1 falhou"],
   "timeline.failedCount": ["{count} failed", "{count} falharam"],

@@ -44,6 +44,8 @@ import { HtmlPreview } from "@/components/HtmlPreview";
 import { InlineVisuals } from "@/components/InlineVisual";
 import { composerSegments, hasComposerTokens } from "@/lib/composer-tokens";
 import { AgentActivity } from "@/components/AgentActivity";
+import { SubagentTeam } from "@/components/SubagentTeam";
+import { firstLaunchOffset, teamSize } from "@/lib/subagent-team";
 import { AgentRequests } from "@/components/AgentRequests";
 import { AgentComposer } from "@/components/AgentComposer";
 import { ChatMarkdown, openLink } from "@/components/ChatMarkdown";
@@ -441,6 +443,16 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
   const team = session.team?.messageId === message.id;
   const replyContent = message.role === "agent" ? (team ? stripTeamPlan(shownContent) : shownContent) : "";
   const replySteers = team ? noSteers : message.steers ?? noSteers;
+  // A turn that started two subagents or more opens with its team card (ADR-146), headed by the prompt that asked for it.
+  const teamPrompt = useMemo(() => {
+    if (message.role !== "agent" || !message.activity || teamSize(message.activity.items) < 2) return null;
+    for (let at = session.messages.findIndex((entry) => entry.id === message.id) - 1; at >= 0; at -= 1) {
+      if (session.messages[at].role === "user") return splitPromptContext(session.messages[at].content).request;
+    }
+    return "";
+  }, [message.role, message.activity, message.id, session.messages]);
+  const teamOffset = teamPrompt !== null && message.activity ? firstLaunchOffset(message.activity.items) : undefined;
+  const teamReplyHead = useMemo(() => teamPrompt === null ? "" : replyContent.slice(0, teamOffset ?? replyContent.length), [teamPrompt, replyContent, teamOffset]);
   /** Reply blocks from `base` in the reply, so search highlights keep their offsets.
    * `tail`: these blocks end the reply, so the last one fades its newest words while streaming. */
   const renderBlocks = (blocks: ReturnType<typeof parseTranscript>, base: number, tail = false) => {
@@ -461,13 +473,14 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, session, se
       <p className="sr-only">
         {t(message.role === "user" ? "You" : "Agent")}
       </p>
+      {teamPrompt !== null && message.activity ? <SubagentTeam items={message.activity.items} provider={message.activity.provider} sessionId={session.id} messageId={message.id} prompt={teamPrompt} replyHead={teamReplyHead} /> : null}
       <div
         data-transcript-text
         className={`min-w-0 max-w-full whitespace-pre-wrap ui-chat [overflow-wrap:anywhere] ${
           message.role === "user" ? "user-bubble bg-[var(--chat-bubble)] text-text-primary" : "text-text-secondary"
         }`}
       >
-        {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} content={replyContent} steers={replySteers} cwd={session.worktree.path}
+        {message.role === "agent" && message.activity ? <AgentActivity activity={message.activity} message={message} content={replyContent} steers={replySteers} cwd={session.worktree.path}
           subagentControls={session.agent === "claude" && message.streaming ? session.id : undefined}
           onResume={last ? (text) => window.dispatchEvent(new CustomEvent<QuickReplyDetail>(QUICK_REPLY_EVENT, { detail: { sessionId: session.id, text } })) : undefined}
           renderText={(start, end) => renderBlocks(parseCached(replyContent.slice(start, end)), start, end >= replyContent.length)}

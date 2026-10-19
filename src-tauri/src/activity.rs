@@ -92,6 +92,10 @@ pub struct ActivityItem {
     /// Commands only: the end of their output (bounded, ANSI stripped), shown when the row opens.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub output: String,
+    /// Set when the full output is stored apart (ADR-147): `output` then holds only its last
+    /// lines, and this is the full output's size in bytes, fetched when the row opens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_bytes: Option<u32>,
     /// Child rows only: native observation window, never inferred from the parent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at: Option<i64>,
@@ -482,7 +486,7 @@ fn detail(v: &str) -> String {
 }
 /// The end of a command's output: ANSI codes and other control characters removed, at most
 /// the last 60 lines and 3,000 characters.
-fn output(v: &str) -> String {
+pub(crate) fn output(v: &str) -> String {
     let mut clean = String::with_capacity(v.len().min(16_384));
     let mut chars = v.chars().peekable();
     while let Some(c) = chars.next() {
@@ -577,6 +581,7 @@ fn item(
         detail: String::new(),
         offset: None,
         output: String::new(),
+        output_bytes: None,
         started_at: None,
         ended_at: None,
         steps: vec![],
@@ -904,7 +909,23 @@ pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
         _ => vec![],
     }
 }
-fn tool_kind(name: &str) -> (ItemKind, &'static str) {
+/// What a Claude tool call touches, read from its input: a path, command, query or skill.
+pub(crate) fn tool_input_detail(input: &Value) -> &str {
+    [
+        "file_path",
+        "notebook_path",
+        "command",
+        "pattern",
+        "url",
+        "query",
+        "skill",
+        "path",
+    ]
+    .iter()
+    .find_map(|key| input[*key].as_str())
+    .unwrap_or("")
+}
+pub(crate) fn tool_kind(name: &str) -> (ItemKind, &'static str) {
     match name {
         "Read" | "Glob" | "Grep" => (ItemKind::Read, "Read / search"),
         "Write" | "Edit" | "MultiEdit" => (ItemKind::Edit, "File changes"),
@@ -1044,21 +1065,7 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
                     ItemState::Running,
                     model,
                 );
-                let input = &block["input"];
-                row.detail = [
-                    "file_path",
-                    "notebook_path",
-                    "command",
-                    "pattern",
-                    "url",
-                    "query",
-                    "skill",
-                    "path",
-                ]
-                .iter()
-                .find_map(|key| input[*key].as_str())
-                .unwrap_or("")
-                .to_owned();
+                row.detail = tool_input_detail(&block["input"]).to_owned();
                 row
             } else if block["type"] == "tool_result" {
                 let mut row = item(

@@ -3,6 +3,7 @@
 import { useTranslation } from "@/i18n/use-translation";
 import { SearchText } from "@/components/SearchText";
 import { codeChunks, shouldHighlight } from "@/lib/code-chunks";
+import { normaliseLanguage, tokenKind, tokenPattern } from "@/lib/code-tokens";
 import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, FileCode2 } from "@/components/icons/phosphor";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
@@ -24,46 +25,6 @@ export interface CodeBlockProps {
   animateChanges?: boolean;
   searchQuery?: string;
   searchOffset?: number;
-}
-
-type TokenKind = "comment" | "string" | "number" | "keyword" | "type" | "function" | "property" | "tag" | "punctuation";
-
-const keywordPattern = /^(?:abstract|as|async|await|break|case|catch|class|const|continue|default|delete|do|else|enum|export|extends|finally|for|from|function|get|if|implements|import|in|instanceof|interface|let|new|of|private|protected|public|readonly|return|set|static|switch|throw|try|type|typeof|var|void|while|with|yield|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE)$/;
-const literalPattern = /^(?:true|false|null|undefined|NaN|Infinity)$/;
-const typePattern = /^(?:Array|Boolean|Date|Error|Map|Number|Promise|Record|Set|String|ReactNode|HTMLElement|HTMLButtonElement|Event|unknown|never|void|any|boolean|number|string|object)$/;
-const tokenPattern = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|<!--[\s\S]*?-->|`(?:\\.|[^`\\])*`|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$-]*\b|[{}[\]();,.<>:=+*/!?|&-]/g;
-
-function normaliseLanguage(language: string) {
-  return language.toLowerCase().replace(/^\./, "");
-}
-
-// Sticky patterns test the text right after a token without slicing the rest of the
-// source, keeping highlighting linear in the code length.
-const followedByColon = /\s*:/y;
-const followedByCall = /\s*\(/y;
-const followedByAssign = /\s*[:=]/y;
-function followedBy(pattern: RegExp, source: string, position: number) {
-  pattern.lastIndex = position;
-  return pattern.test(source);
-}
-
-function tokenKind(value: string, source: string, index: number, language: string): TokenKind | undefined {
-  const end = index + value.length;
-  if (value.startsWith("//") || value.startsWith("/*") || value.startsWith("<!--")) return "comment";
-  if (value.startsWith("\"") || value.startsWith("'") || value.startsWith("`")) {
-    return language === "json" && followedBy(followedByColon, source, end) ? "property" : "string";
-  }
-  if (/^\d/.test(value)) return "number";
-  if (keywordPattern.test(value) || literalPattern.test(value)) return "keyword";
-  if (typePattern.test(value)) return "type";
-  if (/^[{}[\]();,.<>:=+*/!?|&-]$/.test(value)) return "punctuation";
-
-  // A tag name follows "<" or "</": two characters of context are enough.
-  const before = source.slice(Math.max(0, index - 2), index);
-  if ((language === "tsx" || language === "jsx" || language === "html" || language === "vue") && /<\/?$/.test(before)) return "tag";
-  if (language !== "json" && followedBy(followedByCall, source, end)) return "function";
-  if ((language === "css" || language === "tsx" || language === "jsx") && followedBy(followedByAssign, source, end)) return "property";
-  return undefined;
 }
 
 function highlight(code: string, language: string): ReactNode[] {

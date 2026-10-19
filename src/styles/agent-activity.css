@@ -133,6 +133,13 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .tl-shine), html[d
 /* Output aligns with the label (past the 24px icon slot) and scrolls past a few lines. */
 .tl-output { margin: 2px 0 6px 30px; max-height: 240px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--text-primary) 4%, transparent); color: var(--text-secondary); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
 .tl-line[data-state="failed"] + .tl-output { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+/* Output stored apart (ADR-147): its last lines, with the earlier ones a click away above them. */
+.tl-output-stored pre { margin: 0; font: inherit; white-space: inherit; }
+.tl-output-more { display: block; margin: 0 0 4px; padding: 0; border-radius: 4px; color: var(--text-muted); font-family: var(--font-sans); transition: color var(--motion-fast) var(--ease-out); }
+.tl-output-more:hover:not(:disabled) { color: var(--text-primary); }
+.tl-output-more:disabled { cursor: progress; }
+.tl-output-more:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
+.tl-output-error { margin: 0 0 4px; color: var(--danger); font-family: var(--font-sans); }
 @media (prefers-reduced-motion: no-preference) {
   .tl-rows { animation: tl-open var(--motion-fast) var(--ease-out) both; }
   /* The step running now: a highlight sweeps across its words. */
