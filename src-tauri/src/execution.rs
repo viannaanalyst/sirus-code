@@ -85,7 +85,7 @@ pub fn approval_modes(provider: &AgentProviderId) -> &'static [ApprovalMode] {
     }
 }
 
-fn approval_rank(mode: ApprovalMode) -> u8 {
+pub(crate) fn approval_rank(mode: ApprovalMode) -> u8 {
     match mode {
         ApprovalMode::Ask => 0,
         ApprovalMode::Auto => 1,

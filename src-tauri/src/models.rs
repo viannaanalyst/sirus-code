@@ -1684,6 +1684,9 @@ pub struct AppData {
     /// Guided reviews of pull requests and session changes (ADR-125); one row each in `state.db`.
     #[serde(default)]
     pub review_guides: Vec<crate::review_guides::ReviewGuide>,
+    /// Prompts that run by themselves at a time (ADR-142); one row each in `state.db`.
+    #[serde(default)]
+    pub scheduled_tasks: Vec<crate::scheduled_tasks::ScheduledTask>,
 }
 
 impl AppData {

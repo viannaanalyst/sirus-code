@@ -1106,6 +1106,46 @@ export type TaskAction =
   | { type: "unlink"; id: string }
   | { type: "delegate"; id: string; agent: AgentProviderId; model: string | null; approval: ApprovalMode; planning: boolean; isolatedWorktree: boolean };
 
+/** Scheduled tasks (ADR-142): when a task runs, in local time. */
+export type ScheduledTaskSchedule =
+  | { kind: "once"; at: number }                     // Unix ms
+  | { kind: "daily"; time: string }                  // "HH:MM"
+  | { kind: "weekly"; days: number[]; time: string } // 0 = Sunday … 6, at least one
+  | { kind: "interval"; minutes: number };           // 15 … 10080
+export type ScheduledTaskStatus = "never" | "running" | "succeeded" | "failed" | "missed";
+export interface ScheduledTask {
+  id: string;
+  title: string;          // 1–200 printable chars
+  prompt: string;         // 1 B – 64 KiB, no NUL
+  projectId: string;      // an existing project
+  agent: AgentProviderId; // an enabled provider
+  model: string | null;   // validated like launch::valid_model
+  schedule: ScheduledTaskSchedule;
+  /** null: each run starts a new conversation in its own worktree; else every run continues this session (same project). */
+  sessionId: string | null;
+  approval: ApprovalMode; // "ask" | "auto" | "full"; stepped down to what the provider offers, never up (as launch does)
+  enabled: boolean;
+  createdBy: "person" | "agent";
+  createdAt: number; updatedAt: number;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  lastStatus: ScheduledTaskStatus;
+  lastError: string | null;     // one short line
+  lastSessionId: string | null; // the conversation the last run used
+  runCount: number;
+}
+export interface ScheduledTaskInput {
+  id?: string; title: string; prompt: string; projectId: string; agent: AgentProviderId; model: string | null;
+  schedule: ScheduledTaskSchedule; sessionId: string | null; approval: ApprovalMode; enabled: boolean;
+}
+export type ScheduledTaskAction =
+  | { type: "list" }
+  | { type: "upsert"; task: ScheduledTaskInput }
+  | { type: "delete"; id: string }
+  | { type: "setEnabled"; id: string; enabled: boolean }
+  | { type: "runNow"; id: string };
+export interface ScheduledTasksSnapshot { tasks: ScheduledTask[] }
+
 /** CI auto-fix progress for one session's pull request (ADR-064). */
 export interface CiFixState {
   sessionId: string;

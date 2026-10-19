@@ -87,6 +87,7 @@ mod redact;
 mod remote;
 mod reply_image;
 mod review_guides;
+mod scheduled_tasks;
 mod secrets;
 mod session_export;
 mod session_move;
@@ -284,6 +285,7 @@ pub fn run() {
             auto_pull::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
             pr_watch::start(app.handle().clone());
+            scheduled_tasks::start(app.handle().clone());
             prompt_link::install(app.handle());
             app_update::start(app.handle());
             {
@@ -316,6 +318,7 @@ pub fn run() {
             local_servers::local_server_action,
             devices::device_action,
             tasks::task_action,
+            scheduled_tasks::scheduled_task_action,
             review_guides::review_guide_action,
             window_reveal::window_ready,
             commands::retry_last_turn,

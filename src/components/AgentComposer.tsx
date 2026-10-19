@@ -1,3 +1,4 @@
+import { ScheduledBoundLine } from "@/components/tasks/ScheduledTasks";
 import { client } from "@/client";
 import { useShallow } from "zustand/react/shallow";
 import { appendAttachments, isAttachmentPaste, pastedFiles } from "@/lib/composer-attachments";
@@ -455,6 +456,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
     {session?.scripts?.runs?.length ? <ScriptRunNotice session={session} /> : null}
     {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
+    {session ? <ScheduledBoundLine sessionId={session.id} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>

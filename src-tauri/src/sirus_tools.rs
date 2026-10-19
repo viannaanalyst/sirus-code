@@ -73,6 +73,8 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "sirus_update_task", "description": "Sirus Code: change a to-do in the Tasks list (title, notes, priority, due date, project) or mark it done or not done. Omitted fields stay as they are.", "inputSchema": { "type": "object", "properties": { "taskId": { "type": "string" }, "title": { "type": "string" }, "notes": { "type": "string" }, "priority": { "type": "string", "enum": ["none", "low", "medium", "high", "urgent"] }, "dueDate": { "type": "string", "description": "YYYY-MM-DD, or an empty string to clear it." }, "project": { "type": "string", "description": "Project name or id; \"none\" files it under no project." }, "done": { "type": "boolean" } }, "required": ["taskId"] } }),
         json!({ "name": "sirus_send_to_session", "description": "Sirus Code: continue another idle session with a message, using your approval mode. Returns at once.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "prompt": { "type": "string" } }, "required": ["sessionId", "prompt"] } }),
     ]);
+    // Scheduled tasks (ADR-142): prompts that run by themselves, with no broader access than yours.
+    tools.extend(crate::scheduled_tasks::tool_definitions());
     tools
 }
 
@@ -297,6 +299,10 @@ pub fn execute(
             | "sirus_send_to_session"
             | "sirus_create_task"
             | "sirus_update_task"
+            | "sirus_schedule_task"
+            | "sirus_update_scheduled_task"
+            | "sirus_delete_scheduled_task"
+            | "sirus_run_scheduled_task_now"
     );
     // Planning, and an Ask conversation about a pull request (ADR-050), are read-only.
     if mutating && (caller.execution.planning || caller.pull_ask.is_some()) {
@@ -503,6 +509,9 @@ pub fn execute(
                 json!({ if created { "created" } else { "updated" }: task_row(&state.data.lock(), &task, false) }),
             )
         }
+        tool if crate::scheduled_tasks::TOOLS.contains(&tool) => {
+            crate::scheduled_tasks::execute_tool(app, &state, &caller, tool, args)
+        }
         _ => Err("unknown Sirus tool".into()),
     }
 }
@@ -587,8 +596,12 @@ mod tests {
         std::env::set_var(ENV, "1");
         let tools = tool_definitions();
         std::env::remove_var(ENV);
-        // Delegation (4), inline visuals (1), review guides (2), sessions (5) and the Tasks list (3).
-        assert_eq!(tools.len(), 15);
+        // Delegation (4), inline visuals (1), review guides (2), sessions (5), the Tasks list (3)
+        // and scheduled tasks (5).
+        assert_eq!(tools.len(), 20);
+        assert!(tools
+            .iter()
+            .any(|tool| tool["name"] == "sirus_schedule_task"));
         assert!(tools.iter().any(|tool| tool["name"] == "sirus_create_task"));
         assert!(tools
             .iter()

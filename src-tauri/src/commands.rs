@@ -483,6 +483,7 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
         .partition(|session| session.project_id == project_id);
     data.sessions = kept;
     crate::tasks::prune(&mut data);
+    let scheduled = crate::scheduled_tasks::prune(&mut data);
     crate::review_guides::prune(&mut data);
     crate::pr_watch::prune(&mut data);
     crate::drafts::prune(&mut data);
@@ -495,6 +496,9 @@ fn remove_project_native(state: &AppState, project_id: String) -> Result<()> {
     // Shell cleanup scans processes and waits; keep it outside the data lock.
     let killed = crate::pty_term::kill_all(&terminals.iter().collect::<Vec<_>>());
     state.persist()?;
+    if scheduled {
+        crate::scheduled_tasks::announce(state);
+    }
     crate::thumbnails::release_later(&state.data_path, thumbnails, &state.data.lock());
     killed
 }

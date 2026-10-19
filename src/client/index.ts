@@ -597,6 +597,16 @@ export class SirusClient {
     return this.transport.invoke<import("./types").Task[]>("task_action", { action });
   }
 
+  /** Scheduled tasks (ADR-142): list, save, delete, turn on or off, or run one now. */
+  scheduledTaskAction(action: import("./types").ScheduledTaskAction): Promise<import("./types").ScheduledTasksSnapshot> {
+    return this.transport.invoke<import("./types").ScheduledTasksSnapshot>("scheduled_task_action", { action });
+  }
+
+  /** Scheduled tasks changed (an edit, an agent's tool call, a run starting or finishing). */
+  onScheduledTasksChanged(handler: (snapshot: import("./types").ScheduledTasksSnapshot) => void) {
+    return this.transport.listen<import("./types").ScheduledTasksSnapshot>("scheduled-tasks-changed", handler);
+  }
+
   ciAutofixAction(action: import("./types").CiFixAction) {
     return this.transport.invoke<import("./types").CiFixState[]>("ci_autofix_action", { action });
   }

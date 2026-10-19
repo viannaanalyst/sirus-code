@@ -2,7 +2,7 @@
 //! exactly as before; this module is only where it is saved and read. One database next to
 //! the old `state.json` (`state.db`), in WAL mode, with a numbered schema:
 //!
-//! - `projects`, `tasks`: one row per item (id, position, JSON);
+//! - `projects`, `tasks`, `review_guides`, `scheduled_tasks`: one row per item (id, position, JSON);
 //! - `sessions`: one row per session without its messages, with the transcript counts;
 //! - `messages`: one row per message, so a save writes only the messages that changed;
 //! - `settings`: one row; `app_state`: the remaining top-level fields, one row each.
@@ -26,10 +26,11 @@ use crate::error::{Error, Result};
 use crate::models::Message;
 
 /// Item collections stored one row per item.
-pub const ROW_TABLES: [(&str, &str); 3] = [
+pub const ROW_TABLES: [(&str, &str); 4] = [
     ("projects", "projects"),
     ("tasks", "tasks"),
     ("reviewGuides", "review_guides"),
+    ("scheduledTasks", "scheduled_tasks"),
 ];
 /// Index fields written into a session row's count columns (ADR-099).
 const MESSAGE_COUNT: &str = "messageCount";
@@ -68,6 +69,11 @@ DELETE FROM app_state WHERE key IN ('automationRuns', 'astros', 'automations');
 /// Guided reviews (ADR-125): one row per guide.
 const SCHEMA_V4: &str = r#"
 CREATE TABLE IF NOT EXISTS review_guides (id TEXT PRIMARY KEY, position INTEGER NOT NULL, json TEXT NOT NULL);
+"#;
+
+/// Scheduled tasks (ADR-142): one row per task. Not `automations`, which version 2 drops.
+const SCHEMA_V5: &str = r#"
+CREATE TABLE IF NOT EXISTS scheduled_tasks (id TEXT PRIMARY KEY, position INTEGER NOT NULL, json TEXT NOT NULL);
 "#;
 
 /// The database beside a state file: `state.json` → `state.db`.
@@ -152,11 +158,12 @@ fn migrate(conn: &Connection, state_path: &Path) -> Result<()> {
             .map_err(sql)?;
         versions
     };
-    let steps: [(i64, Step); 4] = [
+    let steps: [(i64, Step); 5] = [
         (1, Step::Sql(SCHEMA_V1)),
         (2, Step::Sql(SCHEMA_V2)),
         (3, Step::Code(restore_project_astros)),
         (4, Step::Sql(SCHEMA_V4)),
+        (5, Step::Sql(SCHEMA_V5)),
     ];
     for (version, step) in steps {
         if applied.contains(&version) {

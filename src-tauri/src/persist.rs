@@ -915,8 +915,8 @@ fn snapshot_sessions(
 }
 
 /// A checkpoint's index: every session's entry with its counts and the small
-/// app-state fields, as [`encode_state`] has them. Settings, projects, tasks and
-/// review guides change only through commands that save, so a checkpoint leaves
+/// app-state fields, as [`encode_state`] has them. Settings, projects, tasks, review
+/// guides and scheduled tasks change only through commands that save, so a checkpoint leaves
 /// their rows alone instead of encoding them every second.
 fn encode_checkpoint_index(data: &AppData) -> Result<serde_json::Value> {
     let mut sessions = without_transcripts(|| serde_json::to_value(&data.sessions))?;
@@ -1654,6 +1654,26 @@ mod tests {
     }
 
     #[test]
+    fn scheduled_tasks_live_in_their_own_rows_and_stay_out_of_the_ui_index() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let mut data = load_or_create(&path).unwrap();
+        data.scheduled_tasks = vec![serde_json::from_value(serde_json::json!({
+            "id": "t", "title": "Check", "prompt": "Look", "projectId": "p", "agent": "codex",
+            "schedule": { "kind": "interval", "minutes": 30 }, "approval": "ask", "enabled": true,
+            "createdBy": "agent", "createdAt": 1, "updatedAt": 1, "nextRunAt": 2, "lastStatus": "never"
+        }))
+        .unwrap()];
+        save(&path, &data).unwrap();
+        restart(&path);
+        let loaded = load_or_create(&path).unwrap();
+        assert_eq!(loaded.scheduled_tasks.len(), 1);
+        assert_eq!(loaded.scheduled_tasks[0].next_run_at, Some(2));
+        let meta = crate::transcript_view::state_meta(&loaded).unwrap();
+        assert!(meta.get("scheduledTasks").is_none());
+    }
+
+    #[test]
     fn a_save_rewrites_only_messages_that_changed() {
         let temp = crate::git::tests::Repo::new();
         let path = temp.0.join("state.json");
@@ -2047,7 +2067,13 @@ mod tests {
             .insert("session:a".into(), "draft".into());
         let mut full = encode_state(&data).unwrap();
         let object = full.as_object_mut().unwrap();
-        for key in ["settings", "projects", "tasks", "reviewGuides"] {
+        for key in [
+            "settings",
+            "projects",
+            "tasks",
+            "reviewGuides",
+            "scheduledTasks",
+        ] {
             assert!(object.remove(key).is_some());
         }
         assert_eq!(full, encode_checkpoint_index(&data).unwrap());

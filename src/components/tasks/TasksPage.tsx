@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, ChevronDown, ExternalLink, ListTodo, Trash2, Unlink } from "@/components/icons/phosphor";
+import { Bot, ChevronDown, ExternalLink, ListTodo, Plus, Trash2, Unlink } from "@/components/icons/phosphor";
 import type { ApprovalMode, Task, TaskInput, TaskPriority } from "@/client/types";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
@@ -9,6 +9,10 @@ import { PROVIDERS, providerById } from "@/lib/provider-registry";
 import { isProviderEnabled } from "@/lib/settings";
 import { groupTasks, overdue, PRIORITIES, taskStatus } from "@/lib/tasks";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
+import { SegmentedControl } from "@/primitives/SegmentedControl";
+import { ScheduledTasksView, takeScheduledTabRequest } from "@/components/tasks/ScheduledTasks";
+import { useScheduledTasks } from "@/store/scheduled-tasks-store";
+import type { ScheduledTask } from "@/client/types";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Switch } from "@/primitives/Switch";
 import { selectSessionsMeta, useAppStore } from "@/store/app-store";
@@ -27,6 +31,18 @@ export function TasksPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [showDone, setShowDone] = useState(false);
+  // To do, or Scheduled (ADR-142); a conversation's "See" opens Scheduled.
+  const [tab, setTab] = useState<"todo" | "scheduled">(() => takeScheduledTabRequest() ? "scheduled" : "todo");
+  const [editing, setEditing] = useState<ScheduledTask | "new" | null>(null);
+  const scheduledCount = useScheduledTasks((state) => state.tasks?.length ?? 0);
+  const bindScheduled = useScheduledTasks((state) => state.bind);
+  useEffect(() => bindScheduled(), [bindScheduled]);
+  useEffect(() => {
+    const show = () => { if (takeScheduledTabRequest()) setTab("scheduled"); };
+    window.addEventListener("sirus:scheduled-tab", show);
+    return () => window.removeEventListener("sirus:scheduled-tab", show);
+  }, []);
+  const openCount = (tasks ?? []).filter((task) => !task.completedAt).length;
   useEffect(() => { void useAppStore.getState().taskAction({ type: "list" }); }, []);
   const groups = useMemo(() => groupTasks(tasks ?? [], sessions), [tasks, sessions]);
   const current = tasks?.find((task) => task.id === selected) ?? null;
@@ -39,9 +55,17 @@ export function TasksPage() {
   };
 
   return <section className="tasks-page" aria-label={t("tasks.title")}>
-    <div className={cn("scroll-thin tasks-list-column", current && "tasks-list-narrow")}>
+    <div className={cn("scroll-thin tasks-list-column", current && tab === "todo" && "tasks-list-narrow")}>
       <div className="tasks-column">
-        <h1 className="ui-title px-2 text-text-primary">{t("tasks.title")}</h1>
+        <div className="tasks-header">
+          <h1 className="ui-title flex-1 px-2 text-text-primary">{t("tasks.title")}</h1>
+          {tab === "scheduled" ? <InteractiveButton variant="primary" glow={false} onClick={() => setEditing("new")}><Plus size={14} />{t("scheduled.new")}</InteractiveButton> : null}
+        </div>
+        <div className="tasks-tabs"><SegmentedControl label={t("tasks.title")} value={tab} onChange={(value) => { setTab(value); setSelected(null); }} options={[
+          { value: "todo", label: `${t("tasks.tab.todo")}${openCount ? ` · ${openCount}` : ""}` },
+          { value: "scheduled", label: `${t("tasks.tab.scheduled")}${scheduledCount ? ` · ${scheduledCount}` : ""}` },
+        ]} /></div>
+        {tab === "scheduled" ? <ScheduledTasksView editing={editing} onEdit={setEditing} /> : <>
         {tasks && tasks.length === 0 ? <div className="tasks-empty"><ListTodo size={28} className="text-text-muted" /><p className="ui-control text-text-primary">{t("tasks.emptyTitle")}</p><p className="ui-description text-text-muted">{t("tasks.emptyHint")}</p></div> : null}
         {groups.map((group) => {
           const done = group.key === "tasks.section.done";
@@ -56,9 +80,10 @@ export function TasksPage() {
           <span className="tasks-check" aria-hidden="true" />
           <input value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={500} placeholder={t("tasks.addPlaceholder")} aria-label={t("tasks.addPlaceholder")} className="min-w-0 flex-1 bg-transparent ui-control text-text-primary outline-none placeholder:text-text-muted" />
         </form>
+        </>}
       </div>
     </div>
-    {current ? <div className="tasks-detail-column"><TaskDetail key={current.id} task={current} onClose={() => setSelected(null)} /></div> : null}
+    {current && tab === "todo" ? <div className="tasks-detail-column"><TaskDetail key={current.id} task={current} onClose={() => setSelected(null)} /></div> : null}
   </section>;
 }
 
