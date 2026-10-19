@@ -61,8 +61,8 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
           <ProjectGlyph project={project} size={20} fallback={<span aria-hidden="true" className="sidebar-rail-avatar" style={project.look?.color ? { color: projectColor(project.look) } : undefined}>{project.name.trim().charAt(0).toUpperCase() || "?"}</span>} />
         </button>)}
         <SidebarRailMore onOpen={() => undefined} />
-        <AgentResources placement="rail" />
         <SidebarUsageRings />
+        <AgentResources placement="rail" />
         <button type="button" className="sidebar-rail-button" data-section="settings" aria-label={t("Settings")} title={t("Settings")}
           onClick={() => useAppStore.getState().setSettingsOpen(true)}>
           <Settings size={20} />
