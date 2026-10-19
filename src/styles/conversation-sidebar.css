@@ -48,7 +48,9 @@
   .conversation-folder-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-folder-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   .conversation-folder-end { position: relative; display: grid; place-items: center; width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; }
-  .conversation-folder-diff { margin-left: auto; }
+  .conversation-folder-diff { margin-left: auto; transition: opacity var(--motion-fast) var(--ease-out); }
+  /* Pointing at the folder trades the numbers for its New conversation button, which sits in their place. */
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-diff { opacity: 0; }
   .conversation-folder-diff + .conversation-folder-end { margin-left: 8px; }
   .conversation-folder-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
   .conversation-folder-end > .conversation-folder-dot { position: absolute; transition: opacity var(--motion-fast) var(--ease-out); }
