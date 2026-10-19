@@ -357,14 +357,19 @@ pub(crate) mod platform {
 
     use block2::RcBlock;
     use objc2::rc::Retained;
-    use objc2::runtime::Bool;
-    use objc2_foundation::{MainThreadMarker, NSString};
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2_foundation::{
+        MainThreadMarker, NSDate, NSHTTPCookie, NSHTTPCookieDomain, NSHTTPCookieExpires,
+        NSHTTPCookieName, NSHTTPCookiePath, NSHTTPCookieSecure, NSHTTPCookieValue,
+        NSMutableDictionary, NSString,
+    };
     use objc2_web_kit::{WKUserScript, WKUserScriptInjectionTime, WKWebViewConfiguration};
     use serde_json::{json, Value};
 
     use super::{BrowserDialog, DragEnd};
     use crate::browser::platform as browser;
     use crate::browser::BrowserSessionState;
+    use crate::browser_cookies::{CookieImportReport, DecodedCookie};
     use crate::error::{Error, Result};
     use crate::runtime::{AppHandle, Emitter};
 
@@ -890,6 +895,132 @@ return JSON.stringify({ ok: true, url: location.href, entries });
             )),
         }
     }
+
+    /// Settings → Browser profiles → Import cookies (ADR-152). Reads the owner's domains from the
+    /// chosen source, in memory, and stores them in the profile's WebKit cookie store.
+    pub fn import_cookies(
+        app: &AppHandle,
+        profile: &str,
+        source_id: &str,
+        domains: &[String],
+    ) -> Result<CookieImportReport> {
+        use crate::browser_profiles::{custom_supported, from_settings, store_of, Store};
+        let (profiles, _) = from_settings(app);
+        let persistent = match store_of(profile) {
+            Some(Store::Default) => true,
+            Some(Store::Custom(_)) => {
+                custom_supported() && profiles.iter().any(|item| item.id == profile)
+            }
+            _ => false,
+        };
+        if !persistent {
+            return Err(Error::new(
+                "invalid",
+                "Cookies can be imported into a saved browser profile only.",
+            ));
+        }
+        let domains = crate::browser_cookies::normalize_domains(domains)?;
+        let home = crate::new_project::home_dir()
+            .ok_or_else(|| Error::new("native", "The home folder is unavailable."))?;
+        let source = crate::browser_cookies::source_from_id(&home, source_id)?;
+        let cookies = crate::browser_cookies::read_source(&home, &source)?;
+        // The Keychain is asked only if a selected Chrome cookie is encrypted (ADR-152).
+        let (decoded, skipped) = crate::browser_cookies::collect_import(
+            cookies,
+            &domains,
+            crate::browser_cookies::now_unix(),
+            || {
+                let password = crate::browser_cookies::chrome_safe_storage_password()?;
+                Ok(crate::browser_cookies::chrome_key(&password))
+            },
+        )?;
+        let decoded_count = decoded.len() as u32;
+        let imported = store_cookies(app, profile, decoded)?;
+        Ok(CookieImportReport {
+            imported,
+            skipped: skipped + (decoded_count - imported),
+        })
+    }
+
+    /// Adds cookies to a profile's WebKit cookie store on the main thread, and waits until WebKit
+    /// has stored them all. Returns how many were built into cookies WebKit accepted.
+    fn store_cookies(app: &AppHandle, profile: &str, cookies: Vec<DecodedCookie>) -> Result<u32> {
+        if cookies.is_empty() {
+            return Ok(0);
+        }
+        let (done_sender, done_receiver) = std::sync::mpsc::channel::<()>();
+        let profile = profile.to_string();
+        let stored = browser::on_main(app, move || -> Result<u32> {
+            let mtm = MainThreadMarker::new()
+                .ok_or_else(|| Error::new("native", "the browser must run on the main thread"))?;
+            let made: Vec<Retained<NSHTTPCookie>> = cookies.iter().filter_map(new_cookie).collect();
+            if made.is_empty() {
+                return Ok(0);
+            }
+            let mut scratch = None;
+            let store = crate::browser_profiles::platform::store(&profile, &mut scratch, mtm);
+            let cookie_store = unsafe { store.httpCookieStore() };
+            let pending = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(made.len()));
+            for cookie in &made {
+                let pending = pending.clone();
+                let done = done_sender.clone();
+                let handler = block2::RcBlock::new(move || {
+                    let left = pending.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                    if left == 1 {
+                        let _ = done.send(());
+                    }
+                });
+                unsafe {
+                    cookie_store.setCookie_completionHandler(cookie, Some(&handler));
+                }
+            }
+            Ok(made.len() as u32)
+        })??;
+        if stored > 0 {
+            done_receiver
+                .recv_timeout(std::time::Duration::from_secs(15))
+                .map_err(|_| {
+                    Error::new(
+                        "native",
+                        "WebKit did not confirm the imported cookies in time.",
+                    )
+                })?;
+        }
+        Ok(stored)
+    }
+
+    /// A WebKit cookie from decoded properties; `None` when Foundation refuses them.
+    fn new_cookie(cookie: &DecodedCookie) -> Option<Retained<NSHTTPCookie>> {
+        let properties = NSMutableDictionary::<NSString, AnyObject>::new();
+        let name = NSString::from_str(&cookie.name);
+        let value = NSString::from_str(&cookie.value);
+        let domain = NSString::from_str(&cookie.host);
+        let path = NSString::from_str(if cookie.path.is_empty() {
+            "/"
+        } else {
+            &cookie.path
+        });
+        let yes = NSString::from_str("TRUE");
+        // Foundation has no constant for HttpOnly; its property dictionary takes this key.
+        let http_only_key = NSString::from_str("HttpOnly");
+        unsafe {
+            properties.insert(NSHTTPCookieName, &name);
+            properties.insert(NSHTTPCookieValue, &value);
+            properties.insert(NSHTTPCookieDomain, &domain);
+            properties.insert(NSHTTPCookiePath, &path);
+            if cookie.secure {
+                properties.insert(NSHTTPCookieSecure, &yes);
+            }
+            if cookie.http_only {
+                properties.insert(&*http_only_key, &yes);
+            }
+            if let Some(expires) = cookie.expires {
+                let date = NSDate::dateWithTimeIntervalSince1970(expires);
+                properties.insert(NSHTTPCookieExpires, &date);
+            }
+            NSHTTPCookie::cookieWithProperties(&properties)
+        }
+    }
 }
 
 /// The person answers a page's dialog from the browser pane.
@@ -942,6 +1073,106 @@ pub async fn browser_profile_delete(
 #[tauri::command]
 pub fn browser_profiles_supported() -> bool {
     crate::browser_profiles::custom_supported()
+}
+
+/// Settings → Browser profiles → Import cookies (ADR-152): the browsers and Chrome profiles
+/// the owner can import from. Names only; nothing is read beyond the folder listing.
+#[tauri::command]
+pub async fn browser_cookie_sources(
+) -> crate::error::Result<Vec<crate::browser_cookies::CookieSource>> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::commands::native_task(move || {
+            let home = crate::new_project::home_dir().ok_or_else(|| {
+                crate::error::Error::new("native", "The home folder is unavailable.")
+            })?;
+            Ok(crate::browser_cookies::list_sources(&home))
+        })
+        .await
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err(crate::error::Error::new(
+            "unsupported",
+            "Importing cookies is only available on macOS.",
+        ))
+    }
+}
+
+/// The domains that have cookies in one source, with counts. Values never leave the back end.
+#[tauri::command]
+pub async fn browser_cookie_domains(
+    source_id: String,
+) -> crate::error::Result<Vec<crate::browser_cookies::CookieDomain>> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::commands::native_task(move || {
+            let home = crate::new_project::home_dir().ok_or_else(|| {
+                crate::error::Error::new("native", "The home folder is unavailable.")
+            })?;
+            let source = crate::browser_cookies::source_from_id(&home, &source_id)?;
+            let cookies = crate::browser_cookies::read_source(&home, &source)?;
+            Ok(crate::browser_cookies::domain_summary(
+                &cookies,
+                crate::browser_cookies::now_unix(),
+            ))
+        })
+        .await
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = source_id;
+        Err(crate::error::Error::new(
+            "unsupported",
+            "Importing cookies is only available on macOS.",
+        ))
+    }
+}
+
+/// Opens Privacy & Security at Full Disk Access, the setting Safari's cookie file needs (ADR-152).
+/// The address is fixed here, so the renderer cannot point it anywhere else.
+#[tauri::command]
+pub fn browser_open_full_disk_access(app: tauri::AppHandle) -> crate::error::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        const FULL_DISK_ACCESS: &str =
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles";
+        app.opener()
+            .open_url(FULL_DISK_ACCESS, None::<&str>)
+            .map_err(|err| crate::error::Error::new("opener", err.to_string()))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Ok(())
+    }
+}
+
+/// Imports the owner's ticked domains from one source into a saved profile. The renderer only
+/// calls this after the consent step; the back end checks the profile and the domain names.
+#[tauri::command]
+pub async fn browser_cookie_import(
+    app: tauri::AppHandle,
+    profile_id: String,
+    source_id: String,
+    domains: Vec<String>,
+) -> crate::error::Result<crate::browser_cookies::CookieImportReport> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::commands::native_task(move || {
+            platform::import_cookies(&app, &profile_id, &source_id, &domains)
+        })
+        .await
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (app, profile_id, source_id, domains);
+        Err(crate::error::Error::new(
+            "unsupported",
+            "Importing cookies is only available on macOS.",
+        ))
+    }
 }
 
 #[cfg(test)]

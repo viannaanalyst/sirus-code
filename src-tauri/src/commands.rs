@@ -763,6 +763,20 @@ pub async fn git_workspace_action(
                     recheck,
                 )?,
             },
+            Action::Discard {
+                paths,
+                expected_index,
+                confirm_delete,
+                ..
+            } => Response::Snapshot {
+                snapshot: workspace::discard_admitted(
+                    &cwd,
+                    &paths,
+                    &expected_index,
+                    confirm_delete,
+                    recheck,
+                )?,
+            },
             Action::Diff {
                 path,
                 staged,

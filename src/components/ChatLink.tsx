@@ -145,18 +145,20 @@ const onLinkAuxClick = (url: string) => (event: MouseEvent<HTMLAnchorElement>) =
 };
 
 /**
- * A web link in chat. `chip` shows the short label (`owner/repo#12`, `example.com/docs`);
- * otherwise `children` (the text the reply wrote) follows the icon. The full URL is the tooltip.
+ * A web link in chat. `chip` shows the pill (ADR-149): the short label (`owner/repo#12`) or the
+ * host and the middle-shortened path (`example.com/docs/…/page`), on one line; otherwise `children`
+ * (the text the reply wrote) follows the icon. The full URL is the tooltip.
  */
 export function ChatLink({ url, chip = false, children }: { url: string; chip?: boolean; children?: ReactNode }) {
   const t = useTranslation();
   const items = useLinkMenuItems(url);
+  const label = chip ? describeLinkChip(url) : null;
   return <ContextMenu inline activation="context-only" label={t("link.actions", { url })} items={items}>
     <a href="#" title={url} className={chip ? "chat-link chat-link-chip" : "chat-link"} data-link-url={url}
       onClick={onLinkClick(url)} onAuxClick={onLinkAuxClick(url)}
       onPointerEnter={() => { if (parseGitHubItemUrl(url)) void loadProjectRepositories(); }}
       onContextMenu={() => { if (parseGitHubItemUrl(url)) void loadProjectRepositories(); requestAnimationFrame(() => window.getSelection()?.removeAllRanges()); }}>
-      <LinkIcon url={url} />{chip ? describeLinkChip(url).label : children}
+      <LinkIcon url={url} />{label ? <span className="chat-link-text">{label.github ? label.label : <><span className="chat-link-host">{label.host}</span><span className="chat-link-path">{label.path}</span></>}</span> : children}
     </a>
   </ContextMenu>;
 }

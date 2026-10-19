@@ -27,6 +27,7 @@ mod auto_pull;
 mod browser;
 #[cfg(feature = "desktop")]
 mod browser_agent;
+mod browser_cookies;
 mod browser_mcp;
 mod browser_profiles;
 #[cfg(feature = "desktop")]
@@ -415,6 +416,10 @@ pub fn run() {
             browser_agent::browser_dialog_reply,
             browser_agent::browser_profile_delete,
             browser_agent::browser_profiles_supported,
+            browser_agent::browser_cookie_sources,
+            browser_agent::browser_cookie_domains,
+            browser_agent::browser_cookie_import,
+            browser_agent::browser_open_full_disk_access,
             browser_recording::browser_recording_start,
             browser_recording::browser_recording_append,
             browser_recording::browser_recording_finish,

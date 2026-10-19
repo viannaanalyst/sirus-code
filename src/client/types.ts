@@ -237,6 +237,11 @@ export interface BrowserDevice { width: number; height: number; preset?: string 
 export interface BrowserDialog { tabId: string; kind: "alert" | "confirm" | "prompt"; message: string; defaultText?: string | null; url: string }
 /** A custom persistent browser profile (ADR-150). */
 export interface BrowserProfile { id: string; name: string }
+/** Cookie import (ADR-152): a browser or Chrome profile the owner can import from. `id` is `safari` or `chrome:<folder>`. */
+export interface CookieImportSource { id: string; browser: "chrome" | "safari"; profile: string }
+/** A domain with cookies in a source, and how many. Names and values are never sent to the renderer. */
+export interface CookieDomain { domain: string; count: number }
+export interface CookieImportReport { imported: number; skipped: number }
 /** An agent asks the renderer to start or stop recording a session's browser (ADR-112). */
 export interface BrowserRecordRequest { requestId: string; sessionId: string; action: "start" | "stop" }
 
@@ -1019,6 +1024,8 @@ export interface GitWorkspaceSnapshot {
 export type GitWorkspaceAction =
   | { type: "snapshot"; sessionId: string }
   | { type: "stage" | "unstage"; sessionId: string; paths: string[]; expectedIndex: string }
+  /** Discards every staged and unstaged change to these paths. Deleting new or untracked files needs `confirmDelete`. */
+  | { type: "discard"; sessionId: string; paths: string[]; expectedIndex: string; confirmDelete: boolean }
   | { type: "diff"; sessionId: string; path: string; staged: boolean; expectedIndex: string }
   /** Older ancestry below the exact commit the view loaded (`from`), so new commits cannot shift pages. */
   | { type: "history"; sessionId: string; from: string; skip: number }

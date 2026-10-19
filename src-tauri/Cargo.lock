@@ -5116,6 +5116,7 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 name = "sirus-code"
 version = "0.2.0"
 dependencies = [
+ "aes 0.8.4",
  "axum",
  "base64 0.22.1",
  "block2",
@@ -5123,6 +5124,7 @@ dependencies = [
  "csv",
  "futures-util",
  "global-hotkey",
+ "hmac 0.12.1",
  "image",
  "libc",
  "notify",
@@ -5146,6 +5148,7 @@ dependencies = [
  "security-framework",
  "serde",
  "serde_json",
+ "sha1",
  "sha2 0.10.9",
  "similar",
  "speech",

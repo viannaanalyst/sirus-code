@@ -356,6 +356,8 @@ interface AppStore {
   requestArchive: (sessionId: string, confirmed?: boolean) => void;
   /** What happened to an archived session's worktree when releasing it is on (ADR-078). */
   worktreeReleaseNotice: { id: number; release: import("@/client/types").WorktreeRelease } | null;
+  /** Result of a discard in the Changes pane, shown by `ChangesToast` (already translated). */
+  changesNotice: { id: number; variant: "success" | "error"; title: string; description?: string } | null;
   /** Saves a project's Setup and On finish scripts; blank removes one. */
   saveProjectScripts: (projectId: string, setup: string, onFinish: string, previewUrl?: string, openPreview?: boolean) => Promise<boolean>;
   /** Run again, stop or hide a session's project script run. */
@@ -1053,6 +1055,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
   worktreeReleaseNotice: null,
+  changesNotice: null,
   snoozeNotice: null,
   saveProjectScripts: async (projectId, setup, onFinish, previewUrl = "", openPreview = false) => {
     try {

@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { SettingsGroup, SettingsRow } from "./SettingsSection";
+import { CookieImportDialog } from "./CookieImportDialog";
 
 const MAX_PROFILES = 10;
 const NAME_LIMIT = 40;
@@ -18,7 +19,15 @@ export function BrowserProfilesSettings({ settings, onSave }: { settings: AppSet
   const [supported, setSupported] = useState(true);
   const [draft, setDraft] = useState("");
   const [pendingDelete, setPendingDelete] = useState<BrowserProfile | null>(null);
+  // Cookie import (ADR-152) opens for one saved profile; `session` remounts the dialog fresh each time.
+  const [importing, setImporting] = useState<{ id: string; name: string; session: number } | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const profiles = settings.browserProfiles ?? [];
+
+  const startImport = (id: string, name: string) => {
+    setImporting({ id, name, session: (importing?.session ?? 0) + 1 });
+    setImportOpen(true);
+  };
 
   useEffect(() => {
     void client.browserProfilesSupported().then(setSupported, () => setSupported(false));
@@ -64,8 +73,11 @@ export function BrowserProfilesSettings({ settings, onSave }: { settings: AppSet
 
   return <SettingsGroup title={t("browser.profiles")} card>
     <p className="px-0 pb-2 ui-description text-text-muted">{t("browser.profilesHelp")}</p>
-    <SettingsRow title={t("browser.profileDefault")}>
-      <span className="ui-caption text-text-muted">{t("browser.profileBuiltIn")}</span>
+    <SettingsRow title={t("browser.profileDefault")} description={t("cookies.importHelp")}>
+      <div className="flex items-center gap-2">
+        <span className="ui-caption text-text-muted">{t("browser.profileBuiltIn")}</span>
+        <InteractiveButton variant="secondary" glow={false} onClick={() => startImport("default", t("browser.profileDefault"))}>{t("cookies.importAction")}</InteractiveButton>
+      </div>
     </SettingsRow>
     <SettingsRow title={t("browser.profilePrivate")} description={t("browser.profilePrivateHelp")}>
       <span className="ui-caption text-text-muted">{t("browser.profileBuiltIn")}</span>
@@ -75,6 +87,7 @@ export function BrowserProfilesSettings({ settings, onSave }: { settings: AppSet
         <input key={profile.name} defaultValue={profile.name} aria-label={t("browser.profileRename")} maxLength={NAME_LIMIT}
           onBlur={(event) => rename(profile, event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
           className="h-8 w-[180px] rounded-[var(--radius-md)] border border-border-subtle bg-background-1 px-2.5 ui-control text-text-primary outline-none focus:border-border-default" />
+        <InteractiveButton variant="secondary" glow={false} disabled={!supported} onClick={() => startImport(profile.id, profile.name)}>{t("cookies.importAction")}</InteractiveButton>
         <InteractiveButton variant="secondary" glow={false} aria-label={t("browser.profileDelete")} onClick={() => setPendingDelete(profile)}>
           <Trash2 size={14} aria-hidden="true" />{t("browser.profileDelete")}
         </InteractiveButton>
@@ -98,5 +111,6 @@ export function BrowserProfilesSettings({ settings, onSave }: { settings: AppSet
       title={t("browser.profileDeleteTitle", { name: pendingDelete?.name ?? "" })} description={t("browser.profileDeleteHelp")}
       confirmLabel={t("browser.profileDelete")} cancelLabel={t("browser.dialogCancel")}
       onConfirm={() => (pendingDelete ? remove(pendingDelete) : undefined)} />
+    {importing && <CookieImportDialog key={importing.session} open={importOpen} onOpenChange={setImportOpen} profileId={importing.id} profileName={importing.name} />}
   </SettingsGroup>;
 }

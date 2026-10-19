@@ -8,9 +8,16 @@ import type { LinkOpenTarget } from "@/client/types";
 import { composerSegments, type ComposerSegment } from "@/lib/composer-tokens";
 import { splitLinks } from "@/lib/link-text";
 
+/** Longest path (characters, leading slash included) a chip shows before its middle gives way to an ellipsis. */
+export const LINK_CHIP_PATH_MAX = 40;
+
 export interface LinkChip {
-  /** `owner/repo#12`, `owner/repo@abc1234`, … or the URL without its scheme. */
+  /** `owner/repo#12`, `owner/repo@abc1234`, … or the URL without its scheme and with its path shortened. */
   label: string;
+  /** The host of a web address (empty for GitHub labels). */
+  host: string;
+  /** The shortened path of a web address, leading slash included (empty for GitHub labels). */
+  path: string;
   /** Shows the GitHub mark instead of the site's favicon. */
   github: boolean;
 }
@@ -42,9 +49,28 @@ export function prettifyUrl(url: string): string {
   return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/$/, "");
 }
 
+/**
+ * Shortens `text` to at most `max` characters: the start and the end stay, the middle becomes
+ * one ellipsis. Counts and cuts by code point, so no surrogate pair is split.
+ */
+export function middleEllipsis(text: string, max: number): string {
+  const chars = Array.from(text);
+  const limit = Math.max(1, Math.floor(max));
+  if (chars.length <= limit) return text;
+  const kept = limit - 1;
+  const head = Math.ceil(kept * 0.6);
+  const tail = kept - head;
+  return `${chars.slice(0, head).join("")}…${chars.slice(chars.length - tail).join("")}`;
+}
+
 export function describeLinkChip(url: string): LinkChip {
   const github = shortenGitHubLink(url);
-  return github ? { label: github, github: true } : { label: prettifyUrl(url), github: false };
+  if (github) return { label: github, host: "", path: "", github: true };
+  const pretty = prettifyUrl(url);
+  const cut = /[/?#]/.exec(pretty)?.index ?? pretty.length;
+  const host = pretty.slice(0, cut);
+  const path = middleEllipsis(pretty.slice(cut), LINK_CHIP_PATH_MAX);
+  return { label: host + path, host, path, github: false };
 }
 
 /** Whether a link's visible text is just its address (then it reads as a chip). */

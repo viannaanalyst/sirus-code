@@ -22,6 +22,7 @@ import { WindowSnapToast } from "@/components/WindowSnapToast";
 import { PromptLinkToast } from "@/components/PromptLinkToast";
 import { bindPromptLinks, copyPromptLink } from "@/store/prompt-links";
 import { WorktreeReleaseToast } from "@/components/WorktreeReleaseToast";
+import { ChangesToast } from "@/components/ChangesToast";
 import { SnoozeToast } from "@/components/SnoozeToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
@@ -375,6 +376,7 @@ export default function App() {
           <WindowSnapToast />
           <PromptLinkToast />
           <WorktreeReleaseToast />
+          <ChangesToast />
           <SnoozeToast />
           <ActivityNotifications />
           <ProviderUpdateToast />

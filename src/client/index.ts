@@ -911,6 +911,24 @@ export class SirusClient {
     return this.transport.invoke<boolean>("browser_profiles_supported", {});
   }
 
+  /** Cookie import (ADR-152): the sources the owner can import from. */
+  browserCookieSources() {
+    return this.transport.invoke<import("./types").CookieImportSource[]>("browser_cookie_sources", {});
+  }
+
+  browserCookieDomains(sourceId: string) {
+    return this.transport.invoke<import("./types").CookieDomain[]>("browser_cookie_domains", { sourceId });
+  }
+
+  /** Opens Full Disk Access; the address is fixed in the back end. */
+  browserOpenFullDiskAccess() {
+    return this.transport.invoke<void>("browser_open_full_disk_access", {});
+  }
+
+  browserCookieImport(profileId: string, sourceId: string, domains: string[]) {
+    return this.transport.invoke<import("./types").CookieImportReport>("browser_cookie_import", { profileId, sourceId, domains });
+  }
+
   /** Clears cookies or the cache of every session's browser (one shared store). */
   browserClearData(kind: "cookies" | "cache") {
     return this.transport.invoke<void>("browser_clear_data", { kind });

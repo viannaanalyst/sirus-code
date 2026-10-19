@@ -34,6 +34,14 @@ pub enum Action {
         paths: Vec<String>,
         expected_index: String,
     },
+    /// Discards every change to the listed paths (staged and unstaged). Deleting files Git does
+    /// not hold needs `confirm_delete`; Git cannot restore them.
+    Discard {
+        session_id: String,
+        paths: Vec<String>,
+        expected_index: String,
+        confirm_delete: bool,
+    },
     Diff {
         session_id: String,
         path: String,
@@ -59,6 +67,7 @@ impl Action {
             Self::Snapshot { session_id }
             | Self::Stage { session_id, .. }
             | Self::Unstage { session_id, .. }
+            | Self::Discard { session_id, .. }
             | Self::Diff { session_id, .. }
             | Self::History { session_id, .. }
             | Self::Pull { session_id, .. } => session_id,
@@ -503,6 +512,138 @@ pub fn prepare_admitted(
     output(&cwd, &args)?;
     snapshot(&cwd)
 }
+/// One Git or filesystem step that discards part of a path. The argv always carries `--` before
+/// the path, and literal pathspecs are already on for every Git command (`git::git_command`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DiscardStep {
+    /// `git restore --staged`: unstage, keeping the working file.
+    RestoreStaged,
+    /// `git restore --worktree`: the index's content back into the working file.
+    RestoreWorktree,
+    /// `git rm --cached -f`: a new file leaves the index (it is then an untracked file).
+    RemoveFromIndex,
+    /// Removes a file Git does not hold any more. Not recoverable from Git.
+    DeleteFile,
+}
+
+impl DiscardStep {
+    /// The Git argv for this step, or None for the filesystem step.
+    pub(crate) fn argv(self, path: &str) -> Option<Vec<&str>> {
+        match self {
+            Self::RestoreStaged => Some(vec!["restore", "--staged", "--", path]),
+            Self::RestoreWorktree => Some(vec!["restore", "--worktree", "--", path]),
+            Self::RemoveFromIndex => Some(vec!["rm", "--cached", "-f", "-q", "--", path]),
+            Self::DeleteFile => None,
+        }
+    }
+}
+
+/// Steps for one path from its staged and unstaged kinds in the snapshot. Renames never reach
+/// here: the snapshot lists them as an old-path deletion and a new-path addition.
+pub(crate) fn discard_steps(
+    staged: Option<&ChangeKind>,
+    unstaged: Option<&ChangeKind>,
+) -> Result<Vec<DiscardStep>> {
+    use ChangeKind::{Added, Deleted, Modified, Untracked};
+    let tracked = |kind: Option<&ChangeKind>| matches!(kind, None | Some(Modified | Deleted));
+    match (staged, unstaged) {
+        (Some(Added), u) if tracked(u) => {
+            Ok(vec![DiscardStep::RemoveFromIndex, DiscardStep::DeleteFile])
+        }
+        (Some(Modified | Deleted), u) if tracked(u) => Ok(vec![
+            DiscardStep::RestoreStaged,
+            DiscardStep::RestoreWorktree,
+        ]),
+        (None, Some(Untracked)) => Ok(vec![DiscardStep::DeleteFile]),
+        (None, Some(Modified | Deleted)) => Ok(vec![DiscardStep::RestoreWorktree]),
+        // Both a staged deletion and a new untracked file at one path: restoring would overwrite it.
+        _ => Err(Error::invalid_path(
+            "Git file is not an eligible workspace change",
+        )),
+    }
+}
+
+/// Whether discarding this path deletes a file Git cannot restore.
+pub(crate) fn discard_deletes(steps: &[DiscardStep]) -> bool {
+    steps.contains(&DiscardStep::DeleteFile)
+}
+
+fn delete_file(cwd: &Path, path: &str) -> Result<()> {
+    // Checked again right before deleting, so a link swapped in since the plan is never followed.
+    validate_path(cwd, path)?;
+    match std::fs::symlink_metadata(cwd.join(path)) {
+        Ok(meta) if meta.is_file() => Ok(std::fs::remove_file(cwd.join(path))?),
+        Ok(_) => Err(Error::invalid_path("Only files can be discarded")),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err.into()),
+    }
+}
+
+/// Discards every change to `paths` under the index lock, after the same token, conflict and
+/// eligibility checks as preparation. Plans come from the snapshot taken here, not from the caller.
+pub fn discard_admitted(
+    cwd: &Path,
+    paths: &[String],
+    expected: &str,
+    confirm_delete: bool,
+    admit: impl FnOnce() -> Result<()>,
+) -> Result<Snapshot> {
+    let _write = INDEX_WRITE.lock();
+    let cwd = std::fs::canonicalize(cwd)?;
+    let current = snapshot(&cwd)?;
+    verify_token(&cwd, expected)?;
+    if current.truncated || current.conflicts || paths.is_empty() || paths.len() > FILE_LIMIT {
+        return Err(Error::git(
+            "Refresh and resolve incomplete or conflicted Git changes before discarding files",
+        ));
+    }
+    let mut unique = HashSet::new();
+    let mut plans = Vec::with_capacity(paths.len());
+    for path in paths {
+        if !unique.insert(path) {
+            return Err(Error::invalid_path(
+                "Git file is not an eligible workspace change",
+            ));
+        }
+        validate_path(&cwd, path)?;
+        let staged = current.staged.iter().find(|entry| entry.path == *path);
+        let unstaged = current.unstaged.iter().find(|entry| entry.path == *path);
+        if [staged, unstaged]
+            .into_iter()
+            .flatten()
+            .any(|entry| !entry.actionable)
+        {
+            return Err(Error::invalid_path(
+                "Git file is not an eligible workspace change",
+            ));
+        }
+        let steps = discard_steps(
+            staged.map(|entry| &entry.kind),
+            unstaged.map(|entry| &entry.kind),
+        )?;
+        if discard_deletes(&steps) && !confirm_delete {
+            return Err(Error::new(
+                "confirmation_required",
+                "Discarding new or untracked files deletes them permanently. Confirm the deletion to continue.",
+            ));
+        }
+        plans.push((path, steps));
+    }
+    verify_token(&cwd, expected)?;
+    admit()?;
+    for (path, steps) in plans {
+        for step in steps {
+            match step.argv(path) {
+                Some(args) => {
+                    output(&cwd, &args)?;
+                }
+                None => delete_file(&cwd, path)?,
+            }
+        }
+    }
+    snapshot(&cwd)
+}
+
 pub fn commit_guard(cwd: &Path, expected: Option<&str>) -> Result<()> {
     let current = snapshot(cwd)?;
     if current.truncated
@@ -1083,5 +1224,195 @@ mod tests {
             run_ok(&repo.cwd(), &["log", "-1", "--format=%s"]).unwrap(),
             "fixture gitlink"
         );
+    }
+}
+
+#[cfg(test)]
+mod discard_tests {
+    use super::*;
+    use crate::git::{run_ok, tests::Repo};
+    use std::fs;
+
+    fn token(cwd: &Path) -> String {
+        snapshot(cwd).unwrap().index_token
+    }
+
+    #[test]
+    fn each_kind_gets_its_own_plan() {
+        use ChangeKind::{Added, Deleted, Modified, Untracked};
+        use DiscardStep::*;
+        assert_eq!(
+            discard_steps(None, Some(&Modified)).unwrap(),
+            vec![RestoreWorktree]
+        );
+        assert_eq!(
+            discard_steps(None, Some(&Deleted)).unwrap(),
+            vec![RestoreWorktree]
+        );
+        assert_eq!(
+            discard_steps(None, Some(&Untracked)).unwrap(),
+            vec![DeleteFile]
+        );
+        assert_eq!(
+            discard_steps(Some(&Modified), None).unwrap(),
+            vec![RestoreStaged, RestoreWorktree]
+        );
+        assert_eq!(
+            discard_steps(Some(&Deleted), Some(&Modified)).unwrap(),
+            vec![RestoreStaged, RestoreWorktree]
+        );
+        assert_eq!(
+            discard_steps(Some(&Added), None).unwrap(),
+            vec![RemoveFromIndex, DeleteFile]
+        );
+        assert_eq!(
+            discard_steps(Some(&Added), Some(&Modified)).unwrap(),
+            vec![RemoveFromIndex, DeleteFile]
+        );
+        assert_eq!(
+            discard_steps(Some(&Added), Some(&Deleted)).unwrap(),
+            vec![RemoveFromIndex, DeleteFile]
+        );
+        // A rename never reaches the planner (status runs with --no-renames), and an untracked
+        // file under a staged deletion would be overwritten by a restore: both refuse.
+        assert!(discard_steps(Some(&ChangeKind::Renamed), None).is_err());
+        assert!(discard_steps(Some(&Deleted), Some(&Untracked)).is_err());
+        assert!(discard_steps(None, None).is_err());
+        assert!(!discard_deletes(&[RestoreStaged, RestoreWorktree]));
+        assert!(discard_deletes(&[RemoveFromIndex, DeleteFile]));
+    }
+
+    #[test]
+    fn every_git_step_separates_the_path_with_double_dash() {
+        for step in [
+            DiscardStep::RestoreStaged,
+            DiscardStep::RestoreWorktree,
+            DiscardStep::RemoveFromIndex,
+        ] {
+            let argv = step.argv("-dash name").unwrap();
+            assert_eq!(argv[argv.len() - 2], "--", "{step:?}");
+            assert_eq!(argv[argv.len() - 1], "-dash name", "{step:?}");
+            assert!(!argv
+                .iter()
+                .any(|arg| arg.contains("reset") || arg.contains("checkout")));
+        }
+        assert!(DiscardStep::DeleteFile.argv("x").is_none());
+    }
+
+    #[test]
+    fn paths_outside_the_repository_are_refused_before_any_change() {
+        let repo = Repo::new();
+        let outside = repo.0.join("outside.txt");
+        fs::write(&outside, "keep\n").unwrap();
+        let expected = token(&repo.cwd());
+        for bad in [
+            "/tmp/outside.txt",
+            "../outside.txt",
+            "a/../../outside.txt",
+            "file.txt/",
+            "a//b",
+            ".git/config",
+            "bad\\path",
+            ".",
+            "",
+        ] {
+            let result =
+                discard_admitted(&repo.cwd(), &[bad.to_string()], &expected, true, || Ok(()));
+            assert!(result.is_err(), "accepted {bad:?}");
+        }
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "keep\n");
+    }
+
+    #[test]
+    fn symlinks_cannot_lead_discard_outside_the_repository() {
+        let repo = Repo::new();
+        let outside = repo.0.join("outside");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("secret.txt"), "keep\n").unwrap();
+        std::os::unix::fs::symlink(&outside, repo.cwd().join("link")).unwrap();
+        std::os::unix::fs::symlink(outside.join("secret.txt"), repo.cwd().join("linkfile"))
+            .unwrap();
+        let expected = token(&repo.cwd());
+        for bad in ["link/secret.txt", "linkfile"] {
+            assert!(
+                discard_admitted(&repo.cwd(), &[bad.to_string()], &expected, true, || Ok(()))
+                    .is_err(),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            fs::read_to_string(outside.join("secret.txt")).unwrap(),
+            "keep\n"
+        );
+    }
+
+    #[test]
+    fn discard_restores_tracked_files_and_removes_new_ones_only_when_confirmed() {
+        let repo = Repo::new();
+        let cwd = repo.cwd();
+        fs::write(cwd.join("file.txt"), "changed in index\n").unwrap();
+        run_ok(&cwd, &["add", "--", "file.txt"]).unwrap();
+        fs::write(cwd.join("file.txt"), "changed again\n").unwrap();
+        fs::write(cwd.join("added.txt"), "new\n").unwrap();
+        run_ok(&cwd, &["add", "--", "added.txt"]).unwrap();
+        fs::write(cwd.join("untracked.txt"), "loose\n").unwrap();
+        let before = snapshot(&cwd).unwrap();
+        assert_eq!(before.staged.len(), 2);
+
+        // Deleting new files is refused until the person confirms it; nothing changes.
+        let all = vec![
+            "file.txt".to_string(),
+            "added.txt".to_string(),
+            "untracked.txt".to_string(),
+        ];
+        let refused = discard_admitted(&cwd, &all, &before.index_token, false, || Ok(()));
+        assert!(refused.is_err());
+        assert!(cwd.join("added.txt").exists() && cwd.join("untracked.txt").exists());
+        assert_eq!(snapshot(&cwd).unwrap().staged.len(), 2);
+
+        let after = discard_admitted(&cwd, &all, &before.index_token, true, || Ok(())).unwrap();
+        assert!(after.staged.is_empty() && after.unstaged.is_empty());
+        assert_eq!(
+            fs::read_to_string(cwd.join("file.txt")).unwrap(),
+            "before\n"
+        );
+        assert!(!cwd.join("added.txt").exists());
+        assert!(!cwd.join("untracked.txt").exists());
+        assert!(run_ok(&cwd, &["ls-files", "added.txt"])
+            .unwrap()
+            .trim()
+            .is_empty());
+    }
+
+    #[test]
+    fn staged_deletion_comes_back_and_stale_tokens_change_nothing() {
+        let repo = Repo::new();
+        let cwd = repo.cwd();
+        run_ok(&cwd, &["rm", "-q", "--", "file.txt"]).unwrap();
+        let stale = token(&cwd);
+        // Staging another file changes the index, so the earlier token must be refused.
+        fs::write(cwd.join("other.txt"), "x\n").unwrap();
+        run_ok(&cwd, &["add", "--", "other.txt"]).unwrap();
+        assert!(
+            discard_admitted(&cwd, &["file.txt".to_string()], &stale, true, || Ok(())).is_err()
+        );
+        assert!(!cwd.join("file.txt").exists());
+        let current = token(&cwd);
+        let after =
+            discard_admitted(&cwd, &["file.txt".to_string()], &current, true, || Ok(())).unwrap();
+        assert_eq!(
+            fs::read_to_string(cwd.join("file.txt")).unwrap(),
+            "before\n"
+        );
+        assert_eq!(after.staged.len(), 1, "other.txt stays staged");
+        assert!(after.unstaged.is_empty());
+    }
+
+    #[test]
+    fn action_schema_accepts_discard_and_rejects_unknown_fields() {
+        let ok = r#"{"type":"discard","sessionId":"s","paths":["a"],"expectedIndex":"x","confirmDelete":false}"#;
+        assert!(serde_json::from_str::<Action>(ok).is_ok());
+        let extra = r#"{"type":"discard","sessionId":"s","paths":["a"],"expectedIndex":"x","confirmDelete":false,"argv":["reset"]}"#;
+        assert!(serde_json::from_str::<Action>(extra).is_err());
     }
 }

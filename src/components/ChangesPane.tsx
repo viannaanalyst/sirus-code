@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Signpost, Sparkles, GitCommitHorizontal, ArrowUpFromLine } from "@/components/icons/phosphor";
+import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Signpost, Sparkles, GitCommitHorizontal, ArrowUpFromLine, Undo2 } from "@/components/icons/phosphor";
 import { client, type SirusClient } from "@/client";
 import type { FileChange, GitWorkspaceEntry, GitWorkspaceSnapshot, ReviewGuideAnchor } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -11,6 +11,8 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { FileGlyph } from "@/components/FileGlyph";
 import { changeRowLabel } from "@/lib/change-row-label";
+import { discardPlan } from "@/lib/discard-changes";
+import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { DiffViewer, type DiffFocus } from "./DiffViewer";
 import { ReviewGuideTour } from "./review-guide/ReviewGuideTour";
 import { useReviewGuide } from "./review-guide/use-review-guide";
@@ -26,6 +28,10 @@ type Props = { sessionId: string; workspacePath: string; api?: Api; onComment?: 
 type Selection = { entry: GitWorkspaceEntry; staged: boolean };
 /** The file each session's Changes pane had open, so switching panes and back reopens it (ADR-145). */
 const openFiles = new BoundedCache<string, { path: string; staged: boolean }>(32);
+/** Shows a discard's outcome as a toast (`ChangesToast`). */
+function notifyChanges(variant: "success" | "error", title: string, description?: string) {
+  useAppStore.setState({ changesNotice: { id: Date.now(), variant, title, description } });
+}
 
 /** Session/workspace remount makes obsolete reads and writes unable to populate another view. */
 export function ChangesPane(props: Props) {
@@ -43,6 +49,8 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
   const [diff, setDiff] = useState<string | null>(null);
   const [diffError, setDiffError] = useState<string | null>(null);
   const [confirmPush, setConfirmPush] = useState(false);
+  const [discardRequest, setDiscardRequest] = useState<{ paths: string[]; deletes: number } | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const alive = useRef(false), gate = useRef(false), reads = useRef(0), diffs = useRef(0), messageRevision = useRef(0);
   const [generating, setGenerating] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -135,6 +143,22 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
     } catch (reason) { if (alive.current) { setError(formatUnknownError(reason)); setSnapshot(null); published.current = ""; } return false; }
     finally { if (alive.current) { gate.current = false; setBusy(false); } }
   };
+  // Discards the paths and reports the outcome in a toast; the list refreshes whether or not it worked.
+  const runDiscard = async (paths: string[], deletes: number): Promise<void> => {
+    if (gate.current || !snapshot) return;
+    gate.current = true; setBusy(true); setError(null); setNotice(null);
+    diffs.current++; setSelection(null); setDiff(null); setDiffError(null);
+    let failure: string | null = null;
+    try {
+      const next = await api.gitWorkspace({ type: "discard", sessionId, paths, expectedIndex: snapshot.indexToken, confirmDelete: deletes > 0 });
+      if (alive.current) publish(next);
+    } catch (reason) { failure = formatUnknownError(reason); }
+    finally { if (alive.current) { gate.current = false; setBusy(false); } }
+    if (failure !== null) {
+      notifyChanges("error", t("workspaceGit.discardFailed"), t(failure));
+      if (alive.current) void refresh();
+    } else notifyChanges("success", paths.length === 1 ? t("workspaceGit.discardedOne", { path: paths[0] }) : t("workspaceGit.discardedMany", { count: paths.length }));
+  };
   const generateTitle = async () => {
     if (gate.current || !snapshot) return;
     gate.current = true; setBusy(true); setGenerating(true); setCancelling(false); setError(null); setNotice(null); setAttribution(null);
@@ -195,6 +219,16 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
     { staged: false, label: "workspaceGit.unstaged", entries: snapshot.unstaged.filter(file => showUntracked || file.kind !== "untracked") },
   ] : [];
   const nothing = Boolean(snapshot?.identity.isRepo) && fileGroups.every(group => !group.entries.length);
+  const actionable = fileGroups.flatMap(group => group.entries.filter(entry => entry.actionable).map(entry => entry.path));
+  // Discarding throws work away, so it always asks first; the plan gives the count and the deletions.
+  const askDiscard = (paths: string[]) => {
+    const plan = snapshot ? discardPlan(paths, snapshot.staged, snapshot.unstaged) : null;
+    if (!plan || blocked) return;
+    setDiscardRequest({ paths: plan.files.map(file => file.path), deletes: plan.deletes });
+    setDiscardOpen(true);
+  };
+  const discardTitle = !discardRequest ? "" : discardRequest.paths.length === 1 ? t("workspaceGit.discardOneTitle", { path: discardRequest.paths[0] }) : t("workspaceGit.discardManyTitle", { count: discardRequest.paths.length });
+  const discardDescription = discardRequest ? [t("workspaceGit.discardDescription"), discardRequest.deletes ? t(discardRequest.deletes === 1 ? "workspaceGit.discardDeleteOne" : "workspaceGit.discardDeleteMany", { count: discardRequest.deletes }) : ""].filter(Boolean).join(" ") : undefined;
   const selected: FileChange | null = selection ? { path: selection.entry.path, kind: selection.entry.kind, additions: 0, deletions: 0 } : null;
   const guideEntry = (path: string) => {
     for (const group of [...fileGroups].reverse()) {
@@ -243,6 +277,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
       <IconButton label={t(guide ? (touring ? "guide.close" : "guide.start") : "guide.askSession")} aria-pressed={guide ? touring : undefined} disabled={!snapshot?.identity.isRepo}
         onClick={() => { if (!guide) askForGuide(); else if (touring) setTouring(false); else { setTouring(true); visit(0, 0); } }}
         className={touring ? "size-7 min-h-0 text-text-primary" : "size-7 min-h-0"}><Signpost size={13} /></IconButton>
+      <IconButton label={t("workspaceGit.discardAll")} disabled={blocked || !actionable.length} onClick={() => askDiscard(actionable)} className="size-7 min-h-0"><Undo2 size={13} /></IconButton>
       <IconButton label={t("workspaceGit.refresh")} disabled={busy} onClick={() => void refresh()} className="size-7 min-h-0"><RefreshCw size={13} /></IconButton>
     </div>
     {touring && guide ? <div className="changes-guide scroll-thin">
@@ -288,18 +323,22 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
           const slash = entry.path.lastIndexOf("/");
           const name = entry.path.slice(slash + 1), dir = slash >= 0 ? entry.path.slice(0, slash) : "";
           const kindLabel = t(entry.conflicted ? "workspaceGit.conflicted" : `change.${entry.kind}`);
+          const discardItems: ContextMenuItem[] = [{ id: "discard", label: t("workspaceGit.discard"), icon: <Undo2 size={15} />, destructive: true, disabled: blocked || !entry.actionable, onSelect: () => askDiscard([entry.path]) }];
           return <div key={entry.path}>
-            <div className="changes-row" data-open={open || undefined}>
-              <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; openFiles.delete(sessionId); setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
-                aria-label={changeRowLabel({ path: entry.path, kind: kindLabel, status: entry.actionable ? undefined : t("workspaceGit.unavailable") })}
-                className="changes-row-main" title={entry.actionable ? `${entry.path} · ${kindLabel}` : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
-                <FileGlyph name={name} size={14} />
-                <span className="truncate ui-control text-text-primary">{name}</span>
-                {dir ? <span className="min-w-0 truncate ui-micro text-text-muted">{dir}</span> : null}
-              </button>
-              <IconButton label={t(group.staged ? "workspaceGit.unprepare" : "workspaceGit.prepare", { path: entry.path })} disabled={blocked || !entry.actionable} onClick={() => void run(group.staged ? "unstage" : "stage", [entry.path])} className="changes-row-action size-6 min-h-0">{group.staged ? <Minus size={13} /> : <Plus size={13} />}</IconButton>
-              <span aria-hidden="true" className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
-            </div>
+            <ContextMenu activation="context-only" label={t("workspaceGit.discard")} items={discardItems}>
+              <div className="changes-row" data-open={open || undefined}>
+                <button type="button" disabled={busy} onClick={() => { if (open) { diffs.current++; openFiles.delete(sessionId); setSelection(null); setDiff(null); setDiffError(null); } else void select(entry, group.staged); }} aria-expanded={open}
+                  aria-label={changeRowLabel({ path: entry.path, kind: kindLabel, status: entry.actionable ? undefined : t("workspaceGit.unavailable") })}
+                  className="changes-row-main" title={entry.actionable ? `${entry.path} · ${kindLabel}` : `${entry.path} — ${t("workspaceGit.unavailable")}`}>
+                  <FileGlyph name={name} size={14} />
+                  <span className="truncate ui-control text-text-primary">{name}</span>
+                  {dir ? <span className="min-w-0 truncate ui-micro text-text-muted">{dir}</span> : null}
+                </button>
+                <IconButton label={t("workspaceGit.discardRow", { path: entry.path })} disabled={blocked || !entry.actionable} onClick={() => askDiscard([entry.path])} className="changes-row-action size-6 min-h-0"><Undo2 size={13} /></IconButton>
+                <IconButton label={t(group.staged ? "workspaceGit.unprepare" : "workspaceGit.prepare", { path: entry.path })} disabled={blocked || !entry.actionable} onClick={() => void run(group.staged ? "unstage" : "stage", [entry.path])} className="changes-row-action size-6 min-h-0">{group.staged ? <Minus size={13} /> : <Plus size={13} />}</IconButton>
+                <span aria-hidden="true" className="changes-kind ui-micro" data-kind={entry.conflicted ? "conflicted" : entry.kind}>{entry.conflicted ? "!" : entry.kind === "untracked" ? "U" : entry.kind.charAt(0).toUpperCase()}</span>
+              </div>
+            </ContextMenu>
             {open && selected ? <div className="changes-diff">
               {diffError ? <p role="alert" className="p-3 ui-caption text-danger">{t(diffError)}</p> : <DiffViewer hideFileList changes={[selected]} selected={selected} diff={diff} onSelect={() => {}} onComment={onComment && diff ? onComment : undefined} focus={guideFocus} viewKey={`changes:${sessionId}:${group.staged ? "staged" : "unstaged"}:${entry.path}`} />}
             </div> : null}
@@ -308,6 +347,7 @@ function WorkspaceChanges({ sessionId, api = client, onComment }: Props) {
       </div>)}
     </div>
     {snapshot?.identity.isRepo ? <GitHistory entries={older?.head === snapshot.head ? [...snapshot.history, ...older.entries] : snapshot.history} truncated={older?.head === snapshot.head ? older.truncated : snapshot.historyTruncated} onLoadMore={api.gitWorkspaceHistory && snapshot.head ? () => void loadOlder() : undefined} loading={loadingOlder} /> : null}
+    <ConfirmDialog open={discardOpen} onOpenChange={setDiscardOpen} busy={busy} title={discardTitle} description={discardDescription} confirmLabel={t("workspaceGit.discardConfirm")} onConfirm={() => discardRequest ? runDiscard(discardRequest.paths, discardRequest.deletes) : undefined} />
     <ConfirmDialog open={confirmPush} onOpenChange={setConfirmPush} busy={busy} destructive={false} title={t("Confirm push")} description={t("workspaceGit.pushDescription")} confirmLabel={t(busy ? "Pushing…" : "Confirm push")} onConfirm={() => run("push")}>
       {error ? <p role="alert" className="mb-3 ui-caption text-danger">{t(error)}</p> : null}
     </ConfirmDialog>

@@ -1,6 +1,6 @@
 # ADR-150: More browser tools for agents, browser profiles, and no login shortcuts yet
 
-**Status:** Accepted (2026-10-19). Browser profiles and the new agent tools are built; passkey and cookie-import login helpers are not, and why is below.
+**Status:** Accepted (2026-10-19). Browser profiles and the new agent tools are built; passkey login is not, and why is below. Cookie import from Chrome and Safari came later (ADR-152).
 
 ## Context
 
@@ -40,7 +40,7 @@ Page-facing scripts use `callAsyncJavaScript` with arguments, the same path as t
 ### Login helpers
 
 - **Passkeys and WebAuthn in WKWebView: not built.** Passkeys in a browser app need Apple's restricted `com.apple.developer.web-browser.public-key-credential` entitlement, which Apple grants on request, and which needs a provisioning profile that lists it. Sirus Code is signed with a local identity or a Developer ID and has neither. The Electron reference (t3code) relies on the same managed entitlement. We could not verify on this machine whether a non-browser WKWebView gets platform passkeys without it, so nothing is built and the question stays open until Apple approval or a test on a signed build.
-- **Cookie import from Chrome and Safari: not built in this change.** Safari's `Cookies.binarycookies` is behind Full Disk Access, a broad permission for a feature that only copies cookies. Chrome's cookies are AES-encrypted with a key that sits in the Keychain item "Chrome Safe Storage". Reading it means a Keychain prompt for another application's secret, decrypting cookies, and writing them into the target profile's `WKHTTPCookieStore`. That is feasible, but it adds crypto and a consent flow that deserve their own decision. Until then, a profile keeps whatever the person signs in to in it, which covers the common case with one sign-in per profile.
+- **Cookie import from Chrome and Safari: built later, with its own consent flow (ADR-152).** The original reasoning, kept for context: Safari's `Cookies.binarycookies` is behind Full Disk Access, a broad permission for a feature that only copies cookies. Chrome's cookies are AES-encrypted with a key that sits in the Keychain item "Chrome Safe Storage". Reading it means a Keychain prompt for another application's secret, decrypting cookies, and writing them into the target profile's `WKHTTPCookieStore`. That is feasible, but it adds crypto and a consent flow that deserve their own decision. Until then, a profile keeps whatever the person signs in to in it, which covers the common case with one sign-in per profile.
 
 ## Consequences
 
