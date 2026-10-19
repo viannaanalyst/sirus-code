@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
@@ -125,6 +126,7 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
     {style === "project" && !hidden ? <ProjectStrip /> : null}
     {/* The quota rings stay on the 52 px rail; here the Usage page sits beside Archived and Settings. */}
     <div className="conversation-sidebar-foot">
+      <AgentResources placement="foot" />
       <span className="flex-1" />
       <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" aria-label={t("usage.title")} title={t("usage.title")} aria-current={mainView === "usage" ? "page" : undefined} onClick={() => store().setMainView("usage")}>
         <ChartBar size={17} weight={mainView === "usage" ? "fill" : undefined} />

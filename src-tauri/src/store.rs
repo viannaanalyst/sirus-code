@@ -11,6 +11,10 @@
 //! last written (hashes kept in memory), and deletes rows that are gone. Transcripts that
 //! are not loaded are never touched. A delayed checkpoint older than what is on disk is
 //! dropped, as with the JSON files (ADR-099).
+//!
+//! Deleted space goes back to the disk (ADR-143): a new database is created with
+//! `auto_vacuum = INCREMENTAL`, saves give back up to 256 free pages at most every 30 s, and
+//! an older database whose free pages are worth it is converted once at open.
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
@@ -107,6 +111,10 @@ struct Db {
     /// `(table, key)` → hash of the JSON on disk.
     rows: HashMap<(String, String), u64>,
     transcripts: HashMap<String, Transcript>,
+    /// The database gives back free pages (`auto_vacuum = INCREMENTAL`).
+    incremental: bool,
+    /// When free pages were last given back; `None` until the first save.
+    reclaimed: Option<std::time::Instant>,
 }
 
 static OPEN: OnceLock<Mutex<HashMap<PathBuf, Db>>> = OnceLock::new();
@@ -120,18 +128,152 @@ fn connect(state_path: &Path) -> Result<Db> {
         std::fs::create_dir_all(parent)?;
     }
     let conn = Connection::open(db_path(state_path)).map_err(sql)?;
+    // Before the first table exists, so a new database can give deleted space back
+    // (ADR-143). On an existing one this only takes effect through a VACUUM.
+    conn.execute_batch("PRAGMA auto_vacuum = INCREMENTAL;")
+        .map_err(sql)?;
     conn.execute_batch(
         // The WAL file shrinks back to 32 MiB after a checkpoint (a host runs for months, ADR-131).
         "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_size_limit = 33554432;",
     )
     .map_err(sql)?;
     migrate(&conn, state_path)?;
+    convert_to_incremental(&conn, state_path);
+    let incremental = auto_vacuum(&conn) == Some(AUTO_VACUUM_INCREMENTAL);
     Ok(Db {
         conn,
         generation: 0,
         rows: HashMap::new(),
         transcripts: HashMap::new(),
+        incremental,
+        reclaimed: None,
     })
+}
+
+const AUTO_VACUUM_INCREMENTAL: i64 = 2;
+/// Free pages one save gives back at most (1 MiB with 4 KiB pages): a few milliseconds.
+const RECLAIM_PAGES: u32 = 256;
+const RECLAIM_EVERY: std::time::Duration = std::time::Duration::from_secs(30);
+/// An older database is converted once its free pages reach this much…
+const CONVERT_MIN_FREE: u64 = 16 * 1024 * 1024;
+/// …and this share of the file (1 / 4), with twice its size free on the disk.
+const CONVERT_MIN_SHARE: u64 = 4;
+
+fn auto_vacuum(conn: &Connection) -> Option<i64> {
+    conn.query_row("PRAGMA auto_vacuum", [], |row| row.get(0))
+        .ok()
+}
+
+/// The database's size and free space, in bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Space {
+    size: u64,
+    free: u64,
+}
+
+fn space(conn: &Connection) -> Result<Space> {
+    let pragma = |name: &str| -> Result<u64> {
+        conn.query_row(&format!("PRAGMA {name}"), [], |row| row.get::<_, i64>(0))
+            .map(|value| value.max(0) as u64)
+            .map_err(sql)
+    };
+    let page = pragma("page_size")?;
+    Ok(Space {
+        size: pragma("page_count")? * page,
+        free: pragma("freelist_count")? * page,
+    })
+}
+
+/// A one-time VACUUM is worth it: enough free space, a large enough share of the file, and
+/// room on the disk for the copy it writes.
+fn worth_converting(space: Space, disk_free: Option<u64>) -> bool {
+    space.free >= CONVERT_MIN_FREE
+        && space.free * CONVERT_MIN_SHARE >= space.size
+        && disk_free.is_some_and(|disk| disk >= space.size.saturating_mul(2))
+}
+
+/// Bytes available to the app on the disk holding `path`.
+#[cfg(unix)]
+fn disk_free(path: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let path = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut stats = std::mem::MaybeUninit::<libc::statvfs>::zeroed();
+    // SAFETY: a valid C string and a buffer statvfs fills on success.
+    if unsafe { libc::statvfs(path.as_ptr(), stats.as_mut_ptr()) } != 0 {
+        return None;
+    }
+    let stats = unsafe { stats.assume_init() };
+    #[allow(clippy::unnecessary_cast)]
+    Some((stats.f_bavail as u64).saturating_mul(stats.f_frsize as u64))
+}
+
+#[cfg(not(unix))]
+fn disk_free(_path: &Path) -> Option<u64> {
+    None
+}
+
+/// A database made before ADR-143 has `auto_vacuum = NONE`: its free pages never leave the
+/// file. When they are worth it, one `VACUUM` at open (before anything is read) rewrites it
+/// with incremental vacuum on; the new mode is the record that it ran. Best effort.
+fn convert_to_incremental(conn: &Connection, state_path: &Path) {
+    if auto_vacuum(conn) != Some(0) {
+        return;
+    }
+    let Ok(before) = space(conn) else {
+        return;
+    };
+    let folder = state_path.parent().unwrap_or(Path::new("."));
+    if !worth_converting(before, disk_free(folder)) {
+        return;
+    }
+    let started = std::time::Instant::now();
+    match conn.execute_batch("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;") {
+        Ok(()) => {
+            let after = space(conn).map(|space| space.size).unwrap_or(before.size);
+            tracing::info!(
+                freed = before.size.saturating_sub(after),
+                size = after,
+                ms = started.elapsed().as_millis() as u64,
+                "database converted to incremental vacuum"
+            );
+        }
+        Err(error) => tracing::warn!(%error, "database vacuum skipped"),
+    }
+}
+
+/// Gives back up to [`RECLAIM_PAGES`] free pages; the file shrinks at the next checkpoint.
+fn reclaim(db: &mut Db) {
+    if !db.incremental {
+        return;
+    }
+    db.reclaimed = Some(std::time::Instant::now());
+    let free = db
+        .conn
+        .query_row("PRAGMA freelist_count", [], |row| row.get::<_, i64>(0))
+        .unwrap_or(0);
+    if free > 0 {
+        // Each step frees one page: run the statement to its end.
+        let pass = |conn: &Connection| -> rusqlite::Result<()> {
+            let mut statement =
+                conn.prepare(&format!("PRAGMA incremental_vacuum({RECLAIM_PAGES})"))?;
+            let mut rows = statement.query([])?;
+            while rows.next()?.is_some() {}
+            Ok(())
+        };
+        if let Err(error) = pass(&db.conn) {
+            tracing::debug!(%error, "incremental vacuum skipped");
+        }
+    }
+}
+
+/// After a save, on the saving thread: at most every [`RECLAIM_EVERY`].
+fn reclaim_when_due(db: &mut Db) {
+    if db
+        .reclaimed
+        .is_none_or(|last| last.elapsed() >= RECLAIM_EVERY)
+    {
+        reclaim(db);
+    }
 }
 
 /// One numbered migration: SQL, or code that needs the state file's location.
@@ -675,6 +817,7 @@ fn write_with(
             }
         }
         db.generation = generation;
+        reclaim_when_due(db);
         Ok(Outcome { wrote: true, stale })
     })
 }
@@ -908,4 +1051,145 @@ pub fn message_count(state_path: &Path, session_id: &str) -> Result<usize> {
             .map(|count| count as usize)
             .map_err(sql)
     })
+}
+
+#[cfg(test)]
+mod reclaim_tests {
+    use super::*;
+
+    const MIB: u64 = 1024 * 1024;
+
+    fn fill(conn: &Connection, mebibytes: u64) {
+        conn.execute_batch("CREATE TABLE IF NOT EXISTS filler (data BLOB NOT NULL)")
+            .unwrap();
+        for _ in 0..mebibytes {
+            conn.execute("INSERT INTO filler (data) VALUES (randomblob(1048576))", [])
+                .unwrap();
+        }
+    }
+
+    fn file_size(state_path: &Path) -> u64 {
+        std::fs::metadata(db_path(state_path)).unwrap().len()
+    }
+
+    /// A database as the app made it before ADR-143: `auto_vacuum = NONE`, with `free`
+    /// MiB of deleted rows among `kept` MiB of live ones.
+    fn old_database(state_path: &Path, kept: u64, free: u64) {
+        let conn = Connection::open(db_path(state_path)).unwrap();
+        conn.execute_batch("PRAGMA auto_vacuum = NONE; PRAGMA journal_mode = WAL;")
+            .unwrap();
+        fill(&conn, kept);
+        conn.execute_batch("CREATE TABLE gone (data BLOB NOT NULL)")
+            .unwrap();
+        for _ in 0..free {
+            conn.execute("INSERT INTO gone (data) VALUES (randomblob(1048576))", [])
+                .unwrap();
+        }
+        conn.execute_batch("DELETE FROM gone; PRAGMA wal_checkpoint(TRUNCATE);")
+            .unwrap();
+        assert_eq!(auto_vacuum(&conn), Some(0));
+    }
+
+    #[test]
+    fn a_new_database_gives_deleted_rows_back_to_the_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_path = dir.path().join("state.json");
+        open(&state_path).unwrap();
+        let before = with_db(&state_path, |db| {
+            assert!(db.incremental);
+            fill(&db.conn, 8);
+            db.conn
+                .execute_batch("DELETE FROM filler; PRAGMA wal_checkpoint(TRUNCATE);")
+                .unwrap();
+            space(&db.conn)
+        })
+        .unwrap();
+        assert!(before.free >= 8 * MIB);
+        let size_before = file_size(&state_path);
+        // One pass gives back 256 pages; a few passes empty the free list.
+        let after = with_db(&state_path, |db| {
+            for _ in 0..9 {
+                reclaim(db);
+            }
+            db.conn
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .unwrap();
+            space(&db.conn)
+        })
+        .unwrap();
+        assert_eq!(after.free, 0);
+        assert!(file_size(&state_path) + 7 * MIB < size_before);
+        forget(&state_path);
+    }
+
+    #[test]
+    fn a_save_reclaims_at_most_every_thirty_seconds() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_path = dir.path().join("state.json");
+        open(&state_path).unwrap();
+        with_db(&state_path, |db| {
+            fill(&db.conn, 4);
+            db.conn.execute_batch("DELETE FROM filler").unwrap();
+            let free = space(&db.conn)?.free;
+            reclaim_when_due(db);
+            let once = space(&db.conn)?.free;
+            assert!(once < free, "the first save after opening reclaims");
+            reclaim_when_due(db);
+            assert_eq!(space(&db.conn)?.free, once, "the next one waits");
+            Ok(())
+        })
+        .unwrap();
+        forget(&state_path);
+    }
+
+    #[test]
+    fn an_old_database_converts_once_its_free_space_is_worth_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_path = dir.path().join("state.json");
+        old_database(&state_path, 4, 20);
+        let size_before = file_size(&state_path);
+        open(&state_path).unwrap();
+        let after = with_db(&state_path, |db| {
+            assert!(db.incremental);
+            db.conn
+                .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+                .unwrap();
+            space(&db.conn)
+        })
+        .unwrap();
+        assert_eq!(after.free, 0);
+        assert!(file_size(&state_path) + 19 * MIB < size_before);
+        forget(&state_path);
+    }
+
+    #[test]
+    fn an_old_database_with_little_free_space_stays_as_it_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let state_path = dir.path().join("state.json");
+        old_database(&state_path, 1, 4);
+        open(&state_path).unwrap();
+        with_db(&state_path, |db| {
+            assert!(!db.incremental);
+            // The schema's tables took a few of the free pages.
+            assert!(space(&db.conn)?.free >= 3 * MIB);
+            Ok(())
+        })
+        .unwrap();
+        forget(&state_path);
+    }
+
+    #[test]
+    fn conversion_needs_enough_free_space_share_and_disk() {
+        let space = |size, free| Space { size, free };
+        let disk = Some(u64::MAX);
+        assert!(worth_converting(space(64 * MIB, 16 * MIB), disk));
+        assert!(!worth_converting(space(64 * MIB, 15 * MIB), disk));
+        assert!(!worth_converting(space(100 * MIB, 20 * MIB), disk));
+        assert!(!worth_converting(
+            space(64 * MIB, 32 * MIB),
+            Some(127 * MIB)
+        ));
+        assert!(worth_converting(space(64 * MIB, 32 * MIB), Some(128 * MIB)));
+        assert!(!worth_converting(space(64 * MIB, 32 * MIB), None));
+    }
 }

@@ -26,6 +26,8 @@ async fn bounded<R: AsyncRead + Unpin>(reader: R, limit: usize) -> io::Result<Ve
 pub async fn capture(binary: &str, args: &[&str], duration: Duration) -> io::Result<Output> {
     let mut command = crate::detect::command(binary);
     command.args(args);
+    // Catalog and version probes are the app's own background work (ADR-143).
+    crate::process_priority::lower_async(&mut command);
     capture_command(command, duration).await
 }
 
@@ -106,6 +108,7 @@ pub async fn request(
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
+    crate::process_priority::lower_async(&mut command);
     let mut child = command.spawn()?;
     let mut stdin = child.stdin.take().expect("piped stdin");
     let mut stdout = BufReader::new(

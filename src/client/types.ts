@@ -659,6 +659,8 @@ export interface ProbeResult {
 }
 
 export interface ProviderAccount { id: string; provider: AgentProviderId; label: string }
+/** How a session continues on another account: its native transcript copied, a handoff recap, or (no native session yet) only the account changed. */
+export interface AccountMove { outcome: "carried" | "summary" | "switched"; session: Session }
 
 export interface ProviderUpdate {
   provider: AgentProviderId;
@@ -1307,3 +1309,34 @@ export interface UsageHistory {
   problems: { provider: AgentProviderId; message: string }[];
   generatedAt: number;
 }
+
+/** What a running agent's processes cost the Mac (`agent_resources`, ADR-144). */
+export type ResourceProcessKind = "agent" | "shell" | "runtime" | "build" | "package" | "git" | "browser" | "tool";
+export interface ResourceProcess {
+  pid: number;
+  /** Kernel start time, passed back on Stop so a reused pid is never signalled. */
+  started: number;
+  /** Executable basename only; command lines are never read. */
+  name: string;
+  kind: ResourceProcessKind;
+  cpuPercent: number;
+  memoryBytes: number;
+}
+export interface SessionResources {
+  sessionId: string;
+  cpuPercent: number;
+  memoryBytes: number;
+  processCount: number;
+  /** The agent first, then the busiest processes (at most 40). */
+  processes: ResourceProcess[];
+}
+export type MemoryPressure = "normal" | "warning" | "critical";
+export interface ResourceSnapshot {
+  sessions: SessionResources[];
+  cpuPercent: number;
+  memoryBytes: number;
+  cores: number;
+  memoryTotal: number | null;
+  memoryPressure: MemoryPressure | null;
+}
+export type ResourceAction = { type: "stopProcess"; sessionId: string; pid: number; started: number };

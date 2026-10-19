@@ -129,6 +129,46 @@ impl Default for UsageState {
     }
 }
 impl UsageState {
+    /// Whether this account's last usage read named its signed-in identity; `None` before any
+    /// read (or after a sign-in invalidated it).
+    pub(crate) fn signed_in(&self, provider: &AgentProviderId, id: &str) -> Option<bool> {
+        self.cache
+            .lock()
+            .get(&(provider.clone(), id.into()))
+            .map(|cached| {
+                cached
+                    .value
+                    .account
+                    .as_ref()
+                    .is_some_and(|account| account.email.is_some())
+            })
+    }
+    /// Test fixture: a cached read for an account, signed in when `email` is set.
+    #[cfg(test)]
+    pub(crate) fn remember_account(
+        &self,
+        provider: AgentProviderId,
+        id: &str,
+        email: Option<&str>,
+    ) {
+        let mut value = ProviderUsage::unavailable(provider.clone(), "fixture");
+        value.provider_account_id = id.into();
+        value.account = Some(UsageAccount {
+            email: email.map(str::to_owned),
+            name: None,
+            plan: None,
+            key_fingerprint: None,
+        });
+        self.cache.lock().insert(
+            (provider, id.into()),
+            CachedUsage {
+                value,
+                executable: None,
+                fetched: Instant::now(),
+                auth_stamp: None,
+            },
+        );
+    }
     pub(crate) fn invalidate(&self, provider: &AgentProviderId, id: &str) {
         let mut versions = self.profile_versions.lock();
         let version = versions.entry((provider.clone(), id.into())).or_default();

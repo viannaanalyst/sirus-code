@@ -277,6 +277,13 @@ const strings: Record<string, [string, string]> = {
   "usageLimit.dismiss": ["Dismiss the usage limit notice", "Dispensar o aviso de limite de uso"],
   "usageLimit.at": ["at {time}", "às {time}"],
   "usageLimit.on": ["on {day} at {time}", "em {day} às {time}"],
+  "usageLimit.otherAccount": ["Continue on another account", "Continuar em outra conta"],
+  "usageLimit.otherAccountHint": ["Move this conversation to another signed-in account and continue where it stopped", "Levar esta conversa para outra conta conectada e continuar de onde parou"],
+  "usageLimit.otherAccountTitle": ["Continue this conversation on", "Continuar esta conversa em"],
+  "usageLimit.remaining": ["{percent}% left", "{percent}% restante"],
+  "usageLimit.noQuota": ["No quota left", "Sem cota restante"],
+  "usageLimit.quotaUnknown": ["Quota unknown", "Cota desconhecida"],
+  "usageLimit.moving": ["Moving the conversation…", "Levando a conversa…"],
 };
 export const splitEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const splitPortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));

@@ -19,6 +19,7 @@ import { snoozeEnglish, snoozePortuguese } from "./snooze-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
 import { teamEnglish, teamPortuguese } from "./team-strings";
 import { sidebarUsageEnglish, sidebarUsagePortuguese } from "./sidebar-usage-strings";
+import { resourcesEnglish, resourcesPortuguese } from "./resources-strings";
 import { sidebarListEnglish, sidebarListPortuguese } from "./sidebar-list-strings";
 import { usageEnglish, usagePortuguese } from "./usage-strings";
 import { scheduledEnglish, scheduledPortuguese } from "./scheduled-strings";
@@ -69,6 +70,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...timelinePortuguese,
     ...teamPortuguese,
     ...sidebarUsagePortuguese,
+    ...resourcesPortuguese,
     ...sidebarListPortuguese,
     ...usagePortuguese,
     ...scheduledPortuguese,
@@ -159,6 +161,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...timelineEnglish,
     ...teamEnglish,
     ...sidebarUsageEnglish,
+    ...resourcesEnglish,
     ...sidebarListEnglish,
     ...usageEnglish,
     ...scheduledEnglish,

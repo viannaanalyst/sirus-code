@@ -229,6 +229,7 @@ pub async fn start(
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
+    crate::process_priority::lower_async(&mut command);
     let child = command
         .spawn()
         .map_err(|_| Error::agent(format!("Cannot start {} ACP", name(&provider))))?;

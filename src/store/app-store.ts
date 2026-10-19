@@ -187,6 +187,12 @@ interface AppStore {
   dismissUsageLimit: (sessionId: string) => void;
   /** Sends the continue turn now; a queue paused by the limit follows once it succeeds. */
   resumeAfterUsageLimit: (sessionId: string) => Promise<boolean>;
+  /**
+   * Moves a usage-limited session to another signed-in account of its provider (native copies
+   * the transcript, or arms a handoff recap) and then sends the continue turn. Throws when the
+   * move fails, so the picker can show why; a failed send lands in `error` like Resume.
+   */
+  continueOnAccount: (sessionId: string, accountId: string) => Promise<import("@/client/types").AccountMove["outcome"]>;
   /** Sends text into the running reply instead of the queue (Codex/Claude, ADR-062). */
   steerTurn: (sessionId: string, text: string) => Promise<boolean>;
   /** When the stream did not say when the limit resets, asks the provider's usage report. */
@@ -783,6 +789,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
     } finally {
       resumingAfterLimit.delete(sessionId);
     }
+  },
+  continueOnAccount: async (sessionId, accountId) => {
+    const session = get().sessions.find((item) => item.id === sessionId);
+    if (!session?.usageLimit || activeSession(session) || resumingAfterLimit.has(sessionId)) throw new Error("This conversation is busy; try again in a moment.");
+    get().armUsageResume(sessionId, false);
+    const moved = await client.moveSessionAccount(sessionId, accountId);
+    const next = moved.session;
+    // The usage limit stays until the continue turn clears it, so Resume can still send it.
+    set((state) => ({
+      sessions: state.sessions.map((item) => item.id === sessionId ? { ...item, providerAccountId: next.providerAccountId, accountBindings: next.accountBindings, forkOrigin: next.forkOrigin, nativeThread: next.nativeThread, handoff: next.handoff, lastActivityAt: next.lastActivityAt } : item),
+      usageLimitResets: Object.fromEntries(Object.entries(state.usageLimitResets).filter(([id]) => id !== sessionId)),
+    }));
+    await get().resumeAfterUsageLimit(sessionId);
+    return moved.outcome;
   },
   steerTurn: async (sessionId, text) => {
     try {

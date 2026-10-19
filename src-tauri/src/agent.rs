@@ -292,6 +292,7 @@ pub async fn start(
     .kill_on_drop(true);
     #[cfg(unix)]
     cmd.process_group(0);
+    crate::process_priority::lower_async(&mut cmd);
     let child = cmd
         .spawn()
         .map_err(|err| Error::agent(format!("failed to start agent: {err}")))?;
@@ -409,9 +410,8 @@ impl StartedAgent {
         let _ = self.child.wait().await;
     }
     pub fn monitor(mut self, app: AppHandle, state: Arc<AppState>, session_id: String) {
-        // Every provider's turn passes here: agents yield CPU to the UI and the Mac
-        // stays awake until the turn's monitor ends (ADR-100).
-        crate::process_tree::lower_priority(self.child.id());
+        // Every provider's turn passes here: the Mac stays awake until the turn's
+        // monitor ends (ADR-100). Agents already started lowered (ADR-143).
         let awake = crate::keep_awake::hold();
         if let Some(run) = self.codex.take() {
             crate::codex::monitor(self, run, app, state, session_id, awake);

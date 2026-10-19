@@ -60,6 +60,8 @@ fn git_command(cwd: &Path) -> Command {
             "--literal-pathspecs",
         ])
         .current_dir(cwd);
+    // Status polling, diff stats and the automatic pull run below the person (ADR-143).
+    crate::process_priority::lower_in_background(&mut command);
     command
 }
 

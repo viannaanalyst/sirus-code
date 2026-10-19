@@ -38,7 +38,7 @@ function NoticeCard({ notice }: { notice: ActivityNotification }) {
     return () => window.clearTimeout(timer);
   }, [notice]);
   return <motion.div layout className="activity-notice" data-kind={notice.kind}
-    initial={{ opacity: 0, y: -14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98, transition: { duration: 0.18 } }}
+    initial={{ opacity: 0, y: -14, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, x: 40, transition: { duration: 0.18 } }}
     transition={{ type: "spring", stiffness: 420, damping: 30 }}>
     <button type="button" className="activity-notice-open" aria-label={`${notice.title}. ${notice.body}. ${t(notice.kind === "pullRequest" ? "Open pull request" : "Open session")}`} onClick={() => openSession(notice)}>
       <span className="activity-notice-app" aria-hidden="true"><img src="/sirus-glyph.png" alt="" draggable={false} /><span className="activity-notice-badge">{badge[notice.kind]}</span></span>

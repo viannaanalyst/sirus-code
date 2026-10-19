@@ -42,6 +42,9 @@ pub enum Status {
     Watching,
     /// Stopped by the loop itself; the person can watch again.
     Stopped,
+    /// Stopped by the person or the agent. Never shown or read again: it only remembers
+    /// what was told, so watching the same PR again does not repeat it.
+    Ended,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -503,11 +506,15 @@ pub async fn set(
     if !watching {
         let removed = {
             let mut data = state.data.lock();
-            let index = data
-                .pr_watches
-                .iter()
-                .position(|item| item.session_id == session_id);
-            index.map(|index| data.pr_watches.remove(index))
+            data.pr_watches
+                .iter_mut()
+                .find(|item| item.session_id == session_id && item.status != Status::Ended)
+                .map(|item| {
+                    item.status = Status::Ended;
+                    item.reason = None;
+                    item.updated_at = now();
+                    item.clone()
+                })
         };
         state.persist()?;
         changed(app);
@@ -556,9 +563,10 @@ pub async fn set(
             .find(|item| item.session_id == session_id)
             .cloned();
         if let Some(item) = existing
+            .as_ref()
             .filter(|item| item.pull_request == pr.number && item.status == Status::Watching)
         {
-            return Ok(item);
+            return Ok(item.clone());
         }
         let active = data
             .pr_watches
@@ -573,27 +581,30 @@ pub async fn set(
                 ),
             ));
         }
-        let fresh = PrWatch {
-            session_id: session_id.into(),
-            repository,
-            pull_request: pr.number,
-            url: pr.url.clone(),
-            base_branch: pr.base_branch.clone(),
-            origin,
-            status: Status::Watching,
-            reason: None,
-            detail: None,
-            started_at: now(),
-            checked_at: None,
-            head: None,
-            failed_checks: vec![],
-            conflicting: false,
-            seen: vec![],
-            wakes: 0,
-            last_events: vec![],
-            last_wake_at: None,
-            updated_at: now(),
-        };
+        let fresh = resumed(
+            existing.as_ref(),
+            PrWatch {
+                session_id: session_id.into(),
+                repository,
+                pull_request: pr.number,
+                url: pr.url.clone(),
+                base_branch: pr.base_branch.clone(),
+                origin,
+                status: Status::Watching,
+                reason: None,
+                detail: None,
+                started_at: now(),
+                checked_at: None,
+                head: None,
+                failed_checks: vec![],
+                conflicting: false,
+                seen: vec![],
+                wakes: 0,
+                last_events: vec![],
+                last_wake_at: None,
+                updated_at: now(),
+            },
+        );
         data.pr_watches.retain(|item| item.session_id != session_id);
         data.pr_watches.push(fresh.clone());
         prune(&mut data);
@@ -603,6 +614,21 @@ pub async fn set(
     changed(app);
     wake();
     Ok(watch)
+}
+
+/// A new watch of the PR an earlier watch of this session followed starts from what that
+/// one told: failing checks on the same head and a conflict are not told again. Reviews
+/// are new only after the new start; the wake budget starts over.
+fn resumed(previous: Option<&PrWatch>, mut fresh: PrWatch) -> PrWatch {
+    if let Some(previous) = previous.filter(|previous| {
+        previous.repository == fresh.repository && previous.pull_request == fresh.pull_request
+    }) {
+        fresh.head = previous.head.clone();
+        fresh.failed_checks = previous.failed_checks.clone();
+        fresh.conflicting = previous.conflicting;
+        fresh.seen = previous.seen.clone();
+    }
+    fresh
 }
 
 /// Starts the single PR watch timer; it idles while nothing is watched.
@@ -761,11 +787,12 @@ async fn round(app: &AppHandle, state: &Arc<AppState>, watch: &PrWatch) -> Resul
         .then(|| prompt(&next, &pr.head, &changes, exhausted, portuguese(state)));
     {
         let mut data = state.data.lock();
-        if let Some(item) = data
-            .pr_watches
-            .iter_mut()
-            .find(|item| item.session_id == watch.session_id)
-        {
+        // A watch ended meanwhile stays ended.
+        if let Some(item) = data.pr_watches.iter_mut().find(|item| {
+            item.session_id == watch.session_id
+                && item.pull_request == watch.pull_request
+                && item.status == Status::Watching
+        }) {
             *item = next.clone();
         }
     }
@@ -797,7 +824,7 @@ async fn round(app: &AppHandle, state: &Arc<AppState>, watch: &PrWatch) -> Resul
             if let Some(item) = data
                 .pr_watches
                 .iter_mut()
-                .find(|item| item.session_id == watch.session_id)
+                .find(|item| item.session_id == watch.session_id && item.status != Status::Ended)
             {
                 item.status = Status::Stopped;
                 item.reason = Some(Reason::SendFailed);
@@ -899,7 +926,14 @@ pub async fn pr_watch_action(
             Err(error) => return Err(error),
         }
     }
-    let watches = state.data.lock().pr_watches.clone();
+    let watches = state
+        .data
+        .lock()
+        .pr_watches
+        .iter()
+        .filter(|item| item.status != Status::Ended)
+        .cloned()
+        .collect();
     Ok(watches)
 }
 
@@ -957,6 +991,38 @@ mod tests {
             reviews: vec![],
             viewer: Some("me".into()),
         }
+    }
+
+    #[test]
+    fn watching_the_same_pr_again_does_not_repeat_what_was_told() {
+        let mut current = pr("a");
+        current.mergeable = Mergeable::Conflicting;
+        current.checks = vec![Check {
+            name: "build".into(),
+            failed: true,
+        }];
+        let (changes, mut told, _) = evaluate(&watch(), &current, true);
+        assert_eq!(changes.len(), 2);
+        told.status = Status::Ended;
+        let mut fresh = watch();
+        fresh.started_at = "2026-10-08T12:00:00+00:00".into();
+        let again = resumed(Some(&told), fresh.clone());
+        assert_eq!(again.wakes, 0);
+        assert!(evaluate(&again, &current, true).0.is_empty());
+        // A new failure or a new head is still news.
+        current.checks.push(Check {
+            name: "test".into(),
+            failed: true,
+        });
+        assert_eq!(
+            evaluate(&again, &current, true).0,
+            vec![Change::ChecksFailed(vec!["test".into()])]
+        );
+        // Another PR starts from nothing.
+        let mut other = fresh;
+        other.pull_request = 8;
+        let other = resumed(Some(&told), other);
+        assert!(other.head.is_none() && !other.conflicting && other.failed_checks.is_empty());
     }
 
     #[test]

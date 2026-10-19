@@ -484,6 +484,11 @@ export class SirusClient {
     return this.transport.invoke<number>("local_server_action", { action: { type: "stop", sessionId, url } });
   }
 
+  /** Moves a stopped Claude or Codex session to another signed-in account of its provider (ADR-063 amendment). */
+  moveSessionAccount(sessionId: string, accountId: string) {
+    return this.transport.invoke<import("./types").AccountMove>("move_session_account", { request: { sessionId, accountId } });
+  }
+
   dismissHandoff(sessionId: string) {
     return this.transport.invoke<Session>("dismiss_handoff", { sessionId });
   }
@@ -659,6 +664,15 @@ export class SirusClient {
 
   stopAgent(sessionId: string) {
     return this.transport.invoke<void>("stop_agent", { sessionId });
+  }
+
+  /** Running sessions' process trees with CPU and memory; asked only while the panel needs it (ADR-144). */
+  agentResources() {
+    return this.transport.invoke<import("./types").ResourceSnapshot>("agent_resources");
+  }
+
+  agentResourceAction(action: import("./types").ResourceAction) {
+    return this.transport.invoke<void>("agent_resource_action", { action });
   }
 
   startTerminal(sessionId: string, terminalId: string, cols: number, rows: number) {

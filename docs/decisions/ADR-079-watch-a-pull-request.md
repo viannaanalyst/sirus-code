@@ -57,3 +57,7 @@ A session can watch its own pull request. This is the fourth exception to "turns
 - **Extending CI auto-fix in place.** Rejected: auto-fix is global and commits and pushes by itself. A review or a conflict needs judgement, so the watch only describes what happened and lets the agent act.
 - **Watching conversation comments too.** Rejected for now: bots that post to the conversation would spend the wake budget. The five-wake limit would still cover it if it is added later.
 - **A per-tool-call PR number.** Rejected: an argument-free tool bound to the session token cannot be pointed at someone else's PR.
+
+## Amendment (2026-10-19): watching again does not repeat news
+
+Stopping a watch (the switch, Dismiss or `unwatch_pull_request`) now keeps its record as `status: "ended"`, hidden from `pr_watch_action` and never read by the timer. Watching the same PR again starts from what the last watch of that session told (head, failing checks on it, conflict, told review IDs), so failing checks and a conflict already reported are not told twice; a new failure, a new head or a new review is still news, and the wake budget starts over. A round that finishes after the watch ended leaves it ended. Forks never inherited watches: a watch belongs to its session id, and `fork_session` copies none.

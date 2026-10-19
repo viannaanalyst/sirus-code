@@ -3,6 +3,7 @@ import { ProjectGlyph, projectColor } from "@/components/ProjectGlyph";
 import { useEffect, useMemo } from "react";
 import { Settings } from "@/components/icons/phosphor";
 import { SidebarUsageRings } from "@/components/SidebarUsageRings";
+import { AgentResources } from "@/components/AgentResources";
 import { RailGlyph, SidebarRailMore } from "@/components/SidebarRailMore";
 import { RAIL_LABELS, visibleRail } from "@/lib/rail";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
@@ -60,6 +61,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
           <ProjectGlyph project={project} size={20} fallback={<span aria-hidden="true" className="sidebar-rail-avatar" style={project.look?.color ? { color: projectColor(project.look) } : undefined}>{project.name.trim().charAt(0).toUpperCase() || "?"}</span>} />
         </button>)}
         <SidebarRailMore onOpen={() => undefined} />
+        <AgentResources placement="rail" />
         <SidebarUsageRings />
         <button type="button" className="sidebar-rail-button" data-section="settings" aria-label={t("Settings")} title={t("Settings")}
           onClick={() => useAppStore.getState().setSettingsOpen(true)}>

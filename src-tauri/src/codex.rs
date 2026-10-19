@@ -290,6 +290,7 @@ pub async fn start(
         .kill_on_drop(true);
     #[cfg(unix)]
     cmd.process_group(0);
+    crate::process_priority::lower_async(&mut cmd);
     let child = cmd
         .spawn()
         .map_err(|_| Error::agent("Cannot start Codex app-server"))?;
@@ -611,6 +612,7 @@ async fn execute(
     let mut last_text_item: Option<String> = None;
     // Usage-limit refusal and the latest exhausted window's reset (`account/rateLimits/updated`).
     let mut usage_limited = false;
+    let mut context_full = false;
     let mut exhausted_reset: Option<i64> = None;
     let mut file_changes: HashMap<String, Value> = HashMap::new();
     let mut file_change_bytes = 0;
@@ -837,6 +839,7 @@ async fn execute(
             }
             "error" if params["turnId"] == turn_id => {
                 usage_limited |= is_usage_limit(&params["error"]);
+                context_full |= is_context_window_full(&params["error"]);
             }
             "thread/tokenUsage/updated" => {
                 if let Some(usage) = context_usage(params) {
@@ -847,6 +850,10 @@ async fn execute(
                 return match params["turn"]["status"].as_str() {
                     Some("completed") => Ok(false),
                     Some("interrupted") => Ok(true),
+                    // A full context window is never a usage limit: no reset will fix it.
+                    _ if context_full || is_context_window_full(&params["turn"]["error"]) => {
+                        Err(Error::new("context_window", CONTEXT_WINDOW_FULL))
+                    }
                     _ if usage_limited || is_usage_limit(&params["turn"]["error"]) => {
                         emit(Event::UsageLimit(exhausted_reset))?;
                         Err(Error::new("usage_limit", "Usage limit reached."))
@@ -864,6 +871,18 @@ fn is_usage_limit(error: &Value) -> bool {
     match &error["codexErrorInfo"] {
         Value::String(kind) => kind == "usageLimitExceeded",
         Value::Object(kinds) => kinds.contains_key("usageLimitExceeded"),
+        _ => false,
+    }
+}
+
+/// The turn error shown when the conversation no longer fits the model's context window.
+pub(crate) const CONTEXT_WINDOW_FULL: &str = "The conversation no longer fits the model's context window. Run /compact or start a new conversation.";
+
+/// Codex marks a prompt over the model's window with `codexErrorInfo: "contextWindowExceeded"`.
+fn is_context_window_full(error: &Value) -> bool {
+    match &error["codexErrorInfo"] {
+        Value::String(kind) => kind == "contextWindowExceeded",
+        Value::Object(kinds) => kinds.contains_key("contextWindowExceeded"),
         _ => false,
     }
 }
@@ -1305,6 +1324,16 @@ mod tests {
         assert!(
             !is_usage_limit(&json!({"codexErrorInfo":"other"})) && !is_usage_limit(&Value::Null)
         );
+        // A full context window is its own failure, never a usage limit.
+        let overflow =
+            json!({"message":"context window exceeded","codexErrorInfo":"contextWindowExceeded"});
+        assert!(is_context_window_full(&overflow) && !is_usage_limit(&overflow));
+        assert!(is_context_window_full(
+            &json!({"codexErrorInfo":{"contextWindowExceeded":null}})
+        ));
+        assert!(!is_context_window_full(
+            &json!({"codexErrorInfo":"usageLimitExceeded"})
+        ));
         let snapshot = json!({"primary":{"usedPercent":100,"resetsAt":1790000000},"secondary":{"usedPercent":40,"resetsAt":1790500000}});
         assert_eq!(exhausted_window_reset(&snapshot), Some(1_790_000_000_000));
         assert_eq!(

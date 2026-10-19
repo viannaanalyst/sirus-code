@@ -42,3 +42,24 @@ test("a changed account discards an old quota response and queues the newly sele
     assert.equal(useAppStore.getState().usageByProvider.codex?.account?.email, "work@example.test");
   } finally { client.providerUsage = original; }
 });
+test("another account is offered at a usage limit only when it is signed in with quota left", async () => {
+  const { accountChoices } = await import("../src/lib/provider-accounts.ts");
+  const read = (id: string, used: number | null, email = true): ProviderUsage => ({ ...quota(id), account: email ? { email: `${id}@example.test`, name: null, plan: "Pro", keyFingerprint: null } : null, windows: used == null ? [] : [{ id: "five_hour", usedPercent: used, resetsAt: null, durationMinutes: 300 }, { id: "seven_day", usedPercent: 10, resetsAt: null, durationMinutes: 10080 }] });
+  const rows = [
+    { id: "spent", provider: "codex" as const, label: "Spent" },
+    { id: "work", provider: "codex" as const, label: "Work" },
+    { id: "unknown", provider: "codex" as const, label: "Unknown quota" },
+    { id: "signedOut", provider: "codex" as const, label: "Signed out" },
+    { id: "unread", provider: "codex" as const, label: "Not read yet" },
+    { id: "claude", provider: "claude" as const, label: "Claude" },
+  ];
+  const usage = { default: read("default", 40), spent: read("spent", 100), work: read("work", 99.6), unknown: read("unknown", null), signedOut: read("signedOut", 0, false) };
+  const choices = accountChoices("codex", "personal", rows, usage);
+  assert.deepEqual(choices.map((choice) => [choice.account.id, choice.eligible, choice.remaining]), [
+    ["default", true, 60], ["work", true, 1], ["unknown", true, null],
+    ["signedOut", false, 90], ["spent", false, 0], ["unread", false, null],
+  ]);
+  assert.equal(choices[0].plan, "Pro");
+  // The account in use is never offered; another provider's accounts never appear.
+  assert.ok(!accountChoices("codex", "default", rows, usage).some((choice) => choice.account.id === "default" || choice.account.id === "claude"));
+});

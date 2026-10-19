@@ -9,11 +9,13 @@ use std::sync::Arc;
 #[cfg(feature = "desktop")]
 use tauri::Manager;
 
+mod account_move;
 mod acp_cli;
 mod activity;
 mod agent;
 mod agent_output;
 mod agent_pool;
+mod agent_resources;
 #[cfg(feature = "desktop")]
 mod app_update;
 mod appearance;
@@ -71,6 +73,7 @@ mod opencode;
 mod paths;
 mod persist;
 mod pr_watch;
+mod process_priority;
 mod process_tree;
 mod project_look;
 mod project_scripts;
@@ -316,6 +319,8 @@ pub fn run() {
             ci_autofix::ci_autofix_action,
             pr_watch::pr_watch_action,
             local_servers::local_server_action,
+            agent_resources::agent_resources,
+            agent_resources::agent_resource_action,
             devices::device_action,
             tasks::task_action,
             scheduled_tasks::scheduled_task_action,
@@ -456,6 +461,7 @@ pub fn run() {
             commands::probe_provider,
             commands::list_provider_models,
             commands::set_session_model,
+            account_move::move_session_account,
             pick_folder,
             attachments::pick_prompt_attachments,
             attachments::capture_prompt_window,

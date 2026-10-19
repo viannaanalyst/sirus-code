@@ -34,9 +34,9 @@ export function ProviderUpdateToast() {
         <motion.div
           key="provider-update-toast"
           className="w-full"
-          initial={{ opacity: 0, y: 16, scale: 0.96 }}
+          initial={{ opacity: 0, y: -14, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 8, scale: 0.98 }}
+          exit={{ opacity: 0, x: 40 }}
           transition={{ duration: motionTokens.fast, ease: motionTokens.ease }}
         >
       <div className="floating-material rounded-[12px] border border-border-default bg-background-1 p-3 shadow-[var(--shadow-float)]">

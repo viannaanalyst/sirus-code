@@ -124,9 +124,10 @@ pub fn start(app: AppHandle) {
             };
             for (path, busy) in projects {
                 let shown = path.clone();
-                let result =
-                    tokio::task::spawn_blocking(move || pull_checkout(Path::new(&path), busy))
-                        .await;
+                let result = tokio::task::spawn_blocking(move || {
+                    crate::process_priority::background(|| pull_checkout(Path::new(&path), busy))
+                })
+                .await;
                 match result {
                     Ok(Ok(true)) => tracing::info!(path = %shown, "pulled the default branch"),
                     Ok(Err(error)) => {

@@ -166,6 +166,7 @@ pub async fn start(
         .kill_on_drop(true);
     #[cfg(unix)]
     command.process_group(0);
+    crate::process_priority::lower_async(&mut command);
     let child = command
         .spawn()
         .map_err(|_| Error::agent("Cannot start Claude native protocol"))?;
@@ -1054,11 +1055,11 @@ async fn run_turn(
                     return Ok(true);
                 }
                 if value["is_error"] == true || value["subtype"] != "success" {
-                    if usage_limit.is_some() || usage_limit_text(&value) {
-                        emit(Event::UsageLimit(usage_limit.flatten()))?;
-                        return Err(Error::new("usage_limit", "Usage limit reached."));
+                    let (limit, error) = failed_result(&value, usage_limit);
+                    if let Some(resets_at) = limit {
+                        emit(Event::UsageLimit(resets_at))?;
                     }
-                    return Err(Error::agent("Claude turn failed; see CLI diagnostics"));
+                    return Err(error);
                 }
                 // Background subagents still run in this process: keep it, and read the
                 // follow-up turns the CLI runs as they report (ADR-097).
@@ -1116,6 +1117,48 @@ fn refused_until(info: &Value) -> Option<Option<i64>> {
         && info["isUsingOverage"] != true
         && info["rateLimitType"] != "overage")
         .then(|| epoch_ms(&info["resetsAt"]))
+}
+
+/// How a failed `result` ends the turn: the usage limit to report (with its reset, when
+/// known) and the error. A full context window is never a usage limit, even when the CLI
+/// ends it with `terminal_reason: "blocking_limit"` or a rate-limit event came before it:
+/// no reset fixes it, so it fails with advice to compact instead of arming a resume.
+fn failed_result(value: &Value, usage_limit: Option<Option<i64>>) -> (Option<Option<i64>>, Error) {
+    if context_window_full(value) {
+        return (
+            None,
+            Error::new("context_window", crate::codex::CONTEXT_WINDOW_FULL),
+        );
+    }
+    if usage_limit.is_some() || usage_limit_text(value) {
+        return (
+            Some(usage_limit.flatten()),
+            Error::new("usage_limit", "Usage limit reached."),
+        );
+    }
+    (
+        None,
+        Error::agent("Claude turn failed; see CLI diagnostics"),
+    )
+}
+
+/// A `result` that failed because the prompt no longer fits the model's context window:
+/// the CLI's `prompt_too_long` reason, or its "Prompt is too long" text (also the API's
+/// 400 `invalid_request_error` wording, "prompt is too long: N tokens > M maximum").
+fn context_window_full(value: &Value) -> bool {
+    let full = |text: &str| {
+        let text = text.to_ascii_lowercase();
+        text.contains("prompt is too long")
+            || text.contains("context window")
+            || text.contains("context length")
+            || text.contains("context_length_exceeded")
+            || text.contains("exceed context limit")
+    };
+    value["terminal_reason"] == "prompt_too_long"
+        || value["result"].as_str().is_some_and(full)
+        || value["errors"]
+            .as_array()
+            .is_some_and(|errors| errors.iter().filter_map(Value::as_str).any(full))
 }
 
 /// Claude also ends a limited turn with the limit as its error text.
@@ -1296,6 +1339,65 @@ mod tests {
             None
         );
         assert_eq!(refused_until(&json!({"status":"allowed"})), None);
+        let limited = json!({"type":"result","subtype":"success","is_error":true,"result":"You've hit your limit · resets 3pm","terminal_reason":"blocking_limit"});
+        let (limit, error) = failed_result(&limited, None);
+        assert_eq!(limit, Some(None));
+        assert!(matches!(
+            error,
+            Error::App {
+                code: "usage_limit",
+                ..
+            }
+        ));
+        let (limit, error) = failed_result(
+            &json!({"is_error":true,"result":"Tool failed"}),
+            Some(Some(5)),
+        );
+        assert_eq!(
+            limit,
+            Some(Some(5)),
+            "a refusing rate-limit event is the limit"
+        );
+        assert!(matches!(
+            error,
+            Error::App {
+                code: "usage_limit",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn a_full_context_window_is_never_a_usage_limit() {
+        // The CLI's frame once the window is full (t3code #19832): `blocking_limit` with the
+        // context wording, after a rate-limit event that still allows requests.
+        let frames = [
+            json!({"type":"result","subtype":"success","is_error":true,"result":"Prompt is too long","terminal_reason":"blocking_limit","num_turns":189}),
+            json!({"type":"result","subtype":"error_during_execution","is_error":true,"errors":["prompt is too long: 213456 tokens > 200000 maximum"],"api_error_status":400}),
+            json!({"type":"result","subtype":"success","is_error":true,"result":"API Error: 400 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"input length and `max_tokens` exceed context limit\"}}"}),
+            json!({"type":"result","subtype":"success","is_error":true,"result":"","terminal_reason":"prompt_too_long"}),
+        ];
+        for frame in frames {
+            // Even a rejected window seen earlier does not turn it into a limit.
+            for usage_limit in [None, Some(None), Some(Some(1_790_000_000_000))] {
+                let (limit, error) = failed_result(&frame, usage_limit);
+                assert_eq!(limit, None, "{frame}");
+                match error {
+                    Error::App { code, message } => {
+                        assert_eq!(code, "context_window");
+                        assert!(message.contains("/compact"));
+                    }
+                    other => panic!("unexpected {other}"),
+                }
+            }
+        }
+        // A blocking_limit without context wording or limit evidence stays a plain failure.
+        let (limit, error) = failed_result(
+            &json!({"is_error":true,"result":"Something broke","terminal_reason":"blocking_limit"}),
+            None,
+        );
+        assert_eq!(limit, None);
+        assert!(matches!(error, Error::App { code: "agent", .. }));
         assert_eq!(epoch_ms(&json!(1790000000)), Some(1_790_000_000_000));
         assert_eq!(epoch_ms(&json!(1790000000123_i64)), Some(1_790_000_000_123));
         assert_eq!(

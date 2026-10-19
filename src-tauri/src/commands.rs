@@ -583,19 +583,22 @@ pub async fn project_diff_stats(state: State<'_, Arc<AppState>>) -> Result<Vec<P
         .iter()
         .map(|project| (project.id.clone(), project.path.clone()))
         .collect();
+    // Polled for the sidebar: the app's own background Git (ADR-143).
     native_task(move || {
-        Ok(projects
-            .into_iter()
-            .filter_map(|(project_id, path)| {
-                let canonical = paths::ensure_dir(&PathBuf::from(path)).ok()?;
-                let (additions, deletions) = git::diff_totals(&canonical).ok()?;
-                Some(ProjectDiff {
-                    project_id,
-                    additions,
-                    deletions,
+        crate::process_priority::background(|| {
+            Ok(projects
+                .into_iter()
+                .filter_map(|(project_id, path)| {
+                    let canonical = paths::ensure_dir(&PathBuf::from(path)).ok()?;
+                    let (additions, deletions) = git::diff_totals(&canonical).ok()?;
+                    Some(ProjectDiff {
+                        project_id,
+                        additions,
+                        deletions,
+                    })
                 })
-            })
-            .collect())
+                .collect())
+        })
     })
     .await
 }
@@ -603,7 +606,11 @@ pub async fn project_diff_stats(state: State<'_, Arc<AppState>>) -> Result<Vec<P
 #[cfg_attr(feature = "desktop", tauri::command)]
 pub async fn git_status(state: State<'_, Arc<AppState>>, session_id: String) -> Result<GitStatus> {
     let state = state.inner().clone();
-    native_task(move || git::status(&session_path(&state, &session_id)?)).await
+    // Refreshed after every change and on focus: polling, so it runs below the person.
+    native_task(move || {
+        crate::process_priority::background(|| git::status(&session_path(&state, &session_id)?))
+    })
+    .await
 }
 
 #[cfg_attr(feature = "desktop", tauri::command)]

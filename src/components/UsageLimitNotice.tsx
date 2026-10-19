@@ -4,6 +4,7 @@ import { Clock3, Gauge, Play, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { resetDistance, RESUME_GRACE_MS } from "@/lib/usage-limit";
+import { UsageLimitAccountPicker } from "@/components/UsageLimitAccountPicker";
 import { useAppStore, usageResumeActive } from "@/store/app-store";
 import "@/styles/context-meter.css";
 
@@ -45,6 +46,7 @@ export function UsageLimitNotice({ session }: { session: Session }) {
     <Gauge size={15} aria-hidden="true" className="usage-limit-icon shrink-0" />
     <span className="shrink-0 ui-control text-text-primary">{t("usageLimit.title")}</span>
     <span role="status" className="min-w-0 flex-1 truncate ui-caption text-text-muted">{when()}</span>
+    <UsageLimitAccountPicker session={session} disabled={running} />
     {waiting ? <button type="button" aria-pressed={armed} disabled={running} title={t(armed ? "usageLimit.cancelArmed" : "usageLimit.armHint")} className={cn("usage-limit-action ui-caption", armed && "usage-limit-armed")} onClick={() => store.armUsageResume(session.id, !armed)}>
       <Clock3 size={13} aria-hidden="true" />{t(armed ? "usageLimit.armed" : "usageLimit.resumeAtReset")}
     </button> : <button type="button" disabled={running} title={t("usageLimit.resumeHint")} className="usage-limit-action ui-caption" onClick={() => void store.resumeAfterUsageLimit(session.id)}>

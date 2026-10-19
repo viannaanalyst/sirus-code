@@ -1,4 +1,4 @@
-//! Agent process trees and their CPU priority (ADR-100).
+//! Agent process trees (ADR-100).
 //!
 //! Each agent CLI runs in its own process group, and stopping it signals that
 //! group. Some descendants leave the group (Claude background shells, MCP
@@ -7,12 +7,9 @@
 //! before, sends SIGTERM to every escaped descendant and SIGKILLs the survivors
 //! after a short grace. Only processes that descend from the agent are touched.
 //!
-//! Agent CLIs also run at a lower priority (`AGENT_NICE`) so the UI stays smooth
-//! when several agents build and test at once. Terminals the person types in are
-//! spawned elsewhere and keep the normal priority.
+//! Agent CLIs start at a lower priority from `process_priority` (ADR-143), set before
+//! exec so nothing they start escapes it.
 
-/// Nice increment for agent CLIs and everything they start.
-pub const AGENT_NICE: i32 = 5;
 /// Time escaped descendants get to exit after SIGTERM.
 #[cfg(unix)]
 const GRACE: std::time::Duration = std::time::Duration::from_millis(1500);
@@ -218,37 +215,6 @@ pub fn finish_pending() {
     unix::finish_pending();
 }
 
-/// Lowers an agent's CPU priority right after it is spawned; its children
-/// inherit it. Never fails the turn: priority is only a courtesy to the UI.
-pub fn lower_priority(pid: Option<u32>) {
-    #[cfg(unix)]
-    if let Some(pid) = pid.filter(|pid| *pid > 1) {
-        unsafe {
-            // getpriority can legitimately return -1; clear errno to tell.
-            *errno_location() = 0;
-            let current = libc::getpriority(libc::PRIO_PROCESS, pid as libc::id_t);
-            if current == -1 && *errno_location() != 0 {
-                return;
-            }
-            let target = (current + AGENT_NICE).min(20);
-            if target > current {
-                libc::setpriority(libc::PRIO_PROCESS, pid as libc::id_t, target);
-            }
-        }
-    }
-    #[cfg(not(unix))]
-    let _ = pid;
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn errno_location() -> *mut i32 {
-    libc::__error()
-}
-#[cfg(all(unix, not(target_os = "macos")))]
-unsafe fn errno_location() -> *mut i32 {
-    libc::__errno_location()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,20 +331,5 @@ mod tests {
         );
         let _ = unrelated.kill();
         let _ = unrelated.wait();
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn lowered_priority_applies_to_the_child() {
-        let mut child = std::process::Command::new("/bin/sleep")
-            .arg("5")
-            .spawn()
-            .unwrap();
-        let before = unsafe { libc::getpriority(libc::PRIO_PROCESS, child.id() as libc::id_t) };
-        lower_priority(Some(child.id()));
-        let after = unsafe { libc::getpriority(libc::PRIO_PROCESS, child.id() as libc::id_t) };
-        assert_eq!(after, (before + AGENT_NICE).min(20));
-        let _ = child.kill();
-        let _ = child.wait();
     }
 }
