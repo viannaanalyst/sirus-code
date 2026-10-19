@@ -54,17 +54,14 @@
   /* Pointing at the folder trades the numbers for its New conversation button, which sits in their place. */
   .conversation-folder:is(:hover, :focus-within) .conversation-folder-diff { opacity: 0; }
   .conversation-folder-diff + .conversation-folder-end { margin-left: 8px; }
-  .conversation-folder-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  /* Pointing at the folder trades its end (numbers, dot) for New conversation. */
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-end { opacity: 0; }
   .conversation-folder-end > .conversation-folder-dot { position: absolute; transition: opacity var(--motion-fast) var(--ease-out); }
   /* A closed folder with a status shows the dot; pointing at it brings the chevron back. */
-  .conversation-folder-end:has(.conversation-folder-dot) .conversation-folder-chevron { opacity: 0; }
-  .conversation-folder:is(:hover, :focus-within) .conversation-folder-end .conversation-folder-chevron { opacity: 1; }
-  .conversation-folder:is(:hover, :focus-within) .conversation-folder-dot { opacity: 0; }
-  .conversation-folder[data-open] .conversation-folder-chevron { rotate: 90deg; }
   .conversation-folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conversation-group-new { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out); }
   /* New conversation shows on hover just before the chevron, which stays at the end. */
-  .conversation-folder > .conversation-group-new { position: absolute; right: 28px; top: 50%; translate: 0 -50%; }
+  .conversation-folder > .conversation-group-new { position: absolute; right: 6px; top: 50%; translate: 0 -50%; }
   .conversation-folder:is(:hover, :focus-within) .conversation-group-new { opacity: 1; }
   .conversation-folder:is(:hover, :focus-within) .conversation-folder-name { margin-right: 24px; }
   .conversation-group-new:hover { background: var(--navigation-hover); color: var(--text-primary); }
@@ -161,6 +158,6 @@
   @media (prefers-reduced-motion: reduce) {
     :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
     [data-radix-popper-content-wrapper]:has(> .conversation-hover-card) { transition: none; }
-    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-group-new, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-folder-chevron, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
+    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-group-new, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
   }
 }

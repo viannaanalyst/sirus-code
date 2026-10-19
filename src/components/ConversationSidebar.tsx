@@ -359,7 +359,7 @@ function statusDotOf(status: TabStatus, active: boolean): "running" | "waiting" 
   return status === "running" || status === "waiting" ? status : status === "done" && !active ? "unread" : null;
 }
 
-/** By project: one folder per project, its chevron (or, closed, its status dot) at the end; open, its conversations follow it, indented. */
+/** By project: one folder per project (the row opens and closes it; closed, its status dot at the end); open, its conversations follow it, indented. */
 const FolderRow = memo(function FolderRow({ project, count, status, open, onToggle }: { project: Project; count: number; status: TabStatus; open: boolean; onToggle: (projectId: string) => void }) {
   const t = useTranslation();
   const dot = statusDotOf(status, false);
@@ -374,10 +374,8 @@ const FolderRow = memo(function FolderRow({ project, count, status, open, onTogg
         <span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span>
       </span> : null}
       {/* Closed, the most urgent state takes the chevron's place; open, the rows show their own. */}
-      <span className="conversation-folder-end">
-        <ChevronRight size={12} aria-hidden="true" className="conversation-folder-chevron" />
-        {dot && !open ? <span className="header-tab-status conversation-folder-dot" data-status={dot} aria-hidden="true" /> : null}
-      </span>
+      {/* No chevron: the whole row opens and closes the folder. Closed, its most urgent state shows at the end. */}
+      {dot && !open ? <span className="conversation-folder-end"><span className="header-tab-status conversation-folder-dot" data-status={dot} aria-hidden="true" /></span> : null}
     </button>
     <button type="button" className="conversation-group-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => void sidebarProjectAction(project.id, "new")}><SquarePen size={13} aria-hidden="true" /></button>
   </div>;
