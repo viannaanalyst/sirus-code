@@ -6,7 +6,6 @@ const strings: Record<string, [string, string]> = {
   "sidebarList.recent": ["Recent", "Recentes"],
   "sidebarList.byProject": ["By project", "Por projeto"],
   "sidebarList.empty": ["Conversations you start will show up here", "As conversas que você começar aparecem aqui"],
-  "sidebarList.resize": ["Resize the conversation list", "Redimensionar a lista de conversas"],
   "sidebarList.pulls": ["PRs", "PRs"],
   "sidebarList.newConversation": ["New conversation", "Nova conversa"],
   "sidebarList.unread": ["Unread", "Não lida"],

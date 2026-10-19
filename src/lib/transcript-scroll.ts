@@ -49,8 +49,33 @@ export function messageSizeStyle(message: { content: string; role: string; strea
   return style;
 }
 
-/** How long after a new turn layout-driven scrolls cannot stop following. */
-export const HOLD_AFTER_TURN_MS = 1500;
+/**
+ * How long after the reader's last gesture (wheel step, key, touch, press) a scroll still counts
+ * as theirs: trackpad momentum keeps sending wheel events, and a key's smooth step is shorter.
+ */
+export const GESTURE_WINDOW_MS = 500;
+/** How far from the end a reader's scroll up must go before following stops. */
+const RELEASE_DISTANCE = 48;
+
+export type ScrollVerdict = "keep" | "release" | "resume" | "repin";
+
+/**
+ * What a scroll event means for following. `moved` is the change since the last position seen,
+ * `distance` how far the viewport now is from the end, `gesture` whether the reader is scrolling
+ * (a recent wheel, key, touch or a held pointer).
+ *
+ * While following, only the reader's own move up and away releases it. Every other move comes from
+ * layout (the end shrinking or the viewport growing clamps the position up, and streamed text then
+ * grows before the event arrives), so it re-pins the end instead. Following resumes once the reader
+ * is back at the very end moving down.
+ */
+export function scrollVerdict({ following, moved, distance, gesture }: { following: boolean; moved: number; distance: number; gesture: boolean }): ScrollVerdict {
+  if (following) {
+    if (!gesture) return distance > 1 ? "repin" : "keep";
+    return moved < 0 && distance >= RELEASE_DISTANCE ? "release" : "keep";
+  }
+  return moved > 0 && distance < 4 ? "resume" : "keep";
+}
 
 /**
  * Keep the latest turn at the top until it fills the viewport, then follow its end.
@@ -69,19 +94,21 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
   let anchor: { node: HTMLElement; offset: number } | null = null;
   // Last scroll position seen, to tell the reader's direction from layout changes.
   let lastTop = 0;
-  // Just after a new turn the page itself moves (a phone's keyboard closing, the composer
-  // shrinking): until then only a gesture (`interact`) releases following, not a scroll event.
-  let holdUntil = 0;
+  // When the reader last touched the transcript, and whether a pointer is held on it
+  // (dragging a selection scrolls with no further events).
+  let gestureAt = Number.NEGATIVE_INFINITY;
+  let pressed = false;
   const readPadding = () => {
     const style = getComputedStyle(viewport);
     padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
     return padding;
   };
+  const pin = () => { viewport.scrollTop = viewport.scrollHeight; lastTop = viewport.scrollTop; };
   const layout = () => {
     frame = 0;
     const next = Math.max(0, viewport.clientHeight - (padding ?? readPadding()));
     if (next !== reserve) { reserve = next; tail.style.minHeight = `${next}px`; }
-    if (following) { viewport.scrollTop = viewport.scrollHeight; lastTop = viewport.scrollTop; }
+    if (following) pin();
   };
   // Rows are the grandchildren of `content` (turn groups hold messages and their markers).
   const rowList = () => {
@@ -105,7 +132,8 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
     rows = null;
     if (entries.some(entry => entry.target === viewport)) padding = undefined;
     // Layout already ran but nothing is painted yet: correct now so the move is never seen.
-    if (!following && anchor && !captureFrame) {
+    if (following) pin();
+    else if (anchor && !captureFrame) {
       if (anchor.node.isConnected) {
         const after = anchor.node.getBoundingClientRect().top - viewport.getBoundingClientRect().top;
         const next = anchoredScrollTop(viewport.scrollTop, anchor.offset, after);
@@ -118,7 +146,8 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
   observer.observe(content);
   return {
     update(messageId: string | undefined) {
-      if (latest !== messageId) { latest = messageId; following = true; jumped = false; anchor = null; holdUntil = performance.now() + HOLD_AFTER_TURN_MS; changed(true); }
+      // A new turn follows again; gestures made before it do not carry over.
+      if (latest !== messageId) { latest = messageId; following = true; jumped = false; anchor = null; gestureAt = Number.NEGATIVE_INFINITY; changed(true); }
       layout();
     },
     scroll() {
@@ -128,28 +157,29 @@ export function createTranscriptScroll(viewport: HTMLElement, content: HTMLEleme
       lastTop = top;
       if (jumped || !moved) return;
       const distance = viewport.scrollHeight - top - viewport.clientHeight;
-      // Following stops only when the reader moves up and away from the end, and resumes
-      // only once they are back at the very end moving down: a small reversal while
-      // reading, or content shrinking under the reader, never flips it.
-      if (following && moved < 0 && distance >= 48) {
-        if (performance.now() < holdUntil) { if (!frame) frame = requestAnimationFrame(layout); return; }
-        following = false; changed(false);
+      const gesture = pressed || performance.now() - gestureAt < GESTURE_WINDOW_MS;
+      switch (scrollVerdict({ following, moved, distance, gesture })) {
+        case "release": following = false; changed(false); break;
+        case "resume": following = true; anchor = null; changed(true); break;
+        case "repin": pin(); break;
+        case "keep": break;
       }
-      else if (!following && moved > 0 && distance < 4) { following = true; anchor = null; changed(true); }
     },
     /** Before a programmatic jump: stop following; the anchor is taken where the jump lands. */
     detach() { jumped = true; following = false; anchor = null; scheduleCapture(); changed(false); },
     /**
      * The reader touched the transcript. A wheel or trackpad step up releases following at
      * once, so the next streamed frame cannot snap them back; a step without vertical
-     * direction (sideways, the end of a momentum swipe) changes nothing.
+     * direction (sideways, the end of a momentum swipe) changes nothing, but scrolls that
+     * follow it shortly count as the reader's.
      */
     interact(deltaY?: number) {
       jumped = false;
-      // The reader is touching the transcript: scrolls are theirs again.
-      holdUntil = 0;
+      gestureAt = performance.now();
       if (deltaY !== undefined && deltaY < 0 && following) { following = false; anchor = null; scheduleCapture(); changed(false); }
     },
+    /** A pointer is pressed on the transcript (true) or released anywhere (false). */
+    hold(down: boolean) { pressed = down; if (!down) gestureAt = performance.now(); },
     follow() { jumped = false; following = true; anchor = null; changed(true); layout(); },
     dispose() { observer.disconnect(); cancelAnimationFrame(frame); cancelAnimationFrame(captureFrame); },
   };

@@ -11,7 +11,7 @@ import { ArchiveConfirm } from "@/components/SidebarRows";
 import { RailGlyph } from "@/components/SidebarRailMore";
 import { SnoozePicker } from "@/components/SnoozePicker";
 import { useTranslation } from "@/i18n/use-translation";
-import { conversationListItems, conversationOrderSettings, conversationSortKeys, CONVERSATION_LIST_MAX_WIDTH, CONVERSATION_LIST_MIN_WIDTH, expandOpenFolder, itemOffsets, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, type ConversationListSettings, type ConversationTimeGroup } from "@/lib/conversation-list";
+import { conversationListItems, conversationOrderSettings, conversationSortKeys, expandOpenFolder, itemOffsets, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, type ConversationListSettings, type ConversationTimeGroup } from "@/lib/conversation-list";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { tabStatus, type TabStatus } from "@/lib/header-tabs";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
@@ -28,7 +28,6 @@ import { leafShowing, splitLeaves, SPLIT_MAX_PANES } from "@/lib/split-layout";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { IconButton } from "@/primitives/IconButton";
-import { ResizeHandle } from "@/primitives/ResizablePanel";
 import { ShortcutHint } from "@/primitives/ShortcutHint";
 import { scheduleProjectDiffs, selectListedSessions, useAppStore } from "@/store/app-store";
 import "@/styles/sidebar.css";
@@ -136,9 +135,6 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
       <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" data-section="settings" aria-label={t("Settings")} title={t("Settings")} onClick={() => store().setSettingsOpen(true)}>
         <Settings size={17} />
       </button>
-    </div>
-    <div className="conversation-sidebar-resize">
-      <ResizeHandle value={width} min={CONVERSATION_LIST_MIN_WIDTH} max={CONVERSATION_LIST_MAX_WIDTH} label={t("sidebarList.resize")} onResize={delta => store().resizeSidebar(delta)} />
     </div>
   </aside>;
 }

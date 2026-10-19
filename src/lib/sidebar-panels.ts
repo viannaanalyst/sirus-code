@@ -3,8 +3,8 @@ import type { AppSettings, Project, Session, PullRequest } from "@/client/types"
 import { sidebarGroups } from "./sidebar-layout";
 
 export const SIDEBAR_RAIL_WIDTH = 52;
-/** Default width of the conversation list column (ADR-139; `CONVERSATION_LIST_WIDTH`). */
-export const SIDEBAR_MIN_WIDTH = 280;
+/** Width of the conversation list column (ADR-139; fixed, as `CONVERSATION_LIST_WIDTH`). */
+export const SIDEBAR_MIN_WIDTH = 256;
 export const SIDEBAR_SECTIONS = ["home", "archived"] as const;
 export type SidebarSection = typeof SIDEBAR_SECTIONS[number];
 export interface SidebarPanelState { section: SidebarSection; peek: SidebarSection | null; revision: number; }

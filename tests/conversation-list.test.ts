@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Project, Session } from "../src/client/types.ts";
 import { mergeSettings } from "../src/lib/settings.ts";
-import { clampConversationListWidth, conversationListItems, conversationSortKeys, conversationTimeGroup, expandOpenFolder, folderStatus, isColumnSidebar, itemOffsets, listedConversations, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, CONVERSATION_LIST_MAX_WIDTH, FOLDER_PREVIEW, CONVERSATION_LIST_MIN_WIDTH, SIDEBAR_OPEN_FOLDERS_LIMIT, type ConversationListItem } from "../src/lib/conversation-list.ts";
+import { clampConversationListWidth, conversationListItems, conversationSortKeys, conversationTimeGroup, expandOpenFolder, folderStatus, isColumnSidebar, itemOffsets, listedConversations, offsetWindow, openFolderIds, projectConversationItems, projectStripOrder, toggleOpenFolder, CONVERSATION_LIST_WIDTH, FOLDER_PREVIEW, SIDEBAR_OPEN_FOLDERS_LIMIT, type ConversationListItem } from "../src/lib/conversation-list.ts";
 
 const project = (id: string): Project => ({ id, name: id, path: `/fixture/${id}`, addedAt: "time", lastOpenedAt: "time" });
 const projects = [project("a"), project("b")];
@@ -180,8 +180,8 @@ test("item offsets and the viewport window handle two row heights", () => {
   assert.ok(range.start === 488 && range.end === 523, JSON.stringify(range));
 });
 
-test("the column width stays within its bounds", () => {
-  assert.equal(clampConversationListWidth(100), CONVERSATION_LIST_MIN_WIDTH);
-  assert.equal(clampConversationListWidth(9000), CONVERSATION_LIST_MAX_WIDTH);
-  assert.equal(clampConversationListWidth(300.4), 300);
+test("the column has one fixed width", () => {
+  assert.equal(clampConversationListWidth(100), CONVERSATION_LIST_WIDTH);
+  assert.equal(clampConversationListWidth(9000), CONVERSATION_LIST_WIDTH);
+  assert.equal(CONVERSATION_LIST_WIDTH, 256);
 });

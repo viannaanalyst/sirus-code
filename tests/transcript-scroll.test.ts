@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HOLD_AFTER_TURN_MS, anchoredScrollTop, createTranscriptScroll, estimateMessageHeight, firstVisibleRow, messageSizeStyle } from "../src/lib/transcript-scroll.ts";
+import { GESTURE_WINDOW_MS, anchoredScrollTop, createTranscriptScroll, estimateMessageHeight, firstVisibleRow, messageSizeStyle, scrollVerdict } from "../src/lib/transcript-scroll.ts";
 
 test("the anchor is the first row still visible below the viewport top", () => {
   const bottoms = [100, 260, 420, 600];
@@ -151,33 +151,111 @@ test("following changes only on the reader's own direction", () => {
   }
 });
 
-test("just after a new turn, only a gesture stops following, not the page moving", () => {
+test("only the reader's own scroll up stops following", () => {
+  // Layout moving the position (the end shrinking, the viewport growing, text streamed in
+  // before the event arrives) re-pins the end, however far it left it.
+  assert.equal(scrollVerdict({ following: true, moved: -60, distance: 300, gesture: false }), "repin");
+  assert.equal(scrollVerdict({ following: true, moved: 40, distance: 120, gesture: false }), "repin");
+  assert.equal(scrollVerdict({ following: true, moved: -2, distance: 0, gesture: false }), "keep");
+  // The reader moving up and away releases it; a small step up or down does not.
+  assert.equal(scrollVerdict({ following: true, moved: -60, distance: 60, gesture: true }), "release");
+  assert.equal(scrollVerdict({ following: true, moved: -20, distance: 20, gesture: true }), "keep");
+  assert.equal(scrollVerdict({ following: true, moved: 30, distance: 200, gesture: true }), "keep");
+  // Back at the very end moving down resumes it, whoever moved.
+  assert.equal(scrollVerdict({ following: false, moved: 10, distance: 2, gesture: false }), "resume");
+  assert.equal(scrollVerdict({ following: false, moved: 10, distance: 40, gesture: true }), "keep");
+  assert.equal(scrollVerdict({ following: false, moved: -10, distance: 2, gesture: true }), "keep");
+});
+
+test("while streaming, layout never stops following and growth stays pinned", () => {
   const original = { resize: globalThis.ResizeObserver, request: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame, style: globalThis.getComputedStyle, now: performance.now };
-  globalThis.ResizeObserver = class { observe() {} disconnect() {} } as unknown as typeof ResizeObserver;
+  let resized: (entries: { target: unknown }[]) => void = () => {};
+  globalThis.ResizeObserver = class { constructor(callback: (entries: { target: unknown }[]) => void) { resized = callback; } observe() {} disconnect() {} } as unknown as typeof ResizeObserver;
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = () => {};
   globalThis.getComputedStyle = () => ({ paddingTop: "0px", paddingBottom: "0px" }) as CSSStyleDeclaration;
   let now = 1000;
   performance.now = () => now;
   try {
+    let scrollHeight = 2000, clientHeight = 300, scrollTop = 0;
+    // Like a browser, the position is clamped to the end.
+    const viewport = {
+      get scrollTop() { return scrollTop; }, set scrollTop(value: number) { scrollTop = Math.max(0, Math.min(value, scrollHeight - clientHeight)); },
+      get scrollHeight() { return scrollHeight; }, get clientHeight() { return clientHeight; },
+      getBoundingClientRect: () => ({ top: 0 }),
+    } as unknown as HTMLElement;
+    const tail = { style: { minHeight: "" } } as unknown as HTMLElement;
+    const following: boolean[] = [];
+    const controller = createTranscriptScroll(viewport, { children: [] } as unknown as HTMLElement, tail, value => following.push(value));
+    controller.update("sent");
+    assert.equal(scrollTop, 1700);
+    now += 5000;
+    // Streamed text grows the content: the end is pinned in the same frame, before paint.
+    scrollHeight = 2400;
+    resized([{ target: {} }]);
+    assert.equal(scrollTop, 2100);
+    // The pill above the composer goes away: the viewport grows and the position is clamped up;
+    // a long Markdown block streams in before the scroll event arrives.
+    clientHeight = 360;
+    viewport.scrollTop = scrollTop;
+    scrollHeight = 2600;
+    controller.scroll();
+    assert.equal(following.at(-1), true, "a layout move is not the reader's");
+    assert.equal(scrollTop, 2240, "and the end is pinned again at once");
+    // The reader's wheel step then scrolls up: that releases it.
+    controller.interact(0);
+    viewport.scrollTop = 2000;
+    controller.scroll();
+    assert.equal(following.at(-1), false);
+    controller.follow();
+    assert.equal(scrollTop, 2240);
+    // Once the gesture is old, layout moves are layout again.
+    now += GESTURE_WINDOW_MS + 1;
+    viewport.scrollTop = 1900;
+    controller.scroll();
+    assert.equal(following.at(-1), true);
+    assert.equal(scrollTop, 2240);
+    // A held pointer (dragging a selection past the top) is the reader's for as long as it is held.
+    controller.hold(true);
+    now += GESTURE_WINDOW_MS * 4;
+    viewport.scrollTop = 1900;
+    controller.scroll();
+    assert.equal(following.at(-1), false);
+    controller.hold(false);
+    controller.dispose();
+  } finally {
+    globalThis.ResizeObserver = original.resize;
+    globalThis.requestAnimationFrame = original.request;
+    globalThis.cancelAnimationFrame = original.cancel;
+    globalThis.getComputedStyle = original.style;
+    performance.now = original.now;
+  }
+});
+
+test("just after a new turn, only a gesture stops following, not the page moving", () => {
+  const original = { resize: globalThis.ResizeObserver, request: globalThis.requestAnimationFrame, cancel: globalThis.cancelAnimationFrame, style: globalThis.getComputedStyle, now: performance.now };
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} } as unknown as typeof ResizeObserver;
+  globalThis.requestAnimationFrame = () => 1;
+  globalThis.cancelAnimationFrame = () => {};
+  globalThis.getComputedStyle = () => ({ paddingTop: "0px", paddingBottom: "0px" }) as CSSStyleDeclaration;
+  const now = 1000;
+  performance.now = () => now;
+  try {
     const viewport = { scrollTop: 0, clientHeight: 300, scrollHeight: 2000, getBoundingClientRect: () => ({ top: 0 }) } as unknown as HTMLElement;
     const tail = { style: { minHeight: "" } } as unknown as HTMLElement;
     const following: boolean[] = [];
     const controller = createTranscriptScroll(viewport, { children: [] } as unknown as HTMLElement, tail, value => following.push(value));
+    // A gesture made just before sending does not count for the new turn.
+    controller.interact(0);
     controller.update("sent");
     assert.equal(viewport.scrollTop, 2000);
     // The keyboard closes and the composer shrinks: the page scrolls up by itself.
     viewport.scrollTop = 1400;
     controller.scroll();
     assert.equal(following.at(-1), true);
+    assert.equal(viewport.scrollTop, 2000, "the end is pinned again");
     // A finger moving the content down is the reader's own: following stops at once.
     controller.interact(-20);
-    assert.equal(following.at(-1), false);
-    // Later, the same layout-free move up is the reader's and stops following again.
-    controller.follow();
-    now += HOLD_AFTER_TURN_MS + 1;
-    viewport.scrollTop = 1400;
-    controller.scroll();
     assert.equal(following.at(-1), false);
     controller.dispose();
   } finally {

@@ -1,5 +1,10 @@
 @layer components {
-  .split-root { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; }
+  .split-root { position: relative; display: flex; min-width: 0; min-height: 0; flex: 1; transition: padding-right var(--motion-normal) var(--ease-out); }
+  /* The open Environment card (288 px plus its 12 px inset) takes the right edge: the conversation
+     gives up only the width it needs to clear the card, so a wide window keeps the text in place. */
+  [data-environment="open"] > .split-root { --environment-clearance: 312px; padding-right: clamp(0px, calc(var(--chat-column-width) + 2 * var(--environment-clearance) - 100%), var(--environment-clearance)); }
+  @media (prefers-reduced-motion: reduce) { .split-root { transition: none; } }
+  html:is([data-animations="off"], [data-reduce-motion="on"]) .split-root { transition: none; }
   .split-root-multi { margin: 0 4px 4px; }
   .split-pane { position: absolute; display: flex; min-width: 0; min-height: 0; transition: left var(--motion-normal) var(--ease-out), top var(--motion-normal) var(--ease-out), width var(--motion-normal) var(--ease-out), height var(--motion-normal) var(--ease-out); }
   .split-root-multi .split-pane { padding: 4px; }

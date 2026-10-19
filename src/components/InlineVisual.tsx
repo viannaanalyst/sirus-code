@@ -84,7 +84,11 @@ function VisualFrame({ html, title }: { html: string; title: string }) {
       const message = readVisualMessage(event.data);
       if (!message) return;
       if (message.type === "height") setHeight(clampVisualHeight(message.height));
-      else if (message.type === "wheel") scrollParent(element)?.scrollBy({ left: 0, top: message.dy });
+      else if (message.type === "wheel") {
+        // Tell the transcript this scroll is the reader's (an untrusted wheel event never scrolls).
+        element.dispatchEvent(new WheelEvent("wheel", { deltaY: message.dy, bubbles: true }));
+        scrollParent(element)?.scrollBy({ left: 0, top: message.dy });
+      }
       else if (message.type === "link") {
         // Only after the person clicked into the visual, and never in a burst.
         const now = Date.now();

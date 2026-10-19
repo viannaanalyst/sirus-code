@@ -98,6 +98,7 @@ export default function App() {
   // The sidebar is the icon rail or a column: the conversation list or the Project style (ADR-139); ⌘B hides any.
   const listSidebar = useAppStore((state) => isColumnSidebar(state.settings.sidebarMode));
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
+  const environmentOpen = useAppStore((state) => state.environmentOpen);
   const listShown = listSidebar && !sidebarCollapsed;
   const dockWidth = useAppStore((state) => state.dockWidth);
   const dockOpen = useAppStore((state) => state.dockOpen);
@@ -306,8 +307,8 @@ export default function App() {
             </div>
           </header>
 
-          {/* The Environment card floats over the conversation; the text and composer never move (ADR-019). */}
-          <div className="relative flex min-h-0 flex-1" data-opening-part="main">
+          {/* The Environment card floats over the conversation; while it is open the conversation keeps clear of it (ADR-019). */}
+          <div className="relative flex min-h-0 flex-1" data-opening-part="main" data-environment={environmentOpen ? "open" : undefined}>
             {mainView === "session" ? <SplitWorkspace
               agents={agents}
               onSend={sendPrompt}

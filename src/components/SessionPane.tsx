@@ -185,7 +185,16 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
     const controller = createTranscriptScroll(viewport, content, tail, setFollowing);
     scrolling.current = controller;
     setFollowing(true);
-    return () => { controller.dispose(); scrolling.current = null; };
+    // A press can end outside the transcript (a selection dragged past its edge).
+    const release = () => controller.hold(false);
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+    return () => {
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
+      controller.dispose();
+      scrolling.current = null;
+    };
   }, [session?.id, empty]);
   // Turns mounted above keep the reader's place: the former first row returns to where it was,
   // before the follow/anchor logic runs, so the anchor it captured stays valid.
@@ -263,7 +272,10 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                   // A finger moving down drags the content down: reading up.
                   scrolling.current?.interact(y === undefined || start === null ? undefined : upwardIntent(event.currentTarget, event.target, { kind: "touch", deltaY: start - y }));
                 }}
-                onPointerDown={(event) => scrolling.current?.interact(upwardIntent(event.currentTarget, event.target, { kind: "pointer", clientX: event.clientX }))}
+                onPointerDown={(event) => {
+                  scrolling.current?.hold(true);
+                  scrolling.current?.interact(upwardIntent(event.currentTarget, event.target, { kind: "pointer", clientX: event.clientX }));
+                }}
                 onKeyDown={(event) => scrolling.current?.interact(upwardIntent(event.currentTarget, event.target, { kind: "key", key: event.key }))}
                 key={session.id}
                 initial={{ opacity: 0 }}

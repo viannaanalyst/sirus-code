@@ -119,7 +119,6 @@
   .conversation-strip-arrow:hover:not(:disabled) { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-strip-arrow:disabled { opacity: 0.35; }
 
-  .conversation-sidebar-resize { position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; display: flex; }
 
   /* The content frame starts after the column instead of the rail. */
   [data-rail="list"] > .app-content-frame { left: var(--sidebar-list-width, 280px); transition: none; }

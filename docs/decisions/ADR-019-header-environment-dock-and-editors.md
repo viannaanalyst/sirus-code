@@ -155,3 +155,7 @@ security reviews.
   boundary and the capability contract; all spawn and FS work stays in Rust.
 - Browser/iOS-simulator/side-chat panes: out of scope; the
   launcher deliberately starts with Terminal and Files only.
+
+## Amendment (2026-10-18): the conversation keeps clear of the open card
+
+On narrower windows the floating Environment card covered the end of the text. While the card is open, the conversation area (`.split-root`) now reserves only the room it needs on the right: `padding-right: clamp(0, column width + 2 × 312 px − area width, 312 px)`, eased in and out. A window wide enough to fit the centred 736 px column beside the card keeps the text exactly where it was; a narrower one moves the column left, and a very narrow one makes it narrower. The card itself still floats and still opens and closes the same way.

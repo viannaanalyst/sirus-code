@@ -35,13 +35,12 @@ export const SIDEBAR_OPEN_FOLDERS_LIMIT = 100;
 /** An open folder shows this many conversations until Show more. */
 export const FOLDER_PREVIEW = 5;
 
-/** Default, narrowest and widest list column (px); the column is resizable within these. */
-export const CONVERSATION_LIST_WIDTH = 280;
-export const CONVERSATION_LIST_MIN_WIDTH = 264;
-export const CONVERSATION_LIST_MAX_WIDTH = 420;
+/** The list and Project columns have one fixed width (px); they are not resizable. */
+export const CONVERSATION_LIST_WIDTH = 256;
 
 export function clampConversationListWidth(width: number): number {
-  return Math.min(CONVERSATION_LIST_MAX_WIDTH, Math.max(CONVERSATION_LIST_MIN_WIDTH, Math.round(width)));
+  void width;
+  return CONVERSATION_LIST_WIDTH;
 }
 
 /**
