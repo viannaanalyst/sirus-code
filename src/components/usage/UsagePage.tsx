@@ -133,23 +133,48 @@ function HistoryView({ summary, metric, range, locale }: { summary: UsageSummary
   </>;
 }
 
-/** Stacked bars per hour or day, one segment per provider; a hover names the bucket. */
+/**
+ * Stacked bars per hour or day, one segment per provider. Pointing at a bar (or focusing it
+ * from the keyboard) shows a card with the bucket, its total and each provider's part.
+ */
 function UsageBars({ summary, metric, locale }: { summary: UsageSummary; metric: "cost" | "tokens"; locale: string }) {
+  const t = useTranslation();
   const height = 150;
+  const [active, setActive] = useState<number | null>(null);
   const value = (bucket: UsageSummary["buckets"][number], provider: UsageProvider) => metric === "cost" ? bucket.values[provider].cost : bucket.values[provider].tokens;
   const sums = summary.buckets.map(bucket => summary.providers.reduce((sum, total) => sum + value(bucket, total.provider), 0));
   const max = Math.max(...sums, 0) || 1;
   const label = (at: number) => summary.bucket === "hour" ? new Date(at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : new Date(at).toLocaleDateString(locale, { day: "numeric", month: "short" });
+  const longLabel = (at: number) => summary.bucket === "hour"
+    ? `${new Date(at).toLocaleDateString(locale, { weekday: "short", day: "numeric", month: "short" })} · ${label(at)}–${label(at + 60 * 60 * 1000)}`
+    : new Date(at).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
   const format = (amount: number) => metric === "cost" ? formatUsd(amount, locale) : formatCompact(amount, locale);
   const ticks = [0, Math.floor((summary.buckets.length - 1) / 2), summary.buckets.length - 1];
-  return <div className="usage-bars">
-    <div className="usage-bars-plot" style={{ height }}>
-      {summary.buckets.map((bucket, index) => <div key={bucket.at} className="usage-bar" title={`${label(bucket.at)} · ${format(sums[index])}`}>
+  const shown = active == null ? null : summary.buckets[active];
+  // The card follows the bar and stays inside the plot at both ends.
+  const position = active == null ? 0 : (active + 0.5) / summary.buckets.length;
+  return <div className="usage-bars" onPointerLeave={() => setActive(null)}>
+    <div className="usage-bars-plot" style={{ height }} role="group" aria-label={t(metric === "cost" ? "usage.costPerBucket" : "usage.tokensPerBucket")}>
+      {summary.buckets.map((bucket, index) => <div key={bucket.at} className="usage-bar" data-active={active === index || undefined} tabIndex={0}
+        aria-label={`${longLabel(bucket.at)}: ${format(sums[index])}`}
+        onPointerEnter={() => setActive(index)} onFocus={() => setActive(index)} onBlur={() => setActive(current => current === index ? null : current)}>
         {summary.providers.map(total => {
           const amount = value(bucket, total.provider);
           return amount > 0 ? <span key={total.provider} style={{ height: `${(amount / max) * 100}%`, background: PROVIDER_COLOR[total.provider] }} /> : null;
         })}
       </div>)}
+      {shown ? <div className="usage-tip" role="tooltip" style={{ left: `clamp(110px, ${position * 100}%, calc(100% - 110px))` }}>
+        <p className="usage-tip-date">{longLabel(shown.at)}</p>
+        <p className="usage-tip-total tabular-nums">{format(sums[active!])}</p>
+        {summary.providers.map(total => {
+          const amount = value(shown, total.provider);
+          return <p key={total.provider} className="usage-tip-row" data-empty={amount <= 0 || undefined}>
+            <i style={{ background: PROVIDER_COLOR[total.provider] }} />
+            <span className="flex-1 truncate">{providerById(total.provider).name}</span>
+            <span className="tabular-nums">{format(amount)}</span>
+          </p>;
+        })}
+      </div> : null}
     </div>
     <div className="usage-bars-axis">{ticks.map(index => <span key={index}>{label(summary.buckets[index].at)}</span>)}</div>
   </div>;

@@ -22,11 +22,27 @@ const MAX_AGE_MS: i64 = 24 * 60 * 60 * 1000;
 const RETRY_MS: i64 = 15 * 60 * 1000;
 const MAX_BODY: usize = 16 << 20;
 const MAX_MODELS: usize = 500;
+/// The on-disk table's format; a copy written by an older format is downloaded again.
+/// 2: fast (priority) prices.
+const TABLE_VERSION: u32 = 2;
 
 /// USD per million tokens.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelPrice {
+    pub input: f64,
+    pub cache_read: f64,
+    pub cache_write: f64,
+    pub output: f64,
+    /// Prices in the fast (priority) service tier, when the table has them.
+    #[serde(default)]
+    pub fast: Option<FastPrice>,
+}
+
+/// USD per million tokens in the fast (priority) service tier.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FastPrice {
     pub input: f64,
     pub cache_read: f64,
     pub cache_write: f64,
@@ -45,6 +61,9 @@ pub struct UsagePrices {
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Table {
+    /// Missing in copies written before versions existed.
+    #[serde(default)]
+    version: u32,
     fetched_at: i64,
     rates: HashMap<String, ModelPrice>,
 }
@@ -101,11 +120,12 @@ async fn current_table(path: &Path) -> Option<Arc<Table>> {
     let fresh = loaded
         .table
         .as_ref()
-        .is_some_and(|table| now - table.fetched_at < MAX_AGE_MS);
+        .is_some_and(|table| is_fresh(table, now));
     if !fresh && now - loaded.failed_at >= RETRY_MS {
         match download().await {
             Some(rates) => {
                 let table = Arc::new(Table {
+                    version: TABLE_VERSION,
                     fetched_at: now,
                     rates,
                 });
@@ -116,6 +136,11 @@ async fn current_table(path: &Path) -> Option<Arc<Table>> {
         }
     }
     loaded.table.clone()
+}
+
+/// Downloaded less than a day ago in the current format.
+fn is_fresh(table: &Table, now: i64) -> bool {
+    table.version == TABLE_VERSION && now - table.fetched_at < MAX_AGE_MS
 }
 
 fn read_table(path: &Path) -> Option<Table> {
@@ -168,7 +193,9 @@ async fn download() -> Option<HashMap<String, ModelPrice>> {
 /// Every entry with both an input and an output price, by lower-case name; a name after a
 /// provider prefix (`openai/gpt-6-sol`) is also kept bare when it is unambiguous. A missing
 /// cache price falls back to the input price, so cached tokens are never counted as free.
-fn parse(document: &Value) -> HashMap<String, ModelPrice> {
+/// Fast prices come from the `_priority` fields, else from a `provider_specific_entry.fast`
+/// multiplier of the standard prices.
+pub(crate) fn parse(document: &Value) -> HashMap<String, ModelPrice> {
     let Some(entries) = document.as_object() else {
         return HashMap::new();
     };
@@ -191,14 +218,51 @@ fn parse(document: &Value) -> HashMap<String, ModelPrice> {
             continue;
         }
         let million = 1_000_000.0;
+        let cache_read = number(entry, "cache_read_input_token_cost").unwrap_or(input);
+        let cache_write = number(entry, "cache_creation_input_token_cost").unwrap_or(input);
+        let priority = match (
+            number(entry, "input_cost_per_token_priority"),
+            number(entry, "output_cost_per_token_priority"),
+        ) {
+            (Some(fast_input), Some(fast_output)) => {
+                // A missing cache price scales with the input price.
+                let ratio = if input > 0.0 {
+                    fast_input / input
+                } else if output > 0.0 {
+                    fast_output / output
+                } else {
+                    1.0
+                };
+                Some(FastPrice {
+                    input: fast_input * million,
+                    cache_read: number(entry, "cache_read_input_token_cost_priority")
+                        .unwrap_or(cache_read * ratio)
+                        * million,
+                    cache_write: number(entry, "cache_creation_input_token_cost_priority")
+                        .unwrap_or(cache_write * ratio)
+                        * million,
+                    output: fast_output * million,
+                })
+            }
+            _ => None,
+        };
+        let fast = priority.or_else(|| {
+            let factor = number(&entry["provider_specific_entry"], "fast").filter(|f| *f > 0.0)?;
+            Some(FastPrice {
+                input: input * factor * million,
+                cache_read: cache_read * factor * million,
+                cache_write: cache_write * factor * million,
+                output: output * factor * million,
+            })
+        });
         rates.insert(
             key,
             ModelPrice {
                 input: input * million,
-                cache_read: number(entry, "cache_read_input_token_cost").unwrap_or(input) * million,
-                cache_write: number(entry, "cache_creation_input_token_cost").unwrap_or(input)
-                    * million,
+                cache_read: cache_read * million,
+                cache_write: cache_write * million,
                 output: output * million,
+                fast,
             },
         );
     }
@@ -273,6 +337,42 @@ mod tests {
         assert!(rates.contains_key("gpt-6-luna"), "unambiguous bare alias");
         assert!(!rates.contains_key("twin"), "ambiguous bare alias dropped");
         assert!(!rates.contains_key("no-output") && !rates.contains_key("sample_spec"));
+        assert!(sol.fast.is_none(), "no fast prices without priority fields");
+    }
+
+    #[test]
+    fn parse_reads_priority_prices_and_fast_multipliers() {
+        let rates = parse(&json!({
+            "gpt-6.1-sol": {
+                "input_cost_per_token": 2e-6, "output_cost_per_token": 1e-5,
+                "cache_read_input_token_cost": 1e-7, "cache_creation_input_token_cost": 2.5e-6,
+                "input_cost_per_token_priority": 4e-6, "output_cost_per_token_priority": 2e-5,
+                "cache_read_input_token_cost_priority": 2e-7
+            },
+            "claude-opus-5-5": {
+                "input_cost_per_token": 4e-6, "output_cost_per_token": 2e-5,
+                "cache_read_input_token_cost": 2e-7, "cache_creation_input_token_cost": 5e-6,
+                "provider_specific_entry": { "us": 1.1, "fast": 2 }
+            },
+            "half-priority": {
+                "input_cost_per_token": 1e-6, "output_cost_per_token": 1e-6,
+                "input_cost_per_token_priority": 2e-6
+            }
+        }));
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+        let sol = rates["gpt-6.1-sol"].fast.unwrap();
+        assert!(close(sol.input, 4.0) && close(sol.output, 20.0) && close(sol.cache_read, 0.2));
+        assert!(
+            close(sol.cache_write, 5.0),
+            "missing cache price scales by the input ratio"
+        );
+        let opus = rates["claude-opus-5-5"].fast.unwrap();
+        assert!(close(opus.input, 8.0) && close(opus.cache_read, 0.4));
+        assert!(close(opus.cache_write, 10.0) && close(opus.output, 40.0));
+        assert!(
+            rates["half-priority"].fast.is_none(),
+            "no output priority price"
+        );
     }
 
     #[test]
@@ -299,16 +399,35 @@ mod tests {
                 cache_read: 0.1,
                 cache_write: 1.25,
                 output: 5.0,
+                fast: Some(FastPrice {
+                    input: 2.0,
+                    cache_read: 0.2,
+                    cache_write: 2.5,
+                    output: 10.0,
+                }),
             },
         );
         let table = Arc::new(Table {
+            version: TABLE_VERSION,
             fetched_at: 42,
             rates,
         });
         std::fs::write(&path, serde_json::to_vec(&*table).unwrap()).unwrap();
         let read = read_table(&path).unwrap();
         assert_eq!(read.fetched_at, 42);
+        assert_eq!(read.version, TABLE_VERSION);
         assert_eq!(read.rates["m"], table.rates["m"]);
+        // A copy from before versions still reads (as a fallback) but is stale.
+        std::fs::write(
+            &path,
+            r#"{"fetchedAt":42,"rates":{"m":{"input":1,"cacheRead":0.1,"cacheWrite":1.25,"output":5}}}"#,
+        )
+        .unwrap();
+        let old = read_table(&path).unwrap();
+        assert_eq!(old.version, 0);
+        assert!(old.rates["m"].fast.is_none());
+        assert!(!is_fresh(&old, 43), "older format: downloaded again");
+        assert!(is_fresh(&read, 43) && !is_fresh(&read, 42 + MAX_AGE_MS));
         let _ = std::fs::remove_dir_all(dir);
     }
 }

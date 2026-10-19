@@ -1234,9 +1234,15 @@ export interface UsageHistoryEntry {
   outputTokens: number;
   /** Cost the provider itself logged (OpenCode does), USD; null when it logs none. */
   reportedCostUsd: number | null;
+  /** Service tier: "fast" is Codex's priority tier (or faster) or Claude Code's fast mode, which cost more. */
+  speed: "standard" | "fast";
 }
 /** USD per million tokens (Usage page prices, from the public LiteLLM table). */
-export interface ModelPrice { input: number; cacheRead: number; cacheWrite: number; output: number }
+export interface ModelPrice {
+  input: number; cacheRead: number; cacheWrite: number; output: number;
+  /** Prices in the fast (priority) tier, when the table has them. */
+  fast?: { input: number; cacheRead: number; cacheWrite: number; output: number } | null;
+}
 export interface UsagePrices {
   /** The requested models the table knows, by the requested name. */
   prices: Record<string, ModelPrice>;

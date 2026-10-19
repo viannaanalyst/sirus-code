@@ -45,6 +45,27 @@ pub struct UsageHistoryEntry {
     pub cache_write_tokens: u64,
     pub output_tokens: u64,
     pub reported_cost_usd: Option<f64>,
+    /// The service tier the responses ran in; fast (priority) tiers cost more.
+    pub speed: Speed,
+}
+
+/// "fast": Codex's priority tier (and faster ones) or Claude Code's fast mode.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Speed {
+    #[default]
+    Standard,
+    Fast,
+}
+
+impl Speed {
+    /// Codex's `service_tier`: priority, fast and ultrafast are the paid fast tiers.
+    fn codex(tier: &str) -> Self {
+        match tier.to_ascii_lowercase().as_str() {
+            "priority" | "fast" | "ultrafast" => Speed::Fast,
+            _ => Speed::Standard,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -148,6 +169,7 @@ struct Record {
     write: u64,
     output: u64,
     cost: Option<f64>,
+    speed: Speed,
 }
 
 impl Record {
@@ -170,6 +192,7 @@ impl Record {
             (Some(a), Some(b)) => Some(a.max(b)),
             (a, b) => a.or(b),
         };
+        self.speed = self.speed.max(other.speed);
     }
 }
 
@@ -185,6 +208,8 @@ struct CodexFile {
     session: Arc<str>,
     session_raw: String,
     last_total: Option<CodexUsage>,
+    /// The latest `thread_settings_applied` service tier, applied to the usage that follows.
+    speed: Speed,
     responses: HashSet<u64>,
     /// Per-response `token_usage_record` lines (current CLIs).
     records: Vec<Record>,
@@ -211,6 +236,7 @@ impl Parsed {
                     session: session_key("codex", &raw),
                     session_raw: raw,
                     last_total: None,
+                    speed: Speed::Standard,
                     responses: HashSet::new(),
                     records: Vec::new(),
                     counts: Vec::new(),
@@ -375,6 +401,8 @@ struct ClaudeUsage {
     cache_creation_input_tokens: Option<u64>,
     cache_read_input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    /// "standard", or "fast" in fast mode.
+    speed: Option<String>,
 }
 
 /// `Ok(None)` for lines without usage, `Err` for usage lines in an unknown shape.
@@ -412,6 +440,11 @@ fn claude_line(line: &str, fallback_session: &str) -> std::result::Result<Option
         write: usage.cache_creation_input_tokens.unwrap_or(0),
         output: usage.output_tokens.unwrap_or(0),
         cost: None,
+        speed: if usage.speed.as_deref() == Some("fast") {
+            Speed::Fast
+        } else {
+            Speed::Standard
+        },
     }))
 }
 
@@ -460,6 +493,7 @@ fn codex_record(file: &CodexFile, ts: i64, key: Option<u64>, usage: CodexUsage) 
         write: usage.write,
         output: usage.output,
         cost: None,
+        speed: file.speed,
     }
 }
 
@@ -476,6 +510,7 @@ fn codex_line(file: &mut CodexFile, line: &str) -> std::result::Result<(), ()> {
         "token_usage_record",
         "turn_context",
         "session_meta",
+        "thread_settings_applied",
     ]
     .iter()
     .any(|marker| line.contains(marker))
@@ -512,9 +547,18 @@ fn codex_line(file: &mut CodexFile, line: &str) -> std::result::Result<(), ()> {
             if key.is_some_and(|key| !file.responses.insert(key)) {
                 return Ok(());
             }
-            let record = codex_record(file, ts, key, usage);
+            let mut record = codex_record(file, ts, key, usage);
+            // Not written by current CLIs, but preferred over the thread setting if it appears.
+            if let Some(tier) = payload["service_tier"].as_str() {
+                record.speed = Speed::codex(tier);
+            }
             if !record.is_empty() {
                 file.records.push(record);
+            }
+        }
+        Some("event_msg") if payload["type"].as_str() == Some("thread_settings_applied") => {
+            if let Some(tier) = payload["thread_settings"]["service_tier"].as_str() {
+                file.speed = Speed::codex(tier);
             }
         }
         Some("event_msg") if payload["type"].as_str() == Some("token_count") => {
@@ -563,6 +607,7 @@ fn opencode_message(data: &Value, session: Option<&str>, ts: Option<i64>) -> Opt
         write: count(&tokens["cache"]["write"]),
         output: count(&tokens["output"]) + count(&tokens["reasoning"]),
         cost: data["cost"].as_f64(),
+        speed: Speed::Standard,
     };
     (!record.is_empty()).then_some(record)
 }
@@ -695,7 +740,7 @@ struct Totals {
     cost: Option<f64>,
 }
 
-type BucketKey = (i64, AgentProviderId, Arc<str>, Arc<str>);
+type BucketKey = (i64, AgentProviderId, Arc<str>, Arc<str>, Speed);
 
 #[derive(Default)]
 struct Accumulator {
@@ -740,7 +785,13 @@ impl Accumulator {
         let at = self.hour(record.ts);
         let totals = self
             .buckets
-            .entry((at, provider, record.model.clone(), record.session.clone()))
+            .entry((
+                at,
+                provider,
+                record.model.clone(),
+                record.session.clone(),
+                record.speed,
+            ))
             .or_default();
         totals.input += record.input;
         totals.cached += record.cached;
@@ -759,7 +810,7 @@ impl Accumulator {
             .buckets
             .into_iter()
             .map(
-                |((at, provider, model, session), totals)| UsageHistoryEntry {
+                |((at, provider, model, session, speed), totals)| UsageHistoryEntry {
                     at,
                     provider,
                     model: model.to_string(),
@@ -769,15 +820,17 @@ impl Accumulator {
                     cache_write_tokens: totals.write,
                     output_tokens: totals.output,
                     reported_cost_usd: totals.cost,
+                    speed,
                 },
             )
             .collect();
         entries.sort_by(|a, b| {
-            (a.at, a.provider.key(), &a.model, &a.session).cmp(&(
+            (a.at, a.provider.key(), &a.model, &a.session, a.speed).cmp(&(
                 b.at,
                 b.provider.key(),
                 &b.model,
                 &b.session,
+                b.speed,
             ))
         });
         entries
@@ -907,6 +960,7 @@ fn query_opencode(path: &Path, start: i64) -> std::result::Result<Vec<Record>, r
             write: tokens(7)?,
             output: tokens(4)? + tokens(5)?,
             cost: row.get::<_, Option<f64>>(8)?,
+            speed: Speed::Standard,
         };
         if !record.is_empty() {
             records.push(record);
@@ -1211,6 +1265,116 @@ mod tests {
     }
 
     #[test]
+    fn codex_applies_the_latest_service_tier_to_the_usage_that_follows() {
+        let dir = tempfile::tempdir().unwrap();
+        let ms = NOW - HOUR_MS;
+        let tier = |ms, tier: &str| {
+            codex_line_json(
+                "event_msg",
+                ms,
+                serde_json::json!({"type": "thread_settings_applied",
+                    "thread_settings": {"model": "gpt-6.1-sol", "service_tier": tier}}),
+            )
+        };
+        let record = |ms, id: &str, input| {
+            codex_line_json(
+                "token_usage_record",
+                ms,
+                serde_json::json!({"session_id": "t", "response_id": id, "usage": usage(input, 0, 1)}),
+            )
+        };
+        let count = |ms, total: u64| {
+            codex_line_json(
+                "event_msg",
+                ms,
+                serde_json::json!({"type": "token_count",
+                    "info": {"total_token_usage": usage(total, 0, 0)}}),
+            )
+        };
+        let model = codex_line_json(
+            "turn_context",
+            ms,
+            serde_json::json!({"model": "gpt-6.1-sol"}),
+        );
+        // Current CLIs: per-response records.
+        write(
+            &dir.path().join("sessions/2026/10/01/rollout-c.jsonl"),
+            &[
+                model.clone(),
+                record(ms, "r0", 5),
+                tier(ms + 1, "priority"),
+                record(ms + 2, "r1", 10),
+                record(ms + 3, "r2", 20),
+                tier(ms + 4, "default"),
+                record(ms + 5, "r3", 40),
+                tier(ms + 6, "ultrafast"),
+                record(ms + 7, "r4", 80),
+            ],
+        );
+        // Older CLIs: only token_count events.
+        write(
+            &dir.path().join("sessions/2026/10/01/rollout-d.jsonl"),
+            &[
+                model,
+                tier(ms, "flex"),
+                count(ms + 1, 100),
+                tier(ms + 2, "priority"),
+                count(ms + 3, 300),
+            ],
+        );
+        let sources = Sources {
+            codex: vec![dir.path().into()],
+            ..Default::default()
+        };
+        let history = run(&sources, NOW - DAY_MS);
+        let input = |speed| -> u64 {
+            history
+                .entries
+                .iter()
+                .filter(|e| e.speed == speed)
+                .map(|e| e.input_tokens)
+                .sum()
+        };
+        assert_eq!(input(Speed::Fast), 10 + 20 + 80 + 200);
+        assert_eq!(input(Speed::Standard), 5 + 40 + 100);
+        assert_eq!(history.entries.len(), 4, "one entry per session and speed");
+        assert_eq!(
+            serde_json::to_value(&history.entries[0]).unwrap()["speed"]
+                .as_str()
+                .map(|s| s == "fast" || s == "standard"),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn claude_fast_mode_is_its_own_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let ms = NOW - HOUR_MS;
+        let mut fast: Value = serde_json::from_str(&claude(ms + 1, "msg_f", "req_f", 7)).unwrap();
+        fast["message"]["usage"]["speed"] = "fast".into();
+        let mut standard: Value = serde_json::from_str(&claude(ms, "msg_s", "req_s", 3)).unwrap();
+        standard["message"]["usage"]["speed"] = "standard".into();
+        write(
+            &dir.path().join("projects/p/s-1.jsonl"),
+            &[standard.to_string(), fast.to_string()],
+        );
+        let sources = Sources {
+            claude: vec![dir.path().into()],
+            ..Default::default()
+        };
+        let history = run(&sources, NOW - DAY_MS);
+        let output = |speed| {
+            history
+                .entries
+                .iter()
+                .find(|e| e.speed == speed)
+                .map(|e| e.output_tokens)
+        };
+        assert_eq!(output(Speed::Fast), Some(7));
+        assert_eq!(output(Speed::Standard), Some(3));
+    }
+
+    #[test]
     fn opencode_passes_its_own_cost_through() {
         let dir = tempfile::tempdir().unwrap();
         let ms = NOW - HOUR_MS;
@@ -1265,6 +1429,7 @@ mod tests {
         assert_eq!(sum(&history, |e| e.cached_input_tokens), 14);
         assert_eq!(sum(&history, |e| e.cache_write_tokens), 6);
         assert!(history.problems.is_empty());
+        assert!(history.entries.iter().all(|e| e.speed == Speed::Standard));
     }
 
     #[test]
@@ -1364,6 +1529,59 @@ mod tests {
                 history.entries.len(),
                 history.problems.len(),
                 cache.files.len()
+            );
+            if days != 30 {
+                continue;
+            }
+            let codex = |speed| {
+                history
+                    .entries
+                    .iter()
+                    .filter(|e| e.provider == AgentProviderId::Codex && e.speed == speed)
+                    .count()
+            };
+            println!(
+                "30-day Codex entries: {} fast, {} standard",
+                codex(Speed::Fast),
+                codex(Speed::Standard)
+            );
+            // Cost before and after fast prices, with a downloaded LiteLLM table.
+            let Some(table) = std::env::var_os("SIRUS_PRICE_TABLE") else {
+                continue;
+            };
+            let document: Value = serde_json::from_slice(&std::fs::read(table).unwrap()).unwrap();
+            let rates = crate::usage_prices::parse(&document);
+            let (mut before, mut after, mut unpriced) = (0.0, 0.0, 0usize);
+            for entry in history
+                .entries
+                .iter()
+                .filter(|e| e.provider == AgentProviderId::Codex)
+            {
+                let Some(price) = rates.get(&entry.model.to_lowercase()) else {
+                    unpriced += 1;
+                    continue;
+                };
+                let cost = |input: f64, cache_read: f64, cache_write: f64, output: f64| {
+                    (entry.input_tokens as f64 * input
+                        + entry.cached_input_tokens as f64 * cache_read
+                        + entry.cache_write_tokens as f64 * cache_write
+                        + entry.output_tokens as f64 * output)
+                        / 1e6
+                };
+                let standard = cost(
+                    price.input,
+                    price.cache_read,
+                    price.cache_write,
+                    price.output,
+                );
+                before += standard;
+                after += match (entry.speed, price.fast) {
+                    (Speed::Fast, Some(f)) => cost(f.input, f.cache_read, f.cache_write, f.output),
+                    _ => standard,
+                };
+            }
+            println!(
+                "30-day Codex cost: ${before:.2} before, ${after:.2} after ({unpriced} unpriced entries)"
             );
         }
     }

@@ -3,7 +3,8 @@ import type { AgentProviderId, ModelPrice, UsageHistoryEntry } from "@/client/ty
 /**
  * The Usage page (ADR-141): totals, a per-day (or per-hour) series and a per-model breakdown
  * over a range, computed from the native history. Cost is an estimate at list prices: the
- * public price table downloaded daily (`prices`), else Anthropic's built in below; a model
+ * public price table downloaded daily (`prices`, with fast-tier prices for `speed: "fast"`
+ * entries when it has them), else Anthropic's built in below; a model
  * without a known price counts as unpriced unless the provider logged its own cost.
  */
 export type UsageRange = 1 | 7 | 30 | 90;
@@ -13,6 +14,7 @@ export const USAGE_PROVIDERS: readonly UsageProvider[] = ["claude", "codex", "op
 
 /** USD per million tokens. */
 type Price = ModelPrice;
+type Rates = Omit<ModelPrice, "fast">;
 /** Downloaded prices by model name, as the history names them. */
 export type UsagePriceTable = Readonly<Record<string, ModelPrice>>;
 const price = (input: number, output: number, cacheRead = input / 10): Price => ({ input, cacheRead, cacheWrite: input * 1.25, output });
@@ -40,17 +42,24 @@ export function modelPrice(model: string, prices?: UsagePriceTable): Price | nul
   return best?.[1] ?? null;
 }
 
+/** The rates an entry was billed at: fast (priority) prices for fast entries when the table has them. */
+function entryRates(entry: UsageHistoryEntry, prices?: UsagePriceTable): Rates | null {
+  const p = modelPrice(entry.model, prices);
+  if (!p) return null;
+  return entry.speed === "fast" && p.fast ? p.fast : p;
+}
+
 /** Estimated cost of one entry; null when the model has no known price and none was logged. */
 export function entryCost(entry: UsageHistoryEntry, prices?: UsagePriceTable): number | null {
   if (entry.reportedCostUsd != null) return entry.reportedCostUsd;
-  const p = modelPrice(entry.model, prices);
+  const p = entryRates(entry, prices);
   if (!p) return null;
   return (entry.inputTokens * p.input + entry.cachedInputTokens * p.cacheRead + entry.cacheWriteTokens * p.cacheWrite + entry.outputTokens * p.output) / 1_000_000;
 }
 
 /** Cache savings: what cache reads would have cost as uncached input. */
 function cacheSavings(entry: UsageHistoryEntry, prices?: UsagePriceTable): number {
-  const p = entry.reportedCostUsd == null ? modelPrice(entry.model, prices) : null;
+  const p = entry.reportedCostUsd == null ? entryRates(entry, prices) : null;
   return p ? entry.cachedInputTokens * (p.input - p.cacheRead) / 1_000_000 : 0;
 }
 
@@ -68,6 +77,8 @@ export interface UsageSummary {
   sessions: number;
   totals: UsageTokens;
   costByType: UsageCostByType;
+  /** Cost of fast-tier entries (Codex priority, Claude fast mode) and of the rest. */
+  costBySpeed: { standard: number; fast: number };
   cacheSavings: number;
   providers: UsageProviderTotal[];
   models: UsageModelRow[];
@@ -112,6 +123,7 @@ export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: Usa
   const models = new Map<string, UsageModelRow>();
   const totals: UsageTokens = { input: 0, cachedInput: 0, cacheWrite: 0, output: 0 };
   const costByType: UsageCostByType = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, reported: 0 };
+  const costBySpeed = { standard: 0, fast: 0 };
   let cost = 0, tokens = 0, savings = 0, partialCost = false;
   for (const entry of entries) {
     if (entry.at < from || entry.at > now || !USAGE_PROVIDERS.includes(entry.provider as UsageProvider)) continue;
@@ -120,10 +132,11 @@ export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: Usa
     const value = entryCost(entry, prices);
     if (value == null && amount > 0) partialCost = true;
     cost += value ?? 0;
+    costBySpeed[entry.speed === "fast" ? "fast" : "standard"] += value ?? 0;
     tokens += amount;
     savings += cacheSavings(entry, prices);
     totals.input += entry.inputTokens; totals.cachedInput += entry.cachedInputTokens; totals.cacheWrite += entry.cacheWriteTokens; totals.output += entry.outputTokens;
-    const p = entry.reportedCostUsd == null ? modelPrice(entry.model, prices) : null;
+    const p = entry.reportedCostUsd == null ? entryRates(entry, prices) : null;
     if (entry.reportedCostUsd != null) costByType.reported += entry.reportedCostUsd;
     else if (p) {
       costByType.input += entry.inputTokens * p.input / 1_000_000;
@@ -149,7 +162,7 @@ export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: Usa
     return total ? [{ provider: id, cost: total.cost, tokens: total.tokens, sessions: total.keys.size, unpriced: total.unpriced }] : [];
   });
   return {
-    cost, tokens, totals, costByType, cacheSavings: savings, bucket, partialCost, buckets,
+    cost, tokens, totals, costByType, costBySpeed, cacheSavings: savings, bucket, partialCost, buckets,
     sessions: providerTotals.reduce((sum, total) => sum + total.sessions, 0),
     providers: providerTotals,
     models: [...models.values()].filter(row => row.tokens > 0),
