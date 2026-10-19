@@ -19,3 +19,16 @@ test("resumes wait a grace period and distances round up to minutes", () => {
   assert.deepEqual(resetDistance(26 * 3_600_000), { days: 1, hours: 2, minutes: 0 });
   assert.deepEqual(resetDistance(-5), { days: 0, hours: 0, minutes: 1 });
 });
+
+test("automatic resume: armed by hand, or on with a known reset later than the stop and not cancelled", async () => {
+  const { resumeArmed } = await import("../src/lib/usage-limit.ts");
+  const base = { armed: false, auto: true, limited: true, resetsAt: 2_000, stoppedAt: 1_000, cancelledReset: undefined };
+  assert.equal(resumeArmed(base), true);
+  assert.equal(resumeArmed({ ...base, auto: false }), false);
+  assert.equal(resumeArmed({ ...base, auto: false, armed: true }), true);
+  assert.equal(resumeArmed({ ...base, cancelledReset: 2_000 }), false, "cancelled for this reset");
+  assert.equal(resumeArmed({ ...base, cancelledReset: 1_500 }), true, "a new reset arms again");
+  assert.equal(resumeArmed({ ...base, resetsAt: 900 }), false, "a reset already past when it stopped never arms itself");
+  assert.equal(resumeArmed({ ...base, resetsAt: null }), false);
+  assert.equal(resumeArmed({ ...base, limited: false, armed: true }), false);
+});

@@ -5,7 +5,7 @@ export const CONTINUE_PROMPT = "Continue from where you left off.";
 /** Providers can still refuse right at the reset; give them a moment. */
 export const RESUME_GRACE_MS = 30_000;
 /** Timers stall while the Mac sleeps, so an armed resume rechecks at least this often. */
-export const RESUME_RECHECK_MS = 5 * 60_000;
+export const RESUME_RECHECK_MS = 60_000;
 
 /** The latest reset among the windows the provider reports as spent. */
 export function exhaustedReset(usage: ProviderUsage | null | undefined): number | null {
@@ -22,4 +22,17 @@ export function resetDistance(ms: number): { days: number; hours: number; minute
 /** When an armed resume should fire, or null when it cannot be scheduled. */
 export function resumeAt(resetsAt: number | null | undefined): number | null {
   return resetsAt == null ? null : resetsAt + RESUME_GRACE_MS;
+}
+
+/**
+ * Whether a limited session continues by itself at its reset: armed by hand, or (with the
+ * automatic resume on) any limit whose reset is known, later than when the turn stopped and
+ * not cancelled for that reset. A reset already past when the limit was reported never
+ * arms itself, so a stale report cannot start a loop.
+ */
+export function resumeArmed(input: { armed: boolean; auto: boolean; limited: boolean; resetsAt: number | null | undefined; stoppedAt: number; cancelledReset: number | undefined }): boolean {
+  if (!input.limited) return false;
+  if (input.armed) return true;
+  if (!input.auto || input.resetsAt == null) return false;
+  return input.cancelledReset !== input.resetsAt && input.resetsAt > input.stoppedAt;
 }

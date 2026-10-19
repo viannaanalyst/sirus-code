@@ -272,6 +272,8 @@ const strings: Record<string, [string, string]> = {
   "usageLimit.armHint": ["Continue this conversation by itself when the limit resets; queued messages follow", "Continuar esta conversa sozinha quando o limite liberar; as mensagens da fila vêm depois"],
   "usageLimit.armed": ["Resuming at reset", "Retoma ao liberar"],
   "usageLimit.cancelArmed": ["Cancel the automatic resume", "Cancelar a retomada automática"],
+  "usageLimit.autoSetting": ["Resume by itself when a usage limit resets", "Retomar sozinho quando o limite de uso liberar"],
+  "usageLimit.autoSettingHelp": ["A conversation stopped by the provider's limit sends \"Continue from where you left off.\" at the reset. Each notice can cancel it.", "Uma conversa parada pelo limite da IA envia \"Continue from where you left off.\" quando o limite libera. Dá para cancelar em cada aviso."],
   "usageLimit.dismiss": ["Dismiss the usage limit notice", "Dispensar o aviso de limite de uso"],
   "usageLimit.at": ["at {time}", "às {time}"],
   "usageLimit.on": ["on {day} at {time}", "em {day} às {time}"],

@@ -796,6 +796,10 @@ pub struct AppSettings {
     pub show_environment_instructions: bool,
     #[serde(default = "default_true")]
     pub enable_provider_update_checks: bool,
+    /// A turn stopped by the provider's usage limit continues by itself at the reset
+    /// (ADR-063); each notice can cancel it.
+    #[serde(default = "default_true")]
+    pub usage_auto_resume: bool,
     /// In-app updates (ADR-140): release builds look for a new version on their own.
     #[serde(default = "default_true")]
     pub app_update_auto_check: bool,
@@ -971,6 +975,7 @@ impl Default for AppSettings {
             show_environment_notepad: true,
             show_environment_instructions: true,
             enable_provider_update_checks: true,
+            usage_auto_resume: true,
             app_update_auto_check: true,
             app_update_auto_download: true,
             app_update_whats_new: true,

@@ -60,7 +60,7 @@ import type {
 import { formatUnknownError } from "@/lib/format-error";
 import { runningTerminalTarget, withTerminalRunning, type RunningTerminals } from "@/lib/terminal-running";
 import { insertAt, popClosed, pushClosed, rememberBrowserTab, type ClosedItem } from "@/lib/closed-items";
-import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeAt } from "@/lib/usage-limit";
+import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeArmed, resumeAt } from "@/lib/usage-limit";
 import { providerById, PROVIDERS } from "@/lib/provider-registry";
 import {
   defaultSettings,
@@ -178,6 +178,8 @@ interface AppStore {
   temporarySessionIds: string[];
   /** Usage-limit notices (memory-only): armed resumes, dismissed notices and resets read from provider usage. */
   usageResumeArmed: Record<string, true>;
+  /** Automatic resumes the person cancelled, by session: the reset they were for (kept across launches). */
+  usageResumeCancelled: Record<string, number>;
   usageLimitDismissed: Record<string, true>;
   usageLimitResets: Record<string, number>;
   /** Continue the session by itself once its usage limit resets (explicit, per notice). */
@@ -745,12 +747,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setDraftTemporary: (draftTemporary) => set({ draftTemporary }),
   temporarySessionIds: [],
   usageResumeArmed: {},
+  usageResumeCancelled: readResumeCancelled(),
   usageLimitDismissed: {},
   usageLimitResets: {},
   armUsageResume: (sessionId, armed) => set((state) => {
     const usageResumeArmed = { ...state.usageResumeArmed };
-    if (armed) usageResumeArmed[sessionId] = true; else delete usageResumeArmed[sessionId];
-    return { usageResumeArmed };
+    const usageResumeCancelled = { ...state.usageResumeCancelled };
+    if (armed) { usageResumeArmed[sessionId] = true; delete usageResumeCancelled[sessionId]; }
+    else {
+      delete usageResumeArmed[sessionId];
+      // Cancelling also keeps the automatic resume from arming this reset again.
+      const reset = limitReset(state, sessionId);
+      if (reset != null) usageResumeCancelled[sessionId] = reset;
+    }
+    writeResumeCancelled(usageResumeCancelled);
+    return { usageResumeArmed, usageResumeCancelled };
   }),
   dismissUsageLimit: (sessionId) => set((state) => {
     const usageResumeArmed = { ...state.usageResumeArmed };
@@ -2965,9 +2976,38 @@ async function receiveWindowSnap(event: WindowSnapEvent) {
   } catch (error) { useAppStore.setState({ error: formatUnknownError(error) }); }
 }
 
-// Usage limits: a resume is armed explicitly from the session's notice. One
-// timer waits for the earliest reset (rechecking while the Mac may sleep); a
-// queue paused by the limit continues after the continue turn succeeds.
+// Usage limits: a resume is armed from the session's notice, or by itself when the
+// automatic resume is on (ADR-063). One timer waits for the earliest reset (rechecking
+// every minute and on wake, since timers stall while the Mac sleeps); a queue paused by
+// the limit continues after the continue turn succeeds.
+const RESUME_CANCELLED_KEY = "sirus.usageResumeCancelled";
+function readResumeCancelled(): Record<string, number> {
+  try {
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(RESUME_CANCELLED_KEY) ?? "{}");
+    if (!value || typeof value !== "object") return {};
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => typeof entry[1] === "number").slice(0, 500));
+  } catch { return {}; }
+}
+function writeResumeCancelled(value: Record<string, number>) {
+  try { globalThis.localStorage?.setItem(RESUME_CANCELLED_KEY, JSON.stringify(value)); } catch { /* storage full or unavailable */ }
+}
+function limitReset(state: Pick<AppStore, "sessions" | "usageLimitResets">, sessionId: string): number | null {
+  const session = state.sessions.find((item) => item.id === sessionId);
+  return session?.usageLimit ? session.usageLimit.resetsAt ?? state.usageLimitResets[sessionId] ?? null : null;
+}
+/** Whether this session's usage-limit notice continues by itself at the reset. */
+export function usageResumeActive(state: Pick<AppStore, "sessions" | "usageLimitResets" | "usageResumeArmed" | "usageResumeCancelled" | "settings">, sessionId: string): boolean {
+  const session = state.sessions.find((item) => item.id === sessionId);
+  const stoppedAt = session ? Date.parse(session.lastActivityAt) : Number.NaN;
+  return resumeArmed({
+    armed: Boolean(state.usageResumeArmed[sessionId]),
+    auto: state.settings.usageAutoResume && !state.settings.archivedSessionIds.includes(sessionId),
+    limited: Boolean(session?.usageLimit),
+    resetsAt: limitReset(state, sessionId),
+    stoppedAt: Number.isFinite(stoppedAt) ? stoppedAt : Number.POSITIVE_INFINITY,
+    cancelledReset: state.usageResumeCancelled[sessionId],
+  });
+}
 const resumingAfterLimit = new Set<string>();
 const queueAfterLimit = new Set<string>();
 const resetLookups = new Set<string>();
@@ -2978,9 +3018,10 @@ function scheduleUsageResume() {
   const state = useAppStore.getState();
   const now = Date.now();
   let next = Number.POSITIVE_INFINITY;
-  for (const id of Object.keys(state.usageResumeArmed)) {
-    const session = state.sessions.find((item) => item.id === id);
-    const at = resumeAt(session?.usageLimit ? session.usageLimit.resetsAt ?? state.usageLimitResets[id] : null);
+  for (const session of state.sessions) {
+    const id = session.id;
+    if (!session.usageLimit || !usageResumeActive(state, id)) continue;
+    const at = resumeAt(limitReset(state, id));
     if (at == null) continue;
     if (now >= at) void state.resumeAfterUsageLimit(id);
     else next = Math.min(next, at - now);
@@ -2989,7 +3030,8 @@ function scheduleUsageResume() {
 }
 let usageResumeSignature = "";
 useAppStore.subscribe((state, previous) => {
-  if (state.sessions === previous.sessions && state.usageResumeArmed === previous.usageResumeArmed && state.usageLimitResets === previous.usageLimitResets) return;
+  if (state.sessions === previous.sessions && state.usageResumeArmed === previous.usageResumeArmed && state.usageLimitResets === previous.usageLimitResets
+    && state.usageResumeCancelled === previous.usageResumeCancelled && state.settings.usageAutoResume === previous.settings.usageAutoResume) return;
   for (const id of queueAfterLimit) {
     const session = state.sessions.find((item) => item.id === id);
     if (session && activeSession(session)) continue;
@@ -2999,6 +3041,11 @@ useAppStore.subscribe((state, previous) => {
   // A new send clears the native limit; its notice state goes with it.
   const limited = new Set(state.sessions.filter((session) => session.usageLimit).map((session) => session.id));
   const stale = (record: Record<string, unknown>) => Object.keys(record).some((id) => !limited.has(id));
+  if (state.sessions.length && stale(state.usageResumeCancelled)) {
+    const kept = Object.fromEntries(Object.entries(state.usageResumeCancelled).filter(([id]) => limited.has(id)));
+    writeResumeCancelled(kept);
+    queueMicrotask(() => useAppStore.setState({ usageResumeCancelled: kept }));
+  }
   if (stale(state.usageResumeArmed) || stale(state.usageLimitDismissed) || stale(state.usageLimitResets)) {
     const keep = <T,>(record: Record<string, T>) => Object.fromEntries(Object.entries(record).filter(([id]) => limited.has(id)));
     for (const id of resetLookups) if (!limited.has(id)) resetLookups.delete(id);
@@ -3007,10 +3054,17 @@ useAppStore.subscribe((state, previous) => {
   }
   // Streaming deltas elsewhere change `sessions` every frame; re-arm only when a limited session's state moved.
   const signature = state.sessions.filter((session) => session.usageLimit || queueAfterLimit.has(session.id)).map((session) => `${session.id}:${session.status}:${session.usageLimit?.resetsAt ?? ""}`).join("|");
-  const changed = signature !== usageResumeSignature || state.usageResumeArmed !== previous.usageResumeArmed || state.usageLimitResets !== previous.usageLimitResets;
+  const changed = signature !== usageResumeSignature || state.usageResumeArmed !== previous.usageResumeArmed || state.usageLimitResets !== previous.usageLimitResets
+    || state.usageResumeCancelled !== previous.usageResumeCancelled || state.settings.usageAutoResume !== previous.settings.usageAutoResume;
   usageResumeSignature = signature;
-  if (changed && (Object.keys(state.usageResumeArmed).length || usageResumeTimer)) scheduleUsageResume();
+  if (changed && (signature || usageResumeTimer)) scheduleUsageResume();
 });
+// After sleep or a while in the background, the timer may be late: check again at once.
+if (typeof window !== "undefined") {
+  const wake = () => { if (document.visibilityState !== "hidden" && (usageResumeTimer || usageResumeSignature)) scheduleUsageResume(); };
+  window.addEventListener("focus", wake);
+  document.addEventListener("visibilitychange", wake);
+}
 
 // A temporary session is deleted once it is no longer open in any pane and has
 // settled; a running turn finishes first. Its worktree is kept (never removed

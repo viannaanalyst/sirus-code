@@ -120,6 +120,7 @@ export const defaultSettings: AppSettings = {
   showEnvironmentNotepad: true,
   showEnvironmentInstructions: true,
   enableProviderUpdateChecks: true,
+  usageAutoResume: true,
   appUpdateAutoCheck: true,
   appUpdateAutoDownload: true,
   appUpdateWhatsNew: true,

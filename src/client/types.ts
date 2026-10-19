@@ -555,6 +555,8 @@ export interface AppSettings {
   showEnvironmentNotepad: boolean;
   showEnvironmentInstructions: boolean;
   enableProviderUpdateChecks: boolean;
+  /** A turn stopped by a usage limit continues by itself at the reset (ADR-063). */
+  usageAutoResume: boolean;
   /** In-app updates (ADR-140): release builds look for a new version on their own. */
   appUpdateAutoCheck: boolean;
   /** A version found on its own downloads and installs in the background, then waits for a restart. */

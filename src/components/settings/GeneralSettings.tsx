@@ -18,7 +18,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
 }) {
   const t = useTranslation();
   const changed = GENERAL_SETTING_KEYS.some(key => settings[key] !== defaultSettings[key]);
-  const booleanRow = (key: "openLastProject" | "sidebarAttentionFirst" | "projectAutoIcons" | "confirmCloseRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
+  const booleanRow = (key: "usageAutoResume" | "openLastProject" | "sidebarAttentionFirst" | "projectAutoIcons" | "confirmCloseRunning" | "restorePreviousSessions" | "environmentPanelDefaultOpen" | "showEnvironmentUsage" | "showEnvironmentRepository" | "showEnvironmentEditor" | "showEnvironmentPullRequest" | "showEnvironmentPinned" | "showEnvironmentNotepad" | "showEnvironmentInstructions", title: string, description: string) => (
     <SettingsRow title={t(title)} description={t(description)}>
       <Switch checked={settings[key]} label={t(title)} onChange={value => onSave({ ...settings, [key]: value })} />
     </SettingsRow>
@@ -70,6 +70,7 @@ export function GeneralSettings({ settings, agents, onSave }: {
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card>
       {booleanRow("confirmCloseRunning", "Show confirmation before closing running sessions", "Ask before closing or quitting while agents are running.")}
+      {booleanRow("usageAutoResume", "usageLimit.autoSetting", "usageLimit.autoSettingHelp")}
     </SettingsGroup>
     <SettingsGroup title={t("Environment panel")} card>
       {booleanRow("environmentPanelDefaultOpen", "Open by default", "Open the chat Environment panel automatically on normal threads. When off, the panel stays closed until you open it. Your last open/close also updates this preference.")}

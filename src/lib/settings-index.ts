@@ -360,6 +360,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "general",
+  "title": "usageLimit.autoSetting",
+  "description": "usageLimit.autoSettingHelp",
+  "group": "Application"
+ },
+ {
+  "section": "general",
   "title": "Open by default",
   "description": "Open the chat Environment panel automatically on normal threads. When off, the panel stays closed until you open it. Your last open/close also updates this preference.",
   "group": "Environment panel"

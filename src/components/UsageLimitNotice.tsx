@@ -4,7 +4,7 @@ import { Clock3, Gauge, Play, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { resetDistance, RESUME_GRACE_MS } from "@/lib/usage-limit";
-import { useAppStore } from "@/store/app-store";
+import { useAppStore, usageResumeActive } from "@/store/app-store";
 import "@/styles/context-meter.css";
 
 /** Above the composer when the last turn hit the provider's usage limit. */
@@ -12,7 +12,7 @@ export function UsageLimitNotice({ session }: { session: Session }) {
   const t = useTranslation();
   const locale = useAppStore((state) => state.settings.locale);
   const dismissed = useAppStore((state) => Boolean(state.usageLimitDismissed[session.id]));
-  const armed = useAppStore((state) => Boolean(state.usageResumeArmed[session.id]));
+  const armed = useAppStore((state) => usageResumeActive(state, session.id));
   const lookedUp = useAppStore((state) => state.usageLimitResets[session.id]);
   const limit = session.usageLimit;
   const resetsAt = limit?.resetsAt ?? lookedUp ?? null;
