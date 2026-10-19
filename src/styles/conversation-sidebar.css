@@ -41,7 +41,13 @@
   .conversation-folder-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; height: 30px; padding: 0 10px 0 8px; border-radius: var(--radius-md); color: var(--text-secondary); font-size: var(--text-ui-13); text-align: left; transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .conversation-folder-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-folder-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
-  .conversation-folder-chevron { margin-left: auto; flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  .conversation-folder-end { position: relative; display: grid; place-items: center; width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; }
+  .conversation-folder-chevron { flex-shrink: 0; color: var(--text-muted); transition: rotate var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  .conversation-folder-end > .conversation-folder-dot { position: absolute; transition: opacity var(--motion-fast) var(--ease-out); }
+  /* A closed folder with a status shows the dot; pointing at it brings the chevron back. */
+  .conversation-folder-end:has(.conversation-folder-dot) .conversation-folder-chevron { opacity: 0; }
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-end .conversation-folder-chevron { opacity: 1; }
+  .conversation-folder:is(:hover, :focus-within) .conversation-folder-dot { opacity: 0; }
   .conversation-folder[data-open] .conversation-folder-chevron { rotate: 90deg; }
   .conversation-folder-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conversation-group-new { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out); }

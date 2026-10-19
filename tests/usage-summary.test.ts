@@ -18,6 +18,11 @@ test("prices: the longest prefix wins, unknown models have none, a logged cost w
   assert.equal(entryCost(entry(1, "claude", "claude-opus-5-5", { cachedInputTokens: 1_000_000, outputTokens: 1_000_000 })), 4 + 0.2 + 20);
   assert.equal(entryCost(entry(1, "codex", "gpt-6.1-sol")), null);
   assert.equal(entryCost(entry(1, "opencode", "big-pickle", { reportedCostUsd: 0.5 })), 0.5);
+  // The downloaded table wins over the built-in list and prices models the list lacks.
+  const table = { "gpt-6.1-sol": { input: 2, cacheRead: 0.1, cacheWrite: 2, output: 10 }, "claude-opus-5-5": { input: 3, cacheRead: 0.3, cacheWrite: 3.75, output: 15 } };
+  assert.equal(entryCost(entry(1, "codex", "gpt-6.1-sol", { cachedInputTokens: 1_000_000 }), table), 2.1);
+  assert.equal(entryCost(entry(1, "claude", "claude-opus-5-5"), table), 3);
+  assert.equal(summarizeUsage([entry(1, "codex", "gpt-6.1-sol")], 7, now, table).partialCost, false);
 });
 
 test("buckets: 24 hourly ones for a day, local days otherwise, oldest first", () => {

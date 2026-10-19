@@ -106,6 +106,7 @@ mod transcript_view;
 mod turn_review;
 mod turn_undo;
 mod usage_history;
+mod usage_prices;
 mod visuals;
 mod window_attachment;
 #[cfg(feature = "desktop")]
@@ -358,6 +359,7 @@ pub fn run() {
             provider_usage::provider_usage,
             provider_usage::consume_codex_reset,
             usage_history::usage_history,
+            usage_prices::usage_prices,
             provider_updates::provider_updates,
             provider_updates::update_providers,
             dictation::dictation_status,

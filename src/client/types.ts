@@ -1235,6 +1235,14 @@ export interface UsageHistoryEntry {
   /** Cost the provider itself logged (OpenCode does), USD; null when it logs none. */
   reportedCostUsd: number | null;
 }
+/** USD per million tokens (Usage page prices, from the public LiteLLM table). */
+export interface ModelPrice { input: number; cacheRead: number; cacheWrite: number; output: number }
+export interface UsagePrices {
+  /** The requested models the table knows, by the requested name. */
+  prices: Record<string, ModelPrice>;
+  /** When the table in use was downloaded (Unix ms); null without any copy. */
+  fetchedAt: number | null;
+}
 export interface UsageHistory {
   entries: UsageHistoryEntry[];
   /** Providers whose logs could not be read, with a short English reason (shown as a notice). */

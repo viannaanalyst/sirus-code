@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { client } from "@/client";
-import type { AgentProviderId, UsageHistory } from "@/client/types";
+import type { AgentProviderId, UsageHistory, UsagePrices } from "@/client/types";
 import { Plus, RefreshCw } from "@/components/icons/phosphor";
 import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
@@ -22,8 +22,9 @@ type UsageTab = "cost" | "tokens" | "limits";
 /** Each provider's colour in the chart and cards (the brand marks' own colours). */
 const PROVIDER_COLOR: Record<UsageProvider, string> = { claude: "var(--brand-claude)", codex: "var(--text-secondary)", opencode: "var(--brand-openai)" };
 
-/** The last history read stays for the window, so reopening the page shows it at once. */
+/** The last history and prices stay for the window, so reopening the page shows them at once. */
 let lastHistory: UsageHistory | null = null;
+let lastPrices: UsagePrices | null = null;
 
 /**
  * The Usage page (ADR-141), opened from the sidebar foot: Cost and Tokens read the provider
@@ -36,18 +37,25 @@ export function UsagePage() {
   const [tab, setTab] = useState<UsageTab>("cost");
   const [range, setRange] = useState<UsageRange>(30);
   const [history, setHistory] = useState<UsageHistory | null>(lastHistory);
+  const [prices, setPrices] = useState<UsagePrices | null>(lastPrices);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try { lastHistory = await client.usageHistory(90); setHistory(lastHistory); }
-    catch (reason) { setError(formatUnknownError(reason)); }
+    try {
+      lastHistory = await client.usageHistory(90);
+      setHistory(lastHistory);
+      // Prices for the models in the history; without them the built-in list prices apply.
+      const models = [...new Set(lastHistory.entries.map(entry => entry.model))];
+      lastPrices = await client.usagePrices(models).catch(() => lastPrices);
+      setPrices(lastPrices);
+    } catch (reason) { setError(formatUnknownError(reason)); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void load(); }, [load]);
   const refreshLimits = () => { for (const provider of USAGE_PROVIDER_IDS) void useAppStore.getState().refreshProviderUsage(provider, true); };
   // The clock is read when the data or range changes, not every render.
-  const summary = useMemo(() => history ? summarizeUsage(history.entries, range, Date.now()) : null, [history, range]);
+  const summary = useMemo(() => history ? summarizeUsage(history.entries, range, Date.now(), prices?.prices) : null, [history, range, prices]);
 
   return <section className="usage-page" aria-label={t("usage.title")}>
     <div className="scroll-thin usage-scroll">

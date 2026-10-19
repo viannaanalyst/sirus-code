@@ -1,9 +1,10 @@
-import type { AgentProviderId, UsageHistoryEntry } from "@/client/types";
+import type { AgentProviderId, ModelPrice, UsageHistoryEntry } from "@/client/types";
 
 /**
  * The Usage page (ADR-141): totals, a per-day (or per-hour) series and a per-model breakdown
- * over a range, computed from the native history. Cost is an estimate at API list prices;
- * a model without a known price counts as unpriced unless the provider logged its own cost.
+ * over a range, computed from the native history. Cost is an estimate at list prices: the
+ * public price table downloaded daily (`prices`), else Anthropic's built in below; a model
+ * without a known price counts as unpriced unless the provider logged its own cost.
  */
 export type UsageRange = 1 | 7 | 30 | 90;
 export const USAGE_RANGES: readonly UsageRange[] = [1, 7, 30, 90];
@@ -11,10 +12,12 @@ export type UsageProvider = Extract<AgentProviderId, "claude" | "codex" | "openc
 export const USAGE_PROVIDERS: readonly UsageProvider[] = ["claude", "codex", "opencode"];
 
 /** USD per million tokens. */
-interface Price { input: number; cacheRead: number; cacheWrite: number; output: number }
+type Price = ModelPrice;
+/** Downloaded prices by model name, as the history names them. */
+export type UsagePriceTable = Readonly<Record<string, ModelPrice>>;
 const price = (input: number, output: number, cacheRead = input / 10): Price => ({ input, cacheRead, cacheWrite: input * 1.25, output });
 
-/** Anthropic list prices (first-party API); the longest matching prefix wins. */
+/** Anthropic list prices (first-party API), used when the table has no entry; the longest matching prefix wins. */
 const PRICES: readonly [prefix: string, price: Price][] = [
   ["claude-fable-5-1", price(10, 50, 0.25)],
   ["claude-fable-5", price(10, 50)],
@@ -29,23 +32,25 @@ const PRICES: readonly [prefix: string, price: Price][] = [
   ["claude-haiku-4", price(1, 5)],
 ];
 
-export function modelPrice(model: string): Price | null {
+export function modelPrice(model: string, prices?: UsagePriceTable): Price | null {
+  const downloaded = prices?.[model];
+  if (downloaded) return downloaded;
   let best: [string, Price] | null = null;
   for (const entry of PRICES) if (model.startsWith(entry[0]) && (!best || entry[0].length > best[0].length)) best = entry;
   return best?.[1] ?? null;
 }
 
 /** Estimated cost of one entry; null when the model has no known price and none was logged. */
-export function entryCost(entry: UsageHistoryEntry): number | null {
+export function entryCost(entry: UsageHistoryEntry, prices?: UsagePriceTable): number | null {
   if (entry.reportedCostUsd != null) return entry.reportedCostUsd;
-  const p = modelPrice(entry.model);
+  const p = modelPrice(entry.model, prices);
   if (!p) return null;
   return (entry.inputTokens * p.input + entry.cachedInputTokens * p.cacheRead + entry.cacheWriteTokens * p.cacheWrite + entry.outputTokens * p.output) / 1_000_000;
 }
 
 /** Cache savings: what cache reads would have cost as uncached input. */
-function cacheSavings(entry: UsageHistoryEntry): number {
-  const p = entry.reportedCostUsd == null ? modelPrice(entry.model) : null;
+function cacheSavings(entry: UsageHistoryEntry, prices?: UsagePriceTable): number {
+  const p = entry.reportedCostUsd == null ? modelPrice(entry.model, prices) : null;
   return p ? entry.cachedInputTokens * (p.input - p.cacheRead) / 1_000_000 : 0;
 }
 
@@ -97,7 +102,7 @@ export function usageBuckets(range: UsageRange, now: number): number[] {
   });
 }
 
-export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: UsageRange, now: number): UsageSummary {
+export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: UsageRange, now: number, prices?: UsagePriceTable): UsageSummary {
   const starts = usageBuckets(range, now);
   const from = starts[0];
   const bucket = range === 1 ? "hour" : "day";
@@ -112,13 +117,13 @@ export function summarizeUsage(entries: readonly UsageHistoryEntry[], range: Usa
     if (entry.at < from || entry.at > now || !USAGE_PROVIDERS.includes(entry.provider as UsageProvider)) continue;
     const provider = entry.provider as UsageProvider;
     const amount = tokensOf(entry);
-    const value = entryCost(entry);
+    const value = entryCost(entry, prices);
     if (value == null && amount > 0) partialCost = true;
     cost += value ?? 0;
     tokens += amount;
-    savings += cacheSavings(entry);
+    savings += cacheSavings(entry, prices);
     totals.input += entry.inputTokens; totals.cachedInput += entry.cachedInputTokens; totals.cacheWrite += entry.cacheWriteTokens; totals.output += entry.outputTokens;
-    const p = entry.reportedCostUsd == null ? modelPrice(entry.model) : null;
+    const p = entry.reportedCostUsd == null ? modelPrice(entry.model, prices) : null;
     if (entry.reportedCostUsd != null) costByType.reported += entry.reportedCostUsd;
     else if (p) {
       costByType.input += entry.inputTokens * p.input / 1_000_000;

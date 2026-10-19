@@ -96,6 +96,11 @@ export class SirusClient {
     return this.transport.invoke<import("./types").UsageHistory>("usage_history", { days });
   }
 
+  /** Usage page prices: the named models' USD per million tokens from the daily public price table. */
+  usagePrices(models: string[]) {
+    return this.transport.invoke<import("./types").UsagePrices>("usage_prices", { models });
+  }
+
   createProviderAccount(provider: AgentProviderId, name: string) {
     return this.transport.invoke<import("./types").ProviderAccount>("create_provider_account", { provider, name });
   }
