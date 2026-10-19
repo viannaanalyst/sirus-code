@@ -95,7 +95,7 @@ test("automatic browser capture preserves restored goals and clears submitted dr
   context.mock.method(client, "releasePromptAttachments", async (_owner: string, ids: string[]) => { released = ids; });
   context.mock.method(client, "browserCapture", async () => "fixture-image");
   context.mock.method(client, "sendPrompt", async () => { sends++; return session; });
-  const full = { ...draft, attachments: Array.from({ length: 8 }, (_, index) => ({ ...capture, id: `manual-${index}` })) };
+  const full = { ...draft, attachments: Array.from({ length: 20 }, (_, index) => ({ ...capture, id: `manual-${index}` })) };
   useAppStore.setState({ composerContexts: { [owner]: full } });
   assert.equal(await useAppStore.getState().sendPrompt("Veja a página"), false);
   assert.equal(sends, 0);

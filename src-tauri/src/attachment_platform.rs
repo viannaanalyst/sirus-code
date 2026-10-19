@@ -78,10 +78,10 @@ pub async fn pick(app: &crate::runtime::AppHandle, folder: Option<bool>) -> Resu
             return Ok(Vec::new());
         }
         let urls = panel.URLs();
-        if urls.len() > 8 {
+        if urls.len() > crate::attachments::MAX_ATTACHMENTS {
             return Err(Error::new(
                 "attachment",
-                "Select at most 8 attachments at a time.",
+                "Select at most 20 attachments at a time.",
             ));
         }
         urls.iter()
@@ -166,10 +166,10 @@ pub async fn paste(
                 }
             }
         }
-        if paths.len() > 8 {
+        if paths.len() > crate::attachments::MAX_ATTACHMENTS {
             return Err(Error::new(
                 "attachment",
-                "Select at most 8 attachments at a time.",
+                "Select at most 20 attachments at a time.",
             ));
         }
         if !paths.is_empty() {

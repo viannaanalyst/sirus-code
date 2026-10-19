@@ -1,5 +1,8 @@
 import type { PromptAttachment } from "@/client/types";
 
+/** Most attachments one message carries; matches `attachments::MAX_ATTACHMENTS` natively. */
+export const MAX_ATTACHMENTS = 20;
+
 export const attachmentFileLimit = 10 * 1024 * 1024;
 export const attachmentBatchLimit = 40 * 1024 * 1024;
 /** Only intercept single local paths. Ordinary prose and remote links paste normally. */
@@ -9,7 +12,7 @@ export function isAttachmentPaste(text: string): boolean {
   return value.startsWith("file:///") || /^\/[^\r\n]+\.[\p{L}\p{N}]{1,12}$/u.test(value);
 }
 export function appendAttachments(current: PromptAttachment[], added: PromptAttachment[]): PromptAttachment[] {
-  if (current.length + added.length > 8) throw new Error("composer.attachmentLimit");
+  if (current.length + added.length > MAX_ATTACHMENTS) throw new Error("composer.attachmentLimit");
   if ([...current, ...added].reduce((total, file) => total + (file.size ?? 0), 0) > attachmentBatchLimit) throw new Error("composer.attachmentBatchLimit");
   return [...current, ...added];
 }
@@ -26,7 +29,7 @@ export function annotatedImageName(name: string): string {
   return `${base.slice(0, 200)}-annotated.png`;
 }
 export async function pastedFiles(files: File[]): Promise<{ name: string; data: string }[]> {
-  if (files.length > 8) throw new Error("composer.attachmentLimit");
+  if (files.length > MAX_ATTACHMENTS) throw new Error("composer.attachmentLimit");
   if (files.some((file) => file.size > attachmentFileLimit)) throw new Error("composer.attachmentFileLimit");
   if (files.reduce((total, file) => total + file.size, 0) > attachmentBatchLimit) throw new Error("composer.attachmentBatchLimit");
   return Promise.all(files.map(async (file) => ({ name: file.name, data: await fileBase64(file) })));

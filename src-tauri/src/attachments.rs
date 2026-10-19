@@ -11,6 +11,8 @@ use std::{
 };
 const MAX_BYTES: usize = 12 * 1024;
 pub const MAX_FILE_BYTES: usize = 10 * 1024 * 1024;
+/// Most attachments one message carries (the composer and every picker, paste and drop path).
+pub const MAX_ATTACHMENTS: usize = 20;
 const MAX_BATCH_BYTES: usize = 40 * 1024 * 1024;
 const MAX_CACHE_BYTES: usize = 256 * 1024 * 1024;
 #[derive(Debug, Clone, Serialize)]
@@ -200,7 +202,7 @@ impl AttachmentState {
         self.sent.lock().retain(|id| entries.contains_key(id));
         let incoming: usize = files.iter().map(|f| f.view.size).sum();
         let used: usize = entries.values().map(|(_, f)| f.view.size).sum();
-        if files.len() > 8
+        if files.len() > MAX_ATTACHMENTS
             || incoming > MAX_BATCH_BYTES
             || used + incoming > MAX_CACHE_BYTES
             || entries.len() + files.len() > 256
@@ -233,7 +235,7 @@ impl AttachmentState {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        if ids.len() > 8
+        if ids.len() > MAX_ATTACHMENTS
             || (owner != format!("session:{}", session.id)
                 && owner != format!("project:{}", session.project_id))
         {
@@ -658,10 +660,10 @@ pub async fn pick_prompt_attachments(
         .map_err(|_| Error::new("attachment", "An attachment picker is already open."))?;
     let _guard = PickerGuard(&state.attachment_picker);
     let paths = crate::attachment_platform::pick(&app, folder).await?;
-    if paths.len() > 8 {
+    if paths.len() > MAX_ATTACHMENTS {
         return Err(Error::new(
             "attachment",
-            "Select at most 8 attachments at a time.",
+            "Select at most 20 attachments at a time.",
         ));
     }
     let files = tokio::task::spawn_blocking(move || {
@@ -690,7 +692,7 @@ pub async fn paste_prompt_attachments(
     expected_text: Option<String>,
 ) -> Result<Vec<PromptAttachment>> {
     validate_owner(&state, &owner)?;
-    if files.len() > 8
+    if files.len() > MAX_ATTACHMENTS
         || files.iter().map(|f| f.data.len()).sum::<usize>() > MAX_BATCH_BYTES * 4 / 3 + 32
         || files
             .iter()
@@ -698,7 +700,7 @@ pub async fn paste_prompt_attachments(
     {
         return Err(Error::new(
             "attachment",
-            "Select at most 8 attachments, up to 10 MiB each and 40 MiB total.",
+            "Select at most 20 attachments, up to 10 MiB each and 40 MiB total.",
         ));
     }
     let native = if files.is_empty() {
@@ -753,10 +755,10 @@ pub async fn drop_prompt_attachments(
 ) -> Result<Vec<PromptAttachment>> {
     validate_owner(&state, &owner)?;
     let paths = state.attachments.take_drop();
-    if paths.len() > 8 {
+    if paths.len() > MAX_ATTACHMENTS {
         return Err(Error::new(
             "attachment",
-            "Select at most 8 attachments at a time.",
+            "Select at most 20 attachments at a time.",
         ));
     }
     let prepared = tokio::task::spawn_blocking(move || {
@@ -779,7 +781,7 @@ pub fn release_prompt_attachments(
     ids: Vec<String>,
 ) -> Result<()> {
     validate_owner(&state, &owner)?;
-    if ids.len() > 8 {
+    if ids.len() > MAX_ATTACHMENTS {
         return Err(Error::new("attachment", "Invalid attachment count."));
     }
     state.attachments.release(&owner, &ids);

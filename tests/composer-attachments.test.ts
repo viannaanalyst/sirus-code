@@ -36,17 +36,17 @@ test("pasted files use the webview's FileReader and drop the data URL prefix", a
 test("paste checks size and count before reading file bodies", async () => {
   const huge = { name: "big.pdf", size: attachmentFileLimit + 1, arrayBuffer() { throw new Error("must not read"); } } as unknown as File;
   await assert.rejects(pastedFiles([huge]), /attachmentFileLimit/);
-  await assert.rejects(pastedFiles(Array(9).fill(huge)), /attachmentLimit/);
-  assert.throws(() => appendAttachments(Array(8).fill({}), [{}] as never), /attachmentLimit/);
+  await assert.rejects(pastedFiles(Array(21).fill(huge)), /attachmentLimit/);
+  assert.throws(() => appendAttachments(Array(20).fill({}), [{}] as never), /attachmentLimit/);
 });
 test("annotated replacement keeps position, enforces limits and derives safe names", () => {
   const files: { id: string }[] = [{ id: "a" }, { id: "b" }, { id: "c" }];
   const next = { id: "annotation", name: "shot-annotated.png", kind: "file", content: "", truncated: false, size: 1 } as never;
   assert.deepEqual(replaceAttachment(files as never, "b", next).map((file: { id: string }) => file.id), ["a", "annotation", "c"]);
   assert.deepEqual(replaceAttachment(files as never, "missing", next).map((file: { id: string }) => file.id), ["a", "b", "c", "annotation"]);
-  const eight = Array.from({ length: 8 }, (_, index) => ({ id: `x${index}` }));
-  assert.equal(replaceAttachment(eight as never, "x3", next).length, 8);
-  assert.throws(() => replaceAttachment(eight as never, "missing", next), /attachmentLimit/);
+  const full = Array.from({ length: 20 }, (_, index) => ({ id: `x${index}` }));
+  assert.equal(replaceAttachment(full as never, "x3", next).length, 20);
+  assert.throws(() => replaceAttachment(full as never, "missing", next), /attachmentLimit/);
   assert.equal(annotatedImageName("screenshot.png"), "screenshot-annotated.png");
   assert.equal(annotatedImageName("report.final.jpeg"), "report.final-annotated.png");
   assert.equal(annotatedImageName("no-extension"), "no-extension-annotated.png");
