@@ -377,12 +377,6 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "group": "Environment panel"
  },
  {
-  "section": "general",
-  "title": "Check for updates automatically",
-  "description": null,
-  "group": "Application"
- },
- {
   "section": "notifications",
   "title": "Activity toasts",
   "description": null,
@@ -417,6 +411,24 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "title": "mcp.agents.enable",
   "description": "mcp.agents.enableHelp",
   "group": "mcp.agents.title"
+ },
+ {
+  "section": "advanced",
+  "title": "appUpdate.autoCheck",
+  "description": "appUpdate.autoCheckHelp",
+  "group": "About"
+ },
+ {
+  "section": "advanced",
+  "title": "appUpdate.autoDownload",
+  "description": "appUpdate.autoDownloadHelp",
+  "group": "About"
+ },
+ {
+  "section": "advanced",
+  "title": "appUpdate.whatsNewSetting",
+  "description": "appUpdate.whatsNewSettingHelp",
+  "group": "About"
  },
  {
   "section": "providers",
@@ -582,12 +594,6 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "advanced",
-  "title": "Updates",
-  "description": "Sirus Code looks for a new version when it opens and every few hours. Updates install only when you choose.",
-  "group": "About"
- },
- {
-  "section": "advanced",
   "title": "Developer logs",
   "description": "Stores bounded lifecycle counts locally. Prompts, output, paths and credentials are excluded.",
   "group": "Diagnostics"
@@ -621,5 +627,17 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "title": "Experimental features",
   "description": null,
   "group": "Diagnostics"
+ },
+ {
+  "section": "advanced",
+  "title": "Updates",
+  "description": "appUpdate.updatesHelp",
+  "group": "About"
+ },
+ {
+  "section": "advanced",
+  "title": "appUpdate.seeWhatsNew",
+  "description": null,
+  "group": "About"
  }
 ];

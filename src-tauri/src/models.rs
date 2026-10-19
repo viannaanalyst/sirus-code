@@ -607,6 +607,19 @@ pub enum WindowSnapShortcut {
     ControlShiftS,
 }
 
+/// Release notes of an installed update (What's new, ADR-140): bounded, shown once.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppUpdateNotes {
+    pub version: String,
+    pub notes: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    /// What's new was shown (or dismissed) for this version.
+    #[serde(default)]
+    pub seen: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
@@ -783,6 +796,19 @@ pub struct AppSettings {
     pub show_environment_instructions: bool,
     #[serde(default = "default_true")]
     pub enable_provider_update_checks: bool,
+    /// In-app updates (ADR-140): release builds look for a new version on their own.
+    #[serde(default = "default_true")]
+    pub app_update_auto_check: bool,
+    /// An update found on its own is downloaded and installed in the background and waits
+    /// for a restart (it also starts the next time the app opens).
+    #[serde(default = "default_true")]
+    pub app_update_auto_download: bool,
+    /// The first launch of a new version shows its notes once (What's new).
+    #[serde(default = "default_true")]
+    pub app_update_whats_new: bool,
+    /// The notes of the last installed update, kept for What's new and Settings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub app_update_notes: Option<AppUpdateNotes>,
     #[serde(default = "default_locale")]
     pub locale: String,
     /// New conversations: the approval mode they start on when the provider offers it
@@ -945,6 +971,10 @@ impl Default for AppSettings {
             show_environment_notepad: true,
             show_environment_instructions: true,
             enable_provider_update_checks: true,
+            app_update_auto_check: true,
+            app_update_auto_download: true,
+            app_update_whats_new: true,
+            app_update_notes: None,
             locale: default_locale(),
             default_approval: ApprovalMode::Full,
             auto_archive_merged: false,
@@ -998,6 +1028,17 @@ pub(crate) fn valid_github_pin(pin: &str) -> bool {
 impl AppSettings {
     pub fn validate_controls(&self) -> crate::error::Result<()> {
         crate::skills::validate_disabled(&self.disabled_skills)?;
+        if self.app_update_notes.as_ref().is_some_and(|notes| {
+            notes.version.is_empty()
+                || notes.version.len() > 64
+                || notes.notes.chars().count() > 4000
+                || notes.date.as_ref().is_some_and(|date| date.len() > 64)
+        }) {
+            return Err(crate::error::Error::new(
+                "settings",
+                "Update notes are not valid.",
+            ));
+        }
         crate::connectors::validate(&self.connectors)?;
         use crate::error::Error;
         // One entry per provider at most (ten since Hermes).

@@ -120,6 +120,10 @@ export const defaultSettings: AppSettings = {
   showEnvironmentNotepad: true,
   showEnvironmentInstructions: true,
   enableProviderUpdateChecks: true,
+  appUpdateAutoCheck: true,
+  appUpdateAutoDownload: true,
+  appUpdateWhatsNew: true,
+  appUpdateNotes: null,
   locale: "pt-BR",
   customShortcuts: {},
   defaultApproval: "full",
@@ -214,6 +218,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     sidebarAttentionFirst: value?.sidebarAttentionFirst === true,
     sidebarMode: value?.sidebarMode === "list" || value?.sidebarMode === "project" ? value.sidebarMode : "rail",
     sidebarListOrder: value?.sidebarListOrder === "project" ? "project" : "recent",
+    appUpdateNotes: updateNotes(value?.appUpdateNotes),
     sidebarOpenFolders: Array.isArray(value?.sidebarOpenFolders) ? sidebarIds(value.sidebarOpenFolders).slice(0, 100) : null,
     showEnvironmentUsage: typeof value?.showEnvironmentUsage === "boolean" ? value.showEnvironmentUsage : true,
     showEnvironmentRepository: typeof value?.showEnvironmentRepository === "boolean" ? value.showEnvironmentRepository : true,
@@ -268,6 +273,12 @@ function projectFolders(folders: ProjectFolder[] | undefined): ProjectFolder[] {
   return folders.filter((folder) => folder && typeof folder.id === "string" && folder.id && typeof folder.name === "string" && folder.name.trim())
     .slice(0, 64)
     .map((folder) => ({ id: folder.id, name: folder.name, look: folder.look ?? {}, projectIds: sidebarIds(folder.projectIds), collapsed: folder.collapsed === true }));
+}
+
+/** Saved update notes, bounded like the native check; anything else is dropped. */
+function updateNotes(value: AppSettings["appUpdateNotes"] | undefined): AppSettings["appUpdateNotes"] {
+  if (!value || typeof value.version !== "string" || !value.version || value.version.length > 64 || typeof value.notes !== "string") return null;
+  return { version: value.version, notes: value.notes.slice(0, 4000), date: typeof value.date === "string" ? value.date.slice(0, 64) : null, seen: value.seen === true };
 }
 
 function sidebarIds(ids: string[] | undefined): string[] {

@@ -3,6 +3,7 @@ import type { AgentInstall, AgentProviderId, AppSettings, HostInfo, WorktreeLeft
 import { formatDiskSize } from "@/lib/project-scripts";
 import { client, localClient } from "@/client";
 import { AppUpdateControl } from "@/components/AppUpdateToast";
+import { WhatsNewDialog } from "@/components/AppUpdatePill";
 import { RefreshCw } from "@/components/icons/phosphor";
 import "@/styles/general-settings.css";
 import { KeybindingsSettings } from "./KeybindingsSettings";
@@ -260,11 +261,7 @@ export function SettingsPanels({
   return (
     <SettingsSection title={t("Advanced")}>
         <div className="general-settings">
-      {localClient ? <SettingsGroup title={t("About")} card>
-        <SettingsRow title={t("Updates")} description={t("Sirus Code looks for a new version when it opens and every few hours. Updates install only when you choose.")}>
-          <AppUpdateControl />
-        </SettingsRow>
-      </SettingsGroup> : null}
+      {localClient ? <UpdatesGroup settings={settings} onSave={onSave} /> : null}
       <SettingsGroup title={t("Diagnostics")} card>
         <SettingsRow title={t("Developer logs")} description={t("Stores bounded lifecycle counts locally. Prompts, output, paths and credentials are excluded.")}>
           <Switch checked={settings.developerLogs} onChange={(developerLogs) => onSave({ ...settings, developerLogs })} />
@@ -458,5 +455,28 @@ function SidebarUsageSettings({ settings, agents, onSave }: { settings: AppSetti
       </SettingsRow>;
     })}
     <p className="px-1 pt-2 ui-caption text-text-muted">{t("sidebarUsage.description")}</p>
+  </SettingsGroup>;
+}
+
+/**
+ * Settings → Advanced → About (ADR-140): the version and its update action, the automatic
+ * check and background download, What's new after an update and a way to open it again.
+ */
+function UpdatesGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
+  const t = useTranslation();
+  const [notesOpen, setNotesOpen] = useState(false);
+  const toggle = (key: "appUpdateAutoCheck" | "appUpdateAutoDownload" | "appUpdateWhatsNew", title: string, help: string, disabled = false) =>
+    <SettingsRow title={t(title)} description={t(help)}><Switch checked={settings[key]} disabled={disabled} label={t(title)} onChange={value => onSave({ ...settings, [key]: value })} /></SettingsRow>;
+  return <SettingsGroup title={t("About")} card>
+    <SettingsRow title={t("Updates")} description={t("appUpdate.updatesHelp")}>
+      <AppUpdateControl />
+    </SettingsRow>
+    {toggle("appUpdateAutoCheck", "appUpdate.autoCheck", "appUpdate.autoCheckHelp")}
+    {toggle("appUpdateAutoDownload", "appUpdate.autoDownload", "appUpdate.autoDownloadHelp", !settings.appUpdateAutoCheck)}
+    {toggle("appUpdateWhatsNew", "appUpdate.whatsNewSetting", "appUpdate.whatsNewSettingHelp")}
+    {settings.appUpdateNotes ? <SettingsRow title={t("appUpdate.seeWhatsNew")} description={t("appUpdate.versionTag", { version: settings.appUpdateNotes.version })}>
+      <InteractiveButton variant="toolbar" onClick={() => setNotesOpen(true)}>{t("appUpdate.seeWhatsNew")}</InteractiveButton>
+    </SettingsRow> : null}
+    {notesOpen ? <WhatsNewDialog forced onClose={() => setNotesOpen(false)} /> : null}
   </SettingsGroup>;
 }

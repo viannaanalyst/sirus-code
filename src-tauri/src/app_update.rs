@@ -71,6 +71,8 @@ pub enum Action {
     Check,
     /// Downloads, verifies and installs the update on offer, then restarts through the close guard.
     Install,
+    /// Downloads, verifies and installs it without restarting: it waits for Restart (or the next launch).
+    Download,
     /// Restarts into an update installed earlier, through the close guard.
     Restart,
 }
@@ -107,6 +109,16 @@ static UPDATES: LazyLock<Mutex<Inner>> = LazyLock::new(|| {
 /// check on their own; Settings can still check by hand.
 fn automatic() -> bool {
     !cfg!(debug_assertions)
+}
+
+/// The person's update preferences: (look on their own, download what is found).
+fn preferences(app: &AppHandle) -> (bool, bool) {
+    let state = app.state::<Arc<AppState>>();
+    let data = state.data.lock();
+    (
+        data.settings.app_update_auto_check,
+        data.settings.app_update_auto_download,
+    )
 }
 
 /// Whether a focus should check again: only after a first check and a long pause.
@@ -159,8 +171,20 @@ pub fn start(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(START_DELAY).await;
-        check(&app, false).await;
+        automatic_check(&app).await;
     });
+}
+
+/// A check of its own, when the person keeps them on; with background downloads on, a
+/// version found is downloaded and installed right away and waits for a restart.
+async fn automatic_check(app: &AppHandle) {
+    let (look, download) = preferences(app);
+    if !look {
+        return;
+    }
+    if check(app, false).await.phase == Phase::Available && download {
+        install(app, false).await;
+    }
 }
 
 /// The main window gained focus: checks again when the last check is old enough.
@@ -174,7 +198,7 @@ pub fn focused(app: &AppHandle) {
     };
     if due {
         let app = app.clone();
-        tauri::async_runtime::spawn(async move { check(&app, false).await });
+        tauri::async_runtime::spawn(async move { automatic_check(&app).await });
     }
 }
 
@@ -251,7 +275,7 @@ fn fail(app: &AppHandle, message: String) -> Status {
     publish(app)
 }
 
-async fn install(app: &AppHandle) -> Status {
+async fn install(app: &AppHandle, restart: bool) -> Status {
     let pending = {
         let inner = UPDATES.lock();
         match inner.status.phase {
@@ -261,7 +285,9 @@ async fn install(app: &AppHandle) -> Status {
             }
             Phase::Installed => {
                 drop(inner);
-                relaunch(app);
+                if restart {
+                    relaunch(app);
+                }
                 return snapshot(app);
             }
             _ => inner.pending.clone(),
@@ -328,7 +354,9 @@ async fn install(app: &AppHandle) -> Status {
         inner.status.phase = Phase::Installed;
     }
     let status = publish(app);
-    relaunch(app);
+    if restart {
+        relaunch(app);
+    }
     status
 }
 
@@ -407,7 +435,8 @@ pub async fn app_update_action(app: AppHandle, action: Action) -> Result<Status>
     Ok(match action {
         Action::Status => snapshot(&app),
         Action::Check => check(&app, true).await,
-        Action::Install => install(&app).await,
+        Action::Install => install(&app, true).await,
+        Action::Download => install(&app, false).await,
         Action::Restart => {
             if snapshot(&app).phase != Phase::Installed {
                 return Err(Error::new("update", "No update is waiting for a restart."));
@@ -456,7 +485,8 @@ mod tests {
     fn actions_are_a_closed_set() {
         assert!(serde_json::from_str::<Action>(r#"{"type":"check"}"#).is_ok());
         assert!(serde_json::from_str::<Action>(r#"{"type":"install"}"#).is_ok());
-        assert!(serde_json::from_str::<Action>(r#"{"type":"download","url":"x"}"#).is_err());
+        assert!(serde_json::from_str::<Action>(r#"{"type":"download"}"#).is_ok());
+        assert!(serde_json::from_str::<Action>(r#"{"type":"downloadUrl","url":"x"}"#).is_err());
         assert!(serde_json::from_str::<Action>(r#"{"url":"x"}"#).is_err());
     }
 }

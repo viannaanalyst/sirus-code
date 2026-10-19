@@ -555,6 +555,14 @@ export interface AppSettings {
   showEnvironmentNotepad: boolean;
   showEnvironmentInstructions: boolean;
   enableProviderUpdateChecks: boolean;
+  /** In-app updates (ADR-140): release builds look for a new version on their own. */
+  appUpdateAutoCheck: boolean;
+  /** A version found on its own downloads and installs in the background, then waits for a restart. */
+  appUpdateAutoDownload: boolean;
+  /** The first launch of a new version shows its notes once. */
+  appUpdateWhatsNew: boolean;
+  /** Notes of the last installed update, for What's new and Settings. */
+  appUpdateNotes?: AppUpdateNotes | null;
   locale: "pt-BR" | "en";
   /** New conversations start on this approval mode when the provider offers it (ADR-130). */
   defaultApproval: ApprovalMode;
@@ -1212,7 +1220,9 @@ export interface AppUpdateStatus {
   /** Release builds check on their own; development builds only when asked. */
   automatic: boolean;
 }
-export type AppUpdateAction = { type: "status" } | { type: "check" } | { type: "install" } | { type: "restart" };
+export type AppUpdateAction = { type: "status" } | { type: "check" } | { type: "install" } | { type: "download" } | { type: "restart" };
+/** Release notes of an installed update (What's new): shown once, `seen` after that. */
+export interface AppUpdateNotes { version: string; notes: string; date?: string | null; seen: boolean }
 
 /** Usage page history (ADR-141): tokens per hour bucket, provider, model and session, read from the provider CLIs' own local logs. */
 export interface UsageHistoryEntry {

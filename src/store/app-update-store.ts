@@ -19,6 +19,8 @@ interface AppUpdateState {
   bind: () => void;
   check: () => Promise<void>;
   install: () => Promise<void>;
+  /** Downloads and installs without restarting; the pill then offers the restart. */
+  download: () => Promise<void>;
   restart: () => Promise<void>;
   later: (kind: AppUpdateToastKind) => void;
 }
@@ -26,9 +28,9 @@ interface AppUpdateState {
 let bound = false;
 
 export const useAppUpdate = create<AppUpdateState>((set, get) => {
-  const run = async (action: "check" | "install" | "restart") => {
+  const run = async (action: "check" | "install" | "download" | "restart") => {
     if (!localClient || get().pending) return;
-    set({ pending: true, ...(action === "install" ? { installRequested: true } : {}) });
+    set({ pending: true, ...(action === "install" || action === "download" ? { installRequested: true } : {}) });
     try {
       set({ status: await localClient.appUpdateAction({ type: action }) });
     } catch (error) {
@@ -51,6 +53,7 @@ export const useAppUpdate = create<AppUpdateState>((set, get) => {
     },
     check: () => run("check"),
     install: () => run("install"),
+    download: () => run("download"),
     restart: () => run("restart"),
     later: (kind) => {
       const status = get().status;

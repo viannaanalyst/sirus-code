@@ -7,7 +7,7 @@ import { playWindowOpening } from "@/lib/window-opening";
 import { effectiveShortcut, KEYBINDINGS, shortcutLabel } from "@/lib/keybindings";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { client } from "@/client";
+import { client, localClient } from "@/client";
 import { useComputers } from "@/store/computers-store";
 import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
@@ -24,7 +24,7 @@ import { WorktreeReleaseToast } from "@/components/WorktreeReleaseToast";
 import { SnoozeToast } from "@/components/SnoozeToast";
 import { ActivityNotifications } from "@/components/ActivityNotifications";
 import { ProviderUpdateToast } from "@/components/ProviderUpdateToast";
-import { AppUpdateToast } from "@/components/AppUpdateToast";
+import { AppUpdatePill, WhatsNewDialog } from "@/components/AppUpdatePill";
 import { CommandPalette } from "@/components/CommandPalette";
 import { EnvironmentPanel, EnvironmentToggle } from "@/components/EnvironmentPanel";
 import { RightDock } from "@/components/RightDock";
@@ -292,6 +292,7 @@ export default function App() {
               <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : mainView === "archived" ? t("Archived sessions") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
+              {localClient ? <span className="mr-1.5 inline-flex"><AppUpdatePill /></span> : null}
               <EnvironmentToggle />
               <IconButton
                 label={t(dockOpen ? "Collapse panel" : "Open right panel")}
@@ -371,10 +372,10 @@ export default function App() {
           <SnoozeToast />
           <ActivityNotifications />
           <ProviderUpdateToast />
-          <AppUpdateToast />
           <ImageGalleryHost />
           <AttachmentModal />
         </TopToastStack> : null}
+        {localClient ? <WhatsNewDialog /> : null}
       </div>
     </TooltipProvider>
     </MotionConfig>

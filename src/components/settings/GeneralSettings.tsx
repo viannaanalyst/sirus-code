@@ -70,7 +70,6 @@ export function GeneralSettings({ settings, agents, onSave }: {
     </SettingsGroup>
     <SettingsGroup title={t("Application")} card>
       {booleanRow("confirmCloseRunning", "Show confirmation before closing running sessions", "Ask before closing or quitting while agents are running.")}
-      <SettingsRow title={t("Check for updates automatically")} comingSoon><Switch checked={false} disabled label={t("Check for updates automatically")} onChange={() => undefined} /></SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Environment panel")} card>
       {booleanRow("environmentPanelDefaultOpen", "Open by default", "Open the chat Environment panel automatically on normal threads. When off, the panel stays closed until you open it. Your last open/close also updates this preference.")}
