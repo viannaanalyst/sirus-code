@@ -19,14 +19,12 @@ import {
   Globe,
   Hammer,
   Laptop,
-  MessagesSquare,
   MousePointer2,
   Plus,
   Search,
   Settings2,
   Square,
   SquareTerminal,
-  Trash2,
 } from "@/components/icons/phosphor";
 import { client } from "@/client";
 import type { BranchInfo, EditorId } from "@/client/types";
@@ -43,7 +41,6 @@ import { CiFixRow } from "@/components/EnvironmentPullRequestSection";
 import { PrWatchBadge, PrWatchPanel } from "@/components/PrWatch";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
-import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
 import { selectCurrentProject, useAppStore, selectCurrentSessionMeta } from "@/store/app-store";
 
 export function EnvironmentToggle() {
@@ -168,7 +165,6 @@ function EnvironmentPanelContent({ onClose }: { onClose: () => void }) {
         {prWatch && !session.sideChat ? <Expandable icon={<Eye size={14} />} label={t("prWatch.row")} heading={null} trailing={<PrWatchBadge sessionId={session.id} />}>
           <PrWatchPanel sessionId={session.id} />
         </Expandable> : null}
-        <SideChatRow parentSessionId={session.id} onClose={onClose} />
         {showRepository && <><Divider />
         <Section title={t("Repository")}>
           <RepositoryRow projectId={project.id} name={project.name} path={project.path} />
@@ -487,28 +483,6 @@ function CommitAndPushSection({ sessionId, projectId, projectPath, isolated, onC
       </p> : null}
     </Expandable>
   );
-}
-
-/** The session's side chat (ADR-049): open it, or remove an idle one. */
-function SideChatRow({ parentSessionId, onClose }: { parentSessionId: string; onClose: () => void }) {
-  const t = useTranslation();
-  const side = useAppStore((state) => state.sessions.find((session) => session.sideChat?.parentSessionId === parentSessionId));
-  const shortcut = useAppStore((state) => shortcutLabel(effectiveShortcut(state.settings.customShortcuts, "toggle-side-chat")));
-  const running = side ? ["starting", "running", "waiting"].includes(side.status) : false;
-  const open = () => { onClose(); void useAppStore.getState().openSideChat(parentSessionId); };
-  const count = side?.transcriptLength ?? side?.messages.filter((message) => message.role !== "system").length ?? 0;
-  return <div className="group flex w-full items-center rounded-[8px] hover:bg-background-3">
-    <button type="button" onClick={open} className="flex min-w-0 flex-1 items-center gap-[8px] px-[8px] py-[3px] text-left ui-body text-text-secondary hover:text-text-primary">
-      <span className="shrink-0 text-text-muted [&_svg]:size-[16px]" aria-hidden="true"><MessagesSquare size={14} /></span>
-      <span className="min-w-0 flex-1 truncate">{t(side ? "sideChat.title" : "sideChat.open")}</span>
-      {running ? <span className="ui-caption text-text-muted">{t("sideChat.working")}</span>
-        : side && count ? <span className="ui-caption tabular-nums text-text-muted">{t("sideChat.messages", { count })}</span>
-        : <kbd className="ui-caption text-text-muted">{shortcut}</kbd>}
-    </button>
-    {side && !running ? <button type="button" aria-label={t("sideChat.delete")} title={t("sideChat.delete")}
-      className="mr-1 rounded-[6px] p-1 text-text-muted opacity-0 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
-      onClick={() => void useAppStore.getState().deleteSession(side.id, false)}><Trash2 size={13} /></button> : null}
-  </div>;
 }
 
 function LocalServersSection({ sessionId }: { sessionId: string }) {
