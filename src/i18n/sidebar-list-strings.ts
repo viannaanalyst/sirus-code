@@ -30,6 +30,9 @@ const strings: Record<string, [string, string]> = {
   "sidebarList.nextProjects": ["More projects", "Mais projetos"],
   "sidebarList.emptyProject": ["This project's conversations will show up here", "As conversas deste projeto aparecem aqui"],
   "sidebarList.noProject": ["Choose a project to see its conversations", "Escolha um projeto para ver as conversas dele"],
+  "sidebarList.hover.working": ["Working", "Trabalhando"],
+  "sidebarList.hover.needsYou": ["Needs you", "Precisa de você"],
+  "sidebarList.hover.failed": ["Failed", "Falhou"],
 };
 export const sidebarListEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const sidebarListPortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));

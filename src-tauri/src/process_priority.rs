@@ -119,6 +119,9 @@ mod tests {
         unsafe extern "C" {
             fn getiopolicy_np(kind: libc::c_int, scope: libc::c_int) -> libc::c_int;
         }
+        // The test may itself run under a lowered agent (inheriting the throttle): compare with
+        // its own policy before the spawn rather than with a fixed value.
+        let before = unsafe { getiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS) };
         let mut command = Command::new(std::env::current_exe().unwrap());
         command
             .args([
@@ -135,9 +138,9 @@ mod tests {
             String::from_utf8_lossy(&output.stdout)
         );
         // This test process itself is untouched.
-        assert_ne!(
+        assert_eq!(
             unsafe { getiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS) },
-            IOPOL_THROTTLE
+            before
         );
     }
 

@@ -3,6 +3,7 @@ import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, ChevronLeft, ChevronRight, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
+import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ProjectSwitcher } from "@/components/HeaderTabs";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
@@ -277,6 +278,8 @@ function ConversationList({ style }: { style: ColumnStyle }) {
   const start = windowed ? Math.min(range.start, items.length) : 0;
   const end = windowed ? Math.min(range.end, items.length) : items.length;
 
+  // One hover card for the whole list, driven by delegated pointer events (rows never re-render for it).
+  const hover = useConversationHover();
   // One context menu for the whole list: the row under the pointer picks its items.
   const [menuId, setMenuId] = useState<string | null>(null);
   const [action, setAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
@@ -308,9 +311,10 @@ function ConversationList({ style }: { style: ColumnStyle }) {
   const selectedProject = projects.find(project => project.id === selectedProjectId) ?? null;
   const empty = order === "time" && !projects.some(project => project.id === selectedProjectId) ? t("sidebarList.noProject") : t(order === "time" ? "sidebarList.emptyProject" : "sidebarList.empty");
   return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
-    onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)}>
-    {items.length ? <ContextMenu activation="context-only" label={t("session.actions")} items={menuItems}>
+    onPointerEnter={event => { setNow(Date.now()); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => setHovering(false)} onScroll={hover.onScroll}>
+    {items.length ? <ContextMenu activation="context-only" label={t("session.actions")} items={menuItems} onOpenChange={hover.onMenuOpenChange}>
       <div ref={inner} className="conversation-sidebar-rows" style={windowed ? { paddingTop: offsets[start], paddingBottom: offsets[items.length] - offsets[end] } : undefined}
+        onPointerOver={hover.onPointerOver} onPointerLeave={hover.onPointerLeave} onPointerDown={hover.onPointerDown}
         onContextMenuCapture={event => setMenuId((event.target as HTMLElement).closest<HTMLElement>("[data-conversation]")?.dataset.conversation ?? null)}>
         {items.slice(start, end).map(item => {
           if (item.kind === "folder") depth = 0;
@@ -331,6 +335,7 @@ function ConversationList({ style }: { style: ColumnStyle }) {
       ? <button type="button" className="conversation-new-hint" onClick={() => void sidebarProjectAction(selectedProject.id, "new")}>
         <Plus size={13} aria-hidden="true" /><span className="truncate">{t("sidebarList.newIn", { project: selectedProject.name })}</span>
       </button> : null}
+    <ConversationHoverCard controller={hover.controller} />
     {action ? <SessionActionDialog session={action.session} action={action.kind} onClose={() => setAction(null)} /> : null}
     <SnoozePicker session={snoozing?.session ?? null} anchor={snoozing?.anchor ?? null} onClose={() => setSnoozing(null)} />
   </div>;

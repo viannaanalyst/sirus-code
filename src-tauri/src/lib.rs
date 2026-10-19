@@ -89,6 +89,7 @@ mod pull_requests;
 mod redact;
 mod remote;
 mod reply_image;
+mod reply_preview;
 mod review_guides;
 mod scheduled_tasks;
 mod secrets;

@@ -49,7 +49,7 @@ try {
       assert.ok(html.includes("conversation-sidebar-search") && (html.match(/conversation-sidebar-tool(?!s)/g) ?? []).length === 3);
       assert.ok(!html.includes('aria-label="Open Project"') && !html.includes('aria-label="Abrir projeto"'));
       assert.equal((html.match(/conversation-sidebar-nav-item/g) ?? []).length, 3);
-      assert.ok(html.includes('data-section="settings"') && html.includes('role="separator"'));
+      assert.ok(html.includes('data-section="settings"'), "Settings at the foot; the column has no resize handle");
       assert.ok(!html.includes("conversation-strip") && !html.includes("conversation-sidebar-project"));
       assert.ok(!/uppercase/.test(html), "labels are never forced into capitals");
     }

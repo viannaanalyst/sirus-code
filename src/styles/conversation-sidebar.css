@@ -128,12 +128,35 @@
   .conversation-strip-arrow:disabled { opacity: 0.35; }
 
 
+  /* The hover card: one per list, to the right of the column beside the row under the pointer. Read only, so it never takes the pointer. */
+  .conversation-hover-card[data-popup] { display: flex; width: 300px; min-width: 0; max-width: calc(100vw - 20px); flex-direction: column; gap: 7px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--floating-material); box-shadow: var(--shadow-float); color: var(--text-secondary); font-size: var(--text-ui-12); pointer-events: none; }
+  /* Going straight from one row's card to the next one's, the card glides instead of popping in again. */
+  [data-radix-popper-content-wrapper]:has(> .conversation-hover-card[data-glide]) { transition: transform var(--motion-fast) var(--ease-out); }
+  .conversation-hover-title { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text-primary); font-size: var(--text-ui-13); font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+  .conversation-hover-pill { display: inline-flex; align-self: flex-start; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, var(--pill-tone) 14%, transparent); color: color-mix(in srgb, var(--pill-tone) 80%, var(--text-primary)); font-size: var(--text-ui-11); font-weight: 500; }
+  .conversation-hover-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--pill-tone); }
+  .conversation-hover-pill[data-tone="working"] { --pill-tone: var(--info); }
+  .conversation-hover-pill[data-tone="needsYou"] { --pill-tone: var(--warning); }
+  .conversation-hover-pill[data-tone="failed"] { --pill-tone: var(--danger); }
+  .conversation-hover-line { display: flex; min-width: 0; align-items: center; gap: 7px; min-height: 18px; }
+  .conversation-hover-line > svg { flex-shrink: 0; color: var(--text-muted); }
+  .conversation-hover-grow { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conversation-hover-age { flex-shrink: 0; color: var(--text-muted); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
+  .conversation-hover-branch { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-ui-11); }
+  .conversation-hover-diff { display: inline-flex; flex-shrink: 0; gap: 5px; font-family: var(--font-mono); font-size: var(--text-ui-11); font-variant-numeric: tabular-nums; }
+  .conversation-hover-diff [data-kind="added"] { color: var(--success); }
+  .conversation-hover-diff [data-kind="removed"] { color: var(--danger); }
+  .conversation-hover-separator { height: 1px; margin: 2px 0; background: var(--border-subtle); }
+  .conversation-hover-snippet { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--text-secondary); line-height: 1.45; overflow-wrap: anywhere; }
+
   /* The content frame starts after the column instead of the rail. */
   [data-rail="list"] > .app-content-frame { left: var(--sidebar-list-width, 280px); transition: none; }
 
   html:is([data-animations="off"], [data-reduce-motion="on"]) :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
+  html:is([data-animations="off"], [data-reduce-motion="on"]) [data-radix-popper-content-wrapper]:has(> .conversation-hover-card) { transition: none; }
   @media (prefers-reduced-motion: reduce) {
     :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
+    [data-radix-popper-content-wrapper]:has(> .conversation-hover-card) { transition: none; }
     .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-group-new, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-folder-chevron, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
   }
 }

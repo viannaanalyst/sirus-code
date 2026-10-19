@@ -745,6 +745,47 @@ pub fn read_messages(state_path: &Path, session_id: &str) -> Result<Vec<Message>
     })
 }
 
+/// The last reply's preview (ADR-139) from a transcript's newest rows, for an index
+/// written before previews were recorded. Reads at most [`PREVIEW_ROWS`] rows and only
+/// their role and text; nothing is remembered.
+pub fn read_reply_preview(state_path: &Path, session_id: &str) -> Option<String> {
+    #[derive(serde::Deserialize)]
+    struct Row {
+        role: crate::models::MessageRole,
+        #[serde(default)]
+        content: String,
+    }
+    with_db(state_path, |db| {
+        let mut statement = db
+            .conn
+            .prepare_cached(
+                "SELECT json FROM messages WHERE session_id = ?1 ORDER BY position DESC LIMIT ?2",
+            )
+            .map_err(sql)?;
+        let rows = statement
+            .query_map(params![session_id, PREVIEW_ROWS], |row| {
+                row.get::<_, String>(0)
+            })
+            .map_err(sql)?;
+        for json in rows {
+            let Ok(row) = serde_json::from_str::<Row>(&json.map_err(sql)?) else {
+                continue;
+            };
+            if row.role == crate::models::MessageRole::Agent {
+                if let Some(preview) = crate::reply_preview::excerpt(&row.content) {
+                    return Ok(Some(preview));
+                }
+            }
+        }
+        Ok(None)
+    })
+    .ok()
+    .flatten()
+}
+
+/// Newest rows [`read_reply_preview`] looks through.
+const PREVIEW_ROWS: i64 = 40;
+
 /// A scan's read: nothing is remembered. `None` when the database cannot be read.
 pub fn read_messages_only(state_path: &Path, session_id: &str) -> Option<Vec<Message>> {
     with_db(state_path, |db| {

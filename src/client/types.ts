@@ -289,6 +289,8 @@ export interface HandoffOrigin {
 export interface Session {
   /** Native count of user/assistant messages, sent with metadata-only sessions (ADR-048). */
   transcriptLength?: number;
+  /** What the last assistant reply said, natively: its last paragraph as plain text, masked, at most 280 characters (ADR-139 hover card). */
+  lastReplyPreview?: string;
   /** On session events: `messages` holds only `messages[from..]` of `total` (ADR-048). */
   transcriptWindow?: { from: number; total: number };
   goal?: string | null;

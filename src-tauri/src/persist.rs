@@ -24,6 +24,9 @@ const SESSIONS_DIR: &str = "sessions";
 /// unloaded transcript for them (ADR-099).
 const MESSAGE_COUNT: &str = "messageCount";
 const TRANSCRIPT_LENGTH: &str = "transcriptLength";
+/// The last reply's preview for the sidebar's hover card (ADR-139), recorded beside the
+/// counts so an unloaded transcript is never read for it.
+pub(crate) const LAST_REPLY_PREVIEW: &str = "lastReplyPreview";
 
 /// Where a state path's data lives (ADR-114): its SQLite database, or the JSON files of
 /// earlier versions (kept only until they are migrated, and as the fallback when a
@@ -234,6 +237,7 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
         .filter_map(|session| session.get("id")?.as_str().map(str::to_owned))
         .collect::<HashSet<_>>();
     let stored = stored_counts(entries);
+    let mut previews = stored_previews(entries);
     let mut data: AppData = serde_json::from_value(value)
         .map_err(|err| Error::new("persist", format!("invalid state: {err}")))?;
     let dir = sessions_dir(path);
@@ -242,6 +246,8 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
     let mut set_aside = false;
     // Counts were not recorded yet (state written before ADR-099): checkpoint them.
     let mut counted = false;
+    // Previews were not recorded yet (state written before ADR-139's hover card).
+    let mut previewed = false;
     for session in &mut data.sessions {
         if inline.contains(&session.id) {
             continue;
@@ -253,6 +259,17 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
         let active = session.status.is_active();
         if let (false, Some(counts)) = (active, stored.get(&session.id)) {
             session.messages.set_unloaded(origin, *counts);
+            let preview = match previews.remove(&session.id) {
+                Some(preview) => Some(preview),
+                // Read once from the newest rows, then recorded with the counts.
+                None if source == Source::Database && counts.conversation > 0 => {
+                    let found = crate::store::read_reply_preview(path, &session.id);
+                    previewed |= found.is_some();
+                    found
+                }
+                None => None,
+            };
+            session.messages.set_stored_preview(preview);
             continue;
         }
         let (messages, hash) = if source == Source::Database {
@@ -277,7 +294,9 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
                 },
             );
         } else {
+            let preview = crate::reply_preview::of(&messages);
             session.messages.set_unloaded(origin, Counts::of(&messages));
+            session.messages.set_stored_preview(preview);
             counted = true;
         }
     }
@@ -291,7 +310,7 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
     // Closed enum migration (legacy System → Dark), defaults and numeric bounds
     // are checkpointed once so retained preferences already use the new schema.
     let mut recovered = original_settings.as_ref() != Some(&serde_json::to_value(&data.settings)?);
-    recovered |= counted;
+    recovered |= counted || previewed;
     if !inline.is_empty() {
         // One-time split: keep the legacy file before rewriting it without transcripts.
         let backup = path.with_extension("json.pre-split-backup");
@@ -340,6 +359,19 @@ fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<Ap
     }
     crate::diagnostics::observe(path, &data);
     Ok(data)
+}
+
+/// Last reply previews the index recorded per session id.
+fn stored_previews(entries: &[serde_json::Value]) -> HashMap<String, String> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            Some((
+                entry.get("id")?.as_str()?.to_owned(),
+                entry.get(LAST_REPLY_PREVIEW)?.as_str()?.to_owned(),
+            ))
+        })
+        .collect()
 }
 
 /// Counts the index recorded per session id.
@@ -626,6 +658,9 @@ fn encode_state(data: &AppData) -> Result<serde_json::Value> {
             let counts = session.messages.counts();
             entry[MESSAGE_COUNT] = counts.messages.into();
             entry[TRANSCRIPT_LENGTH] = counts.conversation.into();
+            if let Some(preview) = session.messages.reply_preview() {
+                entry[LAST_REPLY_PREVIEW] = preview.into();
+            }
         }
     }
     Ok(value)
@@ -930,6 +965,9 @@ fn encode_checkpoint_index(data: &AppData) -> Result<serde_json::Value> {
             let counts = session.messages.counts();
             entry[MESSAGE_COUNT] = counts.messages.into();
             entry[TRANSCRIPT_LENGTH] = counts.conversation.into();
+            if let Some(preview) = session.messages.reply_preview() {
+                entry[LAST_REPLY_PREVIEW] = preview.into();
+            }
         }
     }
     let mut index = serde_json::Map::new();
@@ -1047,6 +1085,49 @@ mod tests {
         data.sessions.remove(1);
         save(&path, &data).unwrap();
         assert!(!dir.join("b.json").exists());
+    }
+
+    #[test]
+    fn the_last_reply_preview_stays_beside_the_counts_of_an_unloaded_transcript() {
+        let temp = crate::git::tests::Repo::new();
+        let path = temp.0.join("state.json");
+        let data = AppData {
+            sessions: vec![session("a", &["First reply.", "**Done**: tests pass."])],
+            ..AppData::default()
+        };
+        save(&path, &data).unwrap();
+        let loaded = load_or_create(&path).unwrap();
+        assert!(!loaded.sessions[0].messages.is_loaded());
+        assert_eq!(
+            loaded.sessions[0].messages.reply_preview().as_deref(),
+            Some("Done: tests pass.")
+        );
+        let meta = crate::transcript_view::state_meta(&loaded).unwrap();
+        assert_eq!(meta["sessions"][0][LAST_REPLY_PREVIEW], "Done: tests pass.");
+        assert!(
+            !loaded.sessions[0].messages.is_loaded(),
+            "the view never reads the transcript"
+        );
+
+        // An index written before previews were recorded reads the newest rows once and keeps it.
+        crate::store::forget(&path);
+        crate::store::raw(&path)
+            .execute(
+                "UPDATE sessions SET json = json_remove(json, '$.lastReplyPreview')",
+                [],
+            )
+            .unwrap();
+        let backfilled = load_or_create(&path).unwrap();
+        assert_eq!(
+            backfilled.sessions[0].messages.reply_preview().as_deref(),
+            Some("Done: tests pass.")
+        );
+        let stored: String = crate::store::raw(&path)
+            .query_row("SELECT json FROM sessions WHERE id = 'a'", [], |row| {
+                row.get(0)
+            })
+            .unwrap();
+        assert!(stored.contains("Done: tests pass."), "{stored}");
     }
 
     #[test]

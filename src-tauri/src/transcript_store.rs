@@ -82,6 +82,8 @@ pub struct Messages {
     origin: Option<Arc<Origin>>,
     /// Counts while unloaded (and of the file when a read failed).
     stored: Counts,
+    /// The last reply's preview while unloaded, as the index recorded it (ADR-139).
+    preview: Option<Arc<str>>,
     revision: u64,
     /// Last load or explicit use, for least-recently-used eviction.
     used: AtomicU64,
@@ -134,6 +136,20 @@ impl Messages {
     /// User and assistant messages, without reading an unloaded transcript.
     pub fn conversation_len(&self) -> usize {
         self.counts().conversation
+    }
+
+    /// The last reply's preview for the sidebar's hover card (ADR-139): from the
+    /// content while loaded, else as the index recorded it; never reads a transcript.
+    pub fn reply_preview(&self) -> Option<String> {
+        match self.loaded() {
+            Some(list) => crate::reply_preview::of(list),
+            None => self.preview.as_deref().map(str::to_owned),
+        }
+    }
+
+    /// The preview the index recorded, kept while the transcript is unloaded.
+    pub fn set_stored_preview(&mut self, preview: Option<String>) {
+        self.preview = preview.filter(|text| !text.is_empty()).map(Arc::from);
     }
 
     pub fn revision(&self) -> u64 {
@@ -207,9 +223,12 @@ impl Messages {
         *dirty = (*dirty).min(index);
     }
 
-    /// Releases the content; only its counts stay. Callers check it is saved.
+    /// Releases the content; only its counts and reply preview stay. Callers check it is saved.
     pub fn unload(&mut self, origin: Arc<Origin>) {
         let counts = self.counts();
+        if self.loaded().is_some() {
+            self.set_stored_preview(self.reply_preview());
+        }
         self.set_unloaded(origin, counts);
     }
 
@@ -277,6 +296,7 @@ impl From<Vec<Message>> for Messages {
             list: OnceLock::from(list),
             origin: None,
             stored: Counts::default(),
+            preview: None,
             revision,
             used: AtomicU64::new(0),
             failed: AtomicBool::new(false),
@@ -302,6 +322,7 @@ impl Clone for Messages {
             list,
             origin: self.origin.clone(),
             stored: self.stored,
+            preview: self.preview.clone(),
             revision: self.revision,
             used: AtomicU64::new(self.used.load(Ordering::Relaxed)),
             failed: AtomicBool::new(self.failed()),

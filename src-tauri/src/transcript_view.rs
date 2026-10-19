@@ -33,11 +33,15 @@ fn conversation_length(session: &Session) -> usize {
 }
 
 /// One session without its transcript. `messages` stays present and empty so the
-/// shared Session shape holds; `transcriptLength` says whether it has content.
+/// shared Session shape holds; `transcriptLength` says whether it has content and
+/// `lastReplyPreview` what it said last (ADR-139).
 pub fn session_meta(session: &Session) -> Result<Value> {
     let mut value = crate::persist::without_transcripts(|| serde_json::to_value(session))?;
     value["messages"] = json!([]);
     value["transcriptLength"] = json!(conversation_length(session));
+    if let Some(preview) = session.messages.reply_preview() {
+        value[crate::persist::LAST_REPLY_PREVIEW] = json!(preview);
+    }
     Ok(value)
 }
 
@@ -62,6 +66,9 @@ pub fn state_meta(data: &AppData) -> Result<Value> {
         for (entry, session) in entries.iter_mut().zip(&data.sessions) {
             entry["messages"] = json!([]);
             entry["transcriptLength"] = json!(conversation_length(session));
+            if let Some(preview) = session.messages.reply_preview() {
+                entry[crate::persist::LAST_REPLY_PREVIEW] = json!(preview);
+            }
         }
     }
     // Review guides load one at a time through `review_guide_action` (ADR-125), and
