@@ -172,7 +172,9 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .tl-shine), html[d
 .reply-choice-input { width: 100%; border-style: solid; background: color-mix(in srgb, var(--text-primary) 3%, transparent); color: var(--text-primary); outline: none; }
 .reply-choice-input:focus { border-color: color-mix(in srgb, var(--text-primary) 38%, transparent); }
 .reply-choice-input::placeholder { color: var(--text-muted); }
-.reply-choices-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.reply-choices-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.reply-choices-cancel { height: 30px; padding: 0 12px; border-radius: 8px; color: var(--text-secondary); transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+.reply-choices-cancel:hover { background: var(--background-3); color: var(--text-primary); }
 .reply-choices-send { height: 30px; padding: 0 14px; border-radius: 8px; background: var(--text-primary); color: var(--background-0); font-weight: 600; transition: opacity var(--motion-fast) var(--ease-out); }
 .reply-choices-send:hover:not(:disabled) { opacity: .9; }
 .reply-choices-send:disabled { opacity: .35; cursor: default; }

@@ -8,6 +8,7 @@ const strings: Record<string, [string, string]> = {
   "replyChoices.suggests": ["The agent suggests", "O agente sugere"],
   "replyChoices.nextSteps": ["Next steps", "Próximos passos"],
   "replyChoices.send": ["Send", "Enviar"],
+  "replyChoices.cancel": ["Cancel", "Cancelar"],
   "replyChoices.otherPlaceholder": ["Write your answer…", "Escreva sua resposta…"],
   "htmlPreview.view": ["HTML view", "Visualização do HTML"],
   "htmlPreview.page": ["Page", "Página"],

@@ -10,6 +10,8 @@ import { replyChoices } from "@/lib/reply-choices";
 export const QUICK_REPLY_EVENT = "sirus:quick-reply";
 /** `planning: false` leaves planning mode first (a plan's "Implement"). */
 export type QuickReplyDetail = { sessionId: string; text: string | null; planning?: false };
+/** Replies whose choices were cancelled stay closed while the app runs, across session switches. */
+const dismissed = new Set<string>();
 
 /**
  * When a finished reply ends by asking the person to choose (in prose, not through the
@@ -27,10 +29,16 @@ export function ReplyChoices({ session, message }: { session: Pick<Session, "id"
     const found = replyChoices(message.content);
     return found ? { ...found, label: t("replyChoices.label"), prompts: found.options } : null;
   }, [message?.role, message?.streaming, message?.content, t]);
-  const shown = choices && !["starting", "running", "waiting"].includes(session.status) ? choices : null;
+  const messageId = message?.id;
+  const [cancelled, setCancelled] = useState(() => Boolean(messageId && dismissed.has(messageId)));
+  const shown = choices && !cancelled && !["starting", "running", "waiting"].includes(session.status) ? choices : null;
   const [picked, setPicked] = useState<number | "other" | null>(null);
   const [written, setWritten] = useState("");
-  useEffect(() => { setPicked(null); setWritten(""); }, [message?.id]);
+  useEffect(() => { setPicked(null); setWritten(""); setCancelled(Boolean(messageId && dismissed.has(messageId))); }, [messageId]);
+  const cancel = () => {
+    if (messageId) dismissed.add(messageId);
+    setCancelled(true);
+  };
   const reply = picked === "other" ? written.trim() : picked !== null && shown ? shown.prompts[picked] ?? shown.options[picked] : "";
   const send = () => {
     if (!reply) return;
@@ -58,6 +66,7 @@ export function ReplyChoices({ session, message }: { session: Pick<Session, "id"
             : <button type="button" className="reply-choice reply-choice-other ui-control" onClick={() => setPicked("other")}>{t("replyChoices.other")}</button>}
         </div>
         <div className="reply-choices-actions">
+          <button type="button" className="reply-choices-cancel ui-control" onClick={cancel}>{t("replyChoices.cancel")}</button>
           <button type="button" className="reply-choices-send ui-control" disabled={!reply} onClick={send}>{t("replyChoices.send")}</button>
         </div>
       </div>
