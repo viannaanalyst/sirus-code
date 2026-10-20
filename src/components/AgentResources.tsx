@@ -26,7 +26,8 @@ const TWEEN_MS = 400;
  */
 function AgentResourcesView({ placement }: { placement: "rail" | "foot" }) {
   const running = useAppStore(state => runningKey(selectSessionsMeta(state)));
-  if (!running) return null;
+  // The rail keeps its place while idle, so the quota rings above it do not move when a turn starts.
+  if (!running) return placement === "rail" ? <span className="agent-resources-slot" aria-hidden="true" /> : null;
   return <Indicator placement={placement} running={running} />;
 }
 
