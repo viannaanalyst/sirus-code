@@ -47,6 +47,17 @@ export function describeLinkChip(url: string): LinkChip {
   return github ? { label: github, github: true } : { label: prettifyUrl(url), github: false };
 }
 
+/** The address when inline code holds exactly one http(s) URL (agents often quote a local server's address in backticks); null otherwise. */
+export function codeLinkUrl(text: string): string | null {
+  const value = text.trim();
+  if (!/^https?:\/\/[^\s`<>"]+$/i.test(value)) return null;
+  try {
+    return new URL(value).host ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whether a link's visible text is just its address (then it reads as a chip). */
 export function isBareLinkText(text: string, url: string): boolean {
   const bare = (value: string) => prettifyUrl(value.trim()).toLowerCase();

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composerPaintSegments, describeLinkChip, isBareLinkText, isLocalHost, linkSite, parseGitHubItemUrl, prettifyUrl, projectRepository, resolveLinkDestination, shortenGitHubLink, wantsSystemBrowser, type LinkRules } from "../src/lib/link-chips.ts";
+import { composerPaintSegments, codeLinkUrl, describeLinkChip, isBareLinkText, isLocalHost, linkSite, parseGitHubItemUrl, prettifyUrl, projectRepository, resolveLinkDestination, shortenGitHubLink, wantsSystemBrowser, type LinkRules } from "../src/lib/link-chips.ts";
 
 test("GitHub links shorten to owner, repo, #number and @commit", () => {
   assert.equal(shortenGitHubLink("https://github.com/acme"), "acme");
@@ -79,4 +79,13 @@ test("long web addresses stay whole, without scheme, www. or trailing slash", ()
   assert.deepEqual(describeLinkChip("https://github.com/acme/rocket/actions/runs/39327960356"), { label: "github.com/acme/rocket/actions/runs/39327960356", github: false });
   assert.deepEqual(describeLinkChip("https://example.com?x=1"), { label: "example.com?x=1", github: false });
   assert.deepEqual(describeLinkChip("https://example.com/"), { label: "example.com", github: false });
+});
+
+test("inline code that is one http(s) address becomes a link; anything else stays code", () => {
+  assert.equal(codeLinkUrl("http://localhost:3100/dp/nfs-pj-preview"), "http://localhost:3100/dp/nfs-pj-preview");
+  assert.equal(codeLinkUrl(" https://example.com/a?b=1 "), "https://example.com/a?b=1");
+  assert.equal(codeLinkUrl("curl http://localhost:3000"), null);
+  assert.equal(codeLinkUrl("http://"), null);
+  assert.equal(codeLinkUrl("ftp://example.com"), null);
+  assert.equal(codeLinkUrl("src/main.ts"), null);
 });

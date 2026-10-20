@@ -15,7 +15,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { GALLERY_EVENT } from "@/components/ImageLightbox";
 import { readableCodexText } from "@/lib/codex-directives";
-import { isBareLinkText } from "@/lib/link-chips";
+import { codeLinkUrl, isBareLinkText } from "@/lib/link-chips";
 import "@/styles/chat-markdown.css";
 
 type RefKind = "file" | "dir" | null;
@@ -164,6 +164,8 @@ function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Own
       case "italic": return <em key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></em>;
       case "strike": return <s key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></s>;
       case "code": {
+        const linked = codeLinkUrl(node.text);
+        if (linked) return <ChatLink key={index} url={linked} chip />;
         const reference = owner ? fileReference(node.text, owner.cwd) : null;
         const code = <code className="chat-inline-code">{node.text}</code>;
         return reference && owner ? <FileReference key={index} owner={owner} path={reference.path} line={reference.line} fallback={code}>{node.text}</FileReference> : <Fragment key={index}>{code}</Fragment>;
