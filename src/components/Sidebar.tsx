@@ -8,6 +8,8 @@ import { RailGlyph, SidebarRailMore } from "@/components/SidebarRailMore";
 import { RAIL_LABELS, visibleRail } from "@/lib/rail";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { ArchiveConfirm } from "@/components/SidebarRows";
+import { ContextMenu } from "@/components/arc/context-menu/context-menu";
+import { useProjectMenu } from "@/components/ProjectActions";
 import { useTranslation } from "@/i18n/use-translation";
 import type { SidebarMotion } from "@/lib/sidebar-motion";
 import { useGlidingHover } from "@/lib/use-gliding-hover";
@@ -22,6 +24,8 @@ import { isAuxiliarySession } from "@/lib/pull-ask";
  */
 export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   const t = useTranslation();
+  // Pinned project shortcuts share the project menu used everywhere else (New conversation, Edit, folders, Finder, Remove).
+  const projectMenu = useProjectMenu();
   const railGlide = useGlidingHover(".sidebar-rail-button");
   const projects = useAppStore(state => state.projects);
   // Edits made outside Sirus (an editor, a terminal) show up when the window comes back.
@@ -46,6 +50,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
 
   return <aside className="sidebar-material sidebar-shell" aria-label={t("Sidebar")} data-motion={motion ?? undefined}>
     <ArchiveConfirm />
+    {projectMenu.dialogs}
     <div className="titlebar-drag h-[var(--window-controls-height)] shrink-0" />
     <div className="sidebar-layout">
       <div className="sidebar-rail glide-hover-host" aria-label={t("Navigation")} {...railGlide.handlers}>
@@ -56,10 +61,12 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
           {(id === "inbox" && needsYou > 0) || (id === "pulls" && pullsUnread) ? <span className="sidebar-rail-dot" aria-hidden="true" /> : null}
         </button>)}
         {shortcutProjects.length ? <span className="sidebar-rail-divider" aria-hidden="true" /> : null}
-        {shortcutProjects.map((project) => <button key={project.id} type="button" className="sidebar-rail-button sidebar-rail-shortcut" aria-label={project.name} title={project.name} aria-current={mainView === "session" && selectedProjectId === project.id ? "page" : undefined}
+        {shortcutProjects.map((project) => <ContextMenu key={project.id} activation="context-only" label={t("project.actions")} items={projectMenu.items(project)} className="sidebar-rail-menu-target">
+          <button type="button" className="sidebar-rail-button sidebar-rail-shortcut" aria-label={project.name} title={project.name} aria-current={mainView === "session" && selectedProjectId === project.id ? "page" : undefined}
           onClick={() => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectProject(project.id).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }}>
           <ProjectGlyph project={project} size={20} fallback={<span aria-hidden="true" className="sidebar-rail-avatar" style={project.look?.color ? { color: projectColor(project.look) } : undefined}>{project.name.trim().charAt(0).toUpperCase() || "?"}</span>} />
-        </button>)}
+        </button>
+        </ContextMenu>)}
         <SidebarRailMore onOpen={() => undefined} />
         <SidebarUsageRings />
         <AgentResources placement="rail" />
