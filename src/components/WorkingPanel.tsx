@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@/client/types";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ChevronRight } from "@/components/icons/phosphor";
-import { ProviderIcon } from "@/components/settings/ProviderIcon";
+import { ModelIcon } from "@/components/ModelIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { activityElapsed, formatActivityDuration } from "@/lib/agent-activity";
 import { useAmbientActive } from "@/lib/ambient-motion";
@@ -53,7 +53,7 @@ export function WorkingPanel({ collapsed = false, onToggle }: { collapsed?: bool
       aria-label={t("working.expand", { count: rows.length })} title={t("working.expand", { count: rows.length })}>
       <span className="working-panel-dot" aria-hidden="true" />
       <span className="working-panel-count">{rows.length}</span>
-      {rows.slice(0, WORKING_CAP).map((session) => <span key={session.id} className="working-tab-icon" aria-hidden="true"><ProviderIcon id={session.agent} size={13} className="rounded-none bg-transparent" /></span>)}
+      {rows.slice(0, WORKING_CAP).map((session) => <span key={session.id} className="working-tab-icon" aria-hidden="true"><ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} /></span>)}
     </button>;
   }
   // Listed sessions keep stale messages; the live ones are read at each tick.
@@ -88,7 +88,7 @@ export function WorkingPanel({ collapsed = false, onToggle }: { collapsed?: bool
         return <li key={session.id}>
           <button type="button" className="working-panel-row" aria-current={session.id === selectedSessionId ? "true" : undefined}
             data-needs={needs || undefined} onClick={() => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); }}>
-            <span className="working-panel-icon" aria-hidden="true"><ProviderIcon id={session.agent} size={14} className="rounded-none bg-transparent" /></span>
+            <span className="working-panel-icon" aria-hidden="true"><ModelIcon modelId={session.model ?? ""} provider={session.agent} size={14} /></span>
             <span className="working-panel-body">
               <span className="working-panel-name">{session.title}</span>
               <span className="working-panel-meta">
