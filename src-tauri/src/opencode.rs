@@ -105,6 +105,16 @@ fn execution_config(inline: Option<&str>, planning: bool) -> Result<Value> {
     Ok(value)
 }
 
+/// `OPENCODE_PERMISSION` as OpenCode 1.19 parses it: a rule object. A bare action
+/// (Full access's `"allow"`) makes `session/new` fail with an internal error, so it
+/// becomes the same action for every permission (`{"*": "allow"}`).
+fn permission_env(permission: &Value) -> Value {
+    match permission {
+        Value::String(action) => json!({ "*": action }),
+        other => other.clone(),
+    }
+}
+
 fn approval_config(
     inline: Option<&str>,
     options: &crate::models::ExecutionOptions,
@@ -216,7 +226,7 @@ pub async fn start(
         .env("OPENCODE_AUTO_SHARE", "false")
         .env(
             "OPENCODE_PERMISSION",
-            inline_config["permission"].to_string(),
+            permission_env(&inline_config["permission"]).to_string(),
         )
         .env("OPENCODE_CONFIG_CONTENT", inline_config.to_string())
         .stdin(Stdio::piped())
@@ -990,6 +1000,12 @@ mod tests {
         assert_eq!(v["mode"]["build"]["permission"]["bash"], "deny");
         assert_eq!(v["share"], "disabled");
         assert!(config(Some("[]")).is_err());
+    }
+    #[test]
+    fn permission_env_is_always_a_rule_object() {
+        assert_eq!(permission_env(&json!("allow")), json!({"*": "allow"}));
+        let rules = json!({"edit": "allow", "bash": "ask"});
+        assert_eq!(permission_env(&rules), rules);
     }
     #[test]
     fn provider_api_failure_is_explicit_without_echoing_upstream_payload() {
