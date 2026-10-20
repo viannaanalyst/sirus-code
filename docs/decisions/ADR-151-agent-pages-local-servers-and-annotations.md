@@ -25,3 +25,7 @@ An agent that opens or navigates a page in the Sirus browser only changed state:
 - A script's preview opens on every run of a script of that project that starts while `openPreview` is on, not once per session.
 - The player positions the native view from the window's bounds hook, so it inherits its limits: a menu or dialog over the player parks the page until the menu closes.
 - Annotations need the page to be measurable: a cross-origin iframe's elements are not in the page's DOM and cannot be annotated, as before.
+
+## Addendum (2026-10-20): pages that do not load
+
+A page that fails before it commits (server down, a redirect to a closed port such as a dev server whose auth URL names another port, no network) used to leave a blank tab. The tab now shows a small error page with the address that failed, the system's reason and Try again (`load_error_page` in `browser.rs`, loaded as an HTML string whose base URL is the failed address). Cancelled loads, downloads and allowlist refusals stay silent. Reloading such a tab requests the address again instead of reloading the string. Agent-taken takeover checks count only trusted input, so the agent's own synthetic Enter no longer interrupts its next action.

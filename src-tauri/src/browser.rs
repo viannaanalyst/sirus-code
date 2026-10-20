@@ -179,6 +179,50 @@ pub fn clamp_zoom(zoom: f64) -> f64 {
     }
 }
 
+/// Load failures that are not errors for the person: a navigation the page or
+/// Sirus cancelled (`NSURLErrorCancelled`), or one WebKit stopped because it
+/// became a download or was refused by the allowlist (frame load interrupted).
+#[cfg_attr(not(all(target_os = "macos", feature = "desktop")), allow(dead_code))]
+fn ignorable_load_error(domain: &str, code: isize) -> bool {
+    (domain == "NSURLErrorDomain" && code == -999) || (domain == "WebKitErrorDomain" && code == 102)
+}
+
+#[cfg_attr(not(all(target_os = "macos", feature = "desktop")), allow(dead_code))]
+fn escape_html(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// The page shown when an address does not load (server down, redirect to a
+/// closed port, no network), instead of a blank tab: the address that failed,
+/// the system's reason and a retry that requests it again.
+#[cfg_attr(not(all(target_os = "macos", feature = "desktop")), allow(dead_code))]
+fn load_error_page(failed_url: &str, reason: &str, portuguese: bool) -> String {
+    let (title, retry) = if portuguese {
+        ("Não foi possível abrir a página", "Tentar de novo")
+    } else {
+        ("This page could not be opened", "Try again")
+    };
+    let url = escape_html(failed_url);
+    let reason = escape_html(reason);
+    // A JS string inside a single-quoted attribute: no quote can close it.
+    let target = escape_html(
+        &serde_json::to_string(failed_url)
+            .unwrap_or_else(|_| "\"\"".into())
+            .replace('\'', "\\u0027"),
+    );
+    format!(
+        r#"<!doctype html><html><head><meta charset="utf-8"><title>{title}</title><style>
+:root{{color-scheme:light dark}}body{{margin:0;min-height:100vh;display:grid;place-items:center;font:14px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;background:Canvas;color:CanvasText}}
+main{{max-width:520px;padding:32px}}h1{{font-size:17px;margin:0 0 8px}}p{{margin:0 0 6px;opacity:.75}}code{{font:12.5px ui-monospace,Menlo,monospace;word-break:break-all;opacity:1}}
+button{{margin-top:14px;padding:6px 14px;border-radius:7px;border:1px solid color-mix(in srgb,CanvasText 20%,transparent);background:transparent;color:inherit;font:inherit;cursor:pointer}}
+</style></head><body><main><h1>{title}</h1><p><code>{url}</code></p><p>{reason}</p>
+<button type="button" onclick='location.href={target}'>{retry}</button></main></body></html>"#
+    )
+}
+
 /// Top-level navigation allowlist. `file:`, `data:` and every other scheme are
 /// refused; no user or page input reaches the OS.
 pub fn is_allowed_browser_url(url: &str) -> bool {
@@ -394,6 +438,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn load_errors_show_the_failed_address_escaped_and_skip_cancellations() {
+        assert!(ignorable_load_error("NSURLErrorDomain", -999));
+        assert!(ignorable_load_error("WebKitErrorDomain", 102));
+        assert!(!ignorable_load_error("NSURLErrorDomain", -1004));
+        let page = load_error_page(
+            "http://localhost:3001/login?a=1&b=<x>",
+            "Could not connect to the server.",
+            false,
+        );
+        assert!(page.contains("http://localhost:3001/login?a=1&amp;b=&lt;x&gt;"));
+        assert!(page.contains("Could not connect to the server."));
+        assert!(page.contains("Try again"));
+        assert!(!page.contains("<x>"));
+        let quoted = load_error_page("http://x/'onload", "r", true);
+        assert!(quoted.contains("Não foi possível abrir a página"));
+        assert!(
+            quoted.contains(r#"onclick='location.href=&quot;http://x/\u0027onload&quot;'"#),
+            "the retry target stays inside its attribute"
+        );
+    }
+
+    #[test]
     fn crashed_pages_reload_three_times_per_window_with_backoff() {
         let start = std::time::Instant::now();
         let mut recent = vec![];
@@ -545,9 +611,9 @@ pub(crate) mod platform {
     use tauri::{AppHandle, Emitter, Manager};
 
     use super::{
-        appkit_frame, clamp_user_zoom, clamp_zoom, is_allowed_browser_url, is_allowed_favicon_url,
-        parse_browser_annotations, recovery_delay, BrowserAnnotation, BrowserBounds, BrowserDevice,
-        BrowserSessionState, BrowserTabState,
+        appkit_frame, clamp_user_zoom, clamp_zoom, ignorable_load_error, is_allowed_browser_url,
+        is_allowed_favicon_url, load_error_page, parse_browser_annotations, recovery_delay,
+        BrowserAnnotation, BrowserBounds, BrowserDevice, BrowserSessionState, BrowserTabState,
     };
     use crate::error::{Error, Result};
 
@@ -1098,8 +1164,20 @@ pub(crate) mod platform {
 
         fn reload(&mut self, session_id: &str, tab_id: &str) -> Result<BrowserSessionState> {
             let webview = self.webview(session_id, tab_id)?;
+            // An error page is a local HTML string: reloading it would show it again,
+            // so the address it stands for is requested instead.
+            let showing_error = ERROR_PAGES
+                .lock()
+                .remove(&format!("{session_id}\u{0}{tab_id}"));
             unsafe {
-                webview.reload();
+                match webview.URL().filter(|_| showing_error) {
+                    Some(url) => {
+                        webview.loadRequest(&NSURLRequest::requestWithURL(&url));
+                    }
+                    None => {
+                        webview.reload();
+                    }
+                }
             }
             self.mark_loading(session_id, tab_id, "");
             let session = self
@@ -1394,6 +1472,11 @@ pub(crate) mod platform {
         };
         webview.setAppearance(appearance.as_deref());
     }
+
+    /// Tabs whose last load failed and show the error page (`session\0tab`). A stale
+    /// entry only makes the next reload request the current address, the same thing.
+    static ERROR_PAGES: parking_lot::Mutex<std::collections::BTreeSet<String>> =
+        parking_lot::Mutex::new(std::collections::BTreeSet::new());
 
     struct BrowserDelegateIvars {
         session_id: String,
@@ -1827,9 +1910,10 @@ return result;
                 &self,
                 webview: &WKWebView,
                 _navigation: Option<&WKNavigation>,
-                _error: &NSError,
+                error: &NSError,
             ) {
                 self.publish(webview, false);
+                self.show_load_error(webview, error);
             }
 
             #[unsafe(method(webView:didFailNavigation:withError:))]
@@ -2018,6 +2102,44 @@ return result;
                 crashes: RefCell::new(vec![]),
             });
             unsafe { msg_send![super(delegate), init] }
+        }
+
+        /// A page that did not load shows why, with the address that failed (a
+        /// redirect to a closed port names that port), instead of a blank tab.
+        fn show_load_error(&self, webview: &WKWebView, error: &NSError) {
+            let domain = error.domain().to_string();
+            if ignorable_load_error(&domain, error.code()) {
+                return;
+            }
+            let failed = error
+                .userInfo()
+                .objectForKey(&NSString::from_str("NSErrorFailingURLStringKey"))
+                .and_then(|value| value.downcast::<NSString>().ok())
+                .map(|value| value.to_string())
+                .filter(|url| is_allowed_browser_url(url) && url != "about:blank");
+            let Some(failed) = failed else {
+                return;
+            };
+            let ivars = self.ivars();
+            let portuguese = {
+                use tauri::Manager;
+                let state = ivars
+                    .app
+                    .state::<std::sync::Arc<crate::commands::AppState>>();
+                let locale = state.data.lock().settings.locale.clone();
+                locale.starts_with("pt")
+            };
+            let reason = error.localizedDescription().to_string();
+            let page = load_error_page(&failed, &reason, portuguese);
+            let Some(base) = NSURL::URLWithString(&NSString::from_str(&failed)) else {
+                return;
+            };
+            ERROR_PAGES
+                .lock()
+                .insert(format!("{}\u{0}{}", ivars.session_id, ivars.tab_id));
+            unsafe {
+                webview.loadHTMLString_baseURL(&NSString::from_str(&page), Some(&base));
+            }
         }
 
         fn publish(&self, webview: &WKWebView, loading: bool) {
