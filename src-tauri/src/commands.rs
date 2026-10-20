@@ -1731,7 +1731,7 @@ pub async fn retry_last_turn(
     state: State<'_, Arc<AppState>>,
     session_id: String,
 ) -> Result<serde_json::Value> {
-    let request = {
+    let (mut request, sent) = {
         let data = state.data_with_messages(&[&session_id]);
         let session = data
             .sessions
@@ -1747,16 +1747,13 @@ pub async fn retry_last_turn(
             .rev()
             .find(|message| message.role == MessageRole::User)
             .ok_or_else(|| Error::new("invalid", "There is no message to send again."))?;
-        SendPromptRequest {
+        let request = SendPromptRequest {
             queued_after: None,
             debugging: false,
             goal: None,
             session_id: session.id.clone(),
-            attachment_ids: message
-                .attachments
-                .iter()
-                .filter_map(|attachment| attachment.id.clone())
-                .collect(),
+            // Filled below, after the lock: images may be admitted again from their copies.
+            attachment_ids: Vec::new(),
             attachment_owner: format!("session:{}", session.id),
             prompt: message.content.clone(),
             execution: session.execution.clone(),
@@ -1764,8 +1761,11 @@ pub async fn retry_last_turn(
             // A new turn by choice: reusing the original send's id would make it a no-op.
             // The busy check above already refuses a second click while this one starts.
             client_request_id: None,
-        }
+        };
+        (request, message.attachments.clone())
     };
+    request.attachment_ids =
+        crate::attachments::retry_ids(&state, &request.attachment_owner, &sent)?;
     send_prompt(app, state, request).await
 }
 

@@ -604,6 +604,60 @@ fn validate_owner(state: &crate::commands::AppState, owner: &str) -> Result<()> 
     }
     Ok(())
 }
+/// The attachment ids "Send again" resends for a sent message. Snapshots still held
+/// are reused; after a restart they are gone, so an image is admitted again from the
+/// JPEG copy the message kept (at most 1280 px). A file with no copy cannot be resent.
+pub(crate) fn retry_ids(
+    state: &crate::commands::AppState,
+    owner: &str,
+    attachments: &[crate::models::MessageAttachment],
+) -> Result<Vec<String>> {
+    let mut ids = Vec::new();
+    let mut readmit = Vec::new();
+    for attachment in attachments {
+        let Some(id) = attachment.id.clone() else {
+            continue;
+        };
+        if state.attachments.entries.lock().contains_key(&id) {
+            ids.push(id);
+            continue;
+        }
+        let jpeg = attachment
+            .has_thumbnail
+            .then(|| crate::thumbnails::read(&state.data_path, &id))
+            .flatten()
+            .or_else(|| {
+                attachment
+                    .thumbnail
+                    .as_deref()
+                    .and_then(|url| url.strip_prefix("data:image/jpeg;base64,"))
+                    .and_then(|data| STANDARD.decode(data).ok())
+            })
+            .ok_or_else(|| {
+                Error::new(
+                    "attachment",
+                    format!(
+                        "{} is no longer available. Attach it again.",
+                        attachment.name
+                    ),
+                )
+            })?;
+        let stem = Path::new(&attachment.name)
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .filter(|stem| !stem.is_empty())
+            .unwrap_or("image");
+        readmit.push(from_bytes(format!("{stem}.jpg"), jpeg)?);
+    }
+    if !readmit.is_empty() {
+        let views = state
+            .attachments
+            .insert(owner, readmit, &state.data.lock())?;
+        ids.extend(views.into_iter().map(|view| view.id));
+    }
+    Ok(ids)
+}
+
 /// Admits a native window snapshot (ADR-054) into an owner's unsent draft.
 /// The bytes and name come from native capture, never from the renderer.
 pub(crate) fn admit_native_capture(
@@ -963,6 +1017,75 @@ mod tests {
     }
     fn fixture_data() -> crate::models::AppData {
         serde_json::from_value(serde_json::json!({"projects":[{"id":"p","name":"Fixture","path":"/fixture","addedAt":"time","lastOpenedAt":"time"}], "sessions":[{"id":"s","projectId":"p","title":"Fixture","agent":"codex","status":"idle","createdAt":"time","lastActivityAt":"time","worktree":{"path":"/fixture","branch":"main","isolated":false},"messages":[],"lastError":null}],"settings":{}})).unwrap()
+    }
+    #[test]
+    fn send_again_reuses_held_snapshots_and_readmits_images_from_their_copies() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = crate::commands::AppState::new(
+            dir.path().join("state.json"),
+            dir.path().join("worktrees"),
+            fixture_data(),
+        );
+        let held = state
+            .attachments
+            .insert(
+                "session:s",
+                vec![from_bytes("notes.csv".into(), b"a,b".to_vec()).unwrap()],
+                &state.data.lock(),
+            )
+            .unwrap()
+            .remove(0);
+        // After a restart only the message's JPEG copy is left of the screenshot.
+        let png = {
+            let mut out = std::io::Cursor::new(Vec::new());
+            image::DynamicImage::new_rgb8(4, 3)
+                .write_to(&mut out, image::ImageFormat::Png)
+                .unwrap();
+            out.into_inner()
+        };
+        let jpeg = thumbnail(&png).unwrap();
+        let shot = uuid::Uuid::new_v4().to_string();
+        crate::thumbnails::store(&state.data_path, &shot, &jpeg).unwrap();
+        let attachment =
+            |id: &str, name: &str, has_thumbnail: bool| crate::models::MessageAttachment {
+                id: Some(id.into()),
+                name: name.into(),
+                kind: "file".into(),
+                mime_type: None,
+                size: None,
+                thumbnail: None,
+                has_thumbnail,
+            };
+        let ids = retry_ids(
+            &state,
+            "session:s",
+            &[
+                attachment(&held.id, "notes.csv", false),
+                attachment(&shot, "Print 1.png", true),
+            ],
+        )
+        .unwrap();
+        assert_eq!(ids.len(), 2);
+        assert_eq!(ids[0], held.id);
+        let session = state.data.lock().sessions[0].clone();
+        let files = state
+            .attachments
+            .resolve("session:s", &ids, &session)
+            .unwrap();
+        assert_eq!(files[1].view.name, "Print 1.jpg");
+        assert!(files[1].image());
+        // A file that left no copy cannot be sent again.
+        let error = retry_ids(
+            &state,
+            "session:s",
+            &[attachment(
+                &uuid::Uuid::new_v4().to_string(),
+                "report.pdf",
+                false,
+            )],
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("report.pdf"));
     }
     #[test]
     fn attachments_bind_to_their_draft_and_snapshots_survive_source_changes() {
