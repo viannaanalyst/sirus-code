@@ -28,6 +28,11 @@ pub fn tool_content(result: &Value) -> Value {
         ))
     });
     let Some((data, mime)) = image else {
+        // MCP clients reject `structuredContent` that is not an object (a log
+        // list, an evaluated string): those results travel as text only.
+        if !result.is_object() {
+            return json!({ "content": [ { "type": "text", "text": text(result) } ] });
+        }
         return json!({ "content": [ { "type": "text", "text": text(result) } ], "structuredContent": result });
     };
     let mut rest = result.clone();
@@ -185,5 +190,18 @@ mod tests {
             .contains("Calculator"));
         let only = tool_content(&json!({ "image": { "data": "AAAA", "mimeType": "image/png" } }));
         assert_eq!(only["content"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn only_object_results_carry_structured_content() {
+        assert!(tool_content(&json!({ "ok": true }))
+            .get("structuredContent")
+            .is_some());
+        let list = tool_content(&json!([{ "level": "log", "text": "hi" }]));
+        assert!(list.get("structuredContent").is_none());
+        assert!(list["content"][0]["text"].as_str().unwrap().contains("hi"));
+        assert!(tool_content(&json!("done"))
+            .get("structuredContent")
+            .is_none());
     }
 }

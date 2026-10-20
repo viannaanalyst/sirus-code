@@ -1610,7 +1610,8 @@ pub(crate) mod platform {
     const PAGE_BRIDGE_SCRIPT: &str = r##"
 (() => {
   window.__sirusHumanAt = window.__sirusHumanAt || 0;
-  const mark = () => { window.__sirusHumanAt = Date.now(); };
+  // Trusted events only: the agent's own synthetic keys (a typed Enter) must not read as the person.
+  const mark = (event) => { if (event.isTrusted) window.__sirusHumanAt = Date.now(); };
   document.addEventListener("pointerdown", mark, true);
   document.addEventListener("keydown", mark, true);
   document.addEventListener("wheel", mark, true);
