@@ -39,7 +39,8 @@ Alternatives evaluated:
   already receives. Other adapters keep no browser tools.
 - **Tools** (fixed, bounded): `browser_status`, `browser_tabs`,
   `browser_open`, `browser_navigate`, `browser_back`, `browser_forward`,
-  `browser_reload`, `browser_screenshot` (PNG image content, 8 MiB cap),
+  `browser_reload`, `browser_screenshot` (PNG image content, 8 MiB cap; only
+  the model gets it, nothing is added to the composer),
   `browser_snapshot` (≤200 interactive elements with `data-sirus-ref`
   refs), `browser_click`, `browser_type`, `browser_scroll`, `browser_logs`
   (≤200 entries), `browser_close`. Navigation stays on the http(s) allowlist;

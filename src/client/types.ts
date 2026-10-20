@@ -245,11 +245,6 @@ export interface CookieImportReport { imported: number; skipped: number }
 /** An agent asks the renderer to start or stop recording a session's browser (ADR-112). */
 export interface BrowserRecordRequest { requestId: string; sessionId: string; action: "start" | "stop" }
 
-export interface BrowserCaptureEvent {
-  sessionId: string;
-  data: string;
-}
-
 export interface BrowserAnnotation {
   selector: string;
   label: string;

@@ -59,6 +59,15 @@
   .agent-composer { container-type:inline-size; }
   @container (max-width:560px) { .dictation-wave { display:none; } .composer-dictation-visual { gap:4px; } .composer-dictation { gap:8px; } }
   @container (max-width:360px) { .dictation-label { display:none; } }
+  /* A narrow chat column (the divider dragged toward the browser) keeps the footer on one row:
+     labels give way to their icons, the tooltips still name them. The phone has its own layout. */
+  @container (max-width:520px) {
+    .agent-composer:not([data-single]):not(.mobile-chat .agent-composer) .composer-footer { flex-wrap:nowrap; }
+    .agent-composer:not([data-single]):not(.mobile-chat .agent-composer) :is(.composer-footer-actions,.composer-model-controls) { flex:0 1 auto; min-width:0; }
+    .agent-composer:not(.mobile-chat .agent-composer) .composer-approval-trigger > span,
+    .agent-composer:not(.mobile-chat .agent-composer) .composer-model-effort { display:none; }
+    .agent-composer:not(.mobile-chat .agent-composer) .composer-compact-send { width:28px; gap:0 !important; padding:0 !important; justify-content:center; font-size:0; }
+  }
   /* The phone's bar (ADR-129): ✕, a waveform across the middle, the time and ✓. */
   .composer-dictation[data-compact] { gap:10px; }
   .composer-dictation[data-compact] .dictation-wave { display:flex; flex:1 1 auto; justify-content:center; gap:3px; height:26px; margin:0; opacity:.85; }

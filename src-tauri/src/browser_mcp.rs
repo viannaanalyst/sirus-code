@@ -353,7 +353,6 @@ fn browser_tool(
     args: Value,
 ) -> Result<Value, String> {
     use crate::browser::platform as browser;
-    use crate::runtime::Emitter;
     let map_error = |error: crate::error::Error| error.to_string();
     match tool {
         "browser_status" | "browser_tabs" => browser::mcp_status(app, session_id)
@@ -425,16 +424,10 @@ fn browser_tool(
         "browser_close" => browser::mcp_close(app, session_id)
             .map(|_| json!({ "closed": true }))
             .map_err(map_error),
+        // Only the model receives the image: an agent's screenshots never land in
+        // the person's composer (the pane's camera button does that).
         "browser_screenshot" => browser::mcp_capture(app, session_id)
-            .map(|data| {
-                // The model receives the image; the person also sees it as a
-                // composer attachment for the owning session.
-                let _ = app.emit(
-                    "browser-capture",
-                    json!({ "sessionId": session_id, "data": data }),
-                );
-                json!({ "image": { "mimeType": "image/png", "data": data } })
-            })
+            .map(|data| json!({ "image": { "mimeType": "image/png", "data": data } }))
             .map_err(map_error),
         "browser_snapshot" => browser::mcp_snapshot(app, session_id)
             .map_err(map_error)

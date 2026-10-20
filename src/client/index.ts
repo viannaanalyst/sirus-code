@@ -1018,10 +1018,6 @@ export class SirusClient {
     return this.transport.listen<import("./types").BrowserSessionState>("browser-state", handler);
   }
 
-  onBrowserCapture(handler: (event: import("./types").BrowserCaptureEvent) => void) {
-    return this.transport.listen<import("./types").BrowserCaptureEvent>("browser-capture", handler);
-  }
-
   remoteAction(action: import("./types").RemoteAction) {
     return this.transport.invoke<import("./types").RemoteStatus>("remote_action", { action });
   }

@@ -2981,19 +2981,6 @@ export async function bindRealtime() {
     // Pages an agent opens float over the conversation; a project script's preview opens in the browser (ADR-151).
     unlisteners.push(await client.onBrowserAgentPage((event) => useAppStore.getState().showAgentPage(event.sessionId, event.url)));
     unlisteners.push(await client.onProjectPreview((event) => void useAppStore.getState().openProjectPreview(event.sessionId, event.url)));
-    unlisteners.push(await client.onBrowserCapture((event) => {
-      const owner = `session:${event.sessionId}`;
-      void (async () => {
-        try {
-          const [attachment] = await client.pastePromptAttachments(owner, [{ name: `browser-${Date.now()}.png`, data: event.data }]);
-          if (!attachment) return;
-          useAppStore.setState((state) => {
-            const context = composerContextForOwner(owner, state.composerContexts, state.sessions);
-            return { composerContexts: { ...state.composerContexts, [owner]: { ...context, attachments: appendAttachments(context.attachments, [attachment]) } } };
-          });
-        } catch { /* a screenshot the composer refused is not an app error */ }
-      })();
-    }));
     unlisteners.push(await client.onAgentExit((event) => {
       outputBatch.flush();
       const store = useAppStore.getState();

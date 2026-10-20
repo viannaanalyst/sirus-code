@@ -47,7 +47,6 @@ const LOCAL_EVENTS = new Set([
   "computer-state",
   "device-changed",
   "browser-state",
-  "browser-capture",
   "browser-record-request",
   "app-update",
 ]);
