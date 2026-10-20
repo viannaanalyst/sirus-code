@@ -55,6 +55,7 @@ const strings: Record<string, [string, string]> = {
   "connections.browserHelp": ["Open the address in a browser on another device of your tailnet and type the code.", "Abra o endereço no navegador de outro aparelho da sua Tailscale e digite o código."],
   "connections.orType": ["Or type in the app", "Ou digite no app"],
   "connections.step.tailscale": ["Tailscale on the iPhone, with the same account as this Mac", "Tailscale no iPhone, com a mesma conta deste Mac"],
+  "connections.step.anywhere": ["Works from anywhere through this Mac's public address, no Tailscale needed", "Funciona de qualquer lugar pelo endereço público deste Mac, sem Tailscale"],
   "connections.step.scan": ["Scan the QR or type the code", "Leia o QR ou digite o código"],
   "connections.step.name": ["Give the device a name", "Dê um nome ao aparelho"],
   "connections.browserNote": ["Only devices on your tailnet reach this address.", "Só aparelhos da sua Tailscale chegam a este endereço."],

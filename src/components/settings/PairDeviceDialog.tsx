@@ -65,6 +65,8 @@ export function PairDeviceDialog({ open, onOpenChange, url, joined, clearJoined,
   const countdown = pairing ? pairingCountdown(pairing.expiresAt, now) : null;
   const view = joined ? "linked" : pairing && !countdown ? "expired" : "live";
   const code = pairing?.code ?? "······";
+  // With a public route the app tab shows the `sirus://pair` link, which a scan opens in the iPhone app (ADR-155).
+  const appLink = pairing?.appUrl ?? pairing?.urls[0] ?? "";
   const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); });
   /** Saves the name typed for the device that joined; false when it could not. */
   const saveName = async () => {
@@ -106,10 +108,10 @@ export function PairDeviceDialog({ open, onOpenChange, url, joined, clearJoined,
           { value: "browser", label: t("connections.way.browser"), content: <span className="pair-way"><Globe size={13} aria-hidden="true" />{t("connections.way.browser")}</span> },
         ]} />
         {way === "app" ? <div className="pair-card pair-card-qr">
-          {pairing ? <PairingQrCode value={pairing.urls[0] ?? ""} label={t("connections.qrLabel")} size={168} /> : <div className="pair-qr-placeholder" aria-hidden="true" />}
+          {pairing ? <PairingQrCode value={appLink} label={t("connections.qrLabel")} size={168} /> : <div className="pair-qr-placeholder" aria-hidden="true" />}
           <div className="pair-side">
             <div><small>{t("connections.orType")}</small><p className="pair-code" aria-label={t("connections.codeLabel", { code })}>{code.slice(0, 3)}&thinsp;{code.slice(3)}</p></div>
-            <ol className="pair-steps"><li>{t("connections.step.tailscale")}</li><li>{t("connections.step.scan")}</li><li>{t("connections.step.name")}</li></ol>
+            <ol className="pair-steps"><li>{t(pairing?.appUrl ? "connections.step.anywhere" : "connections.step.tailscale")}</li><li>{t("connections.step.scan")}</li><li>{t("connections.step.name")}</li></ol>
           </div>
         </div> : <div className="pair-card">
           <div className="pair-address"><small>{t("connections.address")}</small><code>{url}</code>
@@ -121,7 +123,7 @@ export function PairDeviceDialog({ open, onOpenChange, url, joined, clearJoined,
         <div className="pair-foot">
           <span className="pair-timer" aria-live="polite"><Clock size={13} aria-hidden="true" />{countdown ? t("connections.expiresIn", { time: countdown }) : busy ? t("connections.making") : ""}</span>
           <span className="pair-actions">
-            {way === "app" && pairing ? <InteractiveButton variant="secondary" glow={false} onClick={() => copy(pairing.urls[0] ?? "")}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{t("connections.copyLink")}</InteractiveButton> : null}
+            {way === "app" && pairing ? <InteractiveButton variant="secondary" glow={false} onClick={() => copy(appLink)}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{t("connections.copyLink")}</InteractiveButton> : null}
             <InteractiveButton variant="secondary" glow={false} disabled={busy} onClick={() => void fresh()}><RefreshCw size={14} aria-hidden="true" />{t("connections.newCode")}</InteractiveButton>
           </span>
         </div>
