@@ -136,9 +136,8 @@
 /* Commands and skills take the app accent. */
 .composer-token-skill { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .composer-token-file { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
-/* Web addresses paint as the chat pill (ADR-149): the link colour on the muted pill background. The text stays
-   the raw URL, so no icon, short label or horizontal padding here; the width is unchanged and the mirror still wraps like the textarea. */
-.composer-token-link { color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); background: color-mix(in oklab, var(--text-primary) 7%, transparent); border-radius: var(--radius-sm); }
+/* Web addresses take the chat link colour (ADR-149). The text stays the raw URL, so the mirror still wraps like the textarea. */
+.composer-token-link { color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); }
 
 /* Drafts set aside with ⌘S. */
 .composer-stash { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: color-mix(in srgb, var(--accent) 70%, var(--text-primary)); font-size: var(--text-ui-11); }

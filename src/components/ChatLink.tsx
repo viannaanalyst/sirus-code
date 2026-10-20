@@ -158,7 +158,7 @@ export function ChatLink({ url, chip = false, children }: { url: string; chip?: 
       onClick={onLinkClick(url)} onAuxClick={onLinkAuxClick(url)}
       onPointerEnter={() => { if (parseGitHubItemUrl(url)) void loadProjectRepositories(); }}
       onContextMenu={() => { if (parseGitHubItemUrl(url)) void loadProjectRepositories(); requestAnimationFrame(() => window.getSelection()?.removeAllRanges()); }}>
-      <LinkIcon url={url} />{label ? <span className="chat-link-text">{label.github ? label.label : <><span className="chat-link-host">{label.host}</span><span className="chat-link-path">{label.path}</span></>}</span> : children}
+      <LinkIcon url={url} />{label ? label.label : children}
     </a>
   </ContextMenu>;
 }

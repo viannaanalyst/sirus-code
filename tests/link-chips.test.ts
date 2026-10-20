@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { composerPaintSegments, describeLinkChip, isBareLinkText, isLocalHost, LINK_CHIP_PATH_MAX, linkSite, middleEllipsis, parseGitHubItemUrl, prettifyUrl, projectRepository, resolveLinkDestination, shortenGitHubLink, wantsSystemBrowser, type LinkRules } from "../src/lib/link-chips.ts";
+import { composerPaintSegments, describeLinkChip, isBareLinkText, isLocalHost, linkSite, parseGitHubItemUrl, prettifyUrl, projectRepository, resolveLinkDestination, shortenGitHubLink, wantsSystemBrowser, type LinkRules } from "../src/lib/link-chips.ts";
 
 test("GitHub links shorten to owner, repo, #number and @commit", () => {
   assert.equal(shortenGitHubLink("https://github.com/acme"), "acme");
@@ -18,8 +18,8 @@ test("GitHub links shorten to owner, repo, #number and @commit", () => {
 test("other links lose the scheme, www. and the trailing slash", () => {
   assert.equal(prettifyUrl("https://www.example.com/"), "example.com");
   assert.equal(prettifyUrl("http://docs.rs/serde/latest/"), "docs.rs/serde/latest");
-  assert.deepEqual(describeLinkChip("https://www.example.com/a?b=1"), { label: "example.com/a?b=1", host: "example.com", path: "/a?b=1", github: false });
-  assert.deepEqual(describeLinkChip("https://github.com/acme/rocket/pull/3"), { label: "acme/rocket#3", host: "", path: "", github: true });
+  assert.deepEqual(describeLinkChip("https://www.example.com/a?b=1"), { label: "example.com/a?b=1", github: false });
+  assert.deepEqual(describeLinkChip("https://github.com/acme/rocket/pull/3"), { label: "acme/rocket#3", github: true });
   assert.equal(isBareLinkText("https://example.com/", "https://example.com"), true);
   assert.equal(isBareLinkText("example.com", "https://www.example.com"), true);
   assert.equal(isBareLinkText("the docs", "https://example.com"), false);
@@ -73,41 +73,10 @@ test("the composer paints web addresses without changing the text", () => {
   assert.deepEqual(composerPaintSegments("plain words"), [{ text: "plain words", kind: "text" }]);
 });
 
-test("middle ellipsis keeps the start and end and stays within the character limit", () => {
-  assert.equal(middleEllipsis("/configuracao/equipe", 40), "/configuracao/equipe");
-  assert.equal(middleEllipsis("abcdef", 6), "abcdef");
-  const long = "/configuracao/equipe/membros/permissoes/administradores/convidados/2026";
-  const short = middleEllipsis(long, 24);
-  assert.equal(Array.from(short).length, 24);
-  assert.ok(short.startsWith("/configuracao/"), short);
-  assert.ok(short.endsWith("/2026"), short);
-  assert.equal(short.split("…").length, 2);
-  assert.equal(middleEllipsis(long, 1), "…");
-  assert.equal(middleEllipsis(long, 2).length, 2);
-});
-
-test("middle ellipsis never splits a surrogate pair", () => {
-  const emoji = "/🚀".repeat(30) + "/fim";
-  for (let max = 1; max <= 20; max++) {
-    const short = middleEllipsis(emoji, max);
-    assert.ok(Array.from(short).length <= max, `max ${max}`);
-    assert.doesNotMatch(short, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/, `max ${max}`);
-  }
-});
-
-test("long web paths shorten in the middle, short ones and the host stay whole", () => {
+test("long web addresses stay whole, without scheme, www. or trailing slash", () => {
   const url = "https://www.conectanexum.com.br/configuracao/equipe/membros/permissoes/administradores/convidados/";
-  const chip = describeLinkChip(url);
-  assert.equal(chip.github, false);
-  assert.equal(chip.host, "conectanexum.com.br");
-  assert.equal(Array.from(chip.path).length, LINK_CHIP_PATH_MAX);
-  assert.ok(chip.path.startsWith("/configuracao/"), chip.path);
-  assert.ok(chip.path.endsWith("convidados"), chip.path);
-  assert.equal(chip.label, chip.host + chip.path);
-  assert.deepEqual(describeLinkChip("https://conectanexum.com.br/configuracao/equipe"), {
-    label: "conectanexum.com.br/configuracao/equipe", host: "conectanexum.com.br", path: "/configuracao/equipe", github: false,
-  });
-  // A query or fragment without a path still splits the host from the rest.
-  assert.deepEqual(describeLinkChip("https://example.com?x=1"), { label: "example.com?x=1", host: "example.com", path: "?x=1", github: false });
-  assert.deepEqual(describeLinkChip("https://example.com/"), { label: "example.com", host: "example.com", path: "", github: false });
+  assert.deepEqual(describeLinkChip(url), { label: "conectanexum.com.br/configuracao/equipe/membros/permissoes/administradores/convidados", github: false });
+  assert.deepEqual(describeLinkChip("https://github.com/acme/rocket/actions/runs/39327960356"), { label: "github.com/acme/rocket/actions/runs/39327960356", github: false });
+  assert.deepEqual(describeLinkChip("https://example.com?x=1"), { label: "example.com?x=1", github: false });
+  assert.deepEqual(describeLinkChip("https://example.com/"), { label: "example.com", github: false });
 });
