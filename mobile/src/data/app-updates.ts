@@ -15,10 +15,13 @@ export async function checkForAppUpdate(interactive = false): Promise<"none" | "
   const url = (Constants.expoConfig?.updates as { url?: string } | undefined)?.url;
   if (!url) return "unavailable";
   const origin = new URL(url).origin;
-  const computer = useSirus.getState().computers.find((item) => new URL(item.baseUrl).origin === origin);
-  if (!computer) return "unavailable";
+  // A computer paired again at its public address keeps its tailnet address for this.
+  const token = useSirus.getState().computers
+    .flatMap((item) => [item, ...(item.previous ? [item.previous] : [])])
+    .find((item) => new URL(item.baseUrl).origin === origin)?.token;
+  if (!token) return "unavailable";
   // The header is declared empty in the build; only its value changes here.
-  Updates.setUpdateRequestHeadersOverride({ Authorization: `Bearer ${computer.token}` });
+  Updates.setUpdateRequestHeadersOverride({ Authorization: `Bearer ${token}` });
   try {
     const check = await Updates.checkForUpdateAsync();
     if (!check.isAvailable) return "none";

@@ -392,7 +392,12 @@ fn pair(cli: &Cli) -> i32 {
         .as_array()
         .map(|urls| urls.iter().filter_map(Value::as_str).collect())
         .unwrap_or_default();
-    if let Some(qr) = urls.first().and_then(|url| remote_host::qr_text(url)) {
+    // The iPhone app's link (public route, ADR-155) comes first: a scan opens the app.
+    let app_url = pairing["appUrl"].as_str();
+    if let Some(qr) = app_url
+        .or(urls.first().copied())
+        .and_then(remote_host::qr_text)
+    {
         println!("{qr}");
     }
     println!(
@@ -400,6 +405,9 @@ fn pair(cli: &Cli) -> i32 {
         &code[..code.len().min(3)],
         &code[code.len().min(3)..]
     );
+    if app_url.is_some() {
+        println!("  Scan with the iPhone camera to add this computer to the Sirus app.");
+    }
     for url in &urls {
         println!("  {url}");
     }

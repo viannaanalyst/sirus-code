@@ -9,7 +9,7 @@ import "../global.css";
 import { useSirus } from "./data/store";
 import { LaunchOverlay } from "./components/LaunchOverlay";
 import { checkForAppUpdate } from "./data/app-updates";
-import { pairComputer } from "./data/computers";
+import { accessFromLink, pairComputer } from "./data/computers";
 import { AppearancePreferencesProvider } from "./features/settings/appearance/AppearancePreferencesProvider";
 import { useMobileNavigationTheme } from "./lib/useMobileNavigationTheme";
 import { createV5StackNavigator } from "./native/createV5StackNavigator";
@@ -75,7 +75,7 @@ export default function App() {
       const query = new URL(url.replace("sirus://", "https://sirus.invalid/")).searchParams;
       const address = query.get("address"), code = query.get("code");
       if (!address || !code) return;
-      void pairComputer(address, code).then((computer) => useSirus.getState().addComputer(computer), (reason: unknown) => Alert.alert("Não foi possível conectar", reason instanceof Error ? reason.message : String(reason)));
+      void pairComputer(address, code, accessFromLink(query)).then((computer) => useSirus.getState().addComputer(computer), (reason: unknown) => Alert.alert("Não foi possível conectar", reason instanceof Error ? reason.message : String(reason)));
     };
     void Linking.getInitialURL().then(pair);
     const subscription = Linking.addEventListener("url", (event) => pair(event.url));

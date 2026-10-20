@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { RemoteTransport, type RemoteConnection } from "@sirus/client/remote-transport";
+import { RemoteTransport, type RemoteConnection, type RemoteSocket } from "@sirus/client/remote-transport";
 import { socketUrlFor } from "@sirus/client/remote-pairing";
 import type { AgentEvent, AgentInstall, AgentProviderId, AgentResponse, AppData, AppSettings, ApprovalMode, ExecutionOptions, Message, PendingRequest, Project, ProviderModelList, Session, TranscriptResponse, TurnActivity } from "@sirus/client/types";
 import { applyAgentOutput } from "@sirus/lib/agent-events";
@@ -9,7 +9,7 @@ import { newRequestId } from "@sirus/lib/ids";
 import { isSnoozed } from "@sirus/lib/snooze";
 import * as SecureStore from "expo-secure-store";
 
-import { readComputers, writeComputers, type Computer } from "./computers";
+import { accessHeaders, readComputers, writeComputers, type Computer } from "./computers";
 import { childRequests } from "./thread-status";
 
 /**
@@ -157,6 +157,9 @@ export const useSirus = create<SirusState>()((set, get) => {
     const transport = new RemoteTransport({
       url: socketUrlFor(computer.baseUrl),
       baseUrl: computer.baseUrl,
+      // Behind Cloudflare Access the socket carries the service token too (React Native's
+      // WebSocket takes headers as its third argument).
+      createSocket: (url) => new (WebSocket as unknown as new (url: string, protocols: undefined, options: { headers: Record<string, string> }) => RemoteSocket)(url, undefined, { headers: accessHeaders(get().computers.find((item) => item.id === computer.id)?.access) }),
       token: () => get().computers.find((item) => item.id === computer.id)?.token ?? null,
       onConnection: (state, previous) => {
         set((current) => ({ connection: { ...current.connection, [computer.id]: state } }));
@@ -237,12 +240,17 @@ export const useSirus = create<SirusState>()((set, get) => {
     },
 
     addComputer: async (computer) => {
-      const computers = [...get().computers.filter((item) => item.id !== computer.id && item.baseUrl !== computer.baseUrl), computer];
+      // Paired again at another address (its public one): the old address and token stay for
+      // app updates, which the build fetches from the tailnet address.
+      const before = get().computers.find((item) => item.id === computer.id);
+      const previous = before && before.baseUrl !== computer.baseUrl ? { baseUrl: before.baseUrl, token: before.token } : before?.previous;
+      const next = previous ? { ...computer, previous } : computer;
+      const computers = [...get().computers.filter((item) => item.id !== computer.id && item.baseUrl !== computer.baseUrl), next];
       await writeComputers(computers);
       transports.get(computer.id)?.dispose();
       transports.delete(computer.id);
       set({ computers });
-      void load(computer);
+      void load(next);
     },
 
     forgetComputer: async (id) => {

@@ -14,6 +14,17 @@ export interface Computer {
   readonly token: string;
   readonly hostName: string;
   readonly kind: "mac" | "server";
+  /** The Cloudflare Access service token of a public address (ADR-155), sent with every request. */
+  readonly access?: AccessToken;
+  /** The address and token this computer had before (its tailnet one), kept for app updates. */
+  readonly previous?: { readonly baseUrl: string; readonly token: string };
+}
+
+export interface AccessToken { readonly clientId: string; readonly clientSecret: string }
+
+/** The headers Cloudflare Access checks for a service token; none without one. */
+export function accessHeaders(access: AccessToken | undefined): Record<string, string> {
+  return access ? { "CF-Access-Client-Id": access.clientId, "CF-Access-Client-Secret": access.clientSecret } : {};
 }
 
 const KEY = "sirus.computers";
@@ -46,17 +57,27 @@ export function normalizeAddress(input: string): string | null {
 }
 
 /** Exchanges a pairing code at `address` for this phone's token and that computer's identity. */
-export async function pairComputer(address: string, code: string): Promise<Computer> {
+export async function pairComputer(address: string, code: string, access?: AccessToken): Promise<Computer> {
   const baseUrl = normalizeAddress(address);
   if (!baseUrl) throw new Error("Use o endereço https://….ts.net do computador.");
-  const paired = await redeemPairingAt(baseUrl, code.replace(/\D/g, ""), "iPhone · Sirus");
+  const headers = accessHeaders(access);
+  const request: typeof fetch = (input, init) => fetch(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), ...headers } });
+  const paired = await redeemPairingAt(baseUrl, code.replace(/\D/g, ""), "iPhone · Sirus", request);
   return {
     id: paired.host?.id ? `host:${paired.host.id}` : `url:${baseUrl}`,
     baseUrl,
     token: paired.token,
     hostName: paired.host?.hostName?.trim() ?? "",
     kind: paired.host?.kind === "server" ? "server" : "mac",
+    ...(access ? { access } : {}),
   };
+}
+
+/** The service token in a `sirus://pair` link (`cfid` and `cfsecret`), when both are there. */
+export function accessFromLink(query: URLSearchParams): AccessToken | undefined {
+  const clientId = query.get("cfid")?.trim(), clientSecret = query.get("cfsecret")?.trim();
+  const valid = (value: string | undefined): value is string => !!value && value.length <= 200 && /^[A-Za-z0-9._-]+$/.test(value);
+  return valid(clientId) && valid(clientSecret) ? { clientId, clientSecret } : undefined;
 }
 
 /** What the phone calls a computer. */

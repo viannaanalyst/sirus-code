@@ -596,6 +596,7 @@ export class SirusClient {
   }
 
   chatBackgroundImage(name: string) {
+    if (isRemoteUi) return Promise.resolve(null);
     return this.transport.invoke<string | null>("chat_background_image", { name });
   }
 
@@ -615,6 +616,8 @@ export class SirusClient {
 
   /** The first ready paint: shows the hidden main window; resolves once it is on screen (ADR-098). */
   windowReady() {
+    // A browser has no Mac window to show; the computer would refuse it (ADR-080).
+    if (isRemoteUi) return Promise.resolve();
     return this.transport.invoke<void>("window_ready");
   }
 
@@ -761,6 +764,7 @@ export class SirusClient {
   }
 
   dictationStatus() {
+    if (isRemoteUi) return Promise.resolve<import("./types").DictationStatus>("unsupported");
     return this.transport.invoke<import("./types").DictationStatus>("dictation_status");
   }
 
@@ -985,6 +989,7 @@ export class SirusClient {
 
   /** The prompt link waiting since the last call (ADR-122), or null. */
   takePromptLink() {
+    if (isRemoteUi) return Promise.resolve(null);
     return this.transport.invoke<import("./types").PromptLinkOutcome | null>("take_prompt_link");
   }
 

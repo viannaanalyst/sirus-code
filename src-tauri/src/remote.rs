@@ -179,7 +179,11 @@ pub struct Pairing {
     code: String,
     /// The addresses above with `?pair=<code>`, ready for a QR code.
     urls: Vec<String>,
-    /// The first URL as a QR code (SVG markup).
+    /// `sirus://pair?…` for the iPhone app when a public route is set (`remote-public.json`):
+    /// the public address, the code and the route's Cloudflare Access service token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    app_url: Option<String>,
+    /// The app link, else the first URL, as a QR code (SVG markup).
     qr_svg: String,
     expires_at: DateTime<Utc>,
 }
@@ -482,7 +486,8 @@ pub async fn remote_pair() -> Result<Pairing> {
         ));
     }
     let bases = base_urls(&remote);
-    if bases.is_empty() {
+    let route = public_route(&remote.path);
+    if bases.is_empty() && route.is_none() {
         return Err(Error::new(
             "remote",
             "Tailscale is not connected on this Mac. Open Tailscale and sign in, then try again.",
@@ -498,13 +503,78 @@ pub async fn remote_pair() -> Result<Pairing> {
         .into_iter()
         .map(|url| format!("{url}/?pair={code}"))
         .collect();
-    let qr_svg = qr_svg(&urls[0])?;
+    let app_url = route.map(|route| app_pair_link(&route, &code));
+    let qr_svg = qr_svg(
+        app_url
+            .as_deref()
+            .or(urls.first().map(String::as_str))
+            .unwrap_or_default(),
+    )?;
     Ok(Pairing {
         code,
         urls,
+        app_url,
         qr_svg,
         expires_at: Utc::now() + chrono::Duration::from_std(PAIR_TTL).unwrap_or_default(),
     })
+}
+
+/// A public route in front of this computer, such as a Cloudflare Tunnel behind Cloudflare
+/// Access: `remote-public.json` next to `remote.json`, written by the owner (`url`, and the
+/// Access service token's `accessClientId` and `accessClientSecret` the iPhone app sends).
+/// Read at pairing time; the device token stays mandatory behind it.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicRoute {
+    url: String,
+    #[serde(default)]
+    access_client_id: Option<String>,
+    #[serde(default)]
+    access_client_secret: Option<String>,
+}
+
+fn public_route(config_path: &Path) -> Option<PublicRoute> {
+    let bytes = std::fs::read(config_path.with_file_name("remote-public.json")).ok()?;
+    let mut route: PublicRoute = serde_json::from_slice(&bytes).ok()?;
+    let url = route.url.trim().trim_end_matches('/').to_ascii_lowercase();
+    let host = url.strip_prefix("https://")?;
+    let token_ok = |value: &Option<String>| {
+        value.as_deref().is_none_or(|value| {
+            !value.is_empty()
+                && value.len() <= 200
+                && value
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+        })
+    };
+    let valid = !host.is_empty()
+        && host.len() <= 253
+        && !host.contains(['/', '@', '?', '#', ':'])
+        && token_ok(&route.access_client_id)
+        && token_ok(&route.access_client_secret)
+        && route.access_client_id.is_some() == route.access_client_secret.is_some();
+    route.url = url;
+    valid.then_some(route)
+}
+
+/// `sirus://pair?address=…&code=…[&cfid=…&cfsecret=…]`, which the iPhone app opens from a scan.
+fn app_pair_link(route: &PublicRoute, code: &str) -> String {
+    fn encode(value: &str) -> String {
+        value
+            .bytes()
+            .map(|byte| match byte {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                    (byte as char).to_string()
+                }
+                _ => format!("%{byte:02X}"),
+            })
+            .collect()
+    }
+    let mut link = format!("sirus://pair?address={}&code={code}", encode(&route.url));
+    if let (Some(id), Some(secret)) = (&route.access_client_id, &route.access_client_secret) {
+        link.push_str(&format!("&cfid={}&cfsecret={}", encode(id), encode(secret)));
+    }
+    link
 }
 
 fn qr_svg(text: &str) -> Result<String> {
@@ -1769,6 +1839,42 @@ fn tailscale_addresses() -> Vec<Ipv4Addr> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn public_routes_are_https_origins_and_make_an_app_pairing_link() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("remote.json");
+        assert_eq!(public_route(&config), None);
+        let write = |value: serde_json::Value| {
+            std::fs::write(dir.path().join("remote-public.json"), value.to_string()).unwrap()
+        };
+        write(serde_json::json!({ "url": "http://mac.example.com" }));
+        assert_eq!(public_route(&config), None);
+        write(serde_json::json!({ "url": "https://mac.example.com/path" }));
+        assert_eq!(public_route(&config), None);
+        write(
+            serde_json::json!({ "url": "https://mac.example.com", "accessClientId": "abc.access" }),
+        );
+        assert_eq!(
+            public_route(&config),
+            None,
+            "the id and secret come together"
+        );
+        write(
+            serde_json::json!({ "url": "https://Mac.Example.com/", "accessClientId": "abc.access", "accessClientSecret": "cfast_x-1" }),
+        );
+        let route = public_route(&config).unwrap();
+        assert_eq!(route.url, "https://mac.example.com");
+        assert_eq!(
+            app_pair_link(&route, "123456"),
+            "sirus://pair?address=https%3A%2F%2Fmac.example.com&code=123456&cfid=abc.access&cfsecret=cfast_x-1"
+        );
+        write(serde_json::json!({ "url": "https://vps.example.com" }));
+        assert_eq!(
+            app_pair_link(&public_route(&config).unwrap(), "000111"),
+            "sirus://pair?address=https%3A%2F%2Fvps.example.com&code=000111"
+        );
+    }
+
     use super::*;
 
     #[test]

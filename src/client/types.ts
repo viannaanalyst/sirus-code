@@ -988,7 +988,7 @@ export interface RemoteDevice { id: string; name: string; createdAt: string; las
 /** `tailscale serve` in front of remote access, for HTTPS and web push (ADR-082). */
 export interface RemoteHttps { available: boolean; url: string | null; setupUrl: string | null; error: string | null }
 export interface RemoteStatus { enabled: boolean; running: boolean; port: number; urls: string[]; devices: RemoteDevice[]; error: string | null; https: RemoteHttps; keepAwake: boolean; awake: boolean }
-export interface RemotePairing { code: string; urls: string[]; qrSvg: string; expiresAt: string }
+export interface RemotePairing { code: string; urls: string[]; appUrl?: string; qrSvg: string; expiresAt: string }
 /** Closed secret-card controls; `value: null` declines. The value is never echoed back. */
 export type SecretAction = { type: "status" } | { type: "respond"; requestId: string; value: string | null };
 
