@@ -11,6 +11,7 @@ import { canSnooze, snoozeDeadline } from "@/lib/snooze";
 import { relativeTime } from "@/lib/session-board";
 import { holdSessionOrder, moveSidebarProject, sessionOrderSignature, sessionSortKeys, sidebarGroups, toggleSidebarId, type SessionOrderSnapshot } from "@/lib/sidebar-layout";
 import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
+import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProjectFolderDialog } from "@/components/ProjectFolderDialog";
@@ -41,16 +42,16 @@ function measureMarquee(event: ReactMouseEvent<HTMLElement>) {
 }
 
 /**
- * A session's mark in its tab: the provider while idle, three dots hopping
+ * A session's mark in its tab: its model's mark while idle (DeepSeek through OpenCode, for one), three dots hopping
  * while the agent works, a green check when it finished unseen and an amber dot when it
  * needs the person.
  */
-function TabGlyph({ agent, status, label }: { agent: Session["agent"]; status: TabStatus; label?: string }) {
+function TabGlyph({ agent, model, status, label }: { agent: Session["agent"]; model?: string | null; status: TabStatus; label?: string }) {
   const a11y = { role: label ? "img" : undefined, "aria-label": label, "aria-hidden": label ? undefined : true } as const;
   if (status === "running") return <span className="header-tab-glyph header-tab-dots" {...a11y}><i /><i /><i /></span>;
   if (status === "done") return <span className="header-tab-glyph header-tab-done" {...a11y}><Check size={12} strokeWidth={2.4} aria-hidden="true" /></span>;
   if (status === "waiting") return <span className="header-tab-glyph" {...a11y}><span className="header-tab-status" data-status="waiting" /></span>;
-  return <ProviderIcon id={agent} size={13} className="rounded-none bg-transparent" />;
+  return <ModelIcon modelId={model ?? ""} provider={agent} size={13} className="rounded-none bg-transparent" />;
 }
 
 function StatusDot({ status, label }: { status: TabStatus; label?: string }) {
@@ -309,7 +310,7 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
               { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: active, onSelect: () => { close(); setSessionAction({ session, kind: "delete" }); } },
             ]}><div className="header-switcher-session" data-session-row={session.id} data-cascade-item="" style={cascadeIndex(index + 1)} data-current={session.id === useAppStore.getState().selectedSessionId || undefined}>
               <button type="button" className="header-switcher-session-open" onClick={() => openSession(session.id)}>
-                <TabGlyph agent={session.agent} status={status} label={status !== "idle" ? t(`tabs.status.${status}`) : undefined} />
+                <TabGlyph agent={session.agent} model={session.model} status={status} label={status !== "idle" ? t(`tabs.status.${status}`) : undefined} />
                 <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
                 {isPinned ? <Pin size={11} aria-label={t("Pinned")} className="shrink-0 text-text-muted" /> : null}
               </button>
@@ -471,7 +472,7 @@ export function HeaderTabs() {
     return <div className="header-tabs titlebar-no-drag">
       {switcher}
       {current ? <span className="header-tab header-tab-single" data-active="">
-        <TabGlyph agent={current.agent} status={tabStatus(current, unseen, computer)} label={label(current)} />
+        <TabGlyph agent={current.agent} model={current.model} status={tabStatus(current, unseen, computer)} label={label(current)} />
         <span className="header-tab-title"><span>{current.title}</span></span>
         <TerminalBadge sessionId={current.id} count={runningTerminals[current.id]?.length ?? 0} />
       </span> : null}
@@ -513,7 +514,7 @@ export function HeaderTabs() {
               }
               if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); close(session.id); }
             }}>
-            <TabGlyph agent={session.agent} status={status} />
+            <TabGlyph agent={session.agent} model={session.model} status={status} />
             <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{session.title}</span></span>
             <span className="sr-only">{status !== "idle" ? label(session) : ""}</span>
             <TerminalBadge sessionId={session.id} count={runningTerminals[session.id]?.length ?? 0} inTab />
