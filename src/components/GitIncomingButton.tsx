@@ -124,7 +124,9 @@ export function GitIncomingButton() {
         <Tooltip label={label}>
           <PopoverTrigger asChild>
             <button type="button" className="git-incoming-button" data-tone={done ? "done" : "info"} aria-label={label}>
-              {done ? <Check size={14} weight="bold" /> : pulling ? <LoaderCircle size={14} className="animate-spin" /> : <CloudArrowDown size={14} />}
+              {done ? <Check size={15} weight="bold" aria-hidden="true" /> : pulling ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" /> : <CloudArrowDown size={15} aria-hidden="true" />}
+              <span aria-hidden="true">{t("gitIncoming.button")}</span>
+              {!done && view.kind === "pull" ? <span className="git-incoming-count" aria-hidden="true">{view.count}</span> : null}
             </button>
           </PopoverTrigger>
         </Tooltip>

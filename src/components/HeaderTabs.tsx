@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, FolderPlus, Moon, Pencil, Pin, PinOff, Plus, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
 import type { Project, ProjectFolder, Session } from "@/client/types";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ComputerBadge, SwitcherElsewhereProjects, SwitcherRemoteSessions, memberKey, useMergedComputers } from "@/components/ComputerSwitcher";
@@ -475,7 +475,6 @@ export function HeaderTabs() {
         <span className="header-tab-title"><span>{current.title}</span></span>
         <TerminalBadge sessionId={current.id} count={runningTerminals[current.id]?.length ?? 0} />
       </span> : null}
-      <button type="button" className="header-tabs-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => store().requestNewSession()}><Plus size={14} aria-hidden="true" /></button>
     </div>;
   }
 
@@ -537,7 +536,6 @@ export function HeaderTabs() {
         {overflow.map(session => <DropdownItem key={session.id} onSelect={() => void store().selectSession(session.id)}>{session.title}</DropdownItem>)}
       </DropdownContent>
     </Dropdown>
-    <button type="button" className="header-tabs-new" aria-label={t("session.new")} title={t("session.new")} onClick={() => store().requestNewSession()}><Plus size={14} aria-hidden="true" /></button>
     <AnimatePresence>{toast && <motion.div key="closed-tab" className="header-tabs-toast" role="status" exit={{ opacity: 0, y: -6, transition: { duration: 0.12 } }}>
       <span>{t("tabs.closedToast", { title: toastTitle })}</span>
       <button type="button" onClick={() => { setToast(null); store().reopenHeaderTab(); }}>{t("tabs.undo")}</button>

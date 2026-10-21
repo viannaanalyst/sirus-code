@@ -7,6 +7,7 @@ const strings: Record<string, [string, string]> = {
   "gitIncoming.subtitle": ["You are on {branch} · no local commits", "Você está em {branch} · sem commits locais"],
   "gitIncoming.more": ["and {count} more", "e mais {count}"],
   "gitIncoming.commits": ["Incoming commits", "Commits que chegam"],
+  "gitIncoming.button": ["Pull", "Pull"],
   "gitIncoming.pullNow": ["Pull now", "Puxar agora"],
   "gitIncoming.pulling": ["Pulling…", "Puxando…"],
   "gitIncoming.done": ["{branch} is up to date with {upstream}", "{branch} está em dia com {upstream}"],
