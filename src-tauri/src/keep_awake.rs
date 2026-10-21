@@ -1,8 +1,9 @@
 //! Keeps the Mac from idle-sleeping while any agent turn runs (ADR-100).
 //!
 //! Each running turn holds a `Hold`; the first one takes an IOKit
-//! `PreventUserIdleSystemSleep` assertion and the last one to drop releases
-//! it. The display may still sleep and lock. Quit releases it too (the system
+//! `PreventUserIdleSystemSleep` assertion and a user-initiated `NSProcessInfo`
+//! activity (so App Nap does not throttle Sirus and its agents while another
+//! app has focus), and the last one to drop releases both. The display may still sleep and lock. Quit releases it too (the system
 //! also drops a process's assertions when it exits). Independent of the
 //! `caffeinate` that remote access keeps for paired phones (`remote.rs`).
 
@@ -57,7 +58,10 @@ impl<A: Assertion> Counter<A> {
 
 #[cfg(target_os = "macos")]
 mod platform {
+    use objc2::rc::Retained;
+    use objc2::runtime::{NSObjectProtocol, ProtocolObject};
     use objc2_core_foundation::CFString;
+    use objc2_foundation::{NSActivityOptions, NSProcessInfo, NSString};
 
     #[link(name = "IOKit", kind = "framework")]
     extern "C" {
@@ -72,11 +76,24 @@ mod platform {
 
     const LEVEL_ON: u32 = 255;
 
-    pub struct Power(Option<u32>);
+    pub struct Power {
+        sleep: Option<u32>,
+        activity: Option<Activity>,
+    }
+
+    /// The App Nap opt-out token `beginActivityWithOptions:reason:` returns.
+    struct Activity(Retained<ProtocolObject<dyn NSObjectProtocol>>);
+
+    // SAFETY: the token is an opaque, immutable object that `NSProcessInfo` accepts
+    // back from any thread; it only moves between threads behind the counter's mutex.
+    unsafe impl Send for Activity {}
 
     impl Power {
         pub const fn new() -> Self {
-            Self(None)
+            Self {
+                sleep: None,
+                activity: None,
+            }
         }
     }
 
@@ -86,18 +103,29 @@ mod platform {
             let name = CFString::from_str("Sirus Code agent turn running");
             let mut id = 0u32;
             let result = unsafe { IOPMAssertionCreateWithName(&*kind, LEVEL_ON, &*name, &mut id) };
-            if result != 0 {
+            if result == 0 {
+                self.sleep = Some(id);
+            } else {
                 tracing::warn!(result, "cannot keep the Mac awake for a running agent");
-                return false;
             }
-            self.0 = Some(id);
+            // Sleep stays the IOKit assertion's job; this only keeps App Nap off.
+            let token = NSProcessInfo::processInfo().beginActivityWithOptions_reason(
+                NSActivityOptions::UserInitiatedAllowingIdleSystemSleep,
+                &NSString::from_str("Sirus Code agent turn running"),
+            );
+            self.activity = Some(Activity(token));
             true
         }
 
         fn release(&mut self) {
-            if let Some(id) = self.0.take() {
+            if let Some(id) = self.sleep.take() {
                 unsafe {
                     IOPMAssertionRelease(id);
+                }
+            }
+            if let Some(Activity(token)) = self.activity.take() {
+                unsafe {
+                    NSProcessInfo::processInfo().endActivity(&token);
                 }
             }
         }

@@ -29,6 +29,7 @@
         },
         "backgroundColor": "#0c0c0c",
         "transparent": false,
+        "backgroundThrottling": "disabled",
         "dragDropEnabled": true
       }
     ],
