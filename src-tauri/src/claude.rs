@@ -929,6 +929,11 @@ async fn run_turn(
                 }))?;
             }
         }
+        // The CLI's synthetic report that it could not refresh the shared OAuth credential is
+        // not the reply; the turn is retried instead (ADR-162).
+        if auth_refresh_frame(&value) {
+            continue;
+        }
         cache.observe(&value, chrono::Utc::now().timestamp_millis());
         // A 5.1+ progress update joins the reply ahead of the tool it announces.
         if let Some(update) = updates.observe(&value) {
@@ -1167,6 +1172,59 @@ fn refused_until(info: &Value) -> Option<Option<i64>> {
         .then(|| epoch_ms(&info["resetsAt"]))
 }
 
+/// The wording of the credential-refresh race (ADR-162). Claude Code's OAuth access token is
+/// single-use: when several `claude` processes share one login (another Sirus turn, the usage
+/// probe, a terminal), whichever refreshes first rotates it, and the others give up. These
+/// messages mean the login itself is intact.
+fn auth_refresh_text(text: &str) -> bool {
+    let text = text.to_ascii_lowercase();
+    text.contains("could not be refreshed")
+        || text.contains("failed to refresh oauth")
+        || text.contains("another claude code process is refreshing")
+}
+
+/// A synthetic API-error `assistant` frame reporting the credential-refresh race. Its text is
+/// the CLI's, never the reply, so it is kept out of the transcript.
+fn auth_refresh_frame(value: &Value) -> bool {
+    value["type"] == "assistant"
+        && value["is_api_error_message"] == true
+        && value["message"]["content"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|block| block["type"] == "text")
+            .filter_map(|block| block["text"].as_str())
+            .any(auth_refresh_text)
+}
+
+/// The message a failed `result` reports for the credential-refresh race, if this is one.
+fn auth_refresh_result(value: &Value) -> Option<String> {
+    value["result"]
+        .as_str()
+        .filter(|text| auth_refresh_text(text))
+        .map(str::to_owned)
+        .or_else(|| {
+            value["errors"]
+                .as_array()?
+                .iter()
+                .filter_map(Value::as_str)
+                .find(|text| auth_refresh_text(text))
+                .map(str::to_owned)
+        })
+}
+
+/// True for the error `run_turn` returns when the shared OAuth credential was mid-refresh: the
+/// caller may retry the turn with a fresh process (ADR-162).
+pub(crate) fn auth_refresh_error(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::App {
+            code: "claude_auth_refresh",
+            ..
+        }
+    )
+}
+
 /// How a failed `result` ends the turn: the usage limit to report (with its reset, when
 /// known) and the error. A full context window is never a usage limit, even when the CLI
 /// ends it with `terminal_reason: "blocking_limit"` or a rate-limit event came before it:
@@ -1177,6 +1235,9 @@ fn failed_result(value: &Value, usage_limit: Option<Option<i64>>) -> (Option<Opt
             None,
             Error::new("context_window", crate::codex::CONTEXT_WINDOW_FULL),
         );
+    }
+    if let Some(message) = auth_refresh_result(value) {
+        return (None, Error::new("claude_auth_refresh", message));
     }
     if usage_limit.is_some() || usage_limit_text(value) {
         return (
@@ -1533,6 +1594,75 @@ mod tests {
             Some(1_791_201_600_000)
         );
         assert_eq!(epoch_ms(&json!(null)), None);
+    }
+
+    #[test]
+    fn a_credential_refresh_race_is_a_retryable_failure() {
+        // The exact frames 2.1.309 emits when another process holds the single-use token.
+        let text = "Failed to authenticate: OAuth session expired and could not be refreshed";
+        let assistant = json!({"type":"assistant","is_api_error_message":true,"error":"authentication_failed","message":{"content":[{"type":"text","text":text}]}});
+        assert!(auth_refresh_frame(&assistant));
+        let result = json!({"type":"result","subtype":"success","is_error":true,"terminal_reason":"api_error","result":text});
+        let (limit, error) = failed_result(&result, None);
+        assert_eq!(limit, None);
+        assert!(auth_refresh_error(&error), "the turn is worth a retry");
+        // A genuinely revoked login must not be retried: only the refresh race is.
+        let revoked = json!({"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate: OAuth token revoked"});
+        let (_, error) = failed_result(&revoked, None);
+        assert!(!auth_refresh_error(&error));
+        assert!(!auth_refresh_frame(
+            &json!({"type":"assistant","is_api_error_message":true,"error":"authentication_failed","message":{"content":[{"type":"text","text":"Failed to authenticate: OAuth token revoked"}]}})
+        ));
+        // A real reply is never mistaken for the CLI's synthetic report.
+        assert!(!auth_refresh_frame(
+            &json!({"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}})
+        ));
+    }
+
+    #[tokio::test]
+    async fn the_refresh_race_text_never_reaches_the_reply() {
+        let script = r#"import sys,json
+read=lambda:json.loads(sys.stdin.readline())
+send=lambda value:print(json.dumps(value),flush=True)
+assert read()['request']['subtype']=='initialize'
+send({'type':'control_response','response':{'subtype':'success','request_id':'sy_init','response':{}}})
+prompt=read();ours=prompt['uuid']
+send({'type':'system','subtype':'init','session_id':'native'})
+send({'type':'assistant','is_api_error_message':True,'error':'authentication_failed','session_id':'native','message':{'content':[{'type':'text','text':'Failed to authenticate: OAuth session expired and could not be refreshed'}]}})
+send({'type':'result','subtype':'success','is_error':True,'terminal_reason':'api_error','result':'Failed to authenticate: OAuth session expired and could not be refreshed','session_id':'native','user_message_uuids':[ours]})
+"#;
+        let mut child = Command::new("python3")
+            .args(["-u", "-c", script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let (_sender, replies) = mpsc::channel(16);
+        let (_cancel_sender, mut cancel) = watch::channel(false);
+        let mut run = Run {
+            session: session("/fixture"),
+            cwd: "/fixture".into(),
+            prompt: "fixture".into(),
+            attachments: Vec::new(),
+            generation: "g".into(),
+            replies,
+        };
+        let mut wire = Wire::new(child.stdin.take().unwrap(), child.stdout.take().unwrap());
+        let mut text = String::new();
+        let result = execute(&mut wire, &mut run, &mut cancel, &mut |event| {
+            if let Event::Delta(chunk) = event {
+                text.push_str(&chunk);
+            }
+            Ok(())
+        })
+        .await;
+        assert!(result.as_ref().err().is_some_and(auth_refresh_error));
+        assert!(
+            text.is_empty(),
+            "the synthetic error is not the reply: {text:?}"
+        );
+        drop(wire);
+        let _ = tokio::time::timeout(Duration::from_secs(3), child.wait()).await;
     }
 
     #[test]

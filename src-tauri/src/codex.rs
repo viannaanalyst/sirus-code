@@ -996,6 +996,75 @@ fn bounded_item<'a>(
     Ok(items.entry(item).or_default())
 }
 
+/// Fresh Claude processes an auth-refresh retry may try (ADR-162).
+const AUTH_REFRESH_RETRIES: u8 = 2;
+/// Wait before each retry: the process that won the refresh writes the rotated credential
+/// (keychain-backed) within a moment.
+const AUTH_REFRESH_BACKOFF: Duration = Duration::from_millis(1500);
+
+/// A fresh Claude process for a turn whose shared OAuth credential was mid-refresh (ADR-162).
+/// The account scope and provider overrides are resolved exactly as at admission, and the
+/// session snapshot's own `native_thread` decides `--resume`, so a continuation keeps its
+/// thread while a first turn starts clean.
+async fn restart_claude(
+    state: &std::sync::Arc<crate::commands::AppState>,
+    run: &Run,
+) -> Result<(crate::agent::AgentProcess, crate::agent::StartedAgent, Wire)> {
+    let overrides = state.data.lock().settings.provider_paths.clone();
+    let home = crate::provider_accounts::scope(
+        state,
+        &run.session.agent,
+        &run.session.provider_account_id,
+    )?
+    .home;
+    let (process, mut started) = crate::claude::start(
+        run.session.clone(),
+        run.cwd.clone(),
+        run.prompt.clone(),
+        overrides,
+        home,
+    )
+    .await?;
+    let input = started
+        .child
+        .stdin
+        .take()
+        .ok_or_else(|| Error::agent("Claude retry has no input pipe"))?;
+    let output = started
+        .child
+        .stdout
+        .take()
+        .ok_or_else(|| Error::agent("Claude retry has no output pipe"))?;
+    Ok((process, started, Wire::new(input, output)))
+}
+
+/// The size of the native transcript a continuation turn appends to, recorded before the turn
+/// so a failed auth-refresh attempt can be rolled back before the retry (ADR-162). A first
+/// turn has no thread yet: its failed attempt only leaves an orphan transcript the retry never
+/// resumes.
+fn claude_transcript_len(
+    config_dir: Option<&std::path::Path>,
+    run: &Run,
+) -> Option<(std::path::PathBuf, u64)> {
+    let dir = config_dir?;
+    let thread = run.session.native_thread.as_ref()?.thread_id.as_str();
+    let path = crate::account_move::claude_transcript(dir, &run.cwd, thread)?;
+    let len = std::fs::metadata(&path).ok()?.len();
+    Some((path, len))
+}
+
+/// Removes a failed Claude attempt's appended lines from the native transcript, restoring the
+/// pre-turn thread so the retry's `--resume` never replays the prompt twice. Called only after
+/// the failed process is stopped, so nothing else writes the file.
+fn rollback_claude_transcript(transcript: &Option<(std::path::PathBuf, u64)>) {
+    let Some((path, len)) = transcript else {
+        return;
+    };
+    if let Ok(file) = std::fs::OpenOptions::new().write(true).open(path) {
+        let _ = file.set_len(*len);
+    }
+}
+
 pub fn monitor(
     mut started: crate::agent::StartedAgent,
     mut run: Run,
@@ -1006,7 +1075,7 @@ pub fn monitor(
 ) {
     use crate::runtime::Emitter;
     let reused = started.wire.take();
-    let pool_key = started.pool_key.take();
+    let mut pool_key = started.pool_key.take();
     let fresh = match reused {
         Some(wire) => Ok(wire),
         None => {
@@ -1167,14 +1236,84 @@ pub fn monitor(
                 &run.session.provider_account_id,
                 &run.cwd,
             );
-            crate::claude::execute_in(
+            let transcript = claude_transcript_len(config_dir.as_deref(), &run);
+            let mut result = crate::claude::execute_in(
                 &mut wire,
                 &mut run,
-                config_dir,
+                config_dir.clone(),
                 &mut started.cancel,
                 &mut emit,
             )
-            .await
+            .await;
+            // Several `claude` processes share one login (another Sirus turn, the usage probe,
+            // a terminal). The OAuth token is single-use, so the loser of a refresh race gives
+            // up with "could not be refreshed" even though the login is fine. A fresh process
+            // reads the rotated credential, so the turn is retried before it is reported failed.
+            let mut retries = 0;
+            while retries < AUTH_REFRESH_RETRIES
+                && !*started.cancel.borrow()
+                && result
+                    .as_ref()
+                    .err()
+                    .is_some_and(crate::claude::auth_refresh_error)
+            {
+                retries += 1;
+                stop_owned(&mut started.child).await;
+                // A continuation's failed attempt wrote the prompt into the native thread;
+                // drop it so the retry's resume does not replay it twice.
+                rollback_claude_transcript(&transcript);
+                tokio::time::sleep(AUTH_REFRESH_BACKOFF).await;
+                if *started.cancel.borrow() {
+                    break;
+                }
+                let attachments = std::mem::take(&mut run.attachments);
+                match restart_claude(&state, &run).await {
+                    Ok((process, mut fresh, fresh_wire)) => {
+                        if let Some(reader) = fresh.child.stderr.take() {
+                            crate::agent::spawn_reader(
+                                app.clone(),
+                                state.clone(),
+                                session_id.clone(),
+                                "stderr",
+                                reader,
+                            );
+                        }
+                        wire = fresh_wire;
+                        started.child = fresh.child;
+                        started.cancel = fresh.cancel;
+                        let Some(mut fresh_run) = fresh.codex.take() else {
+                            run.attachments = attachments;
+                            result = Err(Error::agent("Claude retry produced no turn"));
+                            break;
+                        };
+                        fresh_run.attachments = attachments;
+                        run = fresh_run;
+                        pool_key = fresh.pool_key.take();
+                        state.agents.lock().insert(session_id.clone(), process);
+                        result = crate::claude::execute_in(
+                            &mut wire,
+                            &mut run,
+                            config_dir.clone(),
+                            &mut started.cancel,
+                            &mut emit,
+                        )
+                        .await;
+                    }
+                    Err(error) => {
+                        run.attachments = attachments;
+                        result = Err(error);
+                    }
+                }
+            }
+            // Still refused after the retries: the shared credential is not merely mid-refresh
+            // but broken (another process overwrote it). Say what to do instead of the raw text.
+            match result {
+                Err(error) if crate::claude::auth_refresh_error(&error) => Err(Error::new(
+                    "claude_auth_refresh",
+                    format!("{error}. Sign in to Claude Code again with `claude auth login --claudeai`: concurrent sessions can overwrite the shared credential."),
+                )),
+                other => other,
+            }
         } else if run.session.agent == AgentProviderId::OpenCode {
             crate::opencode::execute(
                 &mut wire,
@@ -1319,6 +1458,28 @@ async fn cleanup(child: &mut Child) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_continuation_rolls_its_native_transcript_back() {
+        let root = std::env::temp_dir().join(format!("sirus-auth-{}", std::process::id()));
+        let project = root
+            .join("projects")
+            .join(crate::account_move::claude_project_name("/w"));
+        std::fs::create_dir_all(&project).unwrap();
+        let file = project.join("native.jsonl");
+        std::fs::write(&file, "{\"turn\":1}\n").unwrap();
+        let located = crate::account_move::claude_transcript(&root, "/w", "native").unwrap();
+        assert_eq!(located, file);
+        let transcript = Some((located, std::fs::metadata(&file).unwrap().len()));
+        // The failed attempt's prompt and error lines are dropped before the retry.
+        std::fs::write(&file, "{\"turn\":1}\n{\"turn\":2}\n{\"turn\":2}\n").unwrap();
+        rollback_claude_transcript(&transcript);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{\"turn\":1}\n");
+        // A first turn (no thread) and an unknown thread roll nothing back.
+        rollback_claude_transcript(&None);
+        assert!(crate::account_move::claude_transcript(&root, "/w", "foreign").is_none());
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     #[test]
     fn browser_mcp_token_stays_out_of_argv() {

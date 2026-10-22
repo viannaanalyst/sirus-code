@@ -329,6 +329,26 @@ pub(crate) fn carry_claude(
         .map_err(|error| format!("cannot copy the Claude transcript: {error}"))
 }
 
+/// The CLI's own transcript file for a session's native thread inside `config_dir`
+/// (`projects/<encoded cwd>/<id>.jsonl`), looking in every project folder when the folder
+/// name is shortened. `None` when no such transcript exists.
+pub(crate) fn claude_transcript(config_dir: &Path, cwd: &str, thread_id: &str) -> Option<PathBuf> {
+    valid_thread_id(thread_id).ok()?;
+    let name = format!("{thread_id}.jsonl");
+    let projects = config_dir.join("projects");
+    let expected = projects.join(claude_project_name(cwd)).join(&name);
+    if is_real_file(&expected) {
+        return Some(expected);
+    }
+    std::fs::read_dir(&projects)
+        .ok()?
+        .take(MAX_PROJECT_DIRS)
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|dir| is_real_dir(dir) && is_real_file(&dir.join(&name)))
+        .map(|dir| dir.join(&name))
+}
+
 pub(crate) fn carry_codex(from: &Path, to: &Path, id: &str) -> std::result::Result<(), String> {
     let roots: Vec<PathBuf> = [from.join("sessions"), from.join("archived_sessions")]
         .into_iter()
