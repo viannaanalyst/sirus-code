@@ -1,6 +1,6 @@
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
-import { useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { memo, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { Archive, ArchiveRestore, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons/phosphor";
 import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
 import type { Project, Session } from "@/client/types";
@@ -106,7 +106,8 @@ export function ProjectEditDialog({ project, open, onOpenChange }: { project: Pr
   </>;
 }
 
-export function SidebarSessionRow({ session, project, active, archived = false, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; archived?: boolean; showProject?: boolean; unseen?: boolean }) {
+/** Memoized: a reply streaming in one conversation re-renders only its own row. */
+export const SidebarSessionRow = memo(function SidebarSessionRow({ session, project, active, archived = false, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; archived?: boolean; showProject?: boolean; unseen?: boolean }) {
   const t = useTranslation();
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
@@ -125,7 +126,7 @@ export function SidebarSessionRow({ session, project, active, archived = false, 
       <span className="sidebar-hover-actions sidebar-session-actions">{!archived && <RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={togglePin}>{pinned ? <PinOff /> : <Pin />}</RowAction>}<RowAction label={t(archived ? "Restore session" : "Archive session")} onClick={toggleArchive}>{archived ? <ArchiveRestore /> : <Archive />}</RowAction></span>
     </div></SessionActions>
   </SidebarHoverCard>;
-}
+});
 
 /** Hover details shared by session rows: title and age, project, branch, workspace, model and live status. */
 function SessionHoverContent({ session, project }: { session: Session; project?: Project }) {
