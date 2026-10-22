@@ -340,6 +340,7 @@ fn start(dir: &Path) -> crate::error::Result<AppHandle> {
     crate::crash_resume::resume_interrupted(&app);
     crate::snooze::start(app.clone());
     crate::auto_archive::start(app.clone());
+    crate::idle_compaction::start(app.clone());
     crate::auto_pull::start(app.clone());
     crate::ci_autofix::start(app.clone());
     crate::pr_watch::start(app.clone());

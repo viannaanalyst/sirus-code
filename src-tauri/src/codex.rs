@@ -928,6 +928,7 @@ fn context_usage(params: &Value) -> Option<crate::models::ContextUsage> {
         window: usage["modelContextWindow"]
             .as_u64()
             .filter(|window| *window > 0),
+        cache_expires_at: None,
     })
 }
 
@@ -1102,9 +1103,14 @@ pub fn monitor(
                     let window = usage
                         .window
                         .or(session.context_usage.and_then(|known| known.window));
+                    // Likewise the last known cache expiry (a compaction or a result reports none).
+                    let cache_expires_at = usage.cache_expires_at.or(session
+                        .context_usage
+                        .and_then(|known| known.cache_expires_at));
                     let next = crate::models::ContextUsage {
                         used: usage.used,
                         window,
+                        cache_expires_at,
                     };
                     publish = session.context_usage != Some(next);
                     persist_immediately = false;
@@ -1372,7 +1378,8 @@ mod tests {
             context_usage(&params),
             Some(crate::models::ContextUsage {
                 used: 176000,
-                window: Some(256000)
+                window: Some(256000),
+                cache_expires_at: None
             })
         );
         assert_eq!(context_usage(&json!({"tokenUsage":{"last":{}}})), None);

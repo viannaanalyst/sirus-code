@@ -44,6 +44,7 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       {toggle("composerAutocorrect", "chatBehavior.autocorrect", "chatBehavior.autocorrectHelp")}
       {toggle("showSessionTabs", "chatBehavior.sessionTabs", "chatBehavior.sessionTabsHelp")}
       {toggle("continueInterruptedSessions", "chatBehavior.continueInterrupted", "chatBehavior.continueInterruptedHelp")}
+      {toggle("compactIdleBeforeCacheExpiry", "chatBehavior.compactIdle", "chatBehavior.compactIdleHelp")}
     </SettingsGroup>
     {/* Agent behavior and Auto-archive (ADR-130), also on the phone's Mac settings. */}
     <SettingsGroup title={t("settings.agentBehavior")} card>

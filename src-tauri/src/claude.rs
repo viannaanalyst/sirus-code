@@ -352,8 +352,37 @@ fn tool_kind(request: &Value) -> Option<PendingRequestKind> {
     Some(PendingRequestKind::Tool {
         name: name.into(),
         input: request["input"].clone(),
-        reason: request["decision_reason"].as_str().map(str::to_owned),
+        reason: request["decision_reason"]
+            .as_str()
+            .map(strip_terminal_codes)
+            .filter(|reason| !reason.is_empty()),
+        asked_by: request["decision_reason_type"]
+            .as_str()
+            .map(|kind| match kind {
+                "rule" | "hook" => kind,
+                _ => "check",
+            })
+            .map(str::to_owned),
     })
+}
+
+/// The CLI's reason can carry its terminal renderer's escape sequences.
+fn strip_terminal_codes(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // CSI (`ESC [ … final`) or a two-character escape.
+            if chars.next_if_eq(&'[').is_some() {
+                while chars.next().is_some_and(|c| !('@'..='~').contains(&c)) {}
+            } else {
+                chars.next();
+            }
+        } else if !c.is_control() || c == '\n' || c == '\t' {
+            out.push(c);
+        }
+    }
+    out.trim().to_owned()
 }
 
 /// `mcp__<connector>__<tool>`: a connector's tool, reviewed like a built-in one. The app's own
@@ -774,6 +803,7 @@ async fn run_turn(
     let mut background = Background::default();
     let mut steers = Steers::default();
     let mut updates = Updates::default();
+    let mut cache = CacheClock::default();
     // Whether this turn's reply has text yet (an update then starts its own paragraph).
     let mut wrote_text = false;
     // A continuation after our answer starts on its own paragraph.
@@ -899,6 +929,7 @@ async fn run_turn(
                 }))?;
             }
         }
+        cache.observe(&value, chrono::Utc::now().timestamp_millis());
         // A 5.1+ progress update joins the reply ahead of the tool it announces.
         if let Some(update) = updates.observe(&value) {
             let lead = if wrote_text { "\n\n" } else { "" };
@@ -924,7 +955,8 @@ async fn run_turn(
         background.turn_began(&value);
         // A manual compaction's result reports the summarizer call, not the rebuilt context.
         if !(value["type"] == "result" && crate::codex::is_compact(&run.prompt)) {
-            if let Some(usage) = context_usage(&value) {
+            if let Some(mut usage) = context_usage(&value) {
+                usage.cache_expires_at = cache.expires_at(&value);
                 emit(Event::Context(usage))?;
             }
         }
@@ -1247,6 +1279,41 @@ fn compaction_failure(value: &Value) -> Option<String> {
         })
 }
 
+/// When the prompt cache of the main agent's last request expires (ADR-157). The lifetime
+/// runs from the request's start (its `message_start`), and its length shows in the
+/// usage's `cache_creation` split; a request served wholly from cache keeps the last one.
+#[derive(Default)]
+struct CacheClock {
+    started: Option<i64>,
+    ttl_ms: Option<i64>,
+}
+
+impl CacheClock {
+    fn observe(&mut self, value: &Value, now_ms: i64) {
+        if value["type"] == "stream_event"
+            && value["event"]["type"] == "message_start"
+            && value["parent_tool_use_id"].is_null()
+        {
+            self.started = Some(now_ms);
+        }
+    }
+
+    /// The expiry a main `assistant` reading carries; None for any other event.
+    fn expires_at(&mut self, value: &Value) -> Option<i64> {
+        if value["type"] != "assistant" || !value["parent_tool_use_id"].is_null() {
+            return None;
+        }
+        let creation = &value["message"]["usage"]["cache_creation"];
+        let tokens = |name: &str| creation[name].as_u64().unwrap_or(0);
+        if tokens("ephemeral_1h_input_tokens") > 0 {
+            self.ttl_ms = Some(60 * 60 * 1000);
+        } else if tokens("ephemeral_5m_input_tokens") > 0 {
+            self.ttl_ms = Some(5 * 60 * 1000);
+        }
+        Some(self.started? + self.ttl_ms?)
+    }
+}
+
 /// Context reading from stream-json (ADR-057). Main-agent `assistant` events report
 /// what the request carried; `result` adds the window the CLI knows for the model; a
 /// compaction's boundary reports what the rebuilt context holds.
@@ -1265,6 +1332,7 @@ fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
         "assistant" if value["parent_tool_use_id"].is_null() => Some(crate::models::ContextUsage {
             used: total(&value["message"]["usage"])?,
             window: None,
+            cache_expires_at: None,
         }),
         "result" if value["subtype"] == "success" => {
             let usage = value["usage"]["iterations"]
@@ -1279,11 +1347,13 @@ fn context_usage(value: &Value) -> Option<crate::models::ContextUsage> {
             Some(crate::models::ContextUsage {
                 used: total(usage)?,
                 window,
+                cache_expires_at: None,
             })
         }
         "system" if value["subtype"] == "compact_boundary" => Some(crate::models::ContextUsage {
             used: value["compact_metadata"]["post_tokens"].as_u64()?,
             window: None,
+            cache_expires_at: None,
         }),
         _ => None,
     }
@@ -1488,7 +1558,8 @@ mod tests {
             context_usage(&assistant),
             Some(crate::models::ContextUsage {
                 used: 1035,
-                window: None
+                window: None,
+                cache_expires_at: None
             })
         );
         let child = json!({"type":"assistant","parent_tool_use_id":"tool","message":{"usage":{"input_tokens":10}}});
@@ -1498,7 +1569,8 @@ mod tests {
             context_usage(&result),
             Some(crate::models::ContextUsage {
                 used: 57,
-                window: Some(1000000)
+                window: Some(1000000),
+                cache_expires_at: None
             })
         );
         assert_eq!(
@@ -1542,6 +1614,65 @@ mod tests {
             );
         }
         assert!(tool_kind(&json!({"subtype":"can_use_tool","tool_name":"Write","input":{"file_path":"/fixture/test.txt","content":"native"}})).is_some());
+    }
+    #[test]
+    fn the_cache_expiry_runs_from_the_request_start_for_its_lifetime() {
+        let mut cache = CacheClock::default();
+        let start = json!({"type":"stream_event","parent_tool_use_id":null,"event":{"type":"message_start"}});
+        let reply = |one_hour: u64, five_minutes: u64| {
+            json!({"type":"assistant","parent_tool_use_id":null,"message":{"usage":{"input_tokens":1,
+                "cache_creation":{"ephemeral_1h_input_tokens":one_hour,"ephemeral_5m_input_tokens":five_minutes}}}})
+        };
+        assert_eq!(
+            cache.expires_at(&reply(10, 0)),
+            None,
+            "no request start seen yet"
+        );
+        cache.observe(&start, 1_000);
+        assert_eq!(cache.expires_at(&reply(10, 0)), Some(1_000 + 3_600_000));
+        cache.observe(&start, 5_000);
+        assert_eq!(
+            cache.expires_at(&reply(0, 0)),
+            Some(5_000 + 3_600_000),
+            "a cached read keeps the lifetime"
+        );
+        assert_eq!(cache.expires_at(&reply(0, 7)), Some(5_000 + 300_000));
+        // A subagent's request neither starts the clock nor reports the main cache.
+        cache.observe(&json!({"type":"stream_event","parent_tool_use_id":"tool","event":{"type":"message_start"}}), 9_000);
+        assert_eq!(cache.expires_at(&reply(0, 7)), Some(5_000 + 300_000));
+        assert_eq!(
+            cache.expires_at(
+                &json!({"type":"assistant","parent_tool_use_id":"tool","message":{"usage":{}}})
+            ),
+            None
+        );
+    }
+    #[test]
+    fn a_tool_request_carries_a_clean_reason_and_who_asked() {
+        let kind = |reason_type: Value| {
+            tool_kind(
+                &json!({"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"rm -rf build"},
+                "decision_reason":"\u{1b}[1mDangerous\u{1b}[0m rm\u{7}","decision_reason_type":reason_type}),
+            )
+        };
+        let Some(PendingRequestKind::Tool {
+            reason, asked_by, ..
+        }) = kind(json!("safetyCheck"))
+        else {
+            panic!("expected a tool request");
+        };
+        assert_eq!(reason.as_deref(), Some("Dangerous rm"));
+        assert_eq!(asked_by.as_deref(), Some("check"));
+        for (wire, expected) in [
+            (json!("rule"), Some("rule")),
+            (json!("hook"), Some("hook")),
+            (Value::Null, None),
+        ] {
+            let Some(PendingRequestKind::Tool { asked_by, .. }) = kind(wire) else {
+                panic!()
+            };
+            assert_eq!(asked_by.as_deref(), expected);
+        }
     }
     #[test]
     fn stream_reconciliation_preserves_multiple_assistant_messages() {
@@ -1952,7 +2083,8 @@ send({{'type':'result','subtype':'success','is_error':False,'num_turns':0,'resul
             readings,
             vec![crate::models::ContextUsage {
                 used: 38000,
-                window: None
+                window: None,
+                cache_expires_at: None
             }]
         );
     }

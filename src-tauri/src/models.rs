@@ -296,6 +296,9 @@ pub enum PendingRequestKind {
         name: String,
         input: serde_json::Value,
         reason: Option<String>,
+        /// What made Claude ask (`rule`, `hook` or `check`), so a full-access card can say why.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        asked_by: Option<String>,
     },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -350,6 +353,11 @@ pub struct ContextUsage {
     pub used: u64,
     #[serde(default)]
     pub window: Option<u64>,
+    /// When Claude's prompt cache for this conversation expires (Unix ms): the last main
+    /// request's start plus its cache lifetime (1 hour on a subscription, 5 minutes with an
+    /// API key). Absent when unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_expires_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -661,6 +669,9 @@ pub struct AppSettings {
     /// Chat behavior: after a crash, conversations cut mid-turn continue on their own (ADR-118).
     #[serde(default = "default_true")]
     pub continue_interrupted_sessions: bool,
+    /// Chat behavior (beta, off by default): an idle Claude conversation with a large context
+    /// compacts shortly before its prompt cache expires (ADR-157).
+    pub compact_idle_before_cache_expiry: bool,
     /// Providers → Advanced: how many finished conversations keep their agent running for quick
     /// follow-ups (ADR-108). 16 means all of them (the default).
     #[serde(default = "default_keep_idle_agents")]
@@ -898,6 +909,7 @@ impl Default for AppSettings {
             composer_autocorrect: true,
             show_session_tabs: true,
             continue_interrupted_sessions: true,
+            compact_idle_before_cache_expiry: false,
             keep_idle_agents: 16,
             browser_recording_fps: 30,
             browser_recording_keys: true,

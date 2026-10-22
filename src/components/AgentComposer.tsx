@@ -230,6 +230,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, [heavy, session?.lastActivityAt]);
+  const approvalsPending = Boolean(session?.pendingRequests?.some((request) => request.kind.type !== "userInput"));
   const compactFirst = !queueing && !context.team && shouldCompactBeforeSend(session, now);
   /**
    * `invert` (⌘Enter) flips the queue/steer preference for this one message; `skipCompact`
@@ -251,8 +252,22 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     if (queueing) setQueueSending(true); else setSending(true);
     const submitted = value;
     const teamOwner = context.team ? draftKey : null;
-    // Steering (opt-in): plain text goes into the running reply instead of the queue.
-    if (session && settings.steerWhileRunning !== invert && canSteer(session.agent, session.status) && !compactingTurn(useAppStore.getState().sessions.find(item => item.id === session.id)?.messages) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
+    // A message sent while an approval waits redirects the agent: the approvals are declined
+    // first, since a reply still waiting on one would never read the message.
+    const redirect = Boolean(session && approvalsPending && submitted.trim());
+    if (session && redirect) {
+      for (const request of session.pendingRequests ?? []) {
+        if (request.kind.type === "userInput") continue;
+        const declined = await useAppStore.getState().respondAgentRequest({ sessionId: session.id, requestId: request.requestId, generation: request.generation, turnId: request.turnId, response: { type: "approval", decision: "decline" } });
+        if (!declined) {
+          guard.current = false;
+          setQueueSending(false); setSending(false);
+          return false;
+        }
+      }
+    }
+    // Steering (opt-in, always for a redirect): plain text goes into the running reply instead of the queue.
+    if (session && (redirect || settings.steerWhileRunning !== invert) && canSteer(session.agent, session.status) && !compactingTurn(useAppStore.getState().sessions.find(item => item.id === session.id)?.messages) && !context.attachments.length && !context.snippets?.length && !context.team && submitted.trim()) {
       try {
         const steered = await useAppStore.getState().steerTurn(session.id, submitted.trim());
         if (steered && (useAppStore.getState().composerDrafts[draftKey] ?? "") === submitted) setValue("");
@@ -503,7 +518,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
         autoCorrect={autocorrect ? "on" : "off"}
         value={value}
         disabled={!canType || pasting}
-        placeholder={phone?.placeholder ?? (session?.pullAsk ? t("pulls.ask.prompt", { kind: t(`pulls.ask.kind.${session.pullAsk.kind}`) }) : t("session.prompt"))}
+        placeholder={phone?.placeholder ?? (session?.pullAsk ? t("pulls.ask.prompt", { kind: t(`pulls.ask.kind.${session.pullAsk.kind}`) }) : t(approvalsPending ? "session.promptRedirect" : "session.prompt"))}
         aria-label={t("session.prompt")}
         aria-autocomplete="list"
         aria-haspopup="listbox"

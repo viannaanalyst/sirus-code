@@ -22,7 +22,7 @@ export function compactRefusal(session: Pick<Session, "agent" | "status" | "nati
 /** A heavy context: at least this many tokens, or this share of a known window. */
 export const COMPACT_TOKENS = 100_000;
 export const COMPACT_RATIO = 0.7;
-/** Long enough that the provider's prompt cache has expired, so a resend pays full price. */
+/** Without a known expiry: long enough that the provider's prompt cache has expired, so a resend pays full price. */
 export const COMPACT_IDLE_MS = 70 * 60 * 1000;
 
 /**
@@ -35,6 +35,8 @@ export function shouldCompactBeforeSend(session: Pick<Session, "agent" | "status
   if (["starting", "running", "waiting"].includes(session.status)) return false;
   const usage = session.contextUsage;
   if (!usage || !(usage.used >= COMPACT_TOKENS || (usage.window ? usage.used / usage.window >= COMPACT_RATIO : false))) return false;
+  // The cache's own expiry when Claude reported it (ADR-157); else the idle-time guess.
+  if (typeof usage.cacheExpiresAt === "number") return now >= usage.cacheExpiresAt;
   const last = Date.parse(session.lastActivityAt);
   return Number.isFinite(last) && now - last > COMPACT_IDLE_MS;
 }

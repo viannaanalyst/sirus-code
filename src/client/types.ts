@@ -166,7 +166,7 @@ export type PendingRequestKind =
   | { type: "command"; command: string; cwd: string | null; reason: string | null }
   | { type: "fileChange"; reason: string | null; changes: { path: string; kind: string; diff: string; movePath: string | null }[] }
   | { type: "userInput"; questions: InputQuestion[] }
-  | { type: "tool"; name: string; input: unknown; reason: string | null };
+  | { type: "tool"; name: string; input: unknown; reason: string | null; /** What made Claude ask; explains a full-access card. */ askedBy?: "rule" | "hook" | "check" };
 export interface PendingRequest {
   requestId: string;
   generation: string;
@@ -359,7 +359,8 @@ export interface Session {
   model?: string | null;
   nativeThread?: NativeThread | null;
   /** Latest context-window reading the provider reported (ADR-057). */
-  contextUsage?: { used: number; window: number | null } | null;
+  /** `cacheExpiresAt`: when Claude's prompt cache expires (Unix ms; ADR-157), when known. */
+  contextUsage?: { used: number; window: number | null; cacheExpiresAt?: number } | null;
   /** The last turn hit the provider's usage limit; `resetsAt` in UTC ms when reported. */
   usageLimit?: { resetsAt: number | null } | null;
   /** When the person last pressed Stop (ADR-101); cleared by their next send. */
@@ -490,6 +491,8 @@ export interface AppSettings {
   showSessionTabs: boolean;
   /** Chat behavior: after a crash, conversations cut mid-turn continue on their own (ADR-118). */
   continueInterruptedSessions: boolean;
+  /** Beta: idle Claude conversations over 200K tokens compact shortly before the cache expires (ADR-157). */
+  compactIdleBeforeCacheExpiry: boolean;
   /** Providers → Advanced: finished conversations that keep their agent running (16 = all). */
   keepIdleAgents: number;
   /** Browser recordings (ADR-112): 30 or 60 fps, and key presses and clicks drawn over the video. */

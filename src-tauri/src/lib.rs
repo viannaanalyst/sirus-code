@@ -64,6 +64,7 @@ mod git_workspace;
 mod github_inbox;
 mod goals;
 mod html_preview;
+mod idle_compaction;
 mod keep_awake;
 mod launch;
 mod local_servers;
@@ -294,6 +295,7 @@ pub fn run() {
             crash_resume::resume_interrupted(app.handle());
             snooze::start(app.handle().clone());
             auto_archive::start(app.handle().clone());
+            idle_compaction::start(app.handle().clone());
             auto_pull::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
             pr_watch::start(app.handle().clone());

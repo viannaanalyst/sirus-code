@@ -27,6 +27,14 @@ test("compact and send needs a heavy context, a long pause and a compacting prov
   assert.equal(shouldCompactBeforeSend(null, now), false);
 });
 
+test("a known cache expiry replaces the idle-time guess", () => {
+  const fresh = new Date(now - 60_000).toISOString();
+  // An API key's 5-minute cache that just expired: compact even after a short pause.
+  assert.equal(shouldCompactBeforeSend({ ...base, lastActivityAt: fresh, contextUsage: { used: 120_000, window: 200_000, cacheExpiresAt: now - 1 } }, now), true);
+  // A cache still warm after 70 minutes (a later request refreshed it): send as is.
+  assert.equal(shouldCompactBeforeSend({ ...base, contextUsage: { used: 120_000, window: 200_000, cacheExpiresAt: now + 60_000 } }, now), false);
+});
+
 test("only the standalone /compact is the command", () => {
   assert.equal(isCompactCommand("/compact"), true);
   assert.equal(isCompactCommand("  /compact\n"), true);

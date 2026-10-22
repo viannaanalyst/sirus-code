@@ -10,9 +10,18 @@ import { providerById } from "@/lib/provider-registry";
 import { canAnswer } from "@/lib/agent-activity";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 
+/** Why a conversation on full access still asks (Claude sends `decision_reason_type`). */
+const FULL_ACCESS_ASK = {
+  rule: "Even on full access, an ask rule in your Claude settings asks before this.",
+  hook: "Even on full access, a hook asked to confirm this.",
+  check: "Even on full access, Claude confirms this kind of action itself, such as sensitive files or risky commands.",
+} as const;
+
 export function RequestCard({ sessionId, provider, request }: { sessionId: string; provider: string; request: PendingRequest }) {
   const t = useTranslation();
   const respond = useAppStore((state) => state.respondAgentRequest);
+  const fullAccess = useAppStore((state) => state.sessions.find((session) => session.id === sessionId)?.execution?.approval === "full");
+  const askedBy = request.kind.type === "tool" && fullAccess ? request.kind.askedBy : undefined;
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [step, setStep] = useState(0);
@@ -53,6 +62,7 @@ export function RequestCard({ sessionId, provider, request }: { sessionId: strin
         <InteractiveButton type="submit" variant="primary" loading={busy} disabled={busy || !currentQuestion || !canAnswer(currentQuestion, answers[currentQuestion.id])}>{t(step < questions.length - 1 ? "Continue" : "Send answer")}</InteractiveButton>
       </div>
     </form> : <>
+      {askedBy ? <p className="mb-2 text-text-muted">{t(FULL_ACCESS_ASK[askedBy])}</p> : null}
       {request.kind.reason ? <p className="mb-2 whitespace-pre-wrap text-text-secondary">{maskSecrets(request.kind.reason)}</p> : null}
       {request.kind.type === "command" ? <><pre className="scroll-thin mb-2 max-h-32 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{maskSecrets(request.kind.command)}</pre>{request.kind.cwd ? <p className="mb-2 break-all text-text-muted">{request.kind.cwd}</p> : null}</> : request.kind.type === "tool" ? <div className="mb-2"><p className="mb-1 font-medium">{request.kind.name}</p><pre className="scroll-thin max-h-48 overflow-auto whitespace-pre-wrap rounded-[7px] bg-background-2 p-2 font-mono ui-control">{JSON.stringify(maskInput(request.kind.input), null, 2)}</pre></div> : <div className="mb-2 text-text-secondary"><p>{t("Allow this file change?")}</p>{request.kind.changes.map((change, index) => <div key={`${change.path}:${index}`} className="mt-2"><p className="break-all font-mono ui-control">{change.kind}: {change.path}{change.movePath ? ` → ${change.movePath}` : ""}</p><pre className="scroll-thin max-h-40 overflow-auto whitespace-pre-wrap bg-background-2 p-2 font-mono ui-caption">{maskSecrets(change.diff)}</pre></div>)}</div>}
       <p className="mb-3 text-text-muted">{t("Applies only to this request. Review the action before allowing it.")}</p>
