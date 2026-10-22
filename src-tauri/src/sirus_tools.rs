@@ -71,6 +71,8 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "sirus_create_task", "description": "Sirus Code: add a to-do to the person's Tasks list, for example when they ask to note something for later. It is filed under your project unless you name another or none.", "inputSchema": { "type": "object", "properties": { "title": { "type": "string", "description": "What needs doing, as one line." }, "notes": { "type": "string", "description": "Optional details; an agent the task is later handed to receives them." }, "priority": { "type": "string", "enum": ["none", "low", "medium", "high", "urgent"] }, "dueDate": { "type": "string", "description": "Optional day, YYYY-MM-DD." }, "project": { "type": "string", "description": "Optional project name or id; \"none\" files it under no project." } }, "required": ["title"] } }),
         json!({ "name": "sirus_list_tasks", "description": "Sirus Code: the person's to-dos from the Tasks list (id, title, priority, project, due date, done). Done ones are hidden unless includeDone is true; notes are shortened.", "inputSchema": { "type": "object", "properties": { "includeDone": { "type": "boolean" }, "project": { "type": "string", "description": "Only tasks of this project (name or id)." } } } }),
         json!({ "name": "sirus_update_task", "description": "Sirus Code: change a to-do in the Tasks list (title, notes, priority, due date, project) or mark it done or not done. Omitted fields stay as they are.", "inputSchema": { "type": "object", "properties": { "taskId": { "type": "string" }, "title": { "type": "string" }, "notes": { "type": "string" }, "priority": { "type": "string", "enum": ["none", "low", "medium", "high", "urgent"] }, "dueDate": { "type": "string", "description": "YYYY-MM-DD, or an empty string to clear it." }, "project": { "type": "string", "description": "Project name or id; \"none\" files it under no project." }, "done": { "type": "boolean" } }, "required": ["taskId"] } }),
+        json!({ "name": "sirus_session_diff", "description": "Sirus Code: the uncommitted changes in a session's workspace: a per-file summary and the unified diff against HEAD (new files listed by name), cut to 60,000 characters. Optional path: one file, relative to the workspace.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "path": { "type": "string" } }, "required": ["sessionId"] } }),
+        json!({ "name": "sirus_answer_approval", "description": "Sirus Code: answer an approval waiting in a session you started (its requestId is in sirus_session_status's pendingApprovals). decline is always allowed; accept only when you yourself run with full access. Questions are left to the person.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "requestId": { "type": "string" }, "decision": { "type": "string", "enum": ["accept", "decline"] } }, "required": ["sessionId", "requestId", "decision"] } }),
         json!({ "name": "sirus_send_to_session", "description": "Sirus Code: continue another idle session with a message, using your approval mode. Returns at once.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "prompt": { "type": "string" } }, "required": ["sessionId", "prompt"] } }),
     ]);
     // Scheduled tasks (ADR-142): prompts that run by themselves, with no broader access than yours.
@@ -162,7 +164,122 @@ fn status(data: &AppData, session: &Session) -> Value {
     let mut row = crate::launch::session_row(data, session);
     row["lastError"] = json!(session.last_error);
     row["waitingForPerson"] = json!(session.status == crate::models::SessionStatus::Waiting);
+    row["pendingApprovals"] = json!(session
+        .pending_requests
+        .iter()
+        .filter_map(|request| {
+            use crate::models::PendingRequestKind as Kind;
+            let (kind, detail, reason) = match &request.kind {
+                Kind::Command {
+                    command, reason, ..
+                } => ("command", command.clone(), reason),
+                Kind::Tool { name, reason, .. } => ("tool", name.clone(), reason),
+                Kind::FileChange { changes, reason } => (
+                    "fileChange",
+                    changes
+                        .iter()
+                        .map(|change| change.path.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    reason,
+                ),
+                Kind::UserInput { .. } => return None,
+            };
+            Some(json!({
+                "requestId": request.request_id,
+                "type": kind,
+                "detail": crate::launch::bounded(&detail, 500),
+                "reason": reason.as_deref().map(|reason| crate::launch::bounded(reason, 500)),
+            }))
+        })
+        .collect::<Vec<_>>());
     row
+}
+
+/// An approval the caller may answer: in a session it started itself, never a question,
+/// and accepting only from a caller that already runs with full access.
+fn answerable(
+    caller: &Session,
+    target: &Session,
+    request_id: &str,
+    decision: &crate::models::ApprovalDecision,
+) -> Result<crate::models::RespondAgentRequest, String> {
+    if target
+        .delegated_by
+        .as_ref()
+        .is_none_or(|parent| parent.session_id != caller.id)
+    {
+        return Err("only approvals in sessions you started can be answered".into());
+    }
+    if matches!(decision, crate::models::ApprovalDecision::Accept)
+        && caller.execution.approval != Some(crate::models::ApprovalMode::Full)
+    {
+        return Err(
+            "accepting needs full access in your own session; decline, or leave it to the person"
+                .into(),
+        );
+    }
+    let request = target
+        .pending_requests
+        .iter()
+        .find(|request| request.request_id == request_id)
+        .ok_or("no such pending approval")?;
+    if matches!(
+        request.kind,
+        crate::models::PendingRequestKind::UserInput { .. }
+    ) {
+        return Err("questions are answered by the person".into());
+    }
+    Ok(crate::models::RespondAgentRequest {
+        session_id: target.id.clone(),
+        generation: request.generation.clone(),
+        request_id: request.request_id.clone(),
+        turn_id: request.turn_id.clone(),
+        response: crate::models::AgentResponse::Approval {
+            decision: decision.clone(),
+        },
+    })
+}
+
+const DIFF_CHARS: usize = 60_000;
+
+/// A workspace's uncommitted changes against HEAD, read-only and bounded.
+fn session_diff(cwd: &std::path::Path, path: &str) -> Result<Value, String> {
+    if !path.is_empty()
+        && (std::path::Path::new(path).is_absolute()
+            || path.split(['/', '\\']).any(|part| part == ".."))
+    {
+        return Err("path must be relative to the workspace".into());
+    }
+    let run = |args: &[&str]| -> Result<String, String> {
+        let output = crate::git::bounded_run(cwd, args).map_err(|error| error.to_string())?;
+        if !output.status.success() {
+            return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    };
+    let mut diff_args = vec!["diff", "--no-ext-diff", "--no-textconv", "HEAD"];
+    let mut stat_args = vec![
+        "diff",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--stat=200",
+        "HEAD",
+    ];
+    let mut new_args = vec!["ls-files", "--others", "--exclude-standard"];
+    if !path.is_empty() {
+        for args in [&mut diff_args, &mut stat_args, &mut new_args] {
+            args.extend(["--", path]);
+        }
+    }
+    let diff = run(&diff_args)?;
+    let truncated = diff.chars().count() > DIFF_CHARS;
+    Ok(json!({
+        "summary": run(&stat_args)?.trim(),
+        "newFiles": run(&new_args)?.lines().take(200).collect::<Vec<_>>(),
+        "diff": diff.chars().take(DIFF_CHARS).collect::<String>(),
+        "truncated": truncated,
+    }))
 }
 
 fn read(data: &AppData, session: &Session, limit: usize) -> Value {
@@ -297,6 +414,7 @@ pub fn execute(
         tool,
         "sirus_create_session"
             | "sirus_send_to_session"
+            | "sirus_answer_approval"
             | "sirus_create_task"
             | "sirus_update_task"
             | "sirus_schedule_task"
@@ -379,6 +497,32 @@ pub fn execute(
                 .depth
                 .insert(id.clone(), depth);
             Ok(json!({ "started": true, "sessionId": id }))
+        }
+        "sirus_session_diff" => {
+            let path = {
+                let data = state.data.lock();
+                find(&data, &arg("sessionId"))?.worktree.path.clone()
+            };
+            session_diff(std::path::Path::new(&path), &arg("path"))
+        }
+        "sirus_answer_approval" => {
+            let decision = match arg("decision").as_str() {
+                "accept" => crate::models::ApprovalDecision::Accept,
+                "decline" => crate::models::ApprovalDecision::Decline,
+                _ => return Err("decision must be accept or decline".into()),
+            };
+            let request = {
+                let data = state.data.lock();
+                let target = find(&data, &arg("sessionId"))?;
+                answerable(&caller, target, &arg("requestId"), &decision)?
+            };
+            crate::runtime::async_runtime::block_on(crate::commands::respond_agent_request(
+                app.clone(),
+                app.state::<Arc<AppState>>(),
+                request,
+            ))
+            .map_err(|error| error.to_string())?;
+            Ok(json!({ "answered": true }))
         }
         "sirus_send_to_session" => {
             let prompt = arg("prompt");
@@ -520,6 +664,65 @@ pub fn execute(
 mod tests {
     use super::*;
 
+    fn waiting(id: &str, extra: Value) -> Session {
+        let mut value = json!({
+            "id": id, "title": "Work", "projectId": "p", "agent": "claude", "status": "waiting",
+            "createdAt": "t", "lastActivityAt": "t",
+            "worktree": {"path": "/trees/x", "branch": "b", "isolated": false}, "lastError": null
+        });
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn approvals_are_answered_only_in_started_sessions_and_accepted_only_on_full_access() {
+        use crate::models::ApprovalDecision::{Accept, Decline};
+        let mut target = waiting("child", json!({"delegatedBy": {"sessionId": "parent"}}));
+        // Pending callbacks are never deserialized: they belong to a live process.
+        target.pending_requests = serde_json::from_value(json!([
+            {"requestId": "r1", "generation": "g", "turnId": "u", "itemId": "i",
+             "kind": {"type": "command", "command": "rm -rf build", "cwd": null, "reason": null}},
+            {"requestId": "q1", "generation": "g", "turnId": "u", "itemId": "i",
+             "kind": {"type": "userInput", "questions": []}}
+        ]))
+        .unwrap();
+        let parent = waiting("parent", json!({}));
+        let full = waiting("parent", json!({"execution": {"approval": "full"}}));
+        let stranger = waiting("other", json!({"execution": {"approval": "full"}}));
+        answerable(&parent, &target, "r1", &Decline).unwrap();
+        assert!(
+            answerable(&parent, &target, "r1", &Accept).is_err(),
+            "accept needs full access"
+        );
+        assert!(answerable(&full, &target, "r1", &Accept).is_ok());
+        assert!(
+            answerable(&stranger, &target, "r1", &Decline).is_err(),
+            "not its session"
+        );
+        assert!(
+            answerable(&full, &target, "q1", &Decline).is_err(),
+            "questions stay with the person"
+        );
+        assert!(answerable(&full, &target, "missing", &Decline).is_err());
+        let listed = &status(&AppData::default(), &target)["pendingApprovals"];
+        assert_eq!(listed.as_array().unwrap().len(), 1);
+        assert_eq!(listed[0]["detail"], "rm -rf build");
+    }
+
+    #[test]
+    fn a_diff_path_stays_inside_the_workspace() {
+        let cwd = std::path::Path::new("/nonexistent");
+        assert!(session_diff(cwd, "/etc/passwd")
+            .unwrap_err()
+            .contains("relative"));
+        assert!(session_diff(cwd, "src/../../x")
+            .unwrap_err()
+            .contains("relative"));
+    }
+
     #[test]
     fn agents_list_open_tasks_by_default_with_short_notes() {
         let mut data: AppData = serde_json::from_value(json!({"settings":{},"projects":[{"id":"p","name":"Lab","path":"/lab","addedAt":"t","lastOpenedAt":"t"}],"sessions":[]})).unwrap();
@@ -596,9 +799,9 @@ mod tests {
         std::env::set_var(ENV, "1");
         let tools = tool_definitions();
         std::env::remove_var(ENV);
-        // Delegation (4), inline visuals (1), review guides (2), sessions (5), the Tasks list (3)
+        // Delegation (4), inline visuals (1), review guides (2), sessions (7), the Tasks list (3)
         // and scheduled tasks (5).
-        assert_eq!(tools.len(), 20);
+        assert_eq!(tools.len(), 22);
         assert!(tools
             .iter()
             .any(|tool| tool["name"] == "sirus_schedule_task"));
