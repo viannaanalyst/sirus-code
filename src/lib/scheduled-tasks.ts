@@ -1,4 +1,4 @@
-import type { ScheduledTask, ScheduledTaskSchedule } from "@/client/types";
+import type { ScheduledTask, ScheduledTaskSchedule, ScheduledTaskWebhookFilter } from "@/client/types";
 
 /**
  * Scheduled tasks on the Tasks page (ADR-142): labels for a schedule and its next run, the
@@ -10,6 +10,10 @@ export type IntervalUnit = "minutes" | "hours" | "days";
 
 export const MIN_INTERVAL_MINUTES = 15;
 export const MAX_INTERVAL_MINUTES = 7 * 24 * 60;
+/** Webhook tasks (ADR-161): the native checks mirrored for the editor. */
+export const MAX_WEBHOOK_FILTERS = 8;
+export const DEFAULT_DEDUPE_MINUTES = 60;
+export const MAX_DEDUPE_MINUTES = 7 * 24 * 60;
 
 /** The editor's fields; turned into a schedule on save. */
 export interface ScheduleForm {
@@ -22,6 +26,9 @@ export interface ScheduleForm {
   days: number[];
   every: number;
   unit: IntervalUnit;
+  /** Webhook: rows of the filter editor (an empty value means "is present"). */
+  filters: { path: string; equals: string }[];
+  dedupeMinutes: number;
 }
 
 const UNIT_MINUTES: Record<IntervalUnit, number> = { minutes: 1, hours: 60, days: 1440 };
@@ -42,7 +49,7 @@ export function localTime(time: number): string {
 
 /** A new task's form: daily at 09:00, with a one-off tomorrow at 09:00 ready if picked. */
 export function defaultScheduleForm(now: number): ScheduleForm {
-  return { kind: "daily", date: localDate(now + 24 * 60 * 60 * 1000), time: "09:00", days: [1, 2, 3, 4, 5], every: 4, unit: "hours" };
+  return { kind: "daily", date: localDate(now + 24 * 60 * 60 * 1000), time: "09:00", days: [1, 2, 3, 4, 5], every: 4, unit: "hours", filters: [], dedupeMinutes: DEFAULT_DEDUPE_MINUTES };
 }
 
 export function scheduleToForm(schedule: ScheduledTaskSchedule, now: number): ScheduleForm {
@@ -55,7 +62,13 @@ export function scheduleToForm(schedule: ScheduledTaskSchedule, now: number): Sc
       const unit: IntervalUnit = schedule.minutes % 1440 === 0 ? "days" : schedule.minutes % 60 === 0 ? "hours" : "minutes";
       return { ...form, kind: "interval", every: schedule.minutes / UNIT_MINUTES[unit], unit };
     }
+    case "webhook": return { ...form, kind: "webhook", filters: schedule.filters.map(filter => ({ path: filter.path, equals: filter.equals ?? "" })), dedupeMinutes: schedule.dedupeMinutes };
   }
+}
+
+/** A filter path reads `headers.<name>` or `body.<field>`, without spaces. */
+export function validFilterPath(path: string): boolean {
+  return /^(headers|body)\.\S+$/.test(path.trim()) && path.trim().length <= 200;
 }
 
 function validTime(value: string): boolean {
@@ -65,6 +78,14 @@ function validTime(value: string): boolean {
 
 /** The schedule the form describes, or the reason (a translation key) it cannot be saved. */
 export function formToSchedule(form: ScheduleForm, now: number): { schedule: ScheduledTaskSchedule } | { error: string } {
+  if (form.kind === "webhook") {
+    const rows = form.filters.filter(row => row.path.trim() || row.equals.trim());
+    if (rows.length > MAX_WEBHOOK_FILTERS || rows.some(row => !validFilterPath(row.path) || row.equals.length > 500)) return { error: "scheduled.error.filter" };
+    const dedupeMinutes = Math.round(form.dedupeMinutes);
+    if (!Number.isFinite(dedupeMinutes) || dedupeMinutes < 0 || dedupeMinutes > MAX_DEDUPE_MINUTES) return { error: "scheduled.error.dedupe" };
+    const filters: ScheduledTaskWebhookFilter[] = rows.map(row => row.equals ? { path: row.path.trim(), equals: row.equals } : { path: row.path.trim() });
+    return { schedule: { kind: "webhook", filters, dedupeMinutes } };
+  }
   if (form.kind === "interval") {
     const minutes = Math.round(form.every * UNIT_MINUTES[form.unit]);
     if (!Number.isFinite(minutes) || minutes < MIN_INTERVAL_MINUTES || minutes > MAX_INTERVAL_MINUTES) return { error: "scheduled.error.interval" };
@@ -92,6 +113,7 @@ function atTime(day: Date, time: string): number {
 export function previewNextRun(schedule: ScheduledTaskSchedule, now: number): number | null {
   switch (schedule.kind) {
     case "once": return schedule.at > now ? schedule.at : null;
+    case "webhook": return null;
     case "interval": return now + schedule.minutes * 60_000;
     case "daily":
     case "weekly": {
@@ -119,6 +141,7 @@ export function weekdayNames(locale: string, width: "short" | "narrow" = "short"
 /** "Every day at 02:00", "Mon, Wed at 09:00", "Weekdays at 09:00", "Every 4 hours", "Sun 19 Oct at 00:00". */
 export function scheduleLabel(schedule: ScheduledTaskSchedule, t: Translate, locale: string): string {
   switch (schedule.kind) {
+    case "webhook": return t("scheduled.label.webhook");
     case "daily": return t("scheduled.label.daily", { time: schedule.time });
     case "weekly": {
       const days = [...schedule.days].sort();

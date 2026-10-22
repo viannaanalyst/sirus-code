@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import type { AgentProviderId, ApprovalMode, ScheduledTask, ScheduledTaskInput } from "@/client/types";
+import type { AgentProviderId, ApprovalMode, ScheduledTask, ScheduledTaskInput, ScheduledTaskWebhookReveal } from "@/client/types";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
-import { Clock3, ExternalLink, MoreHorizontal, Pencil, Play, Plus, Trash2 } from "@/components/icons/phosphor";
+import { Check, Clock3, Copy, ExternalLink, Link, MoreHorizontal, Pencil, Play, Plus, RefreshCw, Trash2, X } from "@/components/icons/phosphor";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { PROVIDERS, providerById } from "@/lib/provider-registry";
-import { defaultScheduleForm, formToSchedule, previewNextRun, relativeIn, scheduleLabel, scheduleToForm, sortScheduledTasks, tasksBoundTo, weekdayNames, type IntervalUnit, type ScheduleForm, type ScheduleKind } from "@/lib/scheduled-tasks";
+import { defaultScheduleForm, formToSchedule, MAX_DEDUPE_MINUTES, MAX_WEBHOOK_FILTERS, previewNextRun, relativeIn, scheduleLabel, scheduleToForm, sortScheduledTasks, tasksBoundTo, weekdayNames, type IntervalUnit, type ScheduleForm, type ScheduleKind } from "@/lib/scheduled-tasks";
 import { isProviderEnabled } from "@/lib/settings";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
@@ -66,12 +66,13 @@ function ScheduledRow({ task, now, onEdit }: { task: ScheduledTask; now: number;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const modelName = task.model ? catalog?.models.find(item => item.id === task.model)?.displayName ?? task.model : providerById(task.agent).name;
   const running = task.lastStatus === "running";
-  const next = !task.enabled ? t("scheduled.paused") : task.nextRunAt ? t("scheduled.next", { when: relativeIn(task.nextRunAt, now, t) }) : t("scheduled.noNext");
+  const webhook = task.schedule.kind === "webhook";
+  const next = !task.enabled ? t("scheduled.paused") : webhook ? t("scheduled.waitsWebhook") : task.nextRunAt ? t("scheduled.next", { when: relativeIn(task.nextRunAt, now, t) }) : t("scheduled.noNext");
   const last = task.lastStatus === "never" || !task.lastRunAt ? null
     : running ? { tone: "running", text: t("scheduled.last.running") }
     : { tone: task.lastStatus, text: t(`scheduled.last.${task.lastStatus}`, { when: new Date(task.lastRunAt).toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" }) }) };
   return <article className="scheduled-row" data-enabled={task.enabled || undefined} aria-label={task.title}>
-    <span className="scheduled-icon" aria-hidden="true"><Clock3 size={16} /></span>
+    <span className="scheduled-icon" aria-hidden="true">{webhook ? <Link size={16} /> : <Clock3 size={16} />}</span>
     <button type="button" className="scheduled-body" onClick={onEdit}>
       <span className="scheduled-title ui-control">{task.title}{task.createdBy === "agent" ? <span className="scheduled-chip">{t("scheduled.byAgent")}</span> : null}</span>
       <span className="scheduled-prompt ui-caption">{task.prompt}</span>
@@ -89,7 +90,7 @@ function ScheduledRow({ task, now, onEdit }: { task: ScheduledTask; now: number;
       <Dropdown>
         <DropdownTrigger asChild><button type="button" className="scheduled-more" aria-label={t("scheduled.actions")}><MoreHorizontal size={16} /></button></DropdownTrigger>
         <DropdownContent align="end">
-          <DropdownItem disabled={running} icon={<Play size={14} />} onSelect={() => void action({ type: "runNow", id: task.id })}>{t("scheduled.runNow")}</DropdownItem>
+          {webhook ? null : <DropdownItem disabled={running} icon={<Play size={14} />} onSelect={() => void action({ type: "runNow", id: task.id })}>{t("scheduled.runNow")}</DropdownItem>}
           <DropdownItem onSelect={onEdit} icon={<Pencil size={14} />}>{t("scheduled.edit")}</DropdownItem>
           {task.lastSessionId ? <DropdownItem icon={<ExternalLink size={14} />} onSelect={() => openSession(task.lastSessionId!)}>{t("scheduled.openLast")}</DropdownItem> : null}
           <DropdownSeparator />
@@ -102,7 +103,7 @@ function ScheduledRow({ task, now, onEdit }: { task: ScheduledTask; now: number;
   </article>;
 }
 
-const KINDS: ScheduleKind[] = ["once", "daily", "weekly", "interval"];
+const KINDS: ScheduleKind[] = ["once", "daily", "weekly", "interval", "webhook"];
 /** The model select's value for "use the provider's default" (a select value cannot be empty). */
 const DEFAULT_MODEL = "__default__";
 const UNITS: IntervalUnit[] = ["minutes", "hours", "days"];
@@ -131,6 +132,11 @@ function ScheduledEditor({ task, onClose }: { task: ScheduledTask | null; onClos
   const [enabled] = useState(task?.enabled ?? true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A webhook task's URL, shown once after it is made or rotated (ADR-161).
+  const reveal = useScheduledTasks(state => state.reveal);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const shown = reveal && reveal.taskId === (savedId ?? task?.id) ? reveal : null;
+  useEffect(() => () => useScheduledTasks.getState().clearReveal(), []);
   useEffect(() => { void useAppStore.getState().loadProviderModels(agent); }, [agent]);
   const approvals = (["ask", "auto", "full"] as const).filter(mode => providerById(agent).approvalModes.includes(mode));
   const effectiveApproval = approvals.includes(approval as never) ? approval : approvals[0] ?? "ask";
@@ -142,9 +148,14 @@ function ScheduledEditor({ task, onClose }: { task: ScheduledTask | null; onClos
   const control = "tasks-control ui-control";
   const save = async (runNow = false) => {
     if (!("schedule" in result)) { setError(result.error); return; }
-    const input: ScheduledTaskInput = { ...(task ? { id: task.id } : {}), title: title.trim() || prompt.trim().split("\n")[0].slice(0, 80), prompt, projectId, agent, model, schedule: result.schedule, sessionId, approval: effectiveApproval, enabled };
+    const id = savedId ?? task?.id;
+    const input: ScheduledTaskInput = { ...(id ? { id } : {}), title: title.trim() || prompt.trim().split("\n")[0].slice(0, 80), prompt, projectId, agent, model, schedule: result.schedule, sessionId, approval: effectiveApproval, enabled };
     setBusy(true); setError(null);
+    const before = useScheduledTasks.getState().reveal;
     const tasks = await action({ type: "upsert", task: input });
+    const made = useScheduledTasks.getState().reveal;
+    // A new webhook URL stays on screen until the person copies it and closes.
+    if (tasks && made && made !== before) { setSavedId(made.taskId); setBusy(false); return; }
     if (tasks && runNow) {
       const saved = task ? task.id : tasks.find(item => item.title === input.title && item.prompt === input.prompt)?.id;
       if (saved) await action({ type: "runNow", id: saved });
@@ -156,7 +167,7 @@ function ScheduledEditor({ task, onClose }: { task: ScheduledTask | null; onClos
     <DialogContent title={t(task ? "scheduled.editTitle" : "scheduled.newTitle")} description={t("scheduled.editorHelp")} className="scheduled-editor w-[min(600px,calc(100vw-32px))]">
       <div className="scheduled-form">
         <label className="scheduled-field"><span>{t("scheduled.name")}</span><input className={control} value={title} maxLength={200} onChange={event => setTitle(event.target.value)} placeholder={t("scheduled.namePlaceholder")} /></label>
-        <label className="scheduled-field"><span>{t("scheduled.prompt")}</span><textarea className={`${control} min-h-[96px] resize-y py-2`} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={t("scheduled.promptPlaceholder")} /></label>
+        <label className="scheduled-field"><span>{t("scheduled.prompt")}</span><textarea className={`${control} min-h-[96px] resize-y py-2`} value={prompt} onChange={event => setPrompt(event.target.value)} placeholder={t(form.kind === "webhook" ? "scheduled.webhookPromptPlaceholder" : "scheduled.promptPlaceholder")} /></label>
         <div className="grid grid-cols-2 gap-2">
           <div className="scheduled-field"><span>{t("Project")}</span><div className="scheduled-pick"><Select label={t("Project")} className="scheduled-select" value={projectId} onChange={value => { setProjectId(value); setSessionId(null); }} options={projects.map(project => ({ value: project.id, label: project.name }))} /></div></div>
           <div className="scheduled-field"><span>{t("scheduled.model")}</span><span className="flex gap-1.5">
@@ -166,6 +177,7 @@ function ScheduledEditor({ task, onClose }: { task: ScheduledTask | null; onClos
         </div>
         <div className="scheduled-field"><span>{t("scheduled.when")}</span>
           <SegmentedControl label={t("scheduled.when")} value={form.kind} onChange={kind => patch({ kind })} options={KINDS.map(kind => ({ value: kind, label: t(`scheduled.kind.${kind}`) }))} />
+          {form.kind === "webhook" ? <WebhookFields form={form} patch={patch} taskId={savedId ?? task?.id ?? null} wasWebhook={task?.schedule.kind === "webhook" || savedId != null} shown={shown} /> : null}
           <div className="scheduled-when">
             {form.kind === "once" ? <><input type="date" className={control} value={form.date} onChange={event => patch({ date: event.target.value })} aria-label={t("scheduled.date")} /><input type="time" className={control} value={form.time} onChange={event => patch({ time: event.target.value })} aria-label={t("scheduled.time")} /></> : null}
             {form.kind === "daily" || form.kind === "weekly" ? <input type="time" className={control} value={form.time} onChange={event => patch({ time: event.target.value })} aria-label={t("scheduled.time")} /> : null}
@@ -187,20 +199,65 @@ function ScheduledEditor({ task, onClose }: { task: ScheduledTask | null; onClos
           <SegmentedControl label={t("scheduled.permission")} value={effectiveApproval} onChange={setApproval} options={approvals.map(mode => ({ value: mode, label: t(`automations.approval.${mode}`) }))} />
           <p className="ui-caption text-text-muted">{t(effectiveApproval === "ask" ? "scheduled.askHint" : "scheduled.fullHint")}</p>
         </div>
-        <p className={cn("scheduled-next ui-caption", !next && "scheduled-next-off")} role="status">
+        {form.kind === "webhook" && !("error" in result) ? null : <p className={cn("scheduled-next ui-caption", !next && "scheduled-next-off")} role="status">
           <Clock3 size={13} aria-hidden="true" />
           {"error" in result ? t(result.error) : next ? t("scheduled.nextPreview", { when: new Date(next).toLocaleString(locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }), label: lowerFirst(scheduleLabel(result.schedule, t, locale), locale) }) : t("scheduled.noNext")}
-        </p>
+        </p>}
         {error ? <p role="alert" className="scheduled-error ui-caption">{t(error)}</p> : null}
         <div className="scheduled-actions">
           <InteractiveButton variant="toolbar" onClick={onClose}>{t("common.cancel")}</InteractiveButton>
           <span className="flex-1" />
-          <InteractiveButton variant="secondary" glow={false} disabled={busy || !prompt.trim() || !projectId || "error" in result} onClick={() => void save(true)}><Play size={14} />{t("scheduled.saveAndRun")}</InteractiveButton>
-          <InteractiveButton variant="primary" glow={false} loading={busy} disabled={!prompt.trim() || !projectId || "error" in result} onClick={() => void save()}>{t("scheduled.save")}</InteractiveButton>
+          {form.kind === "webhook" ? null : <InteractiveButton variant="secondary" glow={false} disabled={busy || !prompt.trim() || !projectId || "error" in result} onClick={() => void save(true)}><Play size={14} />{t("scheduled.saveAndRun")}</InteractiveButton>}
+          {shown && savedId ? <InteractiveButton variant="primary" glow={false} onClick={onClose}>{t("scheduled.done")}</InteractiveButton>
+            : <InteractiveButton variant="primary" glow={false} loading={busy} disabled={!prompt.trim() || !projectId || "error" in result} onClick={() => void save()}>{t("scheduled.save")}</InteractiveButton>}
         </div>
       </div>
     </DialogContent>
   </Dialog>;
+}
+
+/** A webhook schedule (ADR-161): filters, the dedupe window and the URL, shown once. */
+function WebhookFields({ form, patch, taskId, wasWebhook, shown }: { form: ScheduleForm; patch: (value: Partial<ScheduleForm>) => void; taskId: string | null; wasWebhook: boolean; shown: ScheduledTaskWebhookReveal | null }) {
+  const t = useTranslation();
+  const action = useScheduledTasks(state => state.action);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [rotating, setRotating] = useState(false);
+  const control = "tasks-control ui-control";
+  const setFilter = (index: number, value: Partial<ScheduleForm["filters"][number]>) => patch({ filters: form.filters.map((row, at) => at === index ? { ...row, ...value } : row) });
+  const copy = (url: string) => { void navigator.clipboard.writeText(url).then(() => setCopied(url)); };
+  const rotate = async () => { if (!taskId) return; setRotating(true); await action({ type: "rotateWebhook", id: taskId }); setRotating(false); };
+  return <div className="scheduled-webhook">
+    <p className="ui-caption text-text-muted">{t("scheduled.webhookHint")}</p>
+    <div className="scheduled-field"><span>{t("scheduled.webhookUrl")}</span>
+      {shown ? <div className="scheduled-webhook-urls" role="status">
+        {shown.urls.map((url, index) => <div key={url} className="scheduled-webhook-url">
+          <span className="scheduled-chip">{t(index === 0 && shown.public ? "scheduled.webhookPublic" : "scheduled.webhookLocal")}</span>
+          <code className="min-w-0 flex-1 truncate font-mono ui-caption" title={url}>{url}</code>
+          <InteractiveButton variant="toolbar" onClick={() => copy(url)} aria-label={`${t("scheduled.webhookCopy")} · ${url}`}>{copied === url ? <Check size={13} /> : <Copy size={13} />}{t(copied === url ? "scheduled.webhookCopied" : "scheduled.webhookCopy")}</InteractiveButton>
+        </div>)}
+        <p className="ui-caption text-text-muted">{t("scheduled.webhookUrlOnce")}</p>
+        {!shown.public ? <p className="ui-caption text-text-muted">{t("scheduled.webhookNoPublic")}</p> : null}
+        {!shown.serving ? <p className="scheduled-webhook-warn ui-caption" role="alert">{t("scheduled.webhookOff")}</p> : null}
+      </div> : wasWebhook && taskId ? <div className="scheduled-webhook-hidden">
+        <p className="ui-caption text-text-muted">{t("scheduled.webhookUrlHidden")}</p>
+        <InteractiveButton variant="secondary" glow={false} loading={rotating} onClick={() => void rotate()}><RefreshCw size={13} />{t("scheduled.webhookRotate")}</InteractiveButton>
+      </div> : <p className="ui-caption text-text-muted">{t("scheduled.webhookUrlSaved")}</p>}
+    </div>
+    <div className="scheduled-field"><span>{t("scheduled.filters")}</span>
+      {form.filters.map((row, index) => <div key={index} className="scheduled-filter">
+        <input className={`${control} min-w-0 flex-1 font-mono`} value={row.path} maxLength={200} placeholder="headers.sentry-hook-resource" aria-label={t("scheduled.filterPath")} onChange={event => setFilter(index, { path: event.target.value })} />
+        <span className="ui-caption text-text-muted" aria-hidden="true">=</span>
+        <input className={`${control} min-w-0 flex-1`} value={row.equals} maxLength={500} placeholder={t("scheduled.filterEquals")} aria-label={t("scheduled.filterEquals")} onChange={event => setFilter(index, { equals: event.target.value })} />
+        <button type="button" className="scheduled-more" aria-label={t("scheduled.filterRemove")} onClick={() => patch({ filters: form.filters.filter((_, at) => at !== index) })}><X size={14} /></button>
+      </div>)}
+      {form.filters.length < MAX_WEBHOOK_FILTERS ? <span><InteractiveButton variant="toolbar" onClick={() => patch({ filters: [...form.filters, { path: "", equals: "" }] })}><Plus size={13} />{t("scheduled.filterAdd")}</InteractiveButton></span> : null}
+      <p className="ui-caption text-text-muted">{t("scheduled.filtersHint")}</p>
+    </div>
+    <div className="scheduled-field"><span>{t("scheduled.dedupe")}</span>
+      <span className="flex items-center gap-2"><input type="number" min={0} max={MAX_DEDUPE_MINUTES} className={`${control} w-[90px]`} value={form.dedupeMinutes} onChange={event => patch({ dedupeMinutes: Number(event.target.value) })} aria-label={t("scheduled.dedupe")} /><span className="ui-caption text-text-muted">{t("scheduled.minutesSuffix")}</span></span>
+      <p className="ui-caption text-text-muted">{t("scheduled.dedupeHint")}</p>
+    </div>
+  </div>;
 }
 
 /**

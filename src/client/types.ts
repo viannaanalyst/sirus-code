@@ -1215,7 +1215,23 @@ export type ScheduledTaskSchedule =
   | { kind: "once"; at: number }                     // Unix ms
   | { kind: "daily"; time: string }                  // "HH:MM"
   | { kind: "weekly"; days: number[]; time: string } // 0 = Sunday … 6, at least one
-  | { kind: "interval"; minutes: number };           // 15 … 10080
+  | { kind: "interval"; minutes: number }            // 15 … 10080
+  /** Runs on each accepted POST to its URL (ADR-161); never on the clock. */
+  | { kind: "webhook"; filters: ScheduledTaskWebhookFilter[]; dedupeMinutes: number };
+/** `path`: `headers.<name>` or `body.<json path>`; equal to `equals`, or present when it is absent. At most 8. */
+export interface ScheduledTaskWebhookFilter { path: string; equals?: string }
+/** A webhook URL's only showing: after a webhook task is made or its URL rotated. */
+export interface ScheduledTaskWebhookReveal {
+  taskId: string;
+  /** `/hooks/<id>/<secret>`. */
+  path: string;
+  /** The URL on the public route first (`remote-public.json`), then on this computer. */
+  urls: string[];
+  /** The first URL is on the public route. */
+  public: boolean;
+  /** Remote access is serving now; without it the URL answers nothing. */
+  serving: boolean;
+}
 export type ScheduledTaskStatus = "never" | "running" | "succeeded" | "failed" | "missed";
 export interface ScheduledTask {
   id: string;
@@ -1247,8 +1263,9 @@ export type ScheduledTaskAction =
   | { type: "upsert"; task: ScheduledTaskInput }
   | { type: "delete"; id: string }
   | { type: "setEnabled"; id: string; enabled: boolean }
-  | { type: "runNow"; id: string };
-export interface ScheduledTasksSnapshot { tasks: ScheduledTask[] }
+  | { type: "runNow"; id: string }
+  | { type: "rotateWebhook"; id: string };
+export interface ScheduledTasksSnapshot { tasks: ScheduledTask[]; webhook?: ScheduledTaskWebhookReveal }
 
 /** CI auto-fix progress for one session's pull request (ADR-064). */
 export interface CiFixState {

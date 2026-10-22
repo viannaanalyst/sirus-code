@@ -98,6 +98,7 @@ mod reply_image;
 mod reply_preview;
 mod review_guides;
 mod scheduled_tasks;
+mod scheduled_webhooks;
 mod secrets;
 mod session_export;
 mod session_move;

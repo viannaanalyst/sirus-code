@@ -6,6 +6,9 @@
 //! Runs more than ten minutes late are recorded as missed instead of bursting at launch,
 //! a run never overlaps the previous one of the same task, and three failed runs in a row
 //! pause the task. Agents reach the same engine through the `sirus_*` scheduled-task tools.
+//! A `webhook` task never runs on the clock: it runs when another service posts to its URL
+//! (`scheduled_webhooks.rs`, ADR-161), and a delivery that arrives while its previous run
+//! still works waits as one follow-up (the latest).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -72,6 +75,13 @@ pub enum Schedule {
     Interval {
         minutes: u32,
     },
+    /// Runs on each accepted POST to `/hooks/<id>/<secret>` (ADR-161).
+    Webhook {
+        #[serde(default)]
+        filters: Vec<crate::scheduled_webhooks::Filter>,
+        #[serde(default = "crate::scheduled_webhooks::default_dedupe_minutes")]
+        dedupe_minutes: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,6 +134,9 @@ pub struct ScheduledTask {
     /// Failed runs in a row; stored, never sent to the renderer.
     #[serde(default)]
     pub failure_streak: u32,
+    /// A webhook task's URL secret; stored, never sent to the renderer except once when made.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webhook_secret: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -151,16 +164,63 @@ pub struct ScheduledTaskInput {
 )]
 pub enum Action {
     List,
-    Upsert { task: ScheduledTaskInput },
-    Delete { id: String },
-    SetEnabled { id: String, enabled: bool },
-    RunNow { id: String },
+    Upsert {
+        task: ScheduledTaskInput,
+    },
+    Delete {
+        id: String,
+    },
+    SetEnabled {
+        id: String,
+        enabled: bool,
+    },
+    RunNow {
+        id: String,
+    },
+    /// A webhook task gets a new secret; the old URL stops working.
+    RotateWebhook {
+        id: String,
+    },
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub tasks: Vec<Value>,
+    /// A webhook URL made by this action (a new webhook task or a rotation): its only showing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook: Option<WebhookReveal>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebhookReveal {
+    pub task_id: String,
+    /// `/hooks/<id>/<secret>`.
+    pub path: String,
+    /// The path on the public route (`remote-public.json`) when there is one, then on this computer.
+    pub urls: Vec<String>,
+    /// The first URL is on the public route.
+    pub public: bool,
+    /// Remote access is serving now; without it the URL answers nothing.
+    pub serving: bool,
+}
+
+fn reveal(task: &ScheduledTask) -> Option<WebhookReveal> {
+    let secret = task.webhook_secret.as_deref()?;
+    let path = format!("/hooks/{}/{secret}", task.id);
+    let bases = crate::remote::webhook_bases();
+    Some(WebhookReveal {
+        task_id: task.id.clone(),
+        urls: bases
+            .urls
+            .iter()
+            .map(|base| format!("{base}{path}"))
+            .collect(),
+        path,
+        public: bases.public,
+        serving: bases.serving,
+    })
 }
 
 static WAKE: OnceLock<Arc<Notify>> = OnceLock::new();
@@ -169,6 +229,9 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 static STARTING: Mutex<Option<HashSet<String>>> = Mutex::new(None);
 /// Bound runs waiting for a busy conversation: task id → first attempt (Unix ms).
 static WAITING: Mutex<Option<HashMap<String, i64>>> = Mutex::new(None);
+/// Webhook deliveries that arrived while the task's run still worked: task id → the latest
+/// delivery's prompt (one follow-up per task, ADR-161).
+static PENDING: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
 fn wake() {
     if let Some(notify) = WAKE.get() {
@@ -193,10 +256,12 @@ pub fn snapshot(data: &AppData) -> Snapshot {
                 let mut value = serde_json::to_value(task).unwrap_or(Value::Null);
                 if let Some(fields) = value.as_object_mut() {
                     fields.remove("failureStreak");
+                    fields.remove("webhookSecret");
                 }
                 value
             })
             .collect(),
+        webhook: None,
     }
 }
 
@@ -240,15 +305,37 @@ fn mutate(state: &AppState, action: Action) -> Result<Snapshot> {
     let mut data = state.data.lock();
     state.ensure_running()?;
     let now = Local::now();
+    let mut shown = None;
     match action {
         Action::Upsert { task } => {
-            upsert(&mut data, task, now, CreatedBy::Person)?;
+            let before = task.id.as_deref().and_then(|id| {
+                data.scheduled_tasks
+                    .iter()
+                    .find(|task| task.id == id)
+                    .and_then(|task| task.webhook_secret.clone())
+            });
+            let id = upsert(&mut data, task, now, CreatedBy::Person)?;
+            let saved = find(&mut data, &id)?;
+            if saved.webhook_secret.is_some() && saved.webhook_secret != before {
+                shown = reveal(saved);
+            }
         }
         Action::Delete { id } => delete(&mut data, &id)?,
         Action::SetEnabled { id, enabled } => set_enabled(&mut data, &id, enabled, now)?,
+        Action::RotateWebhook { id } => {
+            let task = find(&mut data, &id)?;
+            if !matches!(task.schedule, Schedule::Webhook { .. }) {
+                return Err(invalid("Only webhook tasks have a URL."));
+            }
+            task.webhook_secret = Some(crate::scheduled_webhooks::new_secret());
+            task.updated_at = now.timestamp_millis();
+            crate::scheduled_webhooks::forget(&id);
+            shown = reveal(task);
+        }
         Action::List | Action::RunNow { .. } => unreachable!("handled before mutate"),
     }
-    let view = snapshot(&data);
+    let mut view = snapshot(&data);
+    view.webhook = shown;
     drop(data);
     state.persist()?;
     Ok(view)
@@ -270,6 +357,10 @@ pub(crate) fn delete(data: &mut AppData, id: &str) -> Result<()> {
     if let Some(waiting) = WAITING.lock().as_mut() {
         waiting.remove(id);
     }
+    if let Some(pending) = PENDING.lock().as_mut() {
+        pending.remove(id);
+    }
+    crate::scheduled_webhooks::forget(id);
     Ok(())
 }
 
@@ -309,6 +400,23 @@ fn validate_schedule(schedule: Schedule) -> Result<Schedule> {
             } else {
                 Err(invalid("Intervals are 15 minutes to 7 days."))
             }
+        }
+        Schedule::Webhook {
+            filters,
+            dedupe_minutes,
+        } => {
+            let filters: Vec<_> = filters
+                .into_iter()
+                .map(|filter| crate::scheduled_webhooks::Filter {
+                    path: filter.path.trim().to_owned(),
+                    equals: filter.equals,
+                })
+                .collect();
+            crate::scheduled_webhooks::validate(&filters, dedupe_minutes).map_err(invalid)?;
+            Ok(Schedule::Webhook {
+                filters,
+                dedupe_minutes,
+            })
         }
     }
 }
@@ -393,6 +501,11 @@ pub(crate) fn upsert(
             task.project_id = input.project_id;
             task.agent = input.agent;
             task.model = input.model;
+            if !matches!(schedule, Schedule::Webhook { .. }) {
+                task.webhook_secret = None;
+            } else if task.webhook_secret.is_none() {
+                task.webhook_secret = Some(crate::scheduled_webhooks::new_secret());
+            }
             task.schedule = schedule;
             task.session_id = input.session_id;
             task.approval = input.approval;
@@ -408,6 +521,8 @@ pub(crate) fn upsert(
                 return Err(invalid("At most 50 scheduled tasks."));
             }
             let id = Uuid::new_v4().to_string();
+            let webhook_secret = matches!(schedule, Schedule::Webhook { .. })
+                .then(crate::scheduled_webhooks::new_secret);
             data.scheduled_tasks.push(ScheduledTask {
                 id: id.clone(),
                 title: title.to_owned(),
@@ -429,6 +544,7 @@ pub(crate) fn upsert(
                 last_session_id: None,
                 run_count: 0,
                 failure_streak: 0,
+                webhook_secret,
             });
             Ok(id)
         }
@@ -492,6 +608,7 @@ pub fn next_run(schedule: &Schedule, after: DateTime<Local>) -> Option<DateTime<
             parse_time(time)?,
         ),
         Schedule::Interval { minutes } => Some(after + Span::minutes(i64::from(*minutes))),
+        Schedule::Webhook { .. } => None,
     }
 }
 
@@ -596,6 +713,59 @@ fn stop_waiting(id: &str) {
 /// Starts one run. `manual` (Run now) refuses with an error where a scheduled run would
 /// skip or wait, and leaves the next run where it is.
 pub async fn run(app: &AppHandle, state: &Arc<AppState>, id: &str, manual: bool) -> Result<()> {
+    run_with(app, state, id, manual, None).await
+}
+
+/// Runs a webhook task's accepted delivery (ADR-161). While its previous run still works it
+/// waits as the task's one follow-up (a later delivery replaces it), started by the timer.
+pub async fn run_delivery(app: &AppHandle, state: &Arc<AppState>, id: &str, prompt: String) {
+    if let Err(error) = run_with(app, state, id, false, Some(prompt)).await {
+        tracing::warn!(%error, "a webhook delivery did not run");
+    }
+}
+
+fn hold_follow_up(id: &str, prompt: String) {
+    PENDING
+        .lock()
+        .get_or_insert_with(HashMap::new)
+        .insert(id.to_owned(), prompt);
+    wake();
+}
+
+/// Follow-ups whose task is free again, taken off the queue.
+fn ready_follow_ups(data: &AppData) -> Vec<(String, String)> {
+    let mut guard = PENDING.lock();
+    let Some(pending) = guard.as_mut() else {
+        return vec![];
+    };
+    let starting = STARTING.lock();
+    let ready: Vec<String> = pending
+        .keys()
+        .filter(|id| !starting.as_ref().is_some_and(|set| set.contains(*id)))
+        .filter(|id| {
+            data.scheduled_tasks
+                .iter()
+                .find(|task| task.id == **id)
+                .is_none_or(|task| match &task.session_id {
+                    Some(session) => bound_ready(data, session) != Err(BUSY),
+                    None => !active(data, task.last_session_id.as_deref()),
+                })
+        })
+        .cloned()
+        .collect();
+    ready
+        .into_iter()
+        .filter_map(|id| pending.remove(&id).map(|prompt| (id, prompt)))
+        .collect()
+}
+
+async fn run_with(
+    app: &AppHandle,
+    state: &Arc<AppState>,
+    id: &str,
+    manual: bool,
+    delivery: Option<String>,
+) -> Result<()> {
     let plan = {
         let mut data = state.data.lock();
         state.ensure_running()?;
@@ -606,18 +776,33 @@ pub async fn run(app: &AppHandle, state: &Arc<AppState>, id: &str, manual: bool)
             .find(|task| task.id == id)
             .cloned()
             .ok_or_else(|| Error::not_found("scheduled task not found"))?;
+        if !manual && delivery.is_none() && matches!(task.schedule, Schedule::Webhook { .. }) {
+            return Ok(());
+        }
+        if manual && matches!(task.schedule, Schedule::Webhook { .. }) {
+            return Err(Error::agent("Webhook tasks run when their URL is called."));
+        }
         if STARTING
             .lock()
             .as_ref()
             .is_some_and(|starting| starting.contains(id))
         {
+            if let Some(prompt) = delivery {
+                hold_follow_up(id, prompt);
+                return Ok(());
+            }
             return if manual {
                 Err(Error::agent("This task is already starting."))
             } else {
                 Ok(())
             };
         }
+        let prompt = delivery.clone().unwrap_or_else(|| task.prompt.clone());
         let plan = match &task.session_id {
+            None if active(&data, task.last_session_id.as_deref()) && delivery.is_some() => {
+                hold_follow_up(id, prompt.clone());
+                Plan::Quiet
+            }
             None if active(&data, task.last_session_id.as_deref()) => {
                 if manual {
                     return Err(Error::agent("The previous run is still working."));
@@ -631,7 +816,7 @@ pub async fn run(app: &AppHandle, state: &Arc<AppState>, id: &str, manual: bool)
                 agent: task.agent.clone(),
                 model: task.model.clone(),
                 isolated_worktree: true,
-                prompt: task.prompt.clone(),
+                prompt: prompt.clone(),
                 approval: task.approval,
                 planning: false,
                 delegated_by: None,
@@ -639,6 +824,10 @@ pub async fn run(app: &AppHandle, state: &Arc<AppState>, id: &str, manual: bool)
             })),
             Some(session_id) => match bound_ready(&data, session_id) {
                 Err(BUSY) if manual => return Err(Error::agent("The conversation is busy.")),
+                Err(BUSY) if delivery.is_some() => {
+                    hold_follow_up(id, prompt.clone());
+                    Plan::Quiet
+                }
                 Err(BUSY) => {
                     let since = waiting_since(id).unwrap_or(now);
                     if now - since >= BUSY_RETRY_MS {
@@ -663,7 +852,7 @@ pub async fn run(app: &AppHandle, state: &Arc<AppState>, id: &str, manual: bool)
                     match crate::execution::approval_for(&agent, task.approval) {
                         Ok(approval) => Plan::Bound {
                             session_id: session_id.clone(),
-                            prompt: task.prompt.clone(),
+                            prompt: prompt.clone(),
                             approval,
                         },
                         Err(error) => {
@@ -830,6 +1019,10 @@ pub fn start(app: AppHandle) {
                     stop_waiting(id);
                 }
             }
+            let follow_ups = ready_follow_ups(&state.data.lock());
+            for (id, prompt) in follow_ups {
+                run_delivery(&app, &state, &id, prompt).await;
+            }
             let earliest = {
                 let data = state.data.lock();
                 data.scheduled_tasks
@@ -886,6 +1079,12 @@ pub fn tool_definitions() -> Vec<Value> {
 /// The tool's schedule: the stored shape, with `once.at` also as ISO 8601 (local when
 /// it carries no offset).
 pub(crate) fn parse_schedule(value: &Value) -> std::result::Result<Schedule, String> {
+    if value.get("kind").and_then(Value::as_str) == Some("webhook") {
+        return Err(
+            "webhook tasks are made by the person in Tasks → Scheduled, where the URL is shown"
+                .into(),
+        );
+    }
     let mut value = value.clone();
     if value.get("kind").and_then(Value::as_str) == Some("once") {
         if let Some(text) = value.get("at").and_then(Value::as_str) {
@@ -933,6 +1132,7 @@ pub(crate) fn schedule_label(schedule: &Schedule) -> String {
                 .join(", ")
         ),
         Schedule::Interval { minutes } => format!("every {minutes} minutes"),
+        Schedule::Webhook { .. } => "when its webhook URL is called".into(),
     }
 }
 
@@ -1545,6 +1745,72 @@ mod tests {
         data.projects.retain(|project| project.id != "p");
         assert!(prune(&mut data));
         assert!(data.scheduled_tasks.is_empty());
+    }
+
+    #[test]
+    fn webhook_tasks_hold_a_hidden_secret_and_never_run_on_the_clock() {
+        let mut data = data();
+        let now = at("2026-10-14", "08:00");
+        let webhook: Schedule =
+            serde_json::from_value(json!({ "kind": "webhook", "filters": [{ "path": " body.action ", "equals": "created" }] }))
+                .unwrap();
+        let id = upsert(&mut data, input(webhook.clone()), now, CreatedBy::Person).unwrap();
+        let task = data.scheduled_tasks[0].clone();
+        let secret = task
+            .webhook_secret
+            .clone()
+            .expect("a webhook task has a secret");
+        assert_eq!(task.next_run_at, None);
+        assert_eq!(
+            task.schedule,
+            Schedule::Webhook {
+                filters: vec![crate::scheduled_webhooks::Filter {
+                    path: "body.action".into(),
+                    equals: Some("created".into())
+                }],
+                dedupe_minutes: crate::scheduled_webhooks::DEFAULT_DEDUPE_MINUTES,
+            }
+        );
+        let view = serde_json::to_value(snapshot(&data)).unwrap();
+        assert!(view["tasks"][0].get("webhookSecret").is_none());
+        assert!(!view.to_string().contains(&secret));
+        // An edit keeps the secret; leaving the webhook schedule drops it.
+        let mut edit = input(webhook);
+        edit.id = Some(id.clone());
+        upsert(&mut data, edit, now, CreatedBy::Person).unwrap();
+        assert_eq!(
+            data.scheduled_tasks[0].webhook_secret.as_deref(),
+            Some(secret.as_str())
+        );
+        let mut edit = input(daily("09:00"));
+        edit.id = Some(id);
+        upsert(&mut data, edit, now, CreatedBy::Person).unwrap();
+        assert_eq!(data.scheduled_tasks[0].webhook_secret, None);
+        let bad: Schedule =
+            serde_json::from_value(json!({ "kind": "webhook", "filters": [{ "path": "action" }] }))
+                .unwrap();
+        assert!(upsert(&mut data, input(bad), now, CreatedBy::Person).is_err());
+        assert!(parse_schedule(&json!({ "kind": "webhook" })).is_err());
+        assert!(serde_json::from_str::<Action>(r#"{"type":"rotateWebhook","id":"x"}"#).is_ok());
+    }
+
+    #[test]
+    fn deliveries_during_a_run_coalesce_into_one_follow_up() {
+        let mut data = data();
+        let now = at("2026-10-14", "08:00");
+        let webhook: Schedule = serde_json::from_value(json!({ "kind": "webhook" })).unwrap();
+        let mut bound = input(webhook);
+        bound.session_id = Some("s".into());
+        let id = upsert(&mut data, bound, now, CreatedBy::Person).unwrap();
+        data.sessions[0].status = crate::models::SessionStatus::Running;
+        hold_follow_up(&id, "first".into());
+        hold_follow_up(&id, "second".into());
+        assert!(ready_follow_ups(&data).iter().all(|(task, _)| task != &id));
+        data.sessions[0].status = crate::models::SessionStatus::Completed;
+        let ready = ready_follow_ups(&data);
+        let mine: Vec<_> = ready.iter().filter(|(task, _)| task == &id).collect();
+        assert_eq!(mine, vec![&(id.clone(), "second".to_owned())]);
+        assert!(ready_follow_ups(&data).iter().all(|(task, _)| task != &id));
     }
 
     #[test]

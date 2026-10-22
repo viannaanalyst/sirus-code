@@ -42,10 +42,17 @@
   .scheduled-next { display: flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--info) 28%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--info) 9%, transparent); color: color-mix(in srgb, var(--info) 40%, var(--text-primary)); }
   .scheduled-next-off { border-color: var(--border-subtle); background: transparent; color: var(--text-muted); }
   .scheduled-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  /* Webhook schedules (ADR-161). */
+  .scheduled-webhook { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .scheduled-webhook-urls { display: flex; flex-direction: column; gap: 6px; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--info) 28%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--info) 7%, transparent); animation: scheduled-in var(--motion-normal) var(--ease-out) both; }
+  .scheduled-webhook-url { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .scheduled-webhook-hidden { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .scheduled-webhook-warn { color: color-mix(in srgb, var(--warning) 60%, var(--text-primary)); }
+  .scheduled-filter { display: flex; align-items: center; gap: 6px; }
 
   .scheduled-bound { display: flex; align-items: center; gap: 7px; width: 100%; max-width: var(--chat-column-width); margin: 0 auto 6px; padding: 5px 12px; border: 1px solid color-mix(in srgb, var(--info) 22%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--info) 7%, transparent); color: color-mix(in srgb, var(--info) 40%, var(--text-secondary)); }
   .scheduled-bound-link { flex-shrink: 0; margin-left: auto; color: var(--text-primary); text-decoration: underline; text-underline-offset: 2px; }
 
-  html:is([data-animations="off"], [data-reduce-motion="on"]) .scheduled-row { animation: none; }
-  @media (prefers-reduced-motion: reduce) { .scheduled-row { animation: none; } }
+  html:is([data-animations="off"], [data-reduce-motion="on"]) :is(.scheduled-row, .scheduled-webhook-urls) { animation: none; }
+  @media (prefers-reduced-motion: reduce) { :is(.scheduled-row, .scheduled-webhook-urls) { animation: none; } }
 }

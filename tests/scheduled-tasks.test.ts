@@ -44,3 +44,18 @@ test("labels and order", () => {
   assert.deepEqual(sortScheduledTasks([task("off", false, null), task("late", true, 9), task("soon", true, 1)]).map((item: { id: string }) => item.id), ["soon", "late", "off"]);
   assert.deepEqual(tasksBoundTo([task("a", true, 5, "s"), task("b", false, 1, "s"), task("c", true, 1, "x")], "s").map((item: { id: string }) => item.id), ["a"]);
 });
+
+test("webhook schedules: filters, the dedupe window and no clock", () => {
+  const form = { ...defaultScheduleForm(now), kind: "webhook" as const };
+  assert.deepEqual(formToSchedule(form, now), { schedule: { kind: "webhook", filters: [], dedupeMinutes: 60 } });
+  assert.deepEqual(formToSchedule({ ...form, filters: [{ path: " headers.sentry-hook-resource ", equals: "issue" }, { path: "body.data.issue", equals: "" }, { path: "", equals: "" }] }, now),
+    { schedule: { kind: "webhook", filters: [{ path: "headers.sentry-hook-resource", equals: "issue" }, { path: "body.data.issue" }], dedupeMinutes: 60 } });
+  assert.deepEqual(formToSchedule({ ...form, filters: [{ path: "action", equals: "x" }] }, now), { error: "scheduled.error.filter" });
+  assert.deepEqual(formToSchedule({ ...form, dedupeMinutes: -1 }, now), { error: "scheduled.error.dedupe" });
+  const schedule = { kind: "webhook" as const, filters: [{ path: "body.action", equals: "created" }, { path: "headers.x" }], dedupeMinutes: 0 };
+  const round = scheduleToForm(schedule, now);
+  assert.deepEqual(round.filters, [{ path: "body.action", equals: "created" }, { path: "headers.x", equals: "" }]);
+  assert.deepEqual(formToSchedule(round, now), { schedule });
+  assert.equal(previewNextRun(schedule, now), null);
+  assert.equal(scheduleLabel(schedule, t, "en"), "scheduled.label.webhook");
+});
