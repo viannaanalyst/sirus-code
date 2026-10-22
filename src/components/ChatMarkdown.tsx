@@ -11,6 +11,7 @@ import type { StreamFade } from "@/lib/use-stream-fade";
 import { ReplyMedia } from "@/components/ReplyMedia";
 import { StreamFadeText } from "@/components/StreamFadeText";
 import { FileGlyph } from "@/components/FileGlyph";
+import { MathFormula } from "@/components/MathFormula";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { GALLERY_EVENT } from "@/components/ImageLightbox";
@@ -160,6 +161,7 @@ function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Own
     const tail = fade && index === nodes.length - 1 ? fade : null;
     switch (node.kind) {
       case "text": return tail ? <StreamFadeText key={index} text={node.text} fade={tail} /> : <Fragment key={index}>{node.text}</Fragment>;
+      case "math": return <MathFormula key={index} tex={node.text} />;
       case "bold": return <strong key={index} className="font-semibold text-text-primary"><Inline nodes={node.children} owner={owner} fade={tail} /></strong>;
       case "italic": return <em key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></em>;
       case "strike": return <s key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></s>;
@@ -217,6 +219,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ block, owner, fade }: { bloc
     case "paragraph": return <div className="whitespace-pre-wrap">{inline(block.text, true)}</div>;
     case "quote": return <div className="chat-quote whitespace-pre-wrap">{inline(block.text, true)}</div>;
     case "rule": return <hr className="border-border-subtle" />;
+    case "math": return <MathFormula tex={block.text} display />;
     case "list": return <div role="list" className="chat-list">
       {block.items.map((item, position) => <div key={position} role="listitem" className="chat-list-item" style={{ paddingInlineStart: `${item.depth * 1.25}rem` }}>
         <span className="chat-list-marker" aria-hidden="true">{item.task !== null ? (item.task ? "☑" : "☐") : item.ordered ? `${item.number}.` : item.depth % 2 ? "◦" : "•"}</span>

@@ -15,6 +15,7 @@ Contributor basics live in [`AGENTS.md`](../../AGENTS.md). Decision history live
 | Primitives | Radix + vendored UI Arc MIT components through existing primitives |
 | Motion | `motion` (Motion for React) + CSS tokens |
 | Diagrams | `mermaid` (lazy, strict, ADR-058) for fenced `mermaid` blocks |
+| Math | `katex` (lazy, `trust: false`, ADR-160) for `$…$`, `\(…\)`, `$$…$$` and `\[…\]` in replies |
 | Icons | Phosphor (`@phosphor-icons/react`) through `src/components/icons/phosphor.tsx`; filled weight marks active items |
 | State | Zustand (`src/store/app-store.ts`) — do not add another store |
 | Native | Rust 2021 edition, crate `sirus-code` / lib `sirus_code_lib`; features `desktop` (default, Tauri app) and `host` (headless `sirus-host`, ADR-131) |

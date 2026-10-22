@@ -28,3 +28,20 @@ test("file references are relative workspace paths that look like files", () => 
   assert.deepEqual(fileReference("src/", "/w"), { path: "src", line: null });
   for (const value of ["listOrders", "node --test", "/etc/passwd", "../secret.txt", "https://a.b/c.js", "v1.2", "a//b.js"]) assert.equal(fileReference(value, "/w"), null, value);
 });
+
+test("LaTeX math: inline, display and text that only looks like it", () => {
+  assert.deepEqual(parseChatInline("Energy: $E = mc^2$."), [{ kind: "text", text: "Energy: " }, { kind: "math", text: "E = mc^2" }, { kind: "text", text: "." }]);
+  assert.deepEqual(parseChatInline("Also \\(a^2 + b^2\\) and $$x_1$$"), [{ kind: "text", text: "Also " }, { kind: "math", text: "a^2 + b^2" }, { kind: "text", text: " and " }, { kind: "math", text: "x_1" }]);
+  // Prices, shell variables and escaped dollars stay text.
+  for (const text of ["costs $5 and $10", "echo $HOME and $PATH", "US$5 or US$6", "a \\$x\\$ b", "$ x$", "$x $"]) {
+    assert.ok(parseChatInline(text).every((node) => node.kind !== "math"), text);
+  }
+  assert.deepEqual(parseChatMarkdown("Before\n$$\n\\int_0^1 x\\,dx\n$$\nAfter"), [
+    { kind: "paragraph", text: "Before" },
+    { kind: "math", text: "\\int_0^1 x\\,dx" },
+    { kind: "paragraph", text: "After" },
+  ]);
+  assert.deepEqual(parseChatMarkdown("\\[ \\frac{a}{b} \\]"), [{ kind: "math", text: "\\frac{a}{b}" }]);
+  // Never across a blank line (the streamed parse relies on it): an unclosed block stays text.
+  assert.deepEqual(parseChatMarkdown("$$\nx\n\ny$$").map((block) => block.kind), ["paragraph", "paragraph"]);
+});

@@ -1,8 +1,9 @@
 /**
  * Markdown for assistant replies in the transcript: headings, paragraphs (line
  * breaks kept), nested lists, quotes, rules and GFM tables, with inline bold,
- * italic, strikethrough, code and links. Fenced code is split out earlier by
- * `parseTranscript`. Text only: nothing here produces HTML.
+ * italic, strikethrough, code and links, and LaTeX math (`$…$`, `\(…\)`, `$$…$$`,
+ * `\[…\]`; ADR-160). Fenced code is split out earlier by `parseTranscript`. Text only:
+ * nothing here produces HTML.
  */
 export type ChatInline =
   | { kind: "text"; text: string }
@@ -10,7 +11,9 @@ export type ChatInline =
   | { kind: "bold" | "italic" | "strike"; children: ChatInline[] }
   | { kind: "link"; url: string; children: ChatInline[] }
   /** `![alt](https://… | data:image/…)`; other image paths stay links. */
-  | { kind: "image"; url: string; alt: string };
+  | { kind: "image"; url: string; alt: string }
+  /** `$…$` or `\(…\)`: TeX source, drawn by KaTeX. */
+  | { kind: "math"; text: string };
 
 export type ChatBlock =
   | { kind: "heading"; level: number; text: string }
@@ -18,7 +21,9 @@ export type ChatBlock =
   | { kind: "list"; items: ChatListItem[] }
   | { kind: "quote"; text: string }
   | { kind: "rule" }
-  | { kind: "table"; header: string[]; align: ("left" | "center" | "right" | null)[]; rows: string[][] };
+  | { kind: "table"; header: string[]; align: ("left" | "center" | "right" | null)[]; rows: string[][] }
+  /** `$$…$$` or `\[…\]` on their own lines: display math. Never crosses a blank line. */
+  | { kind: "math"; text: string };
 
 export interface ChatListItem { depth: number; ordered: boolean; number: number | null; text: string; task: boolean | null }
 
@@ -27,6 +32,34 @@ const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const RULE = /^ {0,3}([-*_])(\s*\1){2,}\s*$/;
 const QUOTE = /^ {0,3}>\s?(.*)$/;
 const TABLE_DIVIDER = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
+const MATH_OPEN = /^ {0,3}(\$\$|\\\[)/;
+/** At most this much TeX per formula; longer source stays text. */
+export const MATH_MAX = 4000;
+
+/**
+ * Display math starting at `lines[index]`: `$$…$$` or `\[…\]`, on one line or until the
+ * line that closes it, never across a blank line (the streamed parse relies on that).
+ */
+function displayMath(lines: string[], index: number): { text: string; next: number } | null {
+  const open = lines[index].match(MATH_OPEN);
+  if (!open) return null;
+  const close = open[1] === "$$" ? "$$" : "\\]";
+  const first = lines[index].trim().slice(2);
+  const parts: string[] = [];
+  for (let at = index, line = first; at < lines.length; at += 1, line = lines[at]?.trim() ?? "") {
+    if (at > index && !line) return null;
+    const end = line.indexOf(close);
+    if (end >= 0) {
+      // Only whitespace may follow the closing marker.
+      if (line.slice(end + 2).trim()) return null;
+      parts.push(line.slice(0, end));
+      const text = parts.join("\n").trim();
+      return text && text.length <= MATH_MAX ? { text, next: at + 1 } : null;
+    }
+    parts.push(line);
+  }
+  return null;
+}
 
 function cells(line: string): string[] {
   const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
@@ -37,13 +70,15 @@ export function parseChatMarkdown(source: string): ChatBlock[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ChatBlock[] = [];
   let index = 0;
-  const starts = (line: string) => HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || LIST.test(line);
+  const starts = (line: string) => HEADING.test(line) || RULE.test(line) || QUOTE.test(line) || LIST.test(line) || MATH_OPEN.test(line);
   while (index < lines.length) {
     const line = lines[index];
     if (!line.trim()) { index += 1; continue; }
     const heading = line.match(HEADING);
     if (heading) { blocks.push({ kind: "heading", level: heading[1].length, text: heading[2] }); index += 1; continue; }
     if (RULE.test(line)) { blocks.push({ kind: "rule" }); index += 1; continue; }
+    const math = displayMath(lines, index);
+    if (math) { blocks.push({ kind: "math", text: math.text }); index = math.next; continue; }
     if (QUOTE.test(line)) {
       const content: string[] = [];
       while (index < lines.length && QUOTE.test(lines[index])) { content.push(lines[index].match(QUOTE)![1]); index += 1; }
@@ -123,7 +158,22 @@ export function parseChatInline(text: string): ChatInline[] {
   while (i < text.length) {
     const rest = text.slice(i);
     const ch = text[i];
-    if (ch === "\\" && /[\\`*_~[\]()#|-]/.test(text[i + 1] ?? "")) { plain += text[i + 1]; i += 2; continue; }
+    if (ch === "\\" && (text[i + 1] === "(" || text[i + 1] === "[")) {
+      const close = text[i + 1] === "(" ? "\\)" : "\\]";
+      const end = text.indexOf(close, i + 2);
+      const tex = end > i + 2 ? text.slice(i + 2, end).trim() : "";
+      if (tex && tex.length <= MATH_MAX && !tex.includes("\n\n")) { flush(); out.push({ kind: "math", text: tex }); i = end + 2; continue; }
+    }
+    if (ch === "\\" && /[\\`*_~[\]()#|$-]/.test(text[i + 1] ?? "")) { plain += text[i + 1]; i += 2; continue; }
+    if (ch === "$" && text[i + 1] === "$") {
+      const end = text.indexOf("$$", i + 2);
+      const tex = end > i + 2 ? text.slice(i + 2, end).trim() : "";
+      if (tex && tex.length <= MATH_MAX && !tex.includes("\n\n")) { flush(); out.push({ kind: "math", text: tex }); i = end + 2; continue; }
+    }
+    if (ch === "$") {
+      const end = inlineMathClose(text, i);
+      if (end > 0) { flush(); out.push({ kind: "math", text: text.slice(i + 1, end) }); i = end + 1; continue; }
+    }
     if (ch === "`") {
       const ticks = /^`+/.exec(rest)![0];
       const end = text.indexOf(ticks, i + ticks.length);
@@ -170,6 +220,22 @@ export function parseChatInline(text: string): ChatInline[] {
   }
   flush();
   return out;
+}
+
+/**
+ * Where `$…$` opened at `open` closes, or -1. Pandoc's rule keeps prices and shell
+ * variables as text: the opening `$` is followed by a non-space, the closing one follows
+ * a non-space and is not followed by a digit, and no blank line lies between.
+ */
+function inlineMathClose(text: string, open: number): number {
+  const first = text[open + 1] ?? "";
+  if (!first || /\s|\$/.test(first) || /[\w$]/.test(text[open - 1] ?? "")) return -1;
+  for (let i = open + 1; i < text.length && i - open <= MATH_MAX; i++) {
+    if (text[i] === "\\") { i += 1; continue; }
+    if (text[i] === "\n" && text[i + 1] === "\n") return -1;
+    if (text[i] === "$") return /\s/.test(text[i - 1]) || /\d/.test(text[i + 1] ?? "") ? -1 : i;
+  }
+  return -1;
 }
 
 /** The closing marker outside inline code. */

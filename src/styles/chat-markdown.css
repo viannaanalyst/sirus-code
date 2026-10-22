@@ -7,6 +7,10 @@
   .chat-list-item { display: flex; gap: 0.5rem; }
   .chat-list-marker { flex: none; min-width: 1rem; color: var(--text-muted); font-variant-numeric: tabular-nums; text-align: right; }
   .chat-quote { border-left: 2px solid var(--border-default); padding-left: 0.75rem; color: var(--text-muted); }
+  /* LaTeX math (ADR-160): KaTeX inherits the text color; wide display math scrolls sideways. */
+  .chat-math .katex { font-size: 1.08em; }
+  .chat-math-block { overflow-x: auto; overflow-y: hidden; padding: 0.15rem 0; }
+  .chat-math-block .katex-display { margin: 0.25rem 0; }
   .chat-inline-code, .chat-markdown code { border-radius: 5px; background: color-mix(in oklab, var(--text-primary) 8%, transparent); padding: 0.05rem 0.35rem; font-family: var(--font-mono); font-size: 0.9em; color: var(--text-primary); }
   /* Tables as a translucent rounded card (2026-10-08, option B): a stronger tint
      on the header, hairlines between rows, the first column in bold, and words that wrap
