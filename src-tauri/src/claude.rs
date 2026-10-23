@@ -809,7 +809,7 @@ async fn run_turn(
     // A continuation after our answer starts on its own paragraph.
     let mut separate = false;
     // The CLI's report that `/compact` failed; its turn still ends in a "successful" result.
-    let mut compact_failed: Option<String> = None;
+    let mut compact_failed: Option<Error> = None;
     loop {
         let wake = background.wake(limits);
         let value = tokio::select! {
@@ -1108,11 +1108,11 @@ async fn run_turn(
                     }
                     return Err(error);
                 }
-                if let Some(reason) = compact_failed.take() {
+                if let Some(error) = compact_failed.take() {
                     if let Some(resets_at) = usage_limit {
                         emit(Event::UsageLimit(resets_at))?;
                     }
-                    return Err(Error::agent(reason));
+                    return Err(error);
                 }
                 // Background subagents still run in this process: keep it, and read the
                 // follow-up turns the CLI runs as they report (ADR-097).
@@ -1327,16 +1327,28 @@ fn user_message(
 }
 
 /// A failed `/compact`: the CLI reports it on its status event (`compact_result`), then ends
-/// the turn with a result that still reads as a success.
-fn compaction_failure(value: &Value) -> Option<String> {
+/// the turn with a result that still reads as a success. A compaction refused by the shared
+/// OAuth credential is the refresh race (ADR-162), reported here rather than on the turn's
+/// result: it ends as a `claude_auth_refresh` error so the turn is retried with a fresh
+/// process and, exhausted, told to sign in again.
+fn compaction_failure(value: &Value) -> Option<Error> {
     (value["type"] == "system"
         && value["subtype"] == "status"
         && value["compact_result"] == "failed")
-        .then(|| match value["compact_error"].as_str().map(str::trim) {
-            Some(detail) if !detail.is_empty() => {
-                format!("Claude could not compact the conversation: {detail}")
+        .then(|| {
+            let detail = value["compact_error"]
+                .as_str()
+                .map(str::trim)
+                .filter(|detail| !detail.is_empty());
+            let message = match detail {
+                Some(detail) => format!("Claude could not compact the conversation: {detail}"),
+                None => "Claude could not compact the conversation.".into(),
+            };
+            if detail.is_some_and(auth_refresh_text) {
+                Error::new("claude_auth_refresh", message)
+            } else {
+                Error::agent(message)
             }
-            _ => "Claude could not compact the conversation.".into(),
         })
 }
 
@@ -2138,7 +2150,7 @@ send({'type':'result','subtype':'success','is_error':False,'session_id':'native'
 
     /// A `/compact` turn as the 2.1.303 CLI runs it: dispatched only without
     /// `client_composed`, otherwise the fixture answers as the model would, with text.
-    async fn compact_turn(compact_result: &str) -> (Result<bool>, Vec<Event>) {
+    async fn compact_turn(compact_result: &str, compact_error: &str) -> (Result<bool>, Vec<Event>) {
         let script = format!(
             r#"import sys,json
 read=lambda:json.loads(sys.stdin.readline())
@@ -2151,7 +2163,7 @@ if prompt.get('client_composed') or prompt['message']['content']!='/compact':
     send({{'type':'result','subtype':'success','is_error':False,'session_id':'native','user_message_uuids':[ours]}})
     sys.exit(0)
 send({{'type':'system','subtype':'status','status':'compacting','session_id':'native'}})
-send({{'type':'system','subtype':'status','status':None,'compact_result':'{compact_result}','compact_error':'Not enough messages to compact.','session_id':'native'}})
+send({{'type':'system','subtype':'status','status':None,'compact_result':'{compact_result}','compact_error':'{compact_error}','session_id':'native'}})
 if '{compact_result}'=='success':
     send({{'type':'system','subtype':'compact_boundary','session_id':'native','compact_metadata':{{'trigger':'manual','pre_tokens':959000,'post_tokens':38000}}}})
     send({{'type':'user','session_id':'native','isSynthetic':True,'message':{{'role':'user','content':'This session is being continued from a previous conversation.'}}}})
@@ -2197,7 +2209,7 @@ send({{'type':'result','subtype':'success','is_error':False,'num_turns':0,'resul
 
     #[tokio::test]
     async fn compact_is_dispatched_by_the_cli_and_reads_the_rebuilt_context() {
-        let (outcome, events) = compact_turn("success").await;
+        let (outcome, events) = compact_turn("success", "Not enough messages to compact.").await;
         assert!(matches!(outcome, Ok(false)), "{outcome:?}");
         // No text: the transcript reads "Context compacted".
         assert_eq!(reply(&events), "");
@@ -2221,12 +2233,24 @@ send({{'type':'result','subtype':'success','is_error':False,'num_turns':0,'resul
 
     #[tokio::test]
     async fn a_failed_compaction_fails_the_turn() {
-        let (outcome, events) = compact_turn("failed").await;
+        let (outcome, events) = compact_turn("failed", "Not enough messages to compact.").await;
         let error = outcome.unwrap_err().to_string();
         assert!(error.contains("could not compact") && error.contains("Not enough messages"));
         assert!(!events
             .iter()
             .any(|event| matches!(event, Event::Context(_))));
+    }
+
+    #[tokio::test]
+    async fn a_compaction_that_lost_the_refresh_race_is_a_retryable_failure() {
+        // The CLI reports the race on `compact_result`, not the turn's result (which reads as a
+        // success), so the turn must still end as a retryable auth error (ADR-162).
+        let (outcome, _) = compact_turn(
+            "failed",
+            "Error during compaction: Failed to authenticate: OAuth session expired and could not be refreshed",
+        )
+        .await;
+        assert!(outcome.as_ref().err().is_some_and(auth_refresh_error));
     }
 
     #[test]
@@ -2238,18 +2262,18 @@ send({{'type':'result','subtype':'success','is_error':False,'num_turns':0,'resul
             let message = user_message(prompt, &[], "native", "turn").unwrap();
             assert_eq!(message["client_composed"], true);
         }
+        assert!(compaction_failure(
+            &json!({"type":"system","subtype":"status","compact_result":"success"})
+        )
+        .is_none());
+        let failed = compaction_failure(
+            &json!({"type":"system","subtype":"status","compact_result":"failed"}),
+        )
+        .expect("a failed compaction is an error");
+        assert!(!auth_refresh_error(&failed));
         assert_eq!(
-            compaction_failure(
-                &json!({"type":"system","subtype":"status","compact_result":"success"})
-            ),
-            None
-        );
-        assert_eq!(
-            compaction_failure(
-                &json!({"type":"system","subtype":"status","compact_result":"failed"})
-            )
-            .as_deref(),
-            Some("Claude could not compact the conversation.")
+            failed.to_string(),
+            "Claude could not compact the conversation."
         );
     }
 

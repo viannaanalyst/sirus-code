@@ -24,6 +24,10 @@ blanked credential; it can only retry the transient case and make the broken cas
 - `claude.rs` recognises the CLI's synthetic `assistant` frame (`is_api_error_message`, `error:
   authentication_failed`) whose text is the refresh race, keeps that text out of the transcript (it is
   the CLI's own report, never a reply) and ends the turn with a `claude_auth_refresh` error.
+- A `/compact` that lost the race reports it on the CLI's `compact_result` status instead of the
+  turn's result (which still reads as a success), so `claude.rs` classifies that failure by the same
+  wording and ends it as the same `claude_auth_refresh` error: the retry and the sign-in advice cover
+  compaction too.
 - `codex.rs` (`monitor`) then starts a fresh Claude process for the same turn, up to twice with a
   1.5 s pause, before reporting a failure: the new process reads the rotated credential from disk or
   the Keychain. The turn keeps its own agent message and its native-thread binding (the session
