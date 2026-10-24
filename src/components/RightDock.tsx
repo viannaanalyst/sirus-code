@@ -158,7 +158,7 @@ export function RightDock() {
   const menuPane = menuPaneId ? visible.find((pane) => pane.id === menuPaneId) ?? null : null;
 
   return (
-    <aside className={cn("flex h-full min-w-0 flex-col border-l border-border-subtle", conversationStarted ? "sidebar-material" : "main-material")} aria-label={t("Right panel")}>
+    <aside data-right-dock="" className={cn("flex h-full min-w-0 flex-col border-l border-border-subtle", conversationStarted ? "sidebar-material" : "main-material")} aria-label={t("Right panel")}>
       {/* Maximized, the panel takes the main header's place: its tabs start after the window
           buttons and the sidebar and history controls, like the header does. */}
       <div data-tauri-drag-region className={cn("flex h-[var(--window-controls-height)] shrink-0 items-center gap-1 px-1.5",

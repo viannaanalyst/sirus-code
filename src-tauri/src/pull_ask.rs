@@ -192,6 +192,7 @@ fn open(
         // The project checkout, never a new one: nothing is checked out or fetched.
         isolated_worktree: false,
         model,
+        share_worktree_of: None,
     };
     let created = crate::commands::create_session_locked(state, &mut data, request, "HEAD")?;
     let session = data

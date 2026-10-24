@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyAgentOutput, reuseMessages } from "../src/lib/agent-events.ts";
+import { applyAgentOutput, applyAgentOutputs, reuseMessages } from "../src/lib/agent-events.ts";
 import type { AgentEvent, Message } from "../src/client/types.ts";
 const message = (id: string, role: Message["role"], content: string): Message => ({ id, sessionId: "session", role, content, createdAt: "time", streaming: true });
 const event = (id: string, offset: number, chunk: string, snapshot: Message | null = null): AgentEvent => ({ sessionId: "session", messageId: id, offset, chunk, stream: "stdout", message: snapshot });
@@ -72,4 +72,16 @@ test("message comparison sees nested activity, attachment and list changes witho
     change(next);
     assert.notEqual(reuseMessages(previous, [next])[0], base, change.toString());
   }
+});
+test("a frame's events apply with one copy, match one-by-one application and report gaps", () => {
+  const start = [message("user", "user", "Hi"), message("assistant", "agent", "Re")];
+  const events = [event("assistant", 2, "ply"), event("assistant", 5, " done"), event("next", 0, "", message("next", "agent", "More")), event("assistant", 5, " stale")];
+  let gaps = 0;
+  const batched = applyAgentOutputs(start, events, () => gaps++);
+  assert.deepEqual(batched, events.reduce(applyAgentOutput, start));
+  assert.equal(batched[0], start[0], "untouched messages keep their object");
+  assert.deepEqual(start.map(item => item.content), ["Hi", "Re"], "the input is not mutated");
+  assert.equal(gaps, 0);
+  assert.equal(applyAgentOutputs(start, [event("assistant", 9, "x")], () => gaps++), start);
+  assert.equal(gaps, 1, "a delta past the held text is a gap");
 });

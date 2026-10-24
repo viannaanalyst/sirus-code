@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { Session } from "../src/client/types.ts";
-import { closeTab, finishedUnseen, moveTab, openTab, projectStatus, tabStatus, TAB_LIMIT, visibleTabSessions } from "../src/lib/header-tabs.ts";
+import { closeTab, closeTarget, finishedUnseen, moveTab, openTab, projectStatus, tabStatus, TAB_LIMIT, visibleTabSessions } from "../src/lib/header-tabs.ts";
 
 const session = (id: string, projectId = "p", status: Session["status"] = "idle"): Session => ({ id, title: id, projectId, agent: "codex", status, createdAt: "t", lastActivityAt: "t", worktree: { path: "/f", branch: "main", isolated: false }, messages: [], lastError: null } as Session);
 
@@ -51,4 +51,15 @@ test("a session finishing out of view becomes unseen; the selected one does not"
   const previous = new Map<string, Session["status"]>([["a", "running"], ["b", "running"], ["c", "idle"]]);
   const now = [session("a", "p", "completed"), session("b", "p", "completed"), session("c", "p", "completed")];
   assert.deepEqual(finishedUnseen(previous, now, "b"), ["a"]);
+});
+
+test("⌘W closes the focused panel pane, else the conversation tab, else a replaceable blank tab", () => {
+  const base = { dockActivePaneId: "pane", inDock: false, showTabs: true, onSession: true, projectId: "p", sessionId: "a", tabs: ["a", "b"], draft: false };
+  assert.deepEqual(closeTarget({ ...base, inDock: true }), { kind: "dock", paneId: "pane" });
+  assert.deepEqual(closeTarget(base), { kind: "session", projectId: "p", sessionId: "a" });
+  assert.deepEqual(closeTarget({ ...base, sessionId: null, draft: true }), { kind: "draft", projectId: "p" });
+  // Nothing of its own to close: the window's Close takes the key.
+  assert.equal(closeTarget({ ...base, sessionId: null, draft: true, tabs: [] }), null);
+  assert.equal(closeTarget({ ...base, showTabs: false }), null);
+  assert.equal(closeTarget({ ...base, onSession: false }), null);
 });

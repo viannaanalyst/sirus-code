@@ -5,6 +5,10 @@ import { selectListedSessions, useAppStore } from "@/store/app-store";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ShortcutHint } from "@/primitives/ShortcutHint";
 import type { CommandItem } from "@/lib/shortcuts";
+import type { Session } from "@/client/types";
+import { client } from "@/client";
+import { SearchText } from "@/components/SearchText";
+import { messageMatches, PALETTE_MESSAGE_QUERY, rankChats } from "@/lib/palette-search";
 
 export function CommandPalette({ commands }: { commands: CommandItem[] }) {
   const t = useTranslation();
@@ -20,13 +24,12 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
   const sessions = useAppStore(selectListedSessions);
   const projects = useAppStore((state) => state.projects);
   const archivedIds = useAppStore((state) => state.settings.archivedSessionIds);
-  // Chats come first: the five most recent, or every title match while typing (bounded).
+  // Chats come first: the five most recent, or the best title matches while typing (bounded).
   const chats = useMemo<CommandItem[]>(() => {
     if (!open) return [];
-    const needle = query.trim().toLocaleLowerCase();
-    const recent = [...sessions].filter((session) => needle ? session.title.toLocaleLowerCase().includes(needle) : !archivedIds.includes(session.id))
-      .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
-      .slice(0, needle ? 20 : 5);
+    const needle = query.trim();
+    const recent = needle ? rankChats(sessions, needle, 20)
+      : sessions.filter((session) => !archivedIds.includes(session.id)).sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)).slice(0, 5);
     return recent.map((session) => ({
       id: `chat-${session.id}`, label: session.title, group: t("palette.recentChats"),
       icon: <ProviderIcon id={session.agent} size={16} />,
@@ -34,10 +37,40 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
       run: () => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); },
     }));
   }, [open, query, sessions, projects, archivedIds, t]);
+  // Then chats whose messages match: native returns bounded candidates (transcripts may not be
+  // loaded), matched here like the all-conversations search, one row per chat.
+  const [found, setFound] = useState<{ query: string; sessions: Session[] } | null>(null);
+  const needle = query.trim();
+  const searching = open && needle.length >= PALETTE_MESSAGE_QUERY;
+  useEffect(() => {
+    if (!searching) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      client.searchTranscripts(needle).then((result) => {
+        if (cancelled) return;
+        const known = new Map(useAppStore.getState().sessions.map((session) => [session.id, session]));
+        setFound({ query: needle, sessions: result.sessions.flatMap((candidate) => { const meta = known.get(candidate.sessionId); return meta ? [{ ...meta, messages: candidate.messages }] : []; }) });
+      }, () => { if (!cancelled) setFound({ query: needle, sessions: [] }); });
+    }, 150);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searching, needle]);
+  const pending = searching && found?.query !== needle;
+  const inMessages = useMemo<CommandItem[]>(() => {
+    if (!searching || !found || found.query !== needle) return [];
+    const listed = new Set(chats.map((chat) => chat.id.slice("chat-".length)));
+    const owned = new Set(projects.map((project) => project.id));
+    return messageMatches(found.sessions.filter((session) => owned.has(session.projectId)), needle, listed, 8).map(({ session, hit }) => ({
+      id: `message-${session.id}`, label: session.title, group: t("palette.inMessages"),
+      icon: <ProviderIcon id={session.agent} size={16} />,
+      meta: projects.find((project) => project.id === session.projectId)?.name,
+      detail: <SearchText text={hit.snippet} query={needle} />,
+      run: () => { void useAppStore.getState().jumpToMessage(hit.sessionId, hit.messageId, hit.start); },
+    }));
+  }, [searching, found, needle, chats, projects, t]);
   const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return [...chats, ...commands.filter((command) => command.label.toLowerCase().includes(needle))];
-  }, [chats, commands, query]);
+    const lower = needle.toLowerCase();
+    return [...chats, ...inMessages, ...commands.filter((command) => command.label.toLowerCase().includes(lower))];
+  }, [chats, inMessages, commands, needle]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, CommandItem[]>();
@@ -113,7 +146,7 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
           />
           <div ref={list} id={listId} role="listbox" aria-label={t("Command palette")} className="scroll-thin max-h-[420px] overflow-y-auto px-2 pb-2">
             {grouped.length === 0 ? (
-              <p className="px-2 py-6 text-center ui-body text-text-muted">{t("palette.empty")}</p>
+              <p className="px-2 py-6 text-center ui-body text-text-muted">{t(pending ? "palette.searchingMessages" : "palette.empty")}</p>
             ) : (
               grouped.map(([group, items]) => (
                 <div key={group} role="group" aria-label={group} className="mb-2">
@@ -134,7 +167,12 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
                         }`}
                       >
                         {item.icon ? <span aria-hidden="true" className="flex size-4 shrink-0 items-center justify-center text-text-muted [&_svg]:size-4">{item.icon}</span> : null}
-                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {item.detail ? (
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{item.label}</span>
+                            <span className="block truncate ui-caption text-text-muted">{item.detail}</span>
+                          </span>
+                        ) : <span className="min-w-0 flex-1 truncate">{item.label}</span>}
                         {item.meta ? <span className="max-w-[40%] shrink-0 truncate ui-caption text-text-muted">{item.meta}</span> : null}
                         {item.shortcut ? <ShortcutHint keys={item.shortcut} /> : null}
                       </button>

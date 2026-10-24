@@ -1048,6 +1048,7 @@ fn start(
             agent: task.provider.clone(),
             isolated_worktree: true,
             model: task.model.clone(),
+            share_worktree_of: None,
         };
         let worker = match crate::commands::create_session_locked(state, &mut data, request, &base)
         {

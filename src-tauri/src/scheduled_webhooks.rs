@@ -2,7 +2,8 @@
 //! another service posts to `/hooks/<task id>/<secret>` on the remote-access server
 //! (`remote.rs`). The secret is 32 random bytes, compared in constant time; an unknown task,
 //! a wrong secret and a paused task all answer 404 alike. Each delivery may pass filters
-//! (`headers.<name>` or `body.<json path>`, equal to a value or just present), is rendered
+//! (`headers.<name>` or `body.<json path>`, where a `labels[].name` segment matches any array
+//! element; equal to a value or just present), is rendered
 //! into the task's prompt with every request value framed as untrusted data, and runs once
 //! per identical prompt within the task's dedupe window. At most 30 deliveries a minute are
 //! taken per task. Runs go through the scheduled-task engine, which coalesces deliveries
@@ -39,7 +40,8 @@ const PAYLOAD_CHARS: usize = 20_000;
 const PROMPT_BYTES: usize = 64 * 1024;
 
 /// One condition a delivery must meet: the value at `path` (`headers.<name>` or
-/// `body.<dotted.json.path>`) equals `equals`, or is present when `equals` is absent.
+/// `body.<dotted.json.path>`, where a segment ending in `[]` fans out over an array) equals
+/// `equals`, or is present when `equals` is absent.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Filter {
@@ -144,30 +146,84 @@ impl Delivery {
         }
         let mut current = self.json.as_ref()?;
         for segment in path.strip_prefix("body.")?.split('.') {
-            current = match current {
-                Value::Object(map) => map.get(segment)?,
-                Value::Array(items) => items.get(segment.parse::<usize>().ok()?)?,
-                _ => return None,
-            };
+            current = step(current, segment)?;
         }
-        match current {
-            Value::Null => None,
-            Value::String(text) => Some(text.clone()),
-            Value::Bool(_) | Value::Number(_) => Some(current.to_string()),
-            other => serde_json::to_string_pretty(other).ok(),
+        text_of(current)
+    }
+
+    /// Every text at a filter `path`. A segment ending in `[]` fans out over the array it
+    /// names, so `body.issue.labels[].name` yields each label's name; elements without the
+    /// rest of the path are skipped. Paths without `[]` yield what `resolve` reads.
+    fn resolve_all(&self, path: &str) -> Vec<String> {
+        let path = path.trim();
+        let Some(rest) = path.strip_prefix("body.").filter(|_| path.contains("[]")) else {
+            return self.resolve(path).into_iter().collect();
+        };
+        let Some(json) = self.json.as_ref() else {
+            return Vec::new();
+        };
+        let mut found = Vec::new();
+        collect(json, &rest.split('.').collect::<Vec<_>>(), &mut found);
+        found
+    }
+}
+
+/// One step of a dotted JSON path: an object key or an array index.
+fn step<'a>(value: &'a Value, segment: &str) -> Option<&'a Value> {
+    match value {
+        Value::Object(map) => map.get(segment),
+        Value::Array(items) => items.get(segment.parse::<usize>().ok()?),
+        _ => None,
+    }
+}
+
+/// A JSON value as filters and placeholders read it: objects and lists as pretty JSON,
+/// null as absent.
+fn text_of(value: &Value) -> Option<String> {
+    match value {
+        Value::Null => None,
+        Value::String(text) => Some(text.clone()),
+        Value::Bool(_) | Value::Number(_) => Some(value.to_string()),
+        other => serde_json::to_string_pretty(other).ok(),
+    }
+}
+
+fn collect(value: &Value, segments: &[&str], found: &mut Vec<String>) {
+    let Some((segment, rest)) = segments.split_first() else {
+        found.extend(text_of(value));
+        return;
+    };
+    match segment.strip_suffix("[]") {
+        Some(key) => {
+            let list = if key.is_empty() {
+                Some(value)
+            } else {
+                step(value, key)
+            };
+            if let Some(Value::Array(items)) = list {
+                for item in items {
+                    collect(item, rest, found);
+                }
+            }
+        }
+        None => {
+            if let Some(next) = step(value, segment) {
+                collect(next, rest, found);
+            }
         }
     }
 }
 
-/// Whether every filter matches (an empty list always does).
+/// Whether every filter matches (an empty list always does). A `[]` path matches when any
+/// element equals the value, or when it has any element if no value is given.
 pub fn matches(filters: &[Filter], delivery: &Delivery) -> bool {
-    filters.iter().all(
-        |filter| match (delivery.resolve(&filter.path), filter.equals.as_deref()) {
-            (Some(value), Some(wanted)) => value == wanted,
-            (Some(_), None) => true,
-            (None, _) => false,
-        },
-    )
+    filters.iter().all(|filter| {
+        let values = delivery.resolve_all(&filter.path);
+        match filter.equals.as_deref() {
+            Some(wanted) => values.iter().any(|value| value == wanted),
+            None => !values.is_empty(),
+        }
+    })
 }
 
 fn cut(text: &str, chars: usize) -> String {
@@ -512,6 +568,37 @@ mod tests {
         assert!(validate(&[filter("body.", None)], 60).is_err());
         assert!(validate(&[], MAX_DEDUPE_MINUTES + 1).is_err());
         assert!(validate(&vec![filter("body.a", None); MAX_FILTERS + 1], 60).is_err());
+    }
+
+    #[test]
+    fn a_wildcard_segment_matches_any_array_element() {
+        let delivery = Delivery::new(
+            [],
+            json!({"issue": {"labels": [{"name": "bug"}, {"id": 2}, {"name": "needs info"}]},
+                   "tags": ["a", "b"], "empty": []})
+            .to_string()
+            .as_bytes(),
+        );
+        let filter = |path: &str, equals: Option<&str>| Filter {
+            path: path.into(),
+            equals: equals.map(str::to_owned),
+        };
+        assert!(matches(
+            &[filter("body.issue.labels[].name", Some("needs info"))],
+            &delivery
+        ));
+        assert!(matches(&[filter("body.tags[]", Some("b"))], &delivery));
+        assert!(matches(
+            &[filter("body.issue.labels[].id", None)],
+            &delivery
+        ));
+        assert!(!matches(
+            &[filter("body.issue.labels[].name", Some("feature"))],
+            &delivery
+        ));
+        assert!(!matches(&[filter("body.empty[]", None)], &delivery));
+        assert!(!matches(&[filter("body.issue[].name", None)], &delivery));
+        assert!(matches(&[filter("body.tags.1", Some("b"))], &delivery));
     }
 
     #[test]

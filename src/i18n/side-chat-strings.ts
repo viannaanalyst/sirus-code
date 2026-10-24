@@ -39,9 +39,11 @@ const strings: Record<string, [string, string]> = {
   "sideChat.takeToMain": ["Take to main chat", "Levar para o principal"],
   "sideChat.working": ["Working…", "Trabalhando…"],
   "sideChat.messages": ["{count} messages", "{count} mensagens"],
-  "palette.placeholder": ["Search chats or run a command", "Buscar conversas ou executar um comando"],
+  "palette.placeholder": ["Search chats, messages or commands", "Buscar conversas, mensagens ou comandos"],
   "palette.recentChats": ["Recent chats", "Conversas recentes"],
   "palette.quickActions": ["Quick actions", "Ações rápidas"],
+  "palette.inMessages": ["In messages", "Nas mensagens"],
+  "palette.searchingMessages": ["Searching messages…", "Buscando nas mensagens…"],
   "palette.empty": ["Nothing found", "Nada encontrado"],
   "palette.searchChats": ["Search chats and commands", "Buscar conversas e comandos"],
 };

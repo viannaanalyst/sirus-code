@@ -22,6 +22,8 @@ export function LandingControls() {
   const selectProject = useAppStore((state) => state.selectProject);
   const draftIsolated = useAppStore((state) => state.draftIsolated);
   const setDraftIsolated = useAppStore((state) => state.setDraftIsolated);
+  const draftWorktreeOf = useAppStore((state) => state.draftWorktreeOf);
+  const sharedWith = useAppStore((state) => state.draftWorktreeOf ? state.sessions.find((session) => session.id === state.draftWorktreeOf) : undefined);
   const draftTemporary = useAppStore((state) => state.draftTemporary);
   const setDraftTemporary = useAppStore((state) => state.setDraftTemporary);
   const gitByPath = useAppStore((state) => state.gitByPath);
@@ -41,6 +43,8 @@ export function LandingControls() {
   const identity = gitByPath[project.path];
   const isRepo = identity?.isRepo ?? false;
   const branch = identity?.branch ?? null;
+  // "New session in this worktree": a worktree of this project an earlier session made.
+  const shared = draftWorktreeOf && sharedWith?.projectId === project.id ? sharedWith : undefined;
 
   const loadBranches = () => {
     setBranches(null);
@@ -143,8 +147,8 @@ export function LandingControls() {
       <Popover open={workspaceOpen} onOpenChange={setWorkspaceOpen}>
         <PopoverTrigger asChild>
           <button type="button" className={chip} aria-label={t("Work in")}>
-            <FolderOpen size={13} aria-hidden="true" />
-            <span>{t(draftIsolated ? "New worktree" : "Local")}</span>
+            {shared ? <GitBranch size={13} aria-hidden="true" /> : <FolderOpen size={13} aria-hidden="true" />}
+            <span className={shared ? "max-w-[180px] truncate" : undefined}>{shared ? t("worktree.thisOne", { branch: shared.worktree.branch }) : t(draftIsolated ? "New worktree" : "Local")}</span>
             <ChevronDown size={11} className="text-text-muted" aria-hidden="true" />
           </button>
         </PopoverTrigger>
@@ -160,7 +164,7 @@ export function LandingControls() {
           >
             <FolderOpen size={14} aria-hidden="true" />
             <span className="flex-1">{t("Local project")}</span>
-            {!draftIsolated ? <Check size={13} aria-hidden="true" /> : null}
+            {!draftIsolated && !shared ? <Check size={13} aria-hidden="true" /> : null}
           </button>
           <button
             type="button"
@@ -174,13 +178,21 @@ export function LandingControls() {
           >
             <GitBranchPlus size={14} aria-hidden="true" />
             <span className="flex-1">{t("New worktree")}</span>
-            {draftIsolated ? <Check size={13} aria-hidden="true" /> : null}
+            {draftIsolated && !shared ? <Check size={13} aria-hidden="true" /> : null}
           </button>
+          {shared ? (
+            <button type="button" className={menuRow} title={t("worktree.sharedHint", { title: shared.title })} onClick={() => setWorkspaceOpen(false)}>
+              <GitBranch size={14} aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate">{t("worktree.thisOne", { branch: shared.worktree.branch })}</span>
+              <Check size={13} aria-hidden="true" />
+            </button>
+          ) : null}
           {!isRepo ? <p className="px-2 py-1 ui-caption text-text-muted">{t("Isolated worktrees require a Git repository.")}</p> : null}
         </PopoverContent>
       </Popover>
 
-      {isRepo ? (
+      {/* The branch picker switches the project checkout, which a shared worktree does not use. */}
+      {isRepo && !shared ? (
         <Popover
           open={branchOpen}
           onOpenChange={(open) => {

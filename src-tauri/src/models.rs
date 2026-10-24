@@ -2032,6 +2032,9 @@ pub struct CreateSessionRequest {
     pub isolated_worktree: bool,
     #[serde(default)]
     pub model: Option<String>,
+    /// Work in this session's folder (same project) instead of the checkout or a new worktree.
+    #[serde(default)]
+    pub share_worktree_of: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

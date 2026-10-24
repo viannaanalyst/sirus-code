@@ -62,3 +62,20 @@ export function finishedUnseen(previous: ReadonlyMap<string, Session["status"]>,
     .filter(session => ["starting", "running", "waiting"].includes(previous.get(session.id) ?? "") && ["completed", "idle"].includes(session.status))
     .map(session => session.id);
 }
+
+/** Window event whose `detail` is the session whose header tab ⌘W closes. */
+export const CLOSE_HEADER_TAB = "sirus:close-header-tab";
+
+export type CloseTarget = { kind: "dock"; paneId: string } | { kind: "session"; projectId: string; sessionId: string } | { kind: "draft"; projectId: string };
+
+/**
+ * What ⌘W closes, like a browser tab: the active right-panel pane when focus is inside the
+ * panel, else the open conversation's header tab, else the blank tab when another tab can take
+ * its place. `null` leaves the key to the window's own Close.
+ */
+export function closeTarget(state: { dockActivePaneId: string | null; inDock: boolean; showTabs: boolean; onSession: boolean; projectId: string | null; sessionId: string | null; tabs: readonly string[]; draft: boolean }): CloseTarget | null {
+  if (state.inDock && state.dockActivePaneId) return { kind: "dock", paneId: state.dockActivePaneId };
+  if (!state.showTabs || !state.onSession || !state.projectId) return null;
+  if (state.sessionId) return state.tabs.includes(state.sessionId) ? { kind: "session", projectId: state.projectId, sessionId: state.sessionId } : null;
+  return state.draft && state.tabs.length > 0 ? { kind: "draft", projectId: state.projectId } : null;
+}

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Checkbox } from "@/components/arc/checkbox/checkbox";
 import { Input } from "@/components/arc/input/input";
-import { MoreHorizontal, Columns3, Rows, Pencil, Trash2 } from "@/components/icons/phosphor";
+import { MoreHorizontal, Columns3, GitBranch, Rows, Pencil, Trash2 } from "@/components/icons/phosphor";
 import { useState } from "react";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -44,6 +44,7 @@ export function SessionActions({ session, children }: { session: Session; childr
     {children ? <ContextMenu onOpenChange={setMenuOpen} activation="context-only" label={t("session.actions")} items={[
       { id: "split-right", label: t("split.openRight"), icon: <Columns3 size={15} />, disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "right") },
       { id: "split-down", label: t("split.openDown"), icon: <Rows size={15} />, disabled: !canSplit, onSelect: () => useAppStore.getState().openInSplit(session.id, "bottom") },
+      ...(session.worktree.isolated ? [{ id: "new-here", label: t("worktree.newSessionHere"), icon: <GitBranch size={15} />, onSelect: () => void useAppStore.getState().requestNewSessionIn(session.id) }] : []),
       { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "edit", onSelect: () => { setTitle(session.title); setAction("rename"); } },
       ...moveItems(session),
       { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, disabled: active, destructive: true, onSelect: () => { setRemoveWorktree(false); setAction("delete"); } },

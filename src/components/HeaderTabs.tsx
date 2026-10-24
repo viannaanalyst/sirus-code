@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, GitBranch, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
 import type { Project, ProjectFolder, Session } from "@/client/types";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ComputerBadge, SwitcherElsewhereProjects, SwitcherRemoteSessions, memberKey, useMergedComputers } from "@/components/ComputerSwitcher";
@@ -19,7 +19,7 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { deleteFolder, folderOf, moveProjectToFolder, switcherEntries, updateFolder, visibleProjects } from "@/lib/project-folders";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useTranslation } from "@/i18n/use-translation";
-import { projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
+import { CLOSE_HEADER_TAB, projectStatus, tabStatus, visibleTabSessions, VISIBLE_TABS, type TabStatus } from "@/lib/header-tabs";
 import { isColumnSidebar } from "@/lib/conversation-list";
 import { Dropdown, DropdownContent, DropdownItem, DropdownTrigger } from "@/primitives/Dropdown";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
@@ -450,19 +450,29 @@ export function HeaderTabs() {
     return () => observer.disconnect();
   }, [active, shownKey, leaving]);
 
-  if (!project) return null;
-  const store = () => useAppStore.getState();
-  const close = (id: string) => {
+  const projectId = project?.id;
+  const closeIn = useCallback((projectId: string, id: string) => {
     setLeaving(id);
     // The pill collapses before the tab list changes.
     setTimeout(() => {
       setLeaving(null);
-      store().closeHeaderTab(project.id, id);
+      useAppStore.getState().closeHeaderTab(projectId, id);
       setToast(id);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 4000);
     }, 160);
-  };
+  }, []);
+  // ⌘W (App) closes the open conversation's tab the same way as its close button.
+  useEffect(() => {
+    if (!projectId || !showTabs) return;
+    const onClose = (event: Event) => { const id = (event as CustomEvent<string>).detail; if (typeof id === "string") closeIn(projectId, id); };
+    window.addEventListener(CLOSE_HEADER_TAB, onClose);
+    return () => window.removeEventListener(CLOSE_HEADER_TAB, onClose);
+  }, [projectId, showTabs, closeIn]);
+
+  if (!project) return null;
+  const store = () => useAppStore.getState();
+  const close = (id: string) => closeIn(project.id, id);
   const toastTitle = toast ? sessions.find(session => session.id === toast)?.title ?? "" : "";
   const label = (session: Session) => t(`tabs.status.${tabStatus(session, unseen, computer)}`);
 
@@ -487,6 +497,7 @@ export function HeaderTabs() {
         { id: "others", label: t("tabs.closeOthers"), icon: <XCircle size={15} />, disabled: tabs.length < 2, onSelect: () => store().closeOtherHeaderTabs(project.id, menuTab) },
         { id: "right", label: t("tabs.closeRight"), icon: <ArrowRight size={15} />, disabled: tabs.at(-1)?.id === menuTab, onSelect: () => store().closeHeaderTabsToRight(project.id, menuTab) },
         { id: "reopen", label: t("tabs.reopen"), icon: <RotateCcw size={15} />, group: "reopen", disabled: !useAppStore.getState().closedItems.some(item => item.kind === "session"), onSelect: () => store().reopenHeaderTab() },
+        ...(tabs.find(tab => tab.id === menuTab)?.worktree.isolated ? [{ id: "new-here", label: t("worktree.newSessionHere"), icon: <GitBranch size={15} />, group: "reopen", onSelect: () => void store().requestNewSessionIn(menuTab) }] : []),
         { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "session", onSelect: () => setTabAction({ id: menuTab, kind: "rename" }) },
         ...(() => {
           const session = tabs.find(tab => tab.id === menuTab);

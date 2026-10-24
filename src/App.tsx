@@ -14,7 +14,7 @@ import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Archive, ChartBar, Folder, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
+import { Archive, ChartBar, Folder, GitBranch, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -35,7 +35,7 @@ import { SplitWorkspace } from "@/components/SplitWorkspace";
 import { AgentIcon } from "@/components/AgentIcon";
 import { WindowNavigationControls } from "@/components/WindowNavigationControls";
 import { HeaderTabs } from "@/components/HeaderTabs";
-import { visibleTabSessions } from "@/lib/header-tabs";
+import { CLOSE_HEADER_TAB, closeTarget, visibleTabSessions } from "@/lib/header-tabs";
 import { Sidebar } from "@/components/Sidebar";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
 import { applyAppearance } from "@/lib/settings";
@@ -69,6 +69,20 @@ const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullReque
 function headerTabsVisible() {
   const state = useAppStore.getState();
   return !state.settingsOpen && !state.paletteOpen && !state.newSessionOpen && state.mainView === "session" && !!state.selectedProjectId;
+}
+
+/** What ⌘W would close now (`closeTarget`), or `null` to leave it to the window. */
+function currentCloseTarget() {
+  const state = useAppStore.getState();
+  if (state.settingsOpen || state.paletteOpen || state.newSessionOpen) return null;
+  const projectId = state.selectedProjectId;
+  const tabs = projectId ? visibleTabSessions(state.openTabsByProject[projectId] ?? [], selectListedSessions(state), projectId, state.settings.archivedSessionIds).map((session) => session.id) : [];
+  return closeTarget({
+    dockActivePaneId: state.dockOpen ? state.dockActivePaneId : null,
+    inDock: !!document.activeElement?.closest("[data-right-dock]"),
+    showTabs: state.settings.showSessionTabs, onSession: state.mainView === "session",
+    projectId, sessionId: state.selectedSessionId, tabs, draft: projectId ? !!state.draftTabByProject[projectId] : false,
+  });
 }
 
 function selectHeaderTab(pick: (tabs: string[], current: number) => string | undefined) {
@@ -129,6 +143,7 @@ export default function App() {
   const sessionAgent = useAppStore((state) => selectCurrentSession(state)?.agent);
   const sessionTitle = useAppStore((state) => selectCurrentSession(state)?.title);
   const conversationStarted = useAppStore((state) => isConversationStarted(selectCurrentSession(state)));
+  const sharedWorktreeOf = useAppStore((state) => { const session = selectCurrentSession(state); return session?.worktree.isolated ? session.id : null; });
 
   const commands: CommandItem[] = useMemo(
     () => {
@@ -136,6 +151,7 @@ export default function App() {
       const actions = t("palette.quickActions");
       return [
         { id: "new-session", label: t("New thread"), group: actions, icon: <SquarePen />, shortcut: shortcut("new-session"), run: () => requestNewSession() },
+        ...(sharedWorktreeOf ? [{ id: "new-session-here", label: t("worktree.newSessionHere"), group: actions, icon: <GitBranch />, run: () => void useAppStore.getState().requestNewSessionIn(sharedWorktreeOf) }] : []),
         { id: "open-project", label: t("Open Project"), group: actions, icon: <FolderPlus />, shortcut: shortcut("open-project"), run: () => void addProjectFromPicker() },
         { id: "create-project", label: t("newProject.title"), group: actions, icon: <FolderPlus />, run: () => useAppStore.getState().setCreateProjectOpen(true) },
         { id: "copy-prompt-link", label: t("promptLink.copy"), group: actions, icon: <Link />, run: () => void copyPromptLink() },
@@ -152,7 +168,7 @@ export default function App() {
         { id: "settings", label: t("Open Settings"), group: t("Settings"), icon: <Settings />, shortcut: shortcut("settings"), run: () => setSettingsOpen(true) },
       ];
     },
-    [addProjectFromPicker, requestNewSession, setSettingsOpen, setMainView, toggleDock, toggleSidebar, t, projects, settings.customShortcuts],
+    [addProjectFromPicker, requestNewSession, setSettingsOpen, setMainView, toggleDock, toggleSidebar, t, projects, settings.customShortcuts, sharedWorktreeOf],
   );
 
   const ready = useAppStore((state) => state.ready);
@@ -207,6 +223,14 @@ export default function App() {
         if (store.transcriptSearch?.scope === scope) store.closeTranscriptSearch();
         else store.openTranscriptSearch(scope);
       } })),
+      // ⌘W closes a tab, like a browser (fixed); with nothing to close, the window's Close runs.
+      { id: "close-tab", combo: "Meta+w", when: () => currentCloseTarget() !== null, run: () => {
+        const target = currentCloseTarget(), store = useAppStore.getState();
+        if (target?.kind === "dock") store.closeDockPane(target.paneId);
+        // The tab strip closes it with its animation and its "Closed · Undo" notice.
+        if (target?.kind === "session") window.dispatchEvent(new CustomEvent(CLOSE_HEADER_TAB, { detail: target.sessionId }));
+        if (target?.kind === "draft") store.closeDraftTab(target.projectId);
+      } },
       { id: "reopen-closed", combo: "Meta+shift+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => useAppStore.getState().reopenClosed() },
       { id: "stop-agent", combo: "Meta+.", run: () => void stopAgent() },
       { id: "toggle-sidebar", combo: "Meta+b", run: () => toggleSidebar() },

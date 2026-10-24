@@ -10,6 +10,8 @@ export interface CommandItem {
   icon?: import("react").ReactNode;
   /** Muted trailing text, e.g. a chat's project. */
   meta?: string;
+  /** A second line under the label, e.g. the matching text of a message. */
+  detail?: import("react").ReactNode;
   run: () => void;
 }
 

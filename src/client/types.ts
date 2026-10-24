@@ -858,6 +858,8 @@ export interface CreateSessionRequest {
   agent: AgentProviderId;
   isolatedWorktree: boolean;
   model?: string | null;
+  /** Work in this session's folder (same project) instead of the checkout or a new worktree. */
+  shareWorktreeOf?: string | null;
 }
 
 export type ApprovalMode = "ask" | "auto" | "full";
@@ -1218,7 +1220,7 @@ export type ScheduledTaskSchedule =
   | { kind: "interval"; minutes: number }            // 15 … 10080
   /** Runs on each accepted POST to its URL (ADR-161); never on the clock. */
   | { kind: "webhook"; filters: ScheduledTaskWebhookFilter[]; dedupeMinutes: number };
-/** `path`: `headers.<name>` or `body.<json path>`; equal to `equals`, or present when it is absent. At most 8. */
+/** `path`: `headers.<name>` or `body.<json path>` (`labels[].name` matches any element); equal to `equals`, or present when it is absent. At most 8. */
 export interface ScheduledTaskWebhookFilter { path: string; equals?: string }
 /** A webhook URL's only showing: after a webhook task is made or its URL rotated. */
 export interface ScheduledTaskWebhookReveal {

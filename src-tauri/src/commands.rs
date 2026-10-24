@@ -1168,7 +1168,10 @@ fn create_session_native(state: &AppState, request: CreateSessionRequest) -> Res
 pub(crate) fn new_worktree_start(state: &AppState, request: &CreateSessionRequest) -> String {
     let root = {
         let data = state.data.lock();
-        if !request.isolated_worktree || !data.settings.worktrees_from_origin {
+        if !request.isolated_worktree
+            || request.share_worktree_of.is_some()
+            || !data.settings.worktrees_from_origin
+        {
             return "HEAD".into();
         }
         data.projects
@@ -1214,6 +1217,24 @@ fn isolated_worktree(
     )
 }
 
+/// The folder of `source`, a session of the same project, for a new session that works beside
+/// it. Cleanup keeps a worktree while another session still uses it (ADR-163).
+fn shared_worktree(data: &AppData, project_id: &str, source: &str) -> Result<Worktree> {
+    let tree = data
+        .sessions
+        .iter()
+        .find(|session| session.id == source && session.project_id == project_id)
+        .map(|session| session.worktree.clone())
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    if !PathBuf::from(&tree.path).is_dir() {
+        return Err(Error::new(
+            "invalid",
+            "That session's worktree no longer exists.",
+        ));
+    }
+    Ok(tree)
+}
+
 pub(crate) fn create_session_locked(
     state: &AppState,
     data: &mut AppData,
@@ -1254,7 +1275,13 @@ pub(crate) fn create_session_locked(
     }
     paths::ensure_dir(&PathBuf::from(&project.path))?;
 
-    let worktree = if request.isolated_worktree {
+    let shared = match &request.share_worktree_of {
+        Some(source) => Some(shared_worktree(data, &project.id, source)?),
+        None => None,
+    };
+    let worktree = if let Some(tree) = shared {
+        tree
+    } else if request.isolated_worktree {
         isolated_worktree(state, data, &project, &id, &title, start)?
     } else {
         let identity = git::identity(&PathBuf::from(&project.path))?;
@@ -1669,6 +1696,19 @@ pub(crate) fn delete_session_native(
         ));
     }
     let side_chats = crate::side_chat::children(&data.sessions, &session_id);
+    // Another session started in this worktree (delegation, ADR-163) still works there.
+    if remove_worktree
+        && session.worktree.isolated
+        && data.sessions.iter().any(|item| {
+            item.id != session_id
+                && !side_chats.contains(&item.id)
+                && item.worktree.path == session.worktree.path
+        })
+    {
+        return Err(Error::agent(
+            "Another session still works in this worktree; delete without removing it.",
+        ));
+    }
     {
         let agents = state.agents.lock();
         if data.sessions.iter().any(|item| {
@@ -2999,6 +3039,34 @@ pub async fn list_provider_models(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_session_shares_only_an_existing_worktree_of_its_own_project() {
+        let folder = std::env::temp_dir();
+        let path = folder.to_string_lossy().into_owned();
+        let data: AppData = serde_json::from_value(serde_json::json!({
+            "projects": [], "settings": {},
+            "sessions": [
+                {"id":"here","title":"A","projectId":"p","agent":"codex","status":"idle","createdAt":"t","lastActivityAt":"t","worktree":{"path":path,"branch":"feature","isolated":true},"lastError":null},
+                {"id":"gone","title":"B","projectId":"p","agent":"codex","status":"idle","createdAt":"t","lastActivityAt":"t","worktree":{"path":"/no/such/sirus/worktree","branch":"old","isolated":true},"lastError":null}
+            ]
+        }))
+        .unwrap();
+        let tree = shared_worktree(&data, "p", "here").unwrap();
+        assert_eq!(
+            (tree.path.as_str(), tree.branch.as_str(), tree.isolated),
+            (path.as_str(), "feature", true)
+        );
+        assert!(
+            shared_worktree(&data, "other", "here").is_err(),
+            "another project's session"
+        );
+        assert!(shared_worktree(&data, "p", "missing").is_err());
+        assert!(
+            shared_worktree(&data, "p", "gone").is_err(),
+            "a removed folder"
+        );
+    }
 
     #[test]
     fn a_failed_catalog_read_keeps_the_one_the_cli_reported() {

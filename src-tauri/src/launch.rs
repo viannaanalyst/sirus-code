@@ -72,6 +72,7 @@ pub async fn launch(
             agent: request.agent.clone(),
             isolated_worktree: request.isolated_worktree,
             model: request.model.clone(),
+            share_worktree_of: None,
         };
         native_task(move || {
             let start = if share_worktree.is_some() {
@@ -300,6 +301,18 @@ fn record_launch(app: &AppHandle, state: &AppState, caller_id: &str, launched: &
     crate::transcript_view::emit_from(app, &snapshot.0, snapshot.1);
 }
 
+/// A message one session sends another, headed with where it came from so the target does
+/// not take another agent's request for the person's (Synara's provenance labels).
+fn relayed(caller: &crate::models::Session, prompt: &str, portuguese: bool) -> String {
+    let title = short(&caller.title);
+    let agent = caller.agent.key();
+    if portuguese {
+        format!("↪ Mensagem da sessão “{title}” ({agent}), não da pessoa:\n\n{prompt}")
+    } else {
+        format!("↪ Message from the session “{title}” ({agent}), not from the person:\n\n{prompt}")
+    }
+}
+
 /// Sends a follow-up to an idle session with the caller's approval.
 pub(crate) fn send_from(
     app: &AppHandle,
@@ -310,6 +323,9 @@ pub(crate) fn send_from(
     if prompt.trim().is_empty() {
         return Err("prompt is required".into());
     }
+    let state = app.state::<Arc<AppState>>();
+    let portuguese = state.data.lock().settings.locale == "pt-BR";
+    let prompt = relayed(caller, &prompt, portuguese);
     let request = crate::models::SendPromptRequest {
         queued_after: None,
         debugging: false,
@@ -325,7 +341,6 @@ pub(crate) fn send_from(
         team: false,
         client_request_id: None,
     };
-    let state = app.state::<Arc<AppState>>();
     crate::runtime::async_runtime::block_on(crate::commands::send_prompt(
         app.clone(),
         state.clone(),
@@ -357,4 +372,24 @@ pub(crate) fn bounded(text: &str, limit: usize) -> String {
     }
     let kept: String = text.chars().take(limit).collect();
     format!("{kept}…")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_relayed_message_names_the_session_it_came_from() {
+        let caller: crate::models::Session = serde_json::from_value(json!({
+            "id":"a","title":"Fix login","projectId":"p","agent":"codex","status":"idle","createdAt":"t","lastActivityAt":"t",
+            "worktree":{"path":"/f","branch":"main","isolated":false},"lastError":null
+        }))
+        .unwrap();
+        assert_eq!(
+            relayed(&caller, "Run the tests.", false),
+            "↪ Message from the session “Fix login” (codex), not from the person:\n\nRun the tests."
+        );
+        assert!(relayed(&caller, "Rode os testes.", true)
+            .starts_with("↪ Mensagem da sessão “Fix login” (codex)"));
+    }
 }

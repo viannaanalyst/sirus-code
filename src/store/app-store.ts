@@ -19,7 +19,7 @@ import { moveItem } from "@/lib/queue-order";
 import { initialSplit, leafShowing, splitDrop, splitLeaves, splitRemove, splitResize, splitSync, type SplitEdge, type SplitLayout, type SplitTarget } from "@/lib/split-layout";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
-import { applyAgentOutput } from "@/lib/agent-events";
+import { applyAgentOutputs } from "@/lib/agent-events";
 import { mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "@/lib/transcripts";
 import { appendAttachments } from "@/lib/composer-attachments";
 import { canPreviewAttachment, documentError } from "@/lib/document-reader";
@@ -175,6 +175,8 @@ interface AppStore {
   sidebarWidth: number;
   sidebarCollapsed: boolean;
   draftIsolated: boolean;
+  /** The new conversation works in this session's worktree ("New session in this worktree"). */
+  draftWorktreeOf: string | null;
   /** The landing's Temporary toggle: the session its first send creates is deleted once left. */
   draftTemporary: boolean;
   setDraftTemporary: (temporary: boolean) => void;
@@ -442,6 +444,8 @@ interface AppStore {
   setSettingsOpen: (open: boolean) => void;
   setSettingsSection: (section: SettingsSection) => void;
   requestNewSession: () => void;
+  /** The new-conversation landing, working in `sessionId`'s worktree. */
+  requestNewSessionIn: (sessionId: string) => Promise<void>;
   /** Outcome of the latest global window snap, shown as a toast (ADR-054). */
   windowSnapNotice: { id: number; kind: "added" | "permission" | "own" | "failed" | "noComposer"; app?: string } | null;
   /** What a prompt link did, or why it did not (ADR-122); shown by `PromptLinkToast`. */
@@ -787,6 +791,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   sidebarWidth: SIDEBAR_MIN_WIDTH,
   sidebarCollapsed: false,
   draftIsolated: false,
+  draftWorktreeOf: null,
   draftTemporary: false,
   setDraftTemporary: (draftTemporary) => set({ draftTemporary }),
   temporarySessionIds: [],
@@ -1787,10 +1792,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       if (!sessionId) {
         const projectId = get().selectedProjectId;
         if (!projectId) return false;
-        const { settings, draftIsolated, draftTemporary } = get();
+        const { settings, draftIsolated, draftTemporary, draftWorktreeOf, sessions } = get();
         const parsed = parseModelKey(settings.defaultModel);
+        // Only a worktree of this project: the landing may have moved to another one since.
+        const shareWorktreeOf = sessions.find((session) => session.id === draftWorktreeOf)?.projectId === projectId ? draftWorktreeOf : null;
         const session = await client.createSession({ projectId, agent: settings.defaultAgent,
-          isolatedWorktree: draftIsolated,
+          isolatedWorktree: draftIsolated && !shareWorktreeOf, shareWorktreeOf,
           model: parsed?.provider === settings.defaultAgent ? parsed.id : null });
         sessionId = session.id;
         const before = get().composerDrafts;
@@ -2124,7 +2131,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ sidebarCollapsed });
     void get().saveSettings({ ...get().settings, sidebarCollapsed });
   },
-  setDraftIsolated: (isolated) => set({ draftIsolated: isolated }),
+  setDraftIsolated: (isolated) => set({ draftIsolated: isolated, draftWorktreeOf: null }),
   setDockWidth: (width) => set((state) => ({ dockWidth: clampDockWidth(width, state) })),
   toggleDock: () => set((state) => ({
     dockOpen: !state.dockOpen,
@@ -2422,8 +2429,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
       selectedSessionId: null,
       mainView: "session",
       draftIsolated: settings.defaultSessionWorkspace === "worktree",
+      draftWorktreeOf: null,
       draftTemporary: false,
     });
+  },
+  requestNewSessionIn: async (sessionId) => {
+    const source = get().sessions.find((session) => session.id === sessionId);
+    if (!source) return;
+    if (get().selectedProjectId !== source.projectId) await get().selectProject(source.projectId);
+    get().requestNewSession();
+    // An isolated worktree is shared; the project checkout is just "Local".
+    set(source.worktree.isolated ? { draftIsolated: false, draftWorktreeOf: source.id } : { draftIsolated: false });
   },
   setNewSessionOpen: (open) => set({ newSessionOpen: open }),
   saveSettings: async (settings) => {
@@ -2810,20 +2826,18 @@ const outputBatch = (() => {
     const events = pending;
     pending = [];
     const bySession = new Map<string, AgentEvent[]>();
-    for (const event of events) bySession.set(event.sessionId, [...(bySession.get(event.sessionId) ?? []), event]);
+    for (const event of events) {
+      const queued = bySession.get(event.sessionId);
+      if (queued) queued.push(event); else bySession.set(event.sessionId, [event]);
+    }
     const gaps = new Set<string>();
     useAppStore.setState((state) => ({
       sessions: state.sessions.map((session) => {
         const queued = bySession.get(session.id);
         // An unloaded transcript is fetched whole when opened; partial text is never kept.
         if (!queued || state.loadedTranscripts[session.id] === undefined) return session;
-        let messages = session.messages;
-        for (const event of queued) {
-          // A transcript loaded mid-stream can miss text emitted before it arrived.
-          const target = messages.find((message) => message.id === event.messageId);
-          if (!event.message && (!target || target.content.length < event.offset)) gaps.add(session.id);
-          messages = applyAgentOutput(messages, event);
-        }
+        // A transcript loaded mid-stream can miss text emitted before it arrived.
+        const messages = applyAgentOutputs(session.messages, queued, () => gaps.add(session.id));
         return messages === session.messages ? session : { ...session, messages };
       }),
     }));
