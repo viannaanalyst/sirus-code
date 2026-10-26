@@ -32,6 +32,10 @@ pub struct ReviewFile {
     pub deletions: u32,
     pub binary: bool,
     pub diff: Option<String>,
+    /// Only on what transcripts and session events carry (ADR-164): `diff` was left out and is
+    /// fetched with `transcript_action { turnReview }`. Never stored.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub diff_omitted: bool,
     /// Set once the person undid this file's turn changes (`turn_undo.rs`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub undone_at: Option<String>,
@@ -50,6 +54,43 @@ pub struct TurnReview {
     #[serde(default)]
     pub expired: bool,
 }
+/// Transcripts and session events leave diff texts out (ADR-164): they are most of a
+/// settled turn's bytes and only the review pane reads them. Each file keeps its path, kind
+/// and counts; the pane fetches the texts with `transcript_action { turnReview }`.
+pub fn omit_diffs(message: &mut crate::models::Message) {
+    let Some(review) = message
+        .activity
+        .as_mut()
+        .and_then(|activity| activity.review.as_mut())
+    else {
+        return;
+    };
+    for file in &mut review.files {
+        if file.diff.take().is_some() {
+            file.diff_omitted = true;
+        }
+    }
+}
+
+/// [`omit_diffs`] on a message as JSON (session events are built as values).
+pub fn omit_diffs_value(message: &mut serde_json::Value) {
+    let Some(files) = message
+        .pointer_mut("/activity/review/files")
+        .and_then(serde_json::Value::as_array_mut)
+    else {
+        return;
+    };
+    for file in files
+        .iter_mut()
+        .filter_map(serde_json::Value::as_object_mut)
+    {
+        if file.get("diff").is_some_and(|diff| !diff.is_null()) {
+            file.insert("diff".into(), serde_json::Value::Null);
+            file.insert("diffOmitted".into(), serde_json::Value::Bool(true));
+        }
+    }
+}
+
 /// Paths a commit included, relative to the repository root.
 pub fn committed_paths(cwd: &Path, hash: &str) -> std::collections::HashSet<String> {
     crate::git::run_ok(
@@ -485,6 +526,7 @@ fn compare(before: Snapshot, after: Snapshot, shared: bool) -> TurnReview {
             ),
         };
         let mut file = ReviewFile {
+            diff_omitted: false,
             path: name.clone(),
             kind,
             additions: 0,
@@ -753,6 +795,7 @@ mod tests {
     fn fixture_review() -> TurnReview {
         TurnReview {
             files: vec![ReviewFile {
+                diff_omitted: false,
                 path: "a.txt".into(),
                 kind: ChangeKind::Modified,
                 additions: 1,

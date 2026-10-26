@@ -1616,6 +1616,9 @@ fn device_allows(remote: &Remote, device_id: &str, origin: Option<&str>) -> bool
 enum Incoming {
     Hello {
         token: String,
+        /// The client inflates gzipped binary frames (ADR-164); older clients omit it.
+        #[serde(default)]
+        gzip: bool,
     },
     Invoke {
         id: u64,
@@ -1632,19 +1635,19 @@ enum Incoming {
 }
 
 async fn connection(mut socket: WebSocket, shared: Shared, origin: Option<String>) {
-    let device = match tokio::time::timeout(HELLO_TIMEOUT, socket.recv()).await {
+    let (device, gzip) = match tokio::time::timeout(HELLO_TIMEOUT, socket.recv()).await {
         Ok(Some(Ok(Message::Text(text)))) => match serde_json::from_str::<Incoming>(&text) {
-            Ok(Incoming::Hello { token }) => {
+            Ok(Incoming::Hello { token, gzip }) => {
                 let device = authenticate(&shared.remote, &token)
                     .filter(|id| device_allows(&shared.remote, id, origin.as_deref()));
                 if device.is_some() {
                     let _ = shared.app.emit(CHANGED, ());
                 }
-                device
+                (device, gzip)
             }
-            _ => None,
+            _ => (None, false),
         },
-        _ => None,
+        _ => (None, false),
     };
     let Some(device) = device else {
         let _ = socket
@@ -1700,7 +1703,7 @@ async fn connection(mut socket: WebSocket, shared: Shared, origin: Option<String
                 }
             }
             Some(reply) = queue.recv() => {
-                if socket.send(Message::Text(reply.into())).await.is_err() {
+                if socket.send(frame(reply, gzip)).await.is_err() {
                     break;
                 }
             }
@@ -1721,6 +1724,30 @@ async fn connection(mut socket: WebSocket, shared: Shared, origin: Option<String
         shared.app.unlisten(id);
     }
     let _ = socket.send(Message::Close(None)).await;
+}
+
+/// Frames at least this long go gzipped to a client that asked (ADR-164): transcripts, state
+/// and session snapshots, never the small streaming events.
+const GZIP_FROM: usize = 32 * 1024;
+
+/// One outgoing message: text, or a gzipped binary frame when the client inflates them and
+/// the message is large. The fast level keeps a 4 MB transcript to a few milliseconds.
+fn frame(text: String, gzip: bool) -> Message {
+    use std::io::Write;
+    if !gzip || text.len() < GZIP_FROM {
+        return Message::Text(text.into());
+    }
+    let mut encoder = flate2::write::GzEncoder::new(
+        Vec::with_capacity(text.len() / 4),
+        flate2::Compression::fast(),
+    );
+    match encoder
+        .write_all(text.as_bytes())
+        .and_then(|()| encoder.finish())
+    {
+        Ok(bytes) => Message::Binary(bytes.into()),
+        Err(_) => Message::Text(text.into()),
+    }
 }
 
 fn valid_event(event: &str) -> bool {
@@ -1974,6 +2001,29 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn large_frames_go_gzipped_only_to_clients_that_inflate_them() {
+        use std::io::Read;
+        let small = r#"{"type":"event"}"#.to_string();
+        let large = format!(
+            r#"{{"type":"result","value":"{}"}}"#,
+            "line of output\n".repeat(4000)
+        );
+        assert!(
+            matches!(frame(small.clone(), true), Message::Text(text) if text.as_str() == small)
+        );
+        assert!(matches!(frame(large.clone(), false), Message::Text(_)));
+        let Message::Binary(bytes) = frame(large.clone(), true) else {
+            panic!("a large frame is binary");
+        };
+        assert!(bytes.len() < large.len() / 10);
+        let mut inflated = String::new();
+        flate2::read::GzDecoder::new(&bytes[..])
+            .read_to_string(&mut inflated)
+            .unwrap();
+        assert_eq!(inflated, large);
+    }
 
     #[test]
     fn device_names_are_one_trimmed_line_of_at_most_60_characters() {

@@ -17,6 +17,8 @@ export interface RemoteSocket {
   onmessage: ((event: { data: unknown }) => void) | null;
   onclose: (() => void) | null;
   onerror: (() => void) | null;
+  /** Set to "arraybuffer" so gzipped frames (ADR-164) arrive as bytes. */
+  binaryType?: string;
   send(data: string): void;
   close(): void;
 }
@@ -192,10 +194,13 @@ export class RemoteTransport implements Transport {
     this.socket = socket;
     this.opening = new Promise<void>((resolve, reject) => {
       let settled = false;
-      socket.onopen = () => socket.send(JSON.stringify({ type: "hello", token }));
-      socket.onmessage = (event) => {
+      // Large replies come gzipped when this runtime can inflate them (ADR-164).
+      const gzip = typeof DecompressionStream !== "undefined";
+      if (gzip) socket.binaryType = "arraybuffer";
+      socket.onopen = () => socket.send(JSON.stringify({ type: "hello", token, ...(gzip ? { gzip: true } : {}) }));
+      const handle = (data: string) => {
         let message: Message;
-        try { message = JSON.parse(String(event.data)) as Message; } catch { return; }
+        try { message = JSON.parse(data) as Message; } catch { return; }
         if (message.type === "ready") {
           settled = true;
           this.opening = null;
@@ -208,6 +213,17 @@ export class RemoteTransport implements Transport {
           if (!settled) { settled = true; reject(new Error("This device is no longer connected to the Mac. Pair it again.")); }
           socket.close();
         } else this.receive(message);
+      };
+      // Inflating is asynchronous: while a frame inflates, later ones wait behind it, so
+      // results and events keep the order they were sent in.
+      let inbox: Promise<void> = Promise.resolve();
+      let waiting = 0;
+      socket.onmessage = (event) => {
+        if (typeof event.data === "string" && waiting === 0) { handle(event.data); return; }
+        waiting += 1;
+        inbox = inbox.then(async () => {
+          try { handle(typeof event.data === "string" ? event.data : await inflate(event.data)); } catch { /* a frame that does not inflate is dropped, like bad JSON */ } finally { waiting -= 1; }
+        });
       };
       socket.onerror = () => undefined;
       socket.onclose = () => {
@@ -246,4 +262,10 @@ export class RemoteTransport implements Transport {
       for (const handler of [...(this.handlers.get(message.event) ?? [])]) handler(message.payload);
     }
   }
+}
+
+/** A gzipped binary frame (ADR-164) as text. */
+export async function inflate(data: unknown): Promise<string> {
+  const blob = data instanceof Blob ? data : new Blob([data as ArrayBuffer]);
+  return new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text();
 }

@@ -262,6 +262,14 @@ pub async fn transcript_action(
             let snapshot = view::search_snapshot(&state.data.lock());
             view::search(snapshot, &query)
         }
+        Action::TurnReview {
+            session_id,
+            message_id,
+        } => view::turn_review(
+            &state.data_with_messages(&[&session_id]),
+            &session_id,
+            &message_id,
+        ),
         Action::ToolOutput {
             session_id,
             message_id,

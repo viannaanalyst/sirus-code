@@ -4,7 +4,7 @@ import { formatUnknownError } from "@/lib/format-error";
 import { useState } from "react";
 import type { AppSettings, HostInfo } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
-import { UI_FONTS, MONO_FONTS } from "@/lib/fonts";
+import { UI_FONTS, MONO_FONTS, monoFontFamily, uiFontFamily } from "@/lib/fonts";
 import { APPEARANCE_SETTING_KEYS, defaultSettings, resetAppearanceSettings } from "@/lib/settings";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SegmentedControl } from "@/primitives/SegmentedControl";
@@ -31,7 +31,11 @@ export function FontSizeControl({ label, value, min = 10, max = 22, onChange }: 
 }
 export function MonoFontControl({ label, value, onChange }: { label: string; value: AppSettings["codeFont"]; onChange: (value: AppSettings["codeFont"]) => void }) {
   const t = useTranslation();
-  return <Select className="general-settings-select" label={label} value={value} onChange={onChange} options={MONO_FONTS.map(font => ({ value: font.id, label: font.label, description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} />;
+  return <Select className="general-settings-select" label={label} value={value} onChange={onChange} options={MONO_FONTS.map(font => ({ value: font.id, label: font.label, fontFamily: monoFontFamily(font.id), description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} />;
+}
+/** One line in the chosen font and size, with the glyphs monospace fonts tell apart (0O il1). */
+function FontSample({ family, size }: { family: string; size: number }) {
+  return <code className="max-w-[260px] truncate rounded-[8px] border border-border-subtle bg-background-2 px-2.5 py-1.5 text-text-secondary" style={{ fontFamily: family, fontSize: size }}>{"const ok = (0O, il1) => {[]};"}</code>;
 }
 function OpacityControl({ label, value, disabled, onCommit, min = 25, max = 100 }: { label: string; value: number; disabled: boolean; onCommit: (value: number) => void; min?: number; max?: number }) {
   const [draft, setDraft] = useState(value);
@@ -134,7 +138,7 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
     <ChatBackgroundGroup settings={settings} onSave={onSave} />
     <SettingsGroup title={t("Interface typography")} card>
       {boolRow("systemUiFont", "Use system UI font", "Keeps your chosen font ready when the system override is off.")}
-      <SettingsRow title={t("UI font")} description={settings.systemUiFont ? t("The system font is active; this choice is preserved for later.") : undefined}><Select className="general-settings-select" disabled={settings.systemUiFont} label={t("UI font")} value={settings.uiFont} onChange={uiFont => onSave({ ...settings, uiFont })} options={UI_FONTS.map(font => ({ value: font.id, label: font.label, description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} /></SettingsRow>
+      <SettingsRow title={t("UI font")} description={settings.systemUiFont ? t("The system font is active; this choice is preserved for later.") : undefined}><Select className="general-settings-select" disabled={settings.systemUiFont} label={t("UI font")} value={settings.uiFont} onChange={uiFont => onSave({ ...settings, uiFont })} options={UI_FONTS.map(font => ({ value: font.id, label: font.label, fontFamily: uiFontFamily({ systemUiFont: false, uiFont: font.id }), description: font.installedOnly ? t("Uses the installed font, with a system fallback.") : undefined }))} /></SettingsRow>
       <SettingsRow title={t("UI font size")}><FontSizeControl label={t("UI font size")} value={settings.uiFontSize} min={11} max={18} onChange={uiFontSize => onSave({ ...settings, uiFontSize })} /></SettingsRow>
       {boolRow("fontSmoothing", "Font smoothing")}
       <SettingsRow title={t("UI density")} description={t("Adjusts spacing independently of text size.")}><Select className="general-settings-select" label={t("UI density")} value={settings.density} onChange={density => onSave({ ...settings, density })} options={[{ value: "compact", label: t("Compact") }, { value: "default", label: t("Comfortable") }, { value: "comfortable", label: t("Spacious") }]} /></SettingsRow>
@@ -142,10 +146,12 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
     <SettingsGroup title={t("Code typography")} card>
       <SettingsRow title={t("Code font")} description={t("Applies to transcript code, diffs and the editor.")}><MonoFontControl label={t("Code font")} value={settings.codeFont} onChange={codeFont => onSave({ ...settings, codeFont })} /></SettingsRow>
       <SettingsRow title={t("Code font size")}><FontSizeControl label={t("Code font size")} value={settings.codeFontSize} onChange={codeFontSize => onSave({ ...settings, codeFontSize })} /></SettingsRow>
+      <SettingsRow title={t("fonts.preview")}><FontSample family={monoFontFamily(settings.codeFont)} size={settings.codeFontSize} /></SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Terminal typography")} card>
       <SettingsRow title={t("Terminal font")}><MonoFontControl label={t("Terminal font")} value={settings.terminalFont} onChange={terminalFont => onSave({ ...settings, terminalFont })} /></SettingsRow>
       <SettingsRow title={t("Terminal font size")}><FontSizeControl label={t("Terminal font size")} value={settings.terminalFontSize} onChange={terminalFontSize => onSave({ ...settings, terminalFontSize })} /></SettingsRow>
+      <SettingsRow title={t("fonts.preview")}><FontSample family={monoFontFamily(settings.terminalFont)} size={settings.terminalFontSize} /></SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Effects and motion")} card>
       {boolRow("animations", "Interface animations")}

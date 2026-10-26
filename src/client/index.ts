@@ -319,6 +319,26 @@ export class SirusClient {
     return result.text;
   }
 
+  /** A reply's turn review with the diff texts transcripts leave out (ADR-164). */
+  async turnReview(sessionId: string, messageId: string) {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "turnReview", sessionId, messageId } });
+    if (result.type !== "turnReview") throw new Error("Unexpected turn review response");
+    return result.review;
+  }
+
+  /** The newest `limit` messages of a transcript, for a first paint over the network (ADR-164). */
+  async loadTranscriptPage(sessionId: string, limit: number) {
+    const result = await this.transport.invoke<import("./types").TranscriptResponse>("transcript_action", { action: { type: "load", sessionId, limit } });
+    if (result.type !== "transcript" || result.sessionId !== sessionId) throw new Error("Unexpected transcript response");
+    return result;
+  }
+
+  /** The active computer is reached over the network (the phone's web app, or another computer from the desktop). */
+  get overNetwork(): boolean {
+    const transport = this.transport instanceof SwitchingTransport ? this.transport.active : this.transport;
+    return transport instanceof RemoteTransport;
+  }
+
   async gitWorkspaceHistory(sessionId: string, from: string, skip: number) {
     const result = await this.transport.invoke<import("./types").GitWorkspaceResponse>("git_workspace_action", { action: { type: "history", sessionId, from, skip } });
     if (result.type !== "history") throw new Error("Unexpected Git history response");

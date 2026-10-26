@@ -90,8 +90,8 @@ export interface SubagentFeed { key: string; entries: SubagentFeedEntry[]; dropp
 /** `subagent-feed`: entries a native frame added or changed, already merged. */
 export interface SubagentFeedEvent { sessionId: string; key: string; entries: SubagentFeedEntry[]; dropped: number }
 export interface TurnReview {
-  /** `committedAt`: included in a commit made through Sirus; it leaves the review (ADR-108). */
-  files: (FileChange & { binary: boolean; diff: string | null; undoneAt?: string | null; committedAt?: string | null })[];
+  /** `committedAt`: included in a commit made through Sirus; it leaves the review (ADR-108). `diffOmitted`: transcripts and session events leave the text out; `turnReview` fetches it (ADR-164). */
+  files: (FileChange & { binary: boolean; diff: string | null; diffOmitted?: boolean; undoneAt?: string | null; committedAt?: string | null })[];
   partial: boolean;
   sharedWorkspace: boolean;
   keptAt: string | null;
@@ -1083,7 +1083,8 @@ export type TranscriptResponse =
   | { type: "transcript"; sessionId: string; messages: Message[]; start?: number; total?: number }
   | { type: "candidates"; sessions: { sessionId: string; messages: Message[] }[]; truncated: boolean }
   /** One command row's full output stored apart (ADR-147). */
-  | { type: "toolOutput"; text: string };
+  | { type: "toolOutput"; text: string }
+  | { type: "turnReview"; review: TurnReview | null };
 
 // Review inbox (ADR-050): pull requests and issues of owned GitHub repositories.
 export type GithubItemKind = "pullRequest" | "issue";

@@ -5122,6 +5122,7 @@ dependencies = [
  "block2",
  "chrono",
  "csv",
+ "flate2",
  "futures-util",
  "global-hotkey",
  "hmac 0.12.1",

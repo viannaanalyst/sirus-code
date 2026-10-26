@@ -103,6 +103,10 @@ pub fn session_event(session: &Session, from: usize) -> Result<Value> {
     };
     let from = from.min(messages.len());
     value["messages"] = serde_json::to_value(&messages[from..])?;
+    if let Some(sent) = value["messages"].as_array_mut() {
+        sent.iter_mut()
+            .for_each(crate::turn_review::omit_diffs_value);
+    }
     value["transcriptWindow"] = json!({ "from": from, "total": messages.len() });
     Ok(value)
 }
@@ -333,6 +337,12 @@ pub enum Action {
         message_id: String,
         step_id: String,
     },
+    /// One agent reply's turn review with its diff texts, which transcripts and session
+    /// events leave out (ADR-164), when the review pane opens.
+    TurnReview {
+        session_id: String,
+        message_id: String,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -356,6 +366,10 @@ pub enum Response {
     },
     /// One command row's full output (at most 1 MiB, its end).
     ToolOutput { text: String },
+    /// A turn review with its diffs; `null` when the reply has none.
+    TurnReview {
+        review: Option<crate::turn_review::TurnReview>,
+    },
 }
 
 #[derive(Debug, Serialize)]
@@ -396,6 +410,7 @@ pub fn load(
     let end = before.unwrap_or(total).min(total);
     let start = limit.map_or(0, |limit| end.saturating_sub(limit.clamp(1, MAX_PAGE)));
     let mut messages = session.messages[start..end].to_vec();
+    messages.iter_mut().for_each(crate::turn_review::omit_diffs);
     if lite {
         for message in &mut messages {
             if let Some(activity) = message.activity.as_mut() {
@@ -420,6 +435,19 @@ pub fn load(
         start,
         total,
     })
+}
+
+/// One reply's whole turn review (ADR-164), from the loaded transcript.
+pub fn turn_review(data: &AppData, session_id: &str, message_id: &str) -> Result<Response> {
+    let session = owned(data)
+        .find(|session| session.id == session_id)
+        .ok_or_else(|| Error::not_found("session not found"))?;
+    let review = session
+        .messages
+        .iter()
+        .find(|message| message.id == message_id)
+        .and_then(|message| message.activity.as_ref()?.review.clone());
+    Ok(Response::TurnReview { review })
 }
 
 /// One command row's full output (ADR-147): from the loaded transcript when it still holds
@@ -508,6 +536,8 @@ pub fn search((sessions, projects, skipped): SearchSnapshot, query: &str) -> Res
             }
             bytes += message.content.len();
             count += 1;
+            let mut message = message;
+            crate::turn_review::omit_diffs(&mut message);
             messages.push(message);
         }
         if !messages.is_empty() {
@@ -831,11 +861,74 @@ mod tests {
                 total,
                 ..
             } => (messages.len(), start, total),
-            Response::Candidates { .. } | Response::ToolOutput { .. } => panic!(),
+            _ => panic!(),
         };
         assert_eq!(page(None, Some(3)), (3, 1, 4));
         assert_eq!(page(Some(1), Some(3)), (1, 0, 4));
         assert_eq!(page(Some(99), Some(2)), (2, 2, 4));
         assert_eq!(page(Some(0), Some(2)), (0, 0, 4));
+    }
+
+    #[test]
+    fn diffs_leave_loads_and_events_and_come_back_on_request() {
+        let mut data = data();
+        let session = &mut data.sessions[0];
+        let index = session.messages.len() - 1;
+        let reply = &mut session.messages[index];
+        let id = reply.id.clone();
+        let mut activity =
+            crate::activity::TurnActivity::new(crate::models::AgentProviderId::Codex, None);
+        activity.review = Some(
+            serde_json::from_value(json!({"files": [
+                {"path": "a.rs", "kind": "modified", "additions": 1, "deletions": 0, "binary": false, "diff": "+x"},
+                {"path": "b.png", "kind": "added", "additions": 0, "deletions": 0, "binary": true, "diff": null}
+            ], "partial": false, "sharedWorkspace": false, "keptAt": null}))
+            .unwrap(),
+        );
+        reply.activity = Some(activity);
+        let Response::Transcript { messages, .. } = load(&data, "a", None, None, false).unwrap()
+        else {
+            panic!();
+        };
+        let files = &messages
+            .last()
+            .unwrap()
+            .activity
+            .as_ref()
+            .unwrap()
+            .review
+            .as_ref()
+            .unwrap()
+            .files;
+        assert_eq!(
+            (files[0].diff.as_deref(), files[0].diff_omitted),
+            (None, true)
+        );
+        assert_eq!(
+            (files[1].diff.as_deref(), files[1].diff_omitted),
+            (None, false),
+            "nothing to fetch for a binary file"
+        );
+        let event = session_event(&data.sessions[0], 0).unwrap();
+        let sent =
+            &event["messages"].as_array().unwrap().last().unwrap()["activity"]["review"]["files"];
+        assert_eq!(
+            (&sent[0]["diff"], &sent[0]["diffOmitted"]),
+            (&Value::Null, &json!(true))
+        );
+        assert!(sent[1].get("diffOmitted").is_none());
+        let Response::TurnReview {
+            review: Some(review),
+        } = turn_review(&data, "a", &id).unwrap()
+        else {
+            panic!();
+        };
+        assert_eq!(review.files[0].diff.as_deref(), Some("+x"));
+        assert!(
+            serde_json::to_value(&review).unwrap()["files"][0]
+                .get("diffOmitted")
+                .is_none(),
+            "never stored"
+        );
     }
 }

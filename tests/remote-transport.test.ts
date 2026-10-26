@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { gzipSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { invokeTimeout, RemoteTransport, reconnectDelay, type RemoteConnection, type RemoteSocket } from "../src/client/remote-transport.ts";
 import { deviceName, normalizePairingCode, pairingCode, redeemPairing, socketUrl } from "../src/client/remote-pairing.ts";
@@ -10,6 +11,7 @@ class FakeSocket implements RemoteSocket {
   onmessage: ((event: { data: unknown }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  binaryType?: string;
   send(data: string) { this.sent.push(JSON.parse(data) as Record<string, unknown>); }
   close() { this.readyState = 3; this.onclose?.(); }
   open() { this.readyState = 1; this.onopen?.(); }
@@ -36,7 +38,7 @@ test("invokes after the hello and resolves with the Mac's reply", async () => {
   const { transport, sockets } = setup();
   const reply = transport.invoke<{ ok: boolean }>("load_state", { a: 1 });
   sockets[0].open();
-  assert.deepEqual(sockets[0].sent[0], { type: "hello", token: "secret" });
+  assert.deepEqual(sockets[0].sent[0], { type: "hello", token: "secret", gzip: true });
   sockets[0].receive({ type: "ready" });
   await tick();
   assert.deepEqual(sockets[0].sent[1], { type: "invoke", id: 1, cmd: "load_state", args: { a: 1 } });
@@ -146,4 +148,24 @@ test("a command the Mac never answers fails after its time limit", async (contex
   context.mock.timers.tick(invokeTimeout("load_state"));
   await assert.rejects(reply, /did not answer in time/);
   assert.ok(invokeTimeout("send_prompt") > invokeTimeout("load_state"));
+});
+
+test("gzipped frames inflate and keep their order with the text frames after them", async () => {
+  const { transport, sockets } = setup();
+  const events: unknown[] = [];
+  await transport.listen("agent-output", (payload) => events.push(payload));
+  const big = transport.invoke<{ text: string }>("transcript_action");
+  sockets[0].open();
+  assert.equal(sockets[0].binaryType, "arraybuffer");
+  sockets[0].receive({ type: "ready" });
+  await tick();
+  const result = { type: "result", id: 1, ok: true, value: { text: "x".repeat(50_000) } };
+  const bytes = gzipSync(JSON.stringify(result));
+  sockets[0].onmessage?.({ data: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  // Sent after the gzipped result: handled after it, though it needs no inflating.
+  sockets[0].receive({ type: "event", event: "agent-output", payload: "after" });
+  assert.deepEqual(events, [], "the text frame waits for the frame before it");
+  assert.equal((await big).text.length, 50_000);
+  await tick();
+  assert.deepEqual(events, ["after"]);
 });

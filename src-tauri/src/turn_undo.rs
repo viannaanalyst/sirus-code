@@ -260,6 +260,7 @@ mod tests {
 
     fn file(path: &str, kind: ChangeKind, diff: &str) -> ReviewFile {
         ReviewFile {
+            diff_omitted: false,
             path: path.into(),
             kind,
             additions: 0,

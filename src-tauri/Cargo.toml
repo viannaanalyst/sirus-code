@@ -66,6 +66,8 @@ parking_lot = "0.12"
 rusqlite = { version = "0.40.2", features = ["bundled", "cache"], default-features = false }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 base64 = "0.22"
+# Large remote-socket frames go gzipped to clients that ask (ADR-164); already in the tree via tower-http.
+flate2 = "1"
 sha2 = "0.10"
 # Chrome cookie import (ADR-152): AES-128-CBC for the stored values, PBKDF2-HMAC-SHA1 for the key.
 aes = "0.8"

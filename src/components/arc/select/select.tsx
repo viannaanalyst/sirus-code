@@ -18,7 +18,8 @@ export interface SelectProps extends Omit<ComponentPropsWithoutRef<typeof Select
   placeholder?: string;
   id?: string;
   className?: string;
-  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; description?: string }[];
+  /** `fontFamily` draws the option in that font (a font picker's preview). */
+  options: { value: string; label: string; disabled?: boolean; icon?: ReactNode; description?: string; fontFamily?: string }[];
   /** Edge the menu shares with the trigger when its content is wider. */
   align?: "start" | "end";
 }
@@ -65,7 +66,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
             <AnimatePresence initial={false} custom={direction}>
               <motion.span key={currentValue ? `value-${currentValue}` : "placeholder"} data-placeholder={currentValue ? undefined : ""} custom={direction} variants={reduceMotion ? valueFade : valueRoll} initial="enter" animate="center" exit="exit">
                 {selectedOption?.icon ? <span className={styles.optionIcon}>{selectedOption.icon}</span> : null}
-                <span className={styles.optionLabel}>{shown}</span>
+                <span className={styles.optionLabel} style={currentValue && selectedOption?.fontFamily ? { fontFamily: selectedOption.fontFamily } : undefined}>{shown}</span>
               </motion.span>
             </AnimatePresence>
           </span>
@@ -85,7 +86,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                 <SelectPrimitive.Item key={option.value} value={option.value} textValue={option.label} disabled={option.disabled} className={styles.item}>
                   {option.icon ? <span className={styles.optionIcon} aria-hidden="true">{option.icon}</span> : null}
                   <span className={styles.optionCopy}>
-                    <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                    <SelectPrimitive.ItemText><span style={option.fontFamily ? { fontFamily: option.fontFamily } : undefined}>{option.label}</span></SelectPrimitive.ItemText>
                     {option.description ? <span className={styles.optionDescription}>{option.description}</span> : null}
                   </span>
                   <SelectPrimitive.ItemIndicator className={styles.indicator}>

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { client } from "@/client";
 import { DiffViewer, type DiffReviewFile } from "@/components/DiffViewer";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
@@ -12,8 +13,24 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
   // A review tab can outlive the session's selection; its transcript stays loaded.
   useRetainedTranscripts([sessionId]);
   const stored = useAppStore((s) => s.sessions.find((session) => session.id === sessionId)?.messages.find((m) => m.id === messageId && m.sessionId === sessionId)?.activity?.review);
+  // Transcripts leave diff texts out (ADR-164): fetch them once per turn and put them back
+  // into the review the transcript keeps live (undo and commit marks still come from it).
+  const omitted = stored?.files.some((file) => file.diffOmitted) ?? false;
+  const turnKey = `${sessionId}:${messageId}`;
+  const [texts, setTexts] = useState<{ key: string; diffs: Map<string, string | null> } | null>(null);
+  useEffect(() => {
+    if (!omitted) return;
+    let cancelled = false;
+    void client.turnReview(sessionId, messageId).then(
+      (full) => { if (!cancelled) setTexts({ key: turnKey, diffs: new Map((full?.files ?? []).map((file) => [file.path, file.diff])) }); },
+      () => { if (!cancelled) setTexts({ key: turnKey, diffs: new Map() }); },
+    );
+    return () => { cancelled = true; };
+  }, [omitted, sessionId, messageId, turnKey]);
+  const loaded = texts?.key === turnKey ? texts.diffs : null;
+  const filled = useMemo(() => !stored || !omitted || !loaded ? stored : { ...stored, files: stored.files.map((file) => file.diffOmitted ? { ...file, diff: loaded.get(file.path) ?? null, diffOmitted: false } : file) }, [stored, omitted, loaded]);
   // Files committed through Sirus have left the review (ADR-108).
-  const review = useMemo(() => stored && stored.files.some((file) => file.committedAt) ? { ...stored, files: stored.files.filter((file) => !file.committedAt) } : stored, [stored]);
+  const review = useMemo(() => filled && filled.files.some((file) => file.committedAt) ? { ...filled, files: filled.files.filter((file) => !file.committedAt) } : filled, [filled]);
   // The tab keeps its place (ADR-145): the file in view comes back with it, unless the tab was reopened on another file.
   const viewKey = `review:${sessionId}:${messageId}`;
   const [selectedPath, setSelectedPath] = useState(() => { const saved = diffViewState(viewKey); return saved && (saved.origin ?? null) === (path ?? null) ? saved.selected ?? path : path; });
@@ -22,6 +39,7 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
     message: t(review?.expired ? "review.expired" : file.binary ? "review.binaryDiff" : file.diff === null ? "review.omittedDiff" : "review.noTextDiff"),
   })), [review, t]);
   if (!review) return <p className="p-4 ui-control text-text-muted">{t("review.missing")}</p>;
+  if (omitted && !loaded) return <p className="p-4 ui-control text-text-muted">{t("common.loading")}</p>;
   const selected = review.files.find((file) => file.path === selectedPath) ?? review.files[0] ?? null;
   const unavailable = review.expired ? "review.expired" : selected?.binary ? "review.binaryDiff" : selected?.diff === null ? "review.omittedDiff" : "review.noTextDiff";
   return <div className="flex h-full min-h-0 flex-col">

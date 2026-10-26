@@ -496,6 +496,8 @@ interface AppStore {
   toggleModelFavorite: (provider: AgentProviderId, modelId: string) => void;
 }
 
+/** Messages a transcript opened over the network shows before the rest arrives (ADR-164). */
+const FIRST_PAGE = 60;
 let gitRequestSequence = 0;
 let diffRequestSequence = 0;
 let projectRequestSequence = 0;
@@ -1080,20 +1082,35 @@ export const useAppStore = create<AppStore>((set, get) => ({
   tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
+    // A load in flight (the rest of a first page, below) answers before "already loaded".
+    const pending = transcriptRequests.get(sessionId);
+    if (pending) return pending;
     if (!refresh && get().loadedTranscripts[sessionId] !== undefined) {
       useAppStore.setState((state) => ({ loadedTranscripts: { ...state.loadedTranscripts, [sessionId]: ++transcriptTick } }));
       return Promise.resolve(true);
     }
-    const pending = transcriptRequests.get(sessionId);
-    if (pending) return pending;
-    const request = client.loadTranscript(sessionId).then((messages) => {
-      useAppStore.setState((state) => {
-        if (!state.sessions.some((session) => session.id === sessionId)) return {};
-        return {
-          sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, messages: mergeLoadedTranscript(session.messages, messages) } : session),
-          loadedTranscripts: { ...state.loadedTranscripts, [sessionId]: ++transcriptTick },
-        };
-      });
+    const apply = (messages: import("@/client/types").Message[]) => useAppStore.setState((state) => {
+      if (!state.sessions.some((session) => session.id === sessionId)) return {};
+      return {
+        sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, messages: mergeLoadedTranscript(session.messages, messages) } : session),
+        loadedTranscripts: { ...state.loadedTranscripts, [sessionId]: ++transcriptTick },
+      };
+    });
+    // Over the network (the phone's web app, another computer) the newest messages show first
+    // and the rest follows (ADR-164). Callers that need the whole transcript (search, jumps,
+    // forks) await this request, which settles only once it is all here.
+    const firstPage = !refresh && client.overNetwork && get().loadedTranscripts[sessionId] === undefined
+      ? client.loadTranscriptPage(sessionId, FIRST_PAGE).then((page) => {
+        const start = page.start ?? 0;
+        if (start === 0) return page.messages;
+        // Only a page well short of the whole: a live event's window then always starts past
+        // what the page holds, so it reloads instead of splicing into the partial list.
+        if (start >= FIRST_PAGE) apply(page.messages);
+        return null;
+      }, () => null)
+      : Promise.resolve(null);
+    const request = firstPage.then((whole) => whole ?? client.loadTranscript(sessionId)).then((messages) => {
+      apply(messages);
       releaseTranscripts();
       return true;
     }, () => false).finally(() => transcriptRequests.delete(sessionId));

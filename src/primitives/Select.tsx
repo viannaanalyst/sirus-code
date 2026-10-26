@@ -1,7 +1,7 @@
 import { Select as ArcSelect } from "@/components/arc/select/select";
 import type { ReactNode } from "react";
 
-interface Option<T extends string> { value: T; label: string; disabled?: boolean; icon?: ReactNode; description?: string; }
+interface Option<T extends string> { value: T; label: string; disabled?: boolean; icon?: ReactNode; description?: string; fontFamily?: string; }
 interface Props<T extends string> {
   value: T;
   options: Option<T>[];

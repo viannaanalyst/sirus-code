@@ -6,9 +6,9 @@ import { formatUnknownError } from "@/lib/format-error";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { useAppStore } from "@/store/app-store";
 
-/** Files of a review that still have a retained text diff to reverse. */
+/** Files of a review that still have a retained text diff to reverse (natively; a transcript may omit its text, ADR-164). */
 export function undoableFiles(review: TurnReview, path?: string) {
-  return review.files.filter((file) => !file.undoneAt && !file.binary && file.diff && (!path || file.path === path));
+  return review.files.filter((file) => !file.undoneAt && !file.binary && (file.diff || file.diffOmitted) && (!path || file.path === path));
 }
 
 /** Undo a settled turn's changes (all files, or one) after a confirmation (ADR-061). */

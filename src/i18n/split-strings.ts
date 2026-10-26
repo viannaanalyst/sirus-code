@@ -17,6 +17,7 @@ const strings: Record<string, [string, string]> = {
   "split.full": ["4 panes at most — drop in the middle to replace", "No máximo 4 painéis — solte no meio para substituir"],
   "split.openRight": ["Open to the side", "Abrir ao lado"],
   "split.openDown": ["Open below", "Abrir abaixo"],
+  "fonts.preview": ["Preview", "Prévia"],
   "worktree.newSessionHere": ["New session in this worktree", "Nova sessão neste worktree"],
   "worktree.thisOne": ["Worktree {branch}", "Worktree {branch}"],
   "worktree.sharedHint": ["Works in the same folder and branch as {title}, without a new worktree.", "Trabalha na mesma pasta e branch de {title}, sem criar outro worktree."],
