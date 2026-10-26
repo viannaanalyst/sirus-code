@@ -3,7 +3,7 @@ export const KEYBINDINGS = [
   { id: "palette", label: "Command Palette", combo: "meta+k", group: "App" },
   { id: "open-project", label: "Open Project", combo: "meta+o", group: "Project" },
   { id: "settings", label: "Settings", combo: "meta+,", group: "App" },
-  { id: "toggle-sidebar", label: "Toggle Sidebar", combo: "meta+b", group: "View" },
+  { id: "toggle-sidebar", label: "Toggle Sidebar", combo: "meta+s", group: "View" },
   { id: "toggle-context", label: "Toggle right panel", combo: "meta+\\", group: "View" },
   { id: "open-terminal", label: "Open Terminal", combo: "meta+`", group: "View" },
   { id: "stop-agent", label: "Stop Agent", combo: "meta+.", group: "Session" },

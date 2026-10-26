@@ -2,7 +2,7 @@ import type { ProjectFolder } from "@/client/types";
 
 /**
  * One row of a project's context menu, the same menu wherever a project shows (the header
- * switcher, the conversation list's folders, the Project style's title and strip; ADR-139).
+ * switcher and the conversation list's folders; ADR-139).
  */
 export type ProjectMenuEntry =
   | { kind: "new" | "edit" | "new-folder" | "reveal" | "copy-path" | "remove" }

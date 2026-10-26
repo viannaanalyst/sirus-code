@@ -112,7 +112,7 @@ export default function App() {
   if (createProjectOpen && !createProjectMounted) setCreateProjectMounted(true);
   const sidebarCollapsed = useAppStore((state) => state.sidebarCollapsed);
   const [sidebarMotion, endSidebarMotion] = useSidebarMotion(sidebarCollapsed);
-  // The sidebar is the icon rail or a column: the conversation list or the Project style (ADR-139); ⌘B hides any.
+  // The sidebar is the icon rail or the conversation list column (ADR-139); ⌘S hides either.
   const listSidebar = useAppStore((state) => isColumnSidebar(state.settings.sidebarMode));
   const sidebarWidth = useAppStore((state) => state.sidebarWidth);
   const environmentOpen = useAppStore((state) => state.environmentOpen);
@@ -233,7 +233,7 @@ export default function App() {
       } },
       { id: "reopen-closed", combo: "Meta+shift+t", when: () => { const state = useAppStore.getState(); return !state.settingsOpen && !state.paletteOpen; }, run: () => useAppStore.getState().reopenClosed() },
       { id: "stop-agent", combo: "Meta+.", run: () => void stopAgent() },
-      { id: "toggle-sidebar", combo: "Meta+b", run: () => toggleSidebar() },
+      { id: "toggle-sidebar", combo: "Meta+s", run: () => toggleSidebar() },
       { id: "open-project", combo: "Meta+o", run: () => void addProjectFromPicker() },
       {
         id: "back",
@@ -272,8 +272,7 @@ export default function App() {
       { id: "previous-tab", combo: "Meta+Alt+ArrowLeft", when: headerTabsVisible, run: () => selectHeaderTab((tabs, current) => tabs[(current - 1 + tabs.length) % tabs.length]) },
       { id: "switch-project", combo: "Meta+Shift+P", when: headerTabsVisible, run: () => {
         const store = useAppStore.getState();
-        // The conversation list hides the header switcher: the palette lists projects instead. The
-        // Project style mounts the switcher in the sidebar, so the same flag opens it there.
+        // The conversation list hides the header switcher: the palette lists projects instead.
         if (store.settings.sidebarMode === "list" && !store.sidebarCollapsed) store.setPaletteOpen(true);
         else store.setProjectSwitcherOpen(true);
       } },

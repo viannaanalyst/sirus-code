@@ -1,6 +1,6 @@
 /* Settings → Appearance → Sidebar (ADR-139, round 2): radio cards with still window miniatures. */
 @layer components {
-  .sidebar-style-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 14px 16px 16px; border: 0; }
+  .sidebar-style-picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 14px 16px 16px; border: 0; }
   .sidebar-style-option { position: relative; display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 8px; border: 1px solid var(--border-default); border-radius: calc(var(--radius-lg) + 2px); cursor: pointer; transition: border-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
   .sidebar-style-option input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
   .sidebar-style-option:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -18,7 +18,7 @@
   .sidebar-thumb-scene, .sidebar-thumb-scene * { animation: none !important; transition: none !important; }
   /* The replicas use spans (they sit inside a label); these stand in for the real divs. */
   .sidebar-thumb-scene :is(.conversation-sidebar-list, .conversation-row, .conversation-sidebar-empty) { display: block; }
-  .sidebar-thumb-scene :is(.conversation-sidebar-head, .conversation-sidebar-switch, .conversation-sidebar-tools, .conversation-sidebar-nav, .conversation-sidebar-rows, .conversation-sidebar-foot, .conversation-time-group, .conversation-strip, .conversation-strip-items, .conversation-strip-arrow, .conversation-strip-project) { display: flex; }
+  .sidebar-thumb-scene :is(.conversation-sidebar-head, .conversation-sidebar-tools, .conversation-sidebar-nav, .conversation-sidebar-rows, .conversation-sidebar-foot) { display: flex; }
   .sidebar-thumb-scene .conversation-sidebar-order { display: inline-grid; }
   .sidebar-thumb-column { display: flex; width: 280px; height: 600px; flex-shrink: 0; flex-direction: column; background: var(--background-1); border-right: 1px solid var(--border-subtle); }
   .sidebar-thumb-column .conversation-sidebar-head { position: relative; height: 46px; padding-left: 84px; }
@@ -48,6 +48,5 @@
   .sidebar-thumb-reply > i:nth-child(3) { width: 56%; }
   .sidebar-thumb-composer { display: block; height: 64px; margin: auto 64px 24px; border: 1px solid var(--border-default); border-radius: 22px; background: var(--background-1); }
 
-  @media (max-width: 760px) { .sidebar-style-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (prefers-reduced-motion: reduce) { .sidebar-style-option { transition: none; } }
 }

@@ -2,31 +2,26 @@ import type { AppSettings, Project, Session } from "@/client/types";
 import { tabStatus, type TabStatus } from "./header-tabs";
 import { isAuxiliarySession } from "./pull-ask";
 import { isSnoozed } from "./snooze";
-import { orderSidebarProjects, sessionSortKeys, type SessionOrderOptions, type SessionSortKey } from "./sidebar-layout";
+import { sessionSortKeys, type SessionOrderOptions, type SessionSortKey } from "./sidebar-layout";
 
 /**
  * The conversation list sidebar (ADR-139): recent conversations across every project, flat
- * by last activity or in project folders, and the Project style's one-project list grouped
- * by time. Pure helpers, so ordering and windowing are tested without a renderer.
+ * by last activity or in project folders. Pure helpers, so ordering and windowing are tested without a renderer.
  */
 export type ConversationListOrder = AppSettings["sidebarListOrder"];
 
 /** The settings the list reads (so the sidebar can select just these fields). */
 export type ConversationListSettings = Pick<AppSettings, "archivedSessionIds" | "pinnedSessionIds" | "sidebarAttentionFirst" | "sidebarThreadSortOrder">;
 
-/** Time groups of the Project style: pinned conversations, then Today, This week and Older. */
-export type ConversationTimeGroup = "pinned" | "today" | "week" | "older";
-
 export type ConversationListItem =
   | { kind: "folder"; key: string; project: Project; count: number; status: TabStatus; open: boolean }
-  | { kind: "time"; key: string; group: ConversationTimeGroup }
   | { kind: "session"; key: string; session: Session; project: Project; pinned: boolean; nested: boolean }
   /** Under an open folder past `FOLDER_PREVIEW` conversations: Show more (`hidden` > 0) or Show less. */
   | { kind: "more"; key: string; projectId: string; hidden: number };
 
-/** The list and Project styles are both a resizable column (ADR-139); the rail is 52 px. */
+/** The list style is a column (ADR-139); the rail is 52 px. */
 export function isColumnSidebar(mode: AppSettings["sidebarMode"]): boolean {
-  return mode === "list" || mode === "project";
+  return mode === "list";
 }
 
 /** Most project folders remembered as open (validated natively too). */
@@ -35,7 +30,7 @@ export const SIDEBAR_OPEN_FOLDERS_LIMIT = 100;
 /** An open folder shows this many conversations until Show more. */
 export const FOLDER_PREVIEW = 5;
 
-/** The list and Project columns have one fixed width (px); they are not resizable. */
+/** The list column has one fixed width (px); they are not resizable. */
 export const CONVERSATION_LIST_WIDTH = 256;
 
 export function clampConversationListWidth(width: number): number {
@@ -140,43 +135,7 @@ export function expandOpenFolder(open: readonly string[], projectId: string): st
   return open.includes(projectId) ? null : toggleOpenFolder(open, projectId);
 }
 
-/** Today is since local midnight, This week the 7 days before that moment, the rest Older. */
-export function conversationTimeGroup(time: number, now: number): Exclude<ConversationTimeGroup, "pinned"> {
-  if (!Number.isFinite(time)) return "older";
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-  if (time >= midnight.getTime()) return "today";
-  return time >= now - 7 * 24 * 60 * 60 * 1000 ? "week" : "older";
-}
-
-/**
- * The Project style's rows (ADR-139, round 2): one project's listed conversations in the
- * Recent order, under Pinned, Today, This week and Older headers (empty groups omitted). A
- * held order also holds each row's group, so nothing jumps while the pointer is over the list.
- */
-export function projectConversationItems(projects: readonly Project[], sessions: readonly Session[], settings: ConversationListSettings, projectId: string | null, now: number, options: SessionOrderOptions = {}): ConversationListItem[] {
-  const project = projects.find(row => row.id === projectId);
-  if (!project) return [];
-  const rows = conversationListItems([project], sessions, settings, "recent", options);
-  const groups = new Map<ConversationTimeGroup, ConversationListItem[]>();
-  for (const item of rows) {
-    if (item.kind !== "session") continue;
-    const group = item.pinned ? "pinned" : conversationTimeGroup(options.held?.get(item.session.id)?.time ?? Date.parse(item.session.lastActivityAt), now);
-    const members = groups.get(group);
-    if (members) members.push(item); else groups.set(group, [item]);
-  }
-  return (["pinned", "today", "week", "older"] as const).flatMap(group => {
-    const members = groups.get(group);
-    return members ? [{ kind: "time", key: `time:${group}`, group } as ConversationListItem, ...members] : [];
-  });
-}
-
-/** The Project style's strip: every project in the switcher's order (pinned, then manual or newest). */
-export function projectStripOrder(projects: readonly Project[], settings: Pick<AppSettings, "pinnedProjectIds" | "sidebarProjectOrder" | "sidebarProjectSortOrder">): Project[] {
-  return orderSidebarProjects(projects, settings);
-}
-
-/** Top offset of every item plus the total height (length n + 1): conversation rows and headers (folders, time groups) each have one fixed height. */
+/** Top offset of every item plus the total height (length n + 1): conversation rows and headers (folders, Show more) each have one fixed height. */
 export function itemOffsets(kinds: readonly ConversationListItem["kind"][], rowHeight: number, headerHeight: number): number[] {
   const offsets = new Array<number>(kinds.length + 1);
   offsets[0] = 0;

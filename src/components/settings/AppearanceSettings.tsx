@@ -100,7 +100,7 @@ function ChatBackgroundGroup({ settings, onSave }: { settings: AppSettings; onSa
   </SettingsGroup>;
 }
 
-/** Icon rail, conversation list or Project (ADR-139); ⌘B hides any of them, and picking one shows it. */
+/** Icon rail or conversation list (ADR-139); ⌘S hides either, and picking one shows it. */
 function SidebarStyleGroup({ settings, onSave }: { settings: AppSettings; onSave: (settings: AppSettings) => void }) {
   const t = useTranslation();
   const choose = (sidebarMode: SidebarStyleChoice) => {

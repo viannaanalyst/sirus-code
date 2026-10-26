@@ -95,10 +95,8 @@ function useWaitingSets() {
  * projects on the left with live status and changes, and on the right every session of
  * the project under the pointer (pinned first), with New session, pin and archive. The
  * search matches project names and session titles; right-click a project for its actions.
- * The Project sidebar style (ADR-139, round 2) shows it at the top of the sidebar instead,
- * where it opens on click or ⌘⇧P only, since the pointer crosses the sidebar all the time.
  */
-export function ProjectSwitcher({ placement = "header" }: { placement?: "header" | "sidebar" }) {
+export function ProjectSwitcher() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const projects = useAppStore(state => state.projects);
@@ -200,11 +198,9 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
     }
   };
   useEffect(() => { list.current?.querySelector(`[data-index="${cursor}"]`)?.scrollIntoView({ block: "nearest" }); }, [cursor]);
-  // In the Project sidebar style, right-clicking the title opens the current project's menu.
-  const menuOnTitle = placement === "sidebar" && project ? projectMenu.items(project) : null;
   const trigger = <PopoverTrigger asChild>
-      <button type="button" className={placement === "sidebar" ? "header-project conversation-sidebar-project" : "header-project"} aria-label={t("tabs.switchProject")} title={placement === "sidebar" ? project?.name : undefined}
-        onPointerEnter={placement === "header" ? hoverIn : undefined} onPointerLeave={placement === "header" ? hoverOut : undefined}
+      <button type="button" className="header-project" aria-label={t("tabs.switchProject")}
+        onPointerEnter={hoverIn} onPointerLeave={hoverOut}
         // A click right after the hover opened it keeps it open instead of toggling it shut.
         onClick={event => { if (open && hover.current.opened && Date.now() - hover.current.at < 600) { event.preventDefault(); used(); } else if (open) hover.current.opened = false; else { hover.current.opened = false; window.clearTimeout(hover.current.timer); } }}>
         {project ? <ProjectGlyph project={project} size={14} /> : null}
@@ -219,7 +215,7 @@ export function ProjectSwitcher({ placement = "header" }: { placement?: "header"
     </PopoverTrigger>;
   return <>
   <Popover open={open} onOpenChange={value => { setOpen(value); if (!value) { setQuery(""); setFocus(null); setHovering(false); } setCursor(0); }}>
-    {menuOnTitle ? <ContextMenu activation="context-only" label={t("project.actions")} items={menuOnTitle}>{trigger}</ContextMenu> : trigger}
+    {trigger}
     <PopoverContent align="start" sideOffset={8} onPointerEnter={event => { window.clearTimeout(hover.current.timer); if (event.pointerType !== "touch") setHovering(true); }} onPointerLeave={() => { setHovering(false); hoverOut(); }} onPointerDown={used} onKeyDown={used} onContextMenu={used} className="floating-material header-switcher" data-cascade={cascade ? "" : undefined} onOpenAutoFocus={event => { event.preventDefault(); if (!hover.current.opened) (event.currentTarget as HTMLElement | null)?.querySelector("input")?.focus(); }}
       // Opened by hover, it leaves focus where it was (the composer keeps it while the pointer passes by).
       onCloseAutoFocus={event => { if (hover.current.opened && !hover.current.used) event.preventDefault(); }}>

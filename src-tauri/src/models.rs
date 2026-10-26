@@ -585,15 +585,16 @@ pub enum SidebarThreadSortOrder {
     CreatedAt,
 }
 
-/// What the sidebar shows when it is not hidden (ADR-139): the icon rail, the
-/// conversation list, or one project at a time. `sidebar_collapsed` still hides any of them.
+/// What the sidebar shows when it is not hidden (ADR-139): the icon rail or the
+/// conversation list. `sidebar_collapsed` still hides either. The removed Project style
+/// loads as the list.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum SidebarMode {
     #[default]
     Rail,
+    #[serde(alias = "project")]
     List,
-    Project,
 }
 
 /// The conversation list's order (ADR-139): flat by last activity, or grouped by project.
@@ -1242,7 +1243,7 @@ impl AppSettings {
             ("palette", "meta+k"),
             ("open-project", "meta+o"),
             ("settings", "meta+,"),
-            ("toggle-sidebar", "meta+b"),
+            ("toggle-sidebar", "meta+s"),
             ("toggle-context", "meta+\\"),
             ("open-terminal", "meta+`"),
             ("stop-agent", "meta+."),
@@ -1554,8 +1555,11 @@ mod settings_tests {
         assert_eq!(legacy.sidebar_list_order, SidebarListOrder::Recent);
         assert_eq!(legacy.link_open_target, LinkOpenTarget::App);
         assert!(legacy.sidebar_open_folders.is_none());
+        // The removed Project style loads as the list.
+        let project: AppSettings = serde_json::from_str(r#"{"sidebarMode":"project"}"#).unwrap();
+        assert_eq!(project.sidebar_mode, SidebarMode::List);
         for (field, allowed) in [
-            ("sidebarMode", &["rail", "list", "project"][..]),
+            ("sidebarMode", &["rail", "list"][..]),
             ("sidebarListOrder", &["recent", "project"][..]),
             ("linkOpenTarget", &["app", "system"][..]),
         ] {

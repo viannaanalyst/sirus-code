@@ -61,31 +61,11 @@ try {
     snapshot.settings = { ...snapshot.settings, sidebarOpenFolders: [] };
     assert.ok(!render(createElement(ConversationSidebar)).includes("data-conversation="));
 
-    // The Project style: the switcher on top, the selected project's conversations by time, the strip at the foot.
-    snapshot.settings = { ...snapshot.settings, sidebarMode: "project", sidebarListOrder: "recent", sidebarOpenFolders: null };
-    const project = render(createElement(ConversationSidebar));
-    assert.deepEqual([...project.matchAll(/data-conversation="([^"]+)"/g)].map(match => match[1]), ["alpha-working", "alpha-old"]);
-    assert.ok(project.includes('data-variant="compact"') && !project.includes('title="branch/alpha-old · gpt-5"'), "branch and model live in the hover card, not a native tooltip");
-    assert.ok(project.includes('data-list-kind="time"') && project.includes(locale === "en" ? "Older" : "Mais antigas"));
-    assert.ok(project.includes("conversation-sidebar-project") && !project.includes("conversation-sidebar-brand"));
-    assert.equal((project.match(/class="conversation-strip-project"/g) ?? []).length, 2);
-    assert.ok(/aria-label="Project alpha" title="Project alpha" aria-current="true"/.test(project), "the selected project is highlighted in the strip");
-    // The title and the strip's icons open the shared project menu on right-click.
-    const projectActions = locale === "en" ? "Project actions" : "Ações do projeto";
-    assert.equal(project.split(`aria-label="${projectActions}" aria-haspopup="menu"`).length - 1, 2);
-    assert.equal((project.match(/data-strip-project="/g) ?? []).length, 2);
-    assert.ok((project.match(/conversation-sidebar-tool(?!s)/g) ?? []).length === 3 && project.includes('data-section="settings"'));
-    assert.ok(!/uppercase/.test(project));
-    snapshot.settings = { ...snapshot.settings, showSessionTabs: true };
-    snapshot.openTabsByProject = { alpha: ["alpha-old"] };
-    snapshot.mainView = "session";
-    assert.ok(!render(createElement(HeaderTabs)).match(/class="[^"]*\bheader-project\b/), "the sidebar holds the switcher in the Project style");
-
-    // Settings → Appearance → Sidebar: three radio cards (no Hidden: ⌘B hides any style) with still miniatures of the person's projects.
-    const picker = render(createElement(SidebarStylePicker, { value: "project", onChange: () => {} }));
-    assert.equal((picker.match(/type="radio"/g) ?? []).length, 3);
-    assert.equal((picker.match(/sidebar-thumb-scene/g) ?? []).length, 3);
-    assert.ok(/checked="" value="project"/.test(picker) && picker.includes("Project alpha") && picker.includes("Session alpha-old"));
+    // Settings → Appearance → Sidebar: two radio cards (no Hidden: ⌘B hides either style) with still miniatures of the person's projects.
+    const picker = render(createElement(SidebarStylePicker, { value: "list", onChange: () => {} }));
+    assert.equal((picker.match(/type="radio"/g) ?? []).length, 2);
+    assert.equal((picker.match(/sidebar-thumb-scene/g) ?? []).length, 2);
+    assert.ok(/checked="" value="list"/.test(picker) && picker.includes("Project alpha") && picker.includes("Session alpha-old"));
     assert.ok(picker.includes(locale === "en" ? "Conversation list" : "Lista de conversas") && !/uppercase/.test(picker));
     assert.ok(!/<button/.test(picker), "the miniatures hold no controls");
     // The header project switcher steps aside while the list shows; tabs stay.
@@ -106,10 +86,5 @@ try {
   const long = render(createElement(ConversationSidebar));
   const mounted = (long.match(/data-conversation=/g) ?? []).length;
   assert.ok(mounted > 0 && mounted <= 60, `windowed: ${mounted} rows mounted`);
-  // So does the Project style's list.
-  snapshot.settings = { ...snapshot.settings, sidebarMode: "project" };
-  snapshot.sessions = Array.from({ length: 300 }, (_, index) => session(`many-${index}`, "alpha", 1 + (index % 28)));
-  const longProject = (render(createElement(ConversationSidebar)).match(/data-conversation=/g) ?? []).length;
-  assert.ok(longProject > 0 && longProject <= 60, `windowed: ${longProject} rows mounted`);
-  console.log("Conversation sidebar: Recent and folder-only By project (open state saved), the Project style (switcher, time groups, project strip), the shared project menu on folders, title and strip, status dots, search/order/New project/nav/footer, header switcher hidden while a column shows, Settings miniatures, long lists windowed, in both locales");
+  console.log("Conversation sidebar: Recent and folder-only By project (open state saved), the shared project menu on folders, status dots, search/order/New project/nav/footer, header switcher hidden while a column shows, Settings miniatures, long lists windowed, in both locales");
 } finally { await server.close(); }

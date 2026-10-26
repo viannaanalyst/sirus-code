@@ -578,7 +578,7 @@ const MIN_CHAT_WIDTH = 440;
 
 function clampDockWidth(width: number, state: Pick<AppStore, "sidebarCollapsed" | "sidebarWidth" | "settings">): number {
   const viewport = typeof window === "undefined" ? 1440 : window.innerWidth;
-  // The sidebar is the icon rail (ADR-092) or a column (the list or Project style, ADR-139); collapsing hides it.
+  // The sidebar is the icon rail (ADR-092) or the conversation list column (ADR-139); collapsing hides it.
   const sidebar = state.sidebarCollapsed ? 0 : isColumnSidebar(state.settings.sidebarMode) ? state.sidebarWidth : SIDEBAR_RAIL_WIDTH;
   const max = Math.max(320, viewport - sidebar - MIN_CHAT_WIDTH);
   return Math.min(max, Math.max(280, width));

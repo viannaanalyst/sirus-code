@@ -18,7 +18,7 @@ const strings: Record<string, [string, string]> = {
   "gallery.next": ["Next image", "Próxima imagem"],
   "stash.title": ["Set-aside drafts — click to bring one back", "Rascunhos guardados — clique para recuperar"],
   "stash.open": ["{count} set-aside drafts", "{count} rascunhos guardados"],
-  "stash.hint": ["⌘S sets a draft aside; with an empty composer it brings one back", "⌘S guarda o rascunho; com o composer vazio, traz de volta"],
+  "stash.hint": ["⇧⌘S sets a draft aside; with an empty composer it brings one back", "⇧⌘S guarda o rascunho; com o composer vazio, traz de volta"],
   "stash.remove": ["Discard", "Descartar"],
   "plan.ready": ["Plan ready", "Plano pronto"],
   "plan.implement": ["Implement", "Implementar"],

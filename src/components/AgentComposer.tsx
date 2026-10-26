@@ -420,7 +420,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     requestAnimationFrame(() => area.current?.focus());
   };
   const stashKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || event.shiftKey || event.altKey) return false;
+    // ⇧⌘S: plain ⌘S hides and shows the sidebar.
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || !event.shiftKey || event.altKey) return false;
     event.preventDefault();
     if (value.trim()) { saveStash([value.trim(), ...stash]); setValue(""); recall.current = { index: null, draft: "" }; }
     else if (stash.length === 1) restoreStash(0);

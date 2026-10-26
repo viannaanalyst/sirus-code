@@ -55,3 +55,5 @@ Right-clicking a project now opens the same menu everywhere: the header switcher
 
 
 *2026-10-19 (hover actions):* folder rows in By project lose their chevrons (the row still opens and closes; `+N −M` and the closed folder's status dot sit at the right edge). Pointed-at rows show the same buttons as the header project switcher, from one component (`HoverActions.tsx`): a project offers Review changes, New terminal session and New conversation in place of its numbers; a conversation offers Pin and Archive in place of its age, in all three list orders and the Project style.
+
+*Update 2026-10-26:* the Project style was removed; only the icon rail and the conversation list remain (Settings shows two cards). Its switcher in the sidebar, time groups, compact rows, project strip and "New conversation in …" button went with it. A saved `sidebarMode: "project"` loads as the list (`#[serde(alias = "project")]` natively, the settings normalizer in the window).

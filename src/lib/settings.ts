@@ -225,7 +225,8 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     sidebarProjectSortOrder: value?.sidebarProjectSortOrder === "created_at" ? "created_at" : "manual",
     sidebarThreadSortOrder: value?.sidebarThreadSortOrder === "updated_at" ? "updated_at" : "created_at",
     sidebarAttentionFirst: value?.sidebarAttentionFirst === true,
-    sidebarMode: value?.sidebarMode === "list" || value?.sidebarMode === "project" ? value.sidebarMode : "rail",
+    // The removed Project style (ADR-139) loads as the list.
+    sidebarMode: value?.sidebarMode === "list" || (value?.sidebarMode as string | undefined) === "project" ? "list" : "rail",
     sidebarListOrder: value?.sidebarListOrder === "project" ? "project" : "recent",
     appUpdateNotes: updateNotes(value?.appUpdateNotes),
     sidebarOpenFolders: Array.isArray(value?.sidebarOpenFolders) ? sidebarIds(value.sidebarOpenFolders).slice(0, 100) : null,

@@ -9,18 +9,6 @@
   .conversation-sidebar-head-button { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--text-muted); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .conversation-sidebar-head-button:is(:hover, [data-state="open"]) { background: var(--navigation-hover); color: var(--text-primary); }
 
-  /* Project style: the project switcher and New conversation under the window controls. */
-  .conversation-sidebar-switch { display: flex; align-items: center; gap: 4px; padding: 0 8px 6px; flex-shrink: 0; }
-  .conversation-sidebar-switch > .conversation-sidebar-tool { margin-left: auto; }
-  /* The project menu's right-click target wraps the title; it lets a long name shrink and truncate. */
-  .conversation-sidebar-switch > [aria-haspopup="menu"] { display: flex; min-width: 0; }
-  /* The switcher's chevron stays faint until the pointer is on the title, leaving room for the name. */
-  .conversation-sidebar-project > svg:last-child { opacity: 0.35; transition: opacity var(--motion-fast) var(--ease-out), rotate var(--motion-normal) var(--ease-out); }
-  .conversation-sidebar-project:is(:hover, :focus-visible, [data-state="open"]) > svg:last-child { opacity: 1; }
-  .conversation-new-hint { display: flex; align-items: center; gap: 7px; height: 32px; margin: 6px 8px 0; padding: 0 10px; border: 1px dashed color-mix(in srgb, var(--text-primary) 12%, transparent); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-ui-12); text-align: left; transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
-  .conversation-new-hint:hover { border-color: color-mix(in srgb, var(--text-primary) 22%, transparent); background: var(--navigation-hover); color: var(--text-secondary); }
-  .conversation-new-hint:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 2px; }
-  .header-project.conversation-sidebar-project { flex: 0 1 auto; max-width: none; height: 30px; gap: 8px; padding: 0 8px; color: var(--text-primary); font-size: var(--text-ui-13); font-weight: 600; }
 
   .conversation-sidebar-tools { display: flex; align-items: center; gap: 2px; padding: 2px 8px 6px; flex-shrink: 0; }
   .conversation-sidebar-order { display: inline-grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 7px; color: var(--text-muted); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
@@ -69,9 +57,6 @@
   .conversation-row:is(:hover, :focus-within) .conversation-row-age { visibility: hidden; }
   .conversation-folder:is(:hover, :focus-within) .conversation-hover-actions { visibility: visible; }
 
-  /* Project style: Pinned, Today, This week, Older. */
-  .conversation-time-group { display: flex; align-items: flex-end; height: 28px; flex-shrink: 0; padding: 0 10px 4px; color: var(--text-muted); font-size: var(--text-ui-12); }
-
   .conversation-row { flex-shrink: 0; padding: 1px 0; }
   .conversation-row-open { display: flex; width: 100%; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 10px 8px; border-radius: 10px; text-align: left; transition: background var(--motion-fast) var(--ease-out); }
   .conversation-row-open:hover { background: var(--navigation-hover); }
@@ -110,29 +95,11 @@
   @keyframes conversation-folder-out { to { height: 0; opacity: 0; translate: 0 -4px; } }
   .conversation-row:not([data-variant="full"]) .conversation-row-title > .conversation-row-age { margin-left: auto; padding-left: 6px; }
   .conversation-row[data-variant="nested"] .conversation-row-open { gap: 2px; }
-  /* Project style: one line, with a quiet dot when nothing is happening. */
-  .conversation-row[data-variant="compact"] .conversation-row-open { padding: 7px 10px; }
-  .conversation-row-idle { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--text-muted); opacity: 0.45; }
 
   .conversation-sidebar-foot { display: flex; align-items: center; gap: 4px; flex-shrink: 0; padding: 6px 8px; border-top: 1px solid var(--border-subtle); }
   .conversation-sidebar-foot .sidebar-rail-usage { flex-direction: row; margin-top: 0; gap: 2px; }
   .conversation-sidebar-foot .sidebar-usage-ring { width: 30px; height: 30px; }
   .conversation-sidebar-foot .sidebar-rail-button.conversation-sidebar-foot-button { width: 30px; height: 30px; margin-top: 0; border-radius: 7px; }
-
-  /* Project style: the projects' icons, scrolling sideways between two arrows. */
-  .conversation-strip { display: flex; align-items: center; gap: 2px; flex-shrink: 0; padding: 6px 6px; border-top: 1px solid var(--border-subtle); }
-  .conversation-strip-items { position: relative; display: flex; min-width: 0; flex: 1; justify-content: space-between; gap: 2px; overflow-x: auto; scrollbar-width: none; }
-  .conversation-strip-items::-webkit-scrollbar { display: none; }
-  /* Square tiles, so the selected one's highlight sits evenly around its icon. */
-  .conversation-strip-project { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: var(--radius-md); transition: background var(--motion-fast) var(--ease-out); }
-  .conversation-strip-project > * { display: grid; place-items: center; }
-  .conversation-strip-project:hover { background: var(--navigation-hover); }
-  .conversation-strip-project[aria-current] { background: var(--navigation-selected); }
-  .conversation-strip-project:focus-visible, .conversation-strip-arrow:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
-  .conversation-strip-arrow { display: inline-grid; place-items: center; width: 22px; height: 30px; flex-shrink: 0; border-radius: 6px; color: var(--text-muted); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
-  .conversation-strip-arrow:hover:not(:disabled) { background: var(--navigation-hover); color: var(--text-primary); }
-  .conversation-strip-arrow:disabled { opacity: 0.35; }
-
 
   /* The hover card: one per list, to the right of the column beside the row under the pointer. Read only, so it never takes the pointer. */
   .conversation-hover-card[data-popup] { display: flex; width: 300px; min-width: 0; max-width: calc(100vw - 20px); flex-direction: column; gap: 7px; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--floating-material); box-shadow: var(--shadow-float); color: var(--text-secondary); font-size: var(--text-ui-12); pointer-events: none; }
@@ -161,6 +128,6 @@
   @media (prefers-reduced-motion: reduce) {
     :is(.conversation-row, .conversation-more)[data-motion] { animation: none; }
     [data-radix-popper-content-wrapper]:has(> .conversation-hover-card) { transition: none; }
-    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-sidebar-order, .conversation-folder-toggle, .conversation-strip-project, .conversation-strip-arrow { transition: none; }
+    .conversation-row-open, .conversation-sidebar-search, .conversation-sidebar-nav-item, .conversation-sidebar-order, .conversation-folder-toggle { transition: none; }
   }
 }
