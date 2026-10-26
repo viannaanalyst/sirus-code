@@ -347,22 +347,24 @@ fn parse_claude(value: &Value) -> ProviderUsage {
     usage
 }
 
-/// The unreaped child owns its group even on cancellation/deadline/runtime drop.
+/// The unreaped child owns its group even on cancellation/deadline/runtime drop. A probe is
+/// never killed outright: reading usage can make the CLI refresh an expired OAuth token, and
+/// the rotated credential is written by a `security` child after the answer arrives. Killing
+/// the group then loses it and signs the login out for every process (ADR-165), so the input
+/// is closed first and the CLI gets `agent::GRACEFUL_EXIT` to finish and exit.
 struct Probe {
     account: Option<UsageAccount>,
-    child: Child,
+    child: Option<Child>,
     wire: crate::codex::Wire,
     errors: tokio::task::JoinHandle<std::io::Result<()>>,
 }
 impl Drop for Probe {
     fn drop(&mut self) {
-        #[cfg(unix)]
-        if let Some(pid) = self.child.id() {
-            unsafe {
-                libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
-            }
+        // Cancelled or past its deadline: the wire (its input) closes with the probe, and the
+        // process is retired in the background.
+        if let Some(child) = self.child.take() {
+            crate::runtime::async_runtime::spawn(crate::agent::retire_owned(child));
         }
-        let _ = self.child.start_kill();
         self.errors.abort();
     }
 }
@@ -428,7 +430,7 @@ impl Probe {
         });
         Ok(Self {
             account: None,
-            child,
+            child: Some(child),
             wire,
             errors,
         })
@@ -533,15 +535,10 @@ impl Probe {
         self.close().await;
         (raw, account)
     }
-    async fn close(mut self) {
-        #[cfg(unix)]
-        if let Some(pid) = self.child.id() {
-            unsafe {
-                libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
-            }
-        }
-        let _ = self.child.start_kill();
-        let _ = tokio::time::timeout(Duration::from_secs(2), self.child.wait()).await;
+    /// Ends the probe without waiting for its exit: the answer is already read, and the
+    /// process may still be persisting a refreshed login.
+    async fn close(self) {
+        drop(self);
     }
 }
 

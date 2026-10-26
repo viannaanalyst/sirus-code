@@ -341,6 +341,34 @@ pub(crate) async fn observe_owned_exit(child: &Child) -> std::io::Result<()> {
     .map_err(std::io::Error::other)?
 }
 
+/// How long an idle CLI gets to exit by itself once its input is closed. A Claude process
+/// that just refreshed its OAuth token persists the rotated credential through a `security`
+/// child in its own group; killing the group first loses that write and leaves the stored
+/// login unusable (ADR-165).
+pub(crate) const GRACEFUL_EXIT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Ends a process whose input the caller has already closed (stdin or `Wire` dropped): it
+/// gets `GRACEFUL_EXIT` to finish and exit, then whatever is left of its group is killed and
+/// the leader reaped.
+pub(crate) async fn retire_owned(mut child: Child) {
+    #[cfg(unix)]
+    {
+        let observed = tokio::time::timeout(GRACEFUL_EXIT, observe_owned_exit(&child)).await;
+        // Never signal a reaped/reused identity if observation failed.
+        if !matches!(observed, Ok(Err(_))) {
+            kill_owned_group(&mut child);
+        }
+    }
+    #[cfg(not(unix))]
+    if tokio::time::timeout(GRACEFUL_EXIT, child.wait())
+        .await
+        .is_err()
+    {
+        let _ = child.start_kill();
+    }
+    let _ = child.wait().await;
+}
+
 pub(crate) fn kill_owned_group(child: &mut Child) {
     #[cfg(unix)]
     if let Some(pid) = child.id() {

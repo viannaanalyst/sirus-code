@@ -4,7 +4,8 @@
 //! native session again. A process is reused only while its key (binary, account, workspace and
 //! the options fixed at start) is unchanged; at most POOL_LIMIT sessions are kept, each for
 //! POOL_IDLE without a turn. Stop, a failure, deleting the session or project, and
-//! quitting stop it.
+//! quitting stop it. A kept process is never killed outright: its input is closed first so it
+//! can finish what it was writing (a rotated OAuth credential, ADR-165) and exit by itself.
 use crate::codex::Wire;
 use std::time::Duration;
 use tokio::process::Child;
@@ -34,9 +35,7 @@ pub(crate) fn set_limit(limit: usize) {
         let excess = pool.len().saturating_sub(limit);
         pool.drain(..excess).collect()
     };
-    for mut entry in evicted {
-        crate::agent::kill_owned_group(&mut entry.child);
-    }
+    retire(evicted);
 }
 
 pub(crate) const POOL_IDLE: Duration = Duration::from_secs(30 * 60);
@@ -65,7 +64,7 @@ pub(crate) fn take(session_id: &str, key: &str) -> Option<(Child, Wire)> {
     if alive && entry.key == key {
         Some((entry.child, entry.wire))
     } else {
-        crate::agent::kill_owned_group(&mut entry.child);
+        retire(vec![entry]);
         None
     }
 }
@@ -90,9 +89,7 @@ pub(crate) fn keep(session_id: String, key: String, child: Child, wire: Wire) {
             evicted.push(pool.remove(0));
         }
     }
-    for mut entry in evicted {
-        crate::agent::kill_owned_group(&mut entry.child);
-    }
+    retire(evicted);
     tokio::spawn(async move {
         tokio::time::sleep(POOL_IDLE).await;
         let idle = {
@@ -101,8 +98,8 @@ pub(crate) fn keep(session_id: String, key: String, child: Child, wire: Wire) {
                 .position(|entry| entry.serial == serial)
                 .map(|index| pool.remove(index))
         };
-        if let Some(mut entry) = idle {
-            crate::agent::kill_owned_group(&mut entry.child);
+        if let Some(entry) = idle {
+            retire(vec![entry]);
         }
     });
 }
@@ -115,15 +112,69 @@ pub(crate) fn discard(session_id: &str) {
             .position(|entry| entry.session_id == session_id)
             .map(|index| pool.remove(index))
     };
-    if let Some(mut entry) = entry {
-        crate::agent::kill_owned_group(&mut entry.child);
+    if let Some(entry) = entry {
+        retire(vec![entry]);
     }
 }
 
-/// Stops every kept process (Sirus Code closing).
+/// Closes the kept processes' input and lets each exit by itself in the background before
+/// its group is killed (`agent::retire_owned`).
+fn retire(entries: Vec<Pooled>) {
+    for entry in entries {
+        let Pooled { child, wire, .. } = entry;
+        drop(wire);
+        crate::runtime::async_runtime::spawn(crate::agent::retire_owned(child));
+    }
+}
+
+/// How long quitting waits for kept processes to exit once their input is closed. Idle CLIs
+/// exit at once on end of input; the wait only covers one still persisting its login.
+const QUIT_GRACE: Duration = Duration::from_secs(2);
+
+/// Stops every kept process (Sirus Code closing). Quitting cannot wait on the runtime, so the
+/// input of every process is closed at once and their exits are polled, within QUIT_GRACE,
+/// before the groups are killed.
 pub(crate) fn clear() {
-    for mut entry in std::mem::take(&mut *POOL.lock()) {
-        crate::agent::kill_owned_group(&mut entry.child);
+    let mut children: Vec<Child> = std::mem::take(&mut *POOL.lock())
+        .into_iter()
+        .map(|Pooled { child, wire, .. }| {
+            drop(wire);
+            child
+        })
+        .collect();
+    let deadline = std::time::Instant::now() + QUIT_GRACE;
+    while !children.iter().all(exited) && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    for child in &mut children {
+        crate::agent::kill_owned_group(child);
+    }
+}
+
+/// Whether the leader has exited, observed without reaping so its group can still be
+/// signalled safely.
+fn exited(child: &Child) -> bool {
+    #[cfg(unix)]
+    {
+        let Some(pid) = child.id() else {
+            return true;
+        };
+        let mut info = unsafe { std::mem::zeroed::<libc::siginfo_t>() };
+        let result = unsafe {
+            libc::waitid(
+                libc::P_PID,
+                pid,
+                &mut info,
+                libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
+            )
+        };
+        // WNOHANG leaves the pid zero while the process still runs.
+        result != 0 || unsafe { info.si_pid() } != 0
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = child;
+        false
     }
 }
 
@@ -184,5 +235,43 @@ mod tests {
         set_limit(POOL_LIMIT);
         clear();
         assert!(POOL.lock().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_discarded_process_finishes_writing_before_its_group_is_killed() {
+        // Like Claude persisting a refreshed login: once its input ends, the leader has a
+        // child in its group write a file, waits for it and exits.
+        let dir = tempfile::tempdir().unwrap();
+        let written = dir.path().join("credential");
+        let script = format!(
+            "cat >/dev/null; (sleep 0.3; echo rotated > '{}') & wait",
+            written.display()
+        );
+        let mut child = tokio::process::Command::new("/bin/sh")
+            .args(["-c", &script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .kill_on_drop(true)
+            .process_group(0)
+            .spawn()
+            .unwrap();
+        let wire = Wire::new(child.stdin.take().unwrap(), child.stdout.take().unwrap());
+        retire(vec![Pooled {
+            session_id: "persisting".into(),
+            key: "key".into(),
+            child,
+            wire,
+            serial: 0,
+        }]);
+        for _ in 0..100 {
+            if written.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(
+            std::fs::read_to_string(&written).unwrap_or_default(),
+            "rotated\n"
+        );
     }
 }

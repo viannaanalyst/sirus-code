@@ -1258,7 +1258,8 @@ pub fn monitor(
                     .is_some_and(crate::claude::auth_refresh_error)
             {
                 retries += 1;
-                stop_owned(&mut started.child).await;
+                // Its input is still open, so it will not exit by itself: a short wait only.
+                stop_owned(&mut started.child, Duration::from_secs(2)).await;
                 // A continuation's failed attempt wrote the prompt into the native thread;
                 // drop it so the retry's resume does not replay it twice.
                 rollback_claude_transcript(&transcript);
@@ -1358,7 +1359,8 @@ pub fn monitor(
             Some(wire)
         } else {
             drop(wire);
-            stop_owned(&mut started.child).await;
+            // Long enough for a CLI to persist a refreshed login before its group is killed.
+            stop_owned(&mut started.child, crate::agent::GRACEFUL_EXIT).await;
             None
         };
         let protocol_failed =
@@ -1425,14 +1427,10 @@ pub fn monitor(
     });
 }
 
-async fn stop_owned(child: &mut Child) {
+async fn stop_owned(child: &mut Child, grace: Duration) {
     #[cfg(unix)]
     {
-        let observed = tokio::time::timeout(
-            Duration::from_secs(2),
-            crate::agent::observe_owned_exit(child),
-        )
-        .await;
+        let observed = tokio::time::timeout(grace, crate::agent::observe_owned_exit(child)).await;
         // Never signal a reaped/reused identity if observation failed.
         if !matches!(observed, Ok(Err(_))) {
             crate::agent::kill_owned_group(child);
@@ -1440,10 +1438,7 @@ async fn stop_owned(child: &mut Child) {
         }
     }
     #[cfg(not(unix))]
-    if tokio::time::timeout(Duration::from_secs(2), child.wait())
-        .await
-        .is_err()
-    {
+    if tokio::time::timeout(grace, child.wait()).await.is_err() {
         let _ = child.start_kill();
         let _ = child.wait().await;
     }
@@ -1451,7 +1446,7 @@ async fn stop_owned(child: &mut Child) {
 
 #[cfg(test)]
 async fn cleanup(child: &mut Child) {
-    stop_owned(child).await;
+    stop_owned(child, Duration::from_secs(2)).await;
     let _ = child.wait().await;
 }
 
