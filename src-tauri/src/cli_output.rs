@@ -165,20 +165,26 @@ pub async fn request(
             "CLI catalog initialization timed out",
         ))
     });
-    // The leader has not been reaped, even on EOF: its process group is still owned.
-    #[cfg(unix)]
-    if let Some(pid) = child.id() {
-        unsafe {
-            libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
-        }
-    }
-    let _ = child.start_kill();
-    let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;
+    // Initializing may have refreshed the CLI's OAuth login: killing it now could lose the
+    // rotated credential before it is saved (ADR-166). End of input lets it exit by itself;
+    // its pipes keep draining so it never writes into a closed one, and what is left of its
+    // group is killed later (`agent::retire_owned`).
     drop(stdin);
-    if !drained_errors {
+    let mut stdout = stdout.into_inner().into_inner();
+    crate::runtime::async_runtime::spawn(async move {
+        let drain = async {
+            let _ = tokio::io::copy(&mut stdout, &mut tokio::io::sink()).await;
+            if !drained_errors {
+                let _ = (&mut errors).await;
+            }
+        };
+        let _ = tokio::join!(
+            crate::agent::retire_owned(child),
+            tokio::time::timeout(crate::agent::GRACEFUL_EXIT + Duration::from_secs(1), drain),
+        );
+        // A helper that left the group may still hold stderr open.
         errors.abort();
-        let _ = errors.await;
-    }
+    });
     result
 }
 
@@ -206,6 +212,36 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::TimedOut);
         assert!(start.elapsed() < Duration::from_secs(3));
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_catalog_process_finishes_writing_after_answering() {
+        // Like Claude saving a login it refreshed while initializing: once its input ends,
+        // the answered CLI has a child in its group write a file, waits for it and exits.
+        let dir = tempfile::tempdir().unwrap();
+        let written = dir.path().join("credential");
+        let script = format!(
+            "read -r input; printf '%s\\n' '{{\"models\":[]}}'; cat >/dev/null; (sleep 0.3; echo rotated > '{}') & wait",
+            written.display()
+        );
+        let output = request(
+            "/bin/sh",
+            &["-c", &script],
+            b"initialize\n",
+            Duration::from_secs(2),
+            |value| value.get("models").cloned(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(output, serde_json::json!([]));
+        let read = || std::fs::read_to_string(&written).unwrap_or_default();
+        for _ in 0..100 {
+            if read() == "rotated\n" {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(read(), "rotated\n");
     }
     #[cfg(unix)]
     #[tokio::test]
