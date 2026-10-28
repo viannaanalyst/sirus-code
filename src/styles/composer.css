@@ -137,15 +137,16 @@
 }
 
 /* The prompt box (ADR-168): a TipTap editor over one paragraph. It wraps like the textarea it replaced. */
-.composer-prompt { outline: none; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; cursor: text; caret-color: var(--text-primary); scrollbar-gutter: stable; }
+.composer-prompt { outline: none; overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; cursor: text; caret-color: var(--text-primary); scrollbar-gutter: stable; }
 .composer-prompt p { margin: 0; }
 .composer-prompt[contenteditable="false"] { opacity: .5; cursor: default; }
 .composer-placeholder { padding: var(--composer-editor-padding-top) var(--composer-editor-padding-x-end) var(--composer-editor-padding-bottom) var(--composer-editor-padding-x); text-overflow: ellipsis; white-space: nowrap; }
 /* `/skill`, `@file` and web addresses as inline chips: tinted with the accent, one unit for the caret.
    They stay inline (not boxes), so a long line wraps around them like text. */
-.composer-chip { --chip: var(--accent); display: inline; margin: 0 1px; padding: 1px .4em 1px .3em; border-radius: var(--radius-sm, 6px); background: color-mix(in oklab, var(--chip) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--chip) 22%, transparent); color: color-mix(in oklab, var(--chip) 78%, var(--text-primary)); -webkit-box-decoration-break: clone; box-decoration-break: clone; white-space: nowrap; user-select: none; transition: background-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+.composer-chip { --chip: var(--accent); display: inline; margin: 0 1px; padding: 1px .4em 1px .3em; border-radius: var(--radius-sm, 6px); background: color-mix(in oklab, var(--chip) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--chip) 22%, transparent); color: color-mix(in oklab, var(--chip) 78%, var(--text-primary)); -webkit-box-decoration-break: clone; box-decoration-break: clone; white-space: normal; overflow-wrap: anywhere; user-select: none; transition: background-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
 .composer-chip-icon { display: inline-block; width: 1em; height: 1em; margin-right: .3em; vertical-align: -.14em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
-.composer-chip-label { white-space: pre; }
+/* A long link or path breaks across lines like text, never widening the box (no horizontal scrollbar). */
+.composer-chip-label { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-all; }
 /* Web addresses are quieter than commands and files: the chat link colour, no outline. */
 .composer-chip-link { --chip: var(--info); background: color-mix(in oklab, var(--chip) 8%, transparent); box-shadow: none; color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); }
 .composer-chip.ProseMirror-selectednode { background: color-mix(in oklab, var(--chip) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--chip) 55%, transparent); }
