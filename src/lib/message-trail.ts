@@ -19,6 +19,13 @@ function preview(message: Message): string {
 }
 
 /** One entry per user message; the last nonempty reply before the next user wins. */
+/** Whether the trail shows (two or more user messages); stops counting at two. */
+export function hasMessageTrail(messages: readonly Message[]): boolean {
+  let users = 0;
+  for (const message of messages) if (message.role === "user" && ++users >= 2) return true;
+  return false;
+}
+
 export function deriveMessageTrail(messages: readonly Message[]): MessageTrailItem[] {
   const items: MessageTrailItem[] = [];
   for (const message of messages) {

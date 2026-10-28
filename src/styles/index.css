@@ -326,7 +326,7 @@
 .message-trail { display: none; }
 @container transcript (min-width: 600px) {
   .message-trail { display: flex; }
-  .transcript-shell:has(.message-trail) > .transcript-scroll { padding-inline-start: 3.5rem; }
+  .transcript-shell[data-trail] > .transcript-scroll { padding-inline-start: 3.5rem; }
 }
 
 .selectable {

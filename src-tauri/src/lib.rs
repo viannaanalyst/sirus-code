@@ -76,6 +76,7 @@ mod models;
 mod new_project;
 mod notifications;
 mod opencode;
+mod output_batch;
 mod paths;
 mod persist;
 mod pr_watch;

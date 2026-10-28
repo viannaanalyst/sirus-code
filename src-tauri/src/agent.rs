@@ -522,6 +522,7 @@ impl StartedAgent {
             crate::delegation::settled(&app, &state, &session_id);
             crate::ci_autofix::settled(&state, &session_id);
             crate::project_scripts::settled(&app, &state, &session_id);
+            crate::output_batch::finish(&app, &session_id);
             let _ = app.emit("agent-exit", AgentExitEvent { session_id, code });
         });
     }
@@ -783,7 +784,7 @@ where
                 // Event-driven, coalesced checkpoint written outside the lock. Final
                 // output is always saved by the monitor; crashes retain recent text.
                 crate::persist::checkpoint_soon(&state, &session_id);
-                let _ = app.emit("agent-output", event);
+                crate::output_batch::emit(&app, event);
             }
         }
         parser.failed()

@@ -20,6 +20,7 @@ import { moveItem } from "@/lib/queue-order";
 import { initialSplit, leafShowing, splitDrop, splitLeaves, splitRemove, splitResize, splitSync, type SplitEdge, type SplitLayout, type SplitTarget } from "@/lib/split-layout";
 import { activeProviderAccount } from "@/lib/provider-accounts";
 import type { ComposerContext } from "@/lib/composer-context";
+import { OutputScheduler } from "@/lib/output-scheduler";
 import { applyAgentOutputs } from "@/lib/agent-events";
 import { mergeLoadedTranscript, mergeSessionEvent, transcriptsToKeep } from "@/lib/transcripts";
 import { appendAttachments } from "@/lib/composer-attachments";
@@ -2782,53 +2783,50 @@ function releaseTranscripts(limit?: number) {
 }
 
 /**
- * Streamed deltas arrive once per provider token. Applying them once per frame
- * keeps the store, and every subscriber, to at most one update per frame while
- * output keeps the exact native order and offsets.
+ * Streamed deltas arrive in native batches of at most one per 16 ms (`output_batch.rs`).
+ * The conversation on screen applies them at most ~30 times a second on an animation
+ * frame; others, and everything while the document is hidden, every 250 ms or when
+ * shown (ADR-180). Output keeps the exact native order and offsets.
  */
 const outputBatch = (() => {
-  let pending: AgentEvent[] = [];
-  let cancelScheduled: (() => void) | null = null;
-  const flush = () => {
-    cancelScheduled?.();
-    cancelScheduled = null;
-    if (!pending.length) return;
-    const events = pending;
-    pending = [];
+  const apply = (events: AgentEvent[]) => {
     const bySession = new Map<string, AgentEvent[]>();
     for (const event of events) {
       const queued = bySession.get(event.sessionId);
       if (queued) queued.push(event); else bySession.set(event.sessionId, [event]);
     }
     const gaps = new Set<string>();
-    useAppStore.setState((state) => ({
-      sessions: state.sessions.map((session) => {
+    useAppStore.setState((state) => {
+      let changed = false;
+      const sessions = state.sessions.map((session) => {
         const queued = bySession.get(session.id);
         // An unloaded transcript is fetched whole when opened; partial text is never kept.
         if (!queued || state.loadedTranscripts[session.id] === undefined) return session;
         // A transcript loaded mid-stream can miss text emitted before it arrived.
         const messages = applyAgentOutputs(session.messages, queued, () => gaps.add(session.id));
-        return messages === session.messages ? session : { ...session, messages };
-      }),
-    }));
+        if (messages === session.messages) return session;
+        changed = true;
+        return { ...session, messages };
+      });
+      // Nothing applied (duplicates, unloaded transcripts): subscribers see no update.
+      return changed ? { sessions } : {};
+    });
     for (const id of gaps) void useAppStore.getState().ensureTranscript(id, true);
   };
-  const schedule = () => {
-    if (cancelScheduled) return;
-    // Hidden documents get no animation frames; a macrotask still applies output.
-    if (document.hidden) {
-      const timer = setTimeout(flush, 0);
-      cancelScheduled = () => clearTimeout(timer);
-    } else {
-      const frame = requestAnimationFrame(flush);
-      cancelScheduled = () => cancelAnimationFrame(frame);
-    }
+  /** Sessions on screen: the open conversation and the panes of a split. */
+  const isVisible = (sessionId: string) => {
+    const state = useAppStore.getState();
+    if (state.mainView !== "session") return false;
+    return state.selectedSessionId === sessionId || splitLeaves(state.splitLayout.root).some((leaf) => leaf.sessionId === sessionId);
   };
-  return {
-    queue(event: AgentEvent) { pending.push(event); schedule(); },
-    flush,
-    cancel() { cancelScheduled?.(); cancelScheduled = null; pending = []; },
-  };
+  return new OutputScheduler<AgentEvent>({
+    apply,
+    isVisible,
+    documentHidden: () => typeof document !== "undefined" && document.hidden,
+    now: () => performance.now(),
+    frame: (callback) => { const id = requestAnimationFrame(callback); return () => cancelAnimationFrame(id); },
+    timer: (callback, ms) => { const id = setTimeout(callback, ms); return () => clearTimeout(id); },
+  });
 })();
 
 /**
@@ -2927,6 +2925,15 @@ export async function bindRealtime() {
       observePromptQueue(current);
     }));
     unlisteners.push(() => outputBatch.cancel());
+    // Text held back for a conversation that was not on screen is applied as it is shown.
+    if (typeof document !== "undefined") {
+      const showHeld = () => { if (!document.hidden) outputBatch.flush(); };
+      document.addEventListener("visibilitychange", showHeld);
+      unlisteners.push(() => document.removeEventListener("visibilitychange", showHeld));
+    }
+    unlisteners.push(useAppStore.subscribe((state, previous) => {
+      if (state.selectedSessionId !== previous.selectedSessionId || state.mainView !== previous.mainView || state.splitLayout !== previous.splitLayout) outputBatch.flush();
+    }));
     // Under system memory pressure only the transcripts in use stay; others reload when opened.
     unlisteners.push(await client.onMemoryPressure(() => releaseTranscripts(0)));
     unlisteners.push(await client.onAgentOutput((event) => {

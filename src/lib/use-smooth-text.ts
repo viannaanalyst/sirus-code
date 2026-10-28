@@ -22,26 +22,31 @@ export function useSmoothText(text: string, streaming: boolean): string {
   const target = useRef(text);
   target.current = text;
   const smooth = streaming && !reduced;
+  const running = useRef(0);
+  const shownLength = useRef(text.length);
+  shownLength.current = shown;
+  // The loop runs only while the shown text is behind: a caught-up reply (a pause between
+  // tool calls, a settled spring) costs no animation frames. New text restarts it.
+  const behind = smooth && shown < text.length;
   useEffect(() => {
-    if (!smooth) return;
-    let frame = 0;
+    if (!behind || running.current) return;
     let last = performance.now();
     const step = (now: number) => {
       const elapsed = now - last;
       // About 30 updates a second keeps the markdown re-render cheap.
       if (elapsed >= 33) {
         last = now;
-        setShown((current) => {
-          const length = target.current.length;
-          if (current > length) return length;
-          return current + smoothAdvance(length - current, elapsed);
-        });
+        const length = target.current.length;
+        const next = shownLength.current > length ? length : shownLength.current + smoothAdvance(length - shownLength.current, elapsed);
+        shownLength.current = next;
+        setShown(next);
+        if (next >= length) { running.current = 0; return; }
       }
-      frame = requestAnimationFrame(step);
+      running.current = requestAnimationFrame(step);
     };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [smooth]);
+    running.current = requestAnimationFrame(step);
+  }, [behind, text.length]);
+  useEffect(() => () => { cancelAnimationFrame(running.current); running.current = 0; }, [smooth]);
   if (!smooth) return text;
   return text.slice(0, Math.min(shown, text.length));
 }

@@ -1190,7 +1190,7 @@ pub fn monitor(
                     if let Some(event) =
                         crate::agent::record_output(session, &mut cursor, "stdout", chunk)?
                     {
-                        let _ = app.emit("agent-output", event);
+                        crate::output_batch::emit(&app, event);
                     }
                     publish = false;
                     persist_immediately = false;

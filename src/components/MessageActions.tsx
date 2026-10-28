@@ -33,6 +33,7 @@ export function MessageActions({ message, session }: { message: Message; session
   const catalogs = useAppStore((state) => state.modelsByProvider);
   const loadProviderModels = useAppStore((state) => state.loadProviderModels);
   const [handoffOpen, setHandoffOpen] = useState(false);
+  const [secondOpen, setSecondOpen] = useState(false);
   const [scope, setScope] = useState<AgentProviderId | null>(null);
   const [loading, setLoading] = useState(false);
   const [handoffBusy, setHandoffBusy] = useState(false);
@@ -65,7 +66,7 @@ export function MessageActions({ message, session }: { message: Message; session
   };
 
   // Shown on hover or focus, and while one of its menus is open; always on touch screens.
-  return <div className="mt-2 flex items-center gap-0.5 text-text-muted opacity-0 group-hover/agent:opacity-100 group-focus-within/agent:opacity-100 has-[[aria-expanded=true]]:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:opacity-100">
+  return <div className={cn("mt-2 flex items-center gap-0.5 text-text-muted opacity-0 group-hover/agent:opacity-100 group-focus-within/agent:opacity-100 motion-safe:transition-opacity motion-safe:duration-[var(--motion-fast)] [@media(hover:none)]:opacity-100", handoffOpen || secondOpen ? "opacity-100" : null)}>
     <Tooltip label={t("Copy message")}><span className="inline-flex"><CopyButton value={message.content} label={t("Copy message")} iconOnly variant="plain" className="size-6 min-h-0 text-text-muted [&_svg]:size-[13px]" /></span></Tooltip>
     <Popover open={handoffOpen} onOpenChange={(next) => {
       setHandoffOpen(next);
@@ -113,7 +114,7 @@ export function MessageActions({ message, session }: { message: Message; session
         </div>
       </PopoverContent>
     </Popover>
-    <SecondOpinionButton message={message} session={session} disabled={active} />
+    <SecondOpinionButton message={message} session={session} disabled={active} open={secondOpen} setOpen={setSecondOpen} />
     {!session.sideChat ? <IconButton label={t("sideChat.ask")} onClick={() => void useAppStore.getState().openSideChat(session.id, sideChatQuote(message.content))} className="size-6 min-h-0 rounded-[7px] p-0 text-text-muted"><MessagesSquare aria-hidden="true" size={13} strokeWidth={1.6} /></IconButton> : null}
     <MessageTimestamp createdAt={message.createdAt} className="ml-1" />
   </div>;
@@ -130,13 +131,12 @@ function sideChatQuote(content: string) {
  * Second opinion (ADR-056): sends this settled turn to another provider or
  * model, which reviews it read-only in a new session opened beside this one.
  */
-function SecondOpinionButton({ message, session, disabled }: { message: Message; session: Session; disabled: boolean }) {
+function SecondOpinionButton({ message, session, disabled, open, setOpen }: { message: Message; session: Session; disabled: boolean; open: boolean; setOpen: (open: boolean) => void }) {
   const t = useTranslation();
   const disabledProviders = useAppStore((state) => state.settings.disabledProviders);
   const installs = useAppStore((state) => state.agents);
   const catalogs = useAppStore((state) => state.modelsByProvider);
   const loadProviderModels = useAppStore((state) => state.loadProviderModels);
-  const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<AgentProviderId | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);

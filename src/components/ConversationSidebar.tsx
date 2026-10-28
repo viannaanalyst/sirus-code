@@ -372,7 +372,7 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
     <span className="conversation-row-branch">{session.worktree.branch}</span>
     <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
   </span>;
-  return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined}
+  return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined} data-status={dot || undefined}
     data-motion={motion} style={motion ? { "--row-index": depth } as CSSProperties : undefined}>
     <button type="button" className="conversation-row-open" aria-current={active ? "page" : undefined}
       aria-label={[session.title, variant === "full" ? project.name : null, statusLabel].filter(Boolean).join(" · ")}

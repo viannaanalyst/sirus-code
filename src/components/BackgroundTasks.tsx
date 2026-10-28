@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useClock } from "@/lib/shared-clock";
 import { AnimatePresence, motion } from "motion/react";
 import type { Message, Session } from "@/client/types";
 import { client } from "@/client";
@@ -28,13 +29,7 @@ export function BackgroundTasks({ session, message, initiallyExpanded = false }:
   const cascade = useCascade(open);
   // Its own clock, only while shown: the conversation does not re-render each second.
   const ambient = useAmbientActive();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!open || !ambient || !expanded) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [open, ambient, expanded]);
+  const now = useClock(1000, open && ambient && expanded);
   const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set());
   const stop = (id: string) => {
     setStopping((current) => new Set(current).add(id));
