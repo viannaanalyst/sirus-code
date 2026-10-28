@@ -8,6 +8,7 @@
 @import "./motion.css";
 @import "./opening.css";
 @import "./composer.css";
+@import "./plan-tray.css";
 @import "./agent-activity.css";
 @import "./subagent-team.css";
 @import "../components/arc/foundation.css";

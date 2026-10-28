@@ -27,6 +27,7 @@ import { sidebarListEnglish, sidebarListPortuguese } from "./sidebar-list-string
 import { usageEnglish, usagePortuguese } from "./usage-strings";
 import { sideChatEnglish, sideChatPortuguese } from "./side-chat-strings";
 import { activityEnglish, activityPortuguese } from "./activity-strings";
+import { planEnglish, planPortuguese } from "./plan-strings";
 import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
 import { connectorsEnglish, connectorsPortuguese } from "./connectors-strings";
 import { reviewInboxEnglish, reviewInboxPortuguese } from "./review-inbox-strings";
@@ -82,6 +83,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...usagePortuguese,
     ...sideChatPortuguese,
     ...activityPortuguese,
+    ...planPortuguese,
     ...backgroundPortuguese,
     ...connectorsPortuguese,
     ...reviewInboxPortuguese,
@@ -177,6 +179,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...usageEnglish,
     ...sideChatEnglish,
     ...activityEnglish,
+    ...planEnglish,
     ...backgroundEnglish,
     ...connectorsEnglish,
     ...reviewInboxEnglish,

@@ -770,6 +770,11 @@ async fn execute(
                 emit(Event::Activity(items))?;
             }
         }
+        if params["turnId"] == turn_id && method == "turn/plan/updated" {
+            if let Some(plan) = crate::activity::codex_plan(params) {
+                emit(Event::Activity(vec![plan]))?;
+            }
+        }
         match method {
             "serverRequest/resolved" => {
                 if let Some(opaque) = ledger.resolve(&params["requestId"]) {

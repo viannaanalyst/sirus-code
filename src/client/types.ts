@@ -101,7 +101,11 @@ export interface TurnActivity {
   waitingSince: number | null; pausedMs: number; status: SessionStatus; items: ActivityItem[]; truncated: boolean;
   /** First sentence of the agent's latest reasoning while the turn runs (ADR-101); live only, never in transcript files. */
   thought?: string | null;
+  /** The agent's own to-do plan, the whole list as of its latest update, normalized across providers (ADR-182). */
+  plan?: PlanEntry[];
 }
+export type PlanStatus = "pending" | "inProgress" | "completed";
+export interface PlanEntry { text: string; status: PlanStatus }
 
 export interface Message {
   id: string;

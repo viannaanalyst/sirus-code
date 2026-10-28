@@ -18,6 +18,7 @@ import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
+import { ComposerPlanTray } from "@/components/ComposerPlanTray";
 import { UsageLimitNotice } from "@/components/UsageLimitNotice";
 import { ComposerMcpCard, ComposerStatusCard, ComposerUsageCard, RenameSessionDialog } from "@/components/ComposerCommandPanels";
 import { ScriptRunNotice } from "@/components/ScriptRunNotice";
@@ -506,6 +507,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
     {session?.scripts?.runs?.length ? <ScriptRunNotice session={session} /> : null}
     {session?.usageLimit ? <UsageLimitNotice session={session} /> : null}
+    {session ? <ComposerPlanTray key={session.id} sessionId={session.id} /> : null}
     {session ? <ComposerPromptQueue key={session.id} sessionId={session.id} /> : null}
     <Popover open={suggestions.visible} onOpenChange={(open) => { if (!open) suggestions.dismiss(); }}>
     <PopoverAnchor asChild>
