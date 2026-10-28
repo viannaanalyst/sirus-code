@@ -48,10 +48,10 @@ export function AttachmentModal() {
     close();
   };
   const body = !file ? null
-    : open?.sent ? <DocumentBody owner={open.scope} attachmentId={file.id} active zoom={1} />
+    : open?.sent ? <DocumentBody source={{ owner: open.scope, attachmentId: file.id }} active zoom={1} />
     : source || (!canReadDocument(file) && !isHtml(file)) ? <div className="attachment-modal-source"><CodeBlock code={text} language={isHtml(file) ? "html" : sourceLanguage(file.name)} animateChanges={false} /></div>
     : isHtml(file) ? <HtmlPage source={text} className="attachment-modal-page" />
-    : <DocumentBody owner={file.owner ?? open!.scope} attachmentId={file.id} active zoom={1} />;
+    : <DocumentBody source={{ owner: file.owner ?? open!.scope, attachmentId: file.id }} active zoom={1} />;
   return createPortal(<AnimatePresence>
     {file && open ? <motion.div key="attachment-modal" className="attachment-modal-backdrop" onClick={close}
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.12 } }} transition={{ duration: 0.16 }}>

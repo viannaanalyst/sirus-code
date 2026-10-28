@@ -89,7 +89,7 @@ const DENIED: &[&str] = &[
     "app_update_action",
 ];
 
-const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.ts.net wss://*.ts.net; script-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'";
+const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.ts.net wss://*.ts.net; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; frame-ancestors 'none'";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

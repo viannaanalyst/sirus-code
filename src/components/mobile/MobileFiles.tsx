@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileEntry, WorkspaceFileSuggestion } from "@/client/types";
 import { client } from "@/client";
 import { ChevronLeft, ChevronRight, LoaderCircle, Search, X } from "@/components/icons";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
+import { isWorkspaceDocument } from "@/lib/document-reader";
+
+const WorkspaceDocument = lazy(async () => ({ default: (await import("@/components/WorkspaceDocument")).WorkspaceDocument }));
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { isLocalImageLink } from "@/lib/chat-markdown";
 import { FileGlyph } from "@/components/FileGlyph";
@@ -12,7 +15,7 @@ import { visibleTreeRows, workspacePath } from "@/lib/phone-chat";
 import { useAppStore } from "@/store/app-store";
 import type { MobileNavigation } from "./MobileApp";
 
-type Preview = { name: string; path: string; kind: "text" | "markdown"; content: string } | { name: string; path: string; kind: "image"; src: string } | { name: string; path: string; kind: "binary" };
+type Preview = { name: string; path: string; kind: "text" | "markdown"; content: string } | { name: string; path: string; kind: "image"; src: string } | { name: string; path: string; kind: "binary" } | { name: string; path: string; kind: "document" };
 
 /**
  * The conversation's workspace on the phone (ADR-129): one tree
@@ -69,6 +72,7 @@ export function MobileFiles({ sessionId, open, directory = false, navigation }: 
     if (open && !children[entry.path]) void loadChildren(entry.path);
   };
   const openFile = async (entry: FileEntry) => {
+    if (isWorkspaceDocument(entry.name)) { setPreview({ name: entry.name, path: entry.path, kind: "document" }); return; }
     setPreview({ name: entry.name, path: entry.path, kind: "text", content: "" });
     try {
       if (isLocalImageLink(entry.name)) { setPreview({ name: entry.name, path: entry.path, kind: "image", src: await client.replyImage(sessionId, entry.path) }); return; }
@@ -109,8 +113,9 @@ export function MobileFiles({ sessionId, open, directory = false, navigation }: 
       <button type="button" className="mobile-icon-button" aria-label={t("mobile.back")} onClick={back}><ChevronLeft size={18} aria-hidden="true" /></button>
       <div className="mobile-bar-title"><h1>{preview?.name ?? t("mobile.files")}</h1><p>{preview ? relative(preview.path) : project?.name ?? session?.title}</p></div>
     </header>
-    {preview ? <div className="mobile-file-preview">
+    {preview ? <div className={`mobile-file-preview${preview.kind === "document" ? " is-document" : ""}`}>
       {preview.kind === "image" ? <img src={preview.src} alt={preview.name} className="mobile-file-image" />
+        : preview.kind === "document" ? <Suspense fallback={null}><WorkspaceDocument sessionId={sessionId} path={preview.path} chrome={false} /></Suspense>
         : preview.kind === "binary" ? <p className="mobile-empty">{t("mobile.binaryFile")}</p>
         : preview.kind === "markdown" ? <div className="mobile-file-markdown"><MarkdownPreview source={preview.content} sessionId={sessionId} cwd={session?.worktree.path} /></div>
         : preview.content ? <pre className="mobile-file-text selectable">{preview.content}</pre>

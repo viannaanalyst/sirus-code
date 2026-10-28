@@ -58,7 +58,7 @@ const RESERVED_SEGMENT: &str = ".git";
 const MAX_EDITOR_READ_BYTES: u64 = 2 * 1024 * 1024;
 const MAX_EDITOR_WRITE_BYTES: usize = 1024 * 1024;
 
-fn is_reserved_path(path: &Path) -> bool {
+pub(crate) fn is_reserved_path(path: &Path) -> bool {
     path.components().any(|component| {
         matches!(component, std::path::Component::Normal(name) if name == RESERVED_SEGMENT)
     })

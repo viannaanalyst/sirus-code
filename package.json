@@ -18,6 +18,10 @@
     "release": "node scripts/release.ts"
   },
   "dependencies": {
+    "@betteroffice/docx": "0.4.3",
+    "@betteroffice/fonts": "0.4.0",
+    "@betteroffice/pptx": "0.2.0",
+    "@betteroffice/xlsx": "0.3.0",
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.12",
@@ -62,6 +66,7 @@
     "@tiptap/react": "^3.32.0",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
+    "effect": "4.0.5",
     "get-nonce": "^1.0.1",
     "katex": "^0.16.47",
     "mermaid": "^12.1.0",

@@ -67,3 +67,12 @@ The icons are taken from the `@iconify-json/solar` package and from Zeron's adju
 (https://github.com/zeronsh/comet, MIT, listed above); their stroke width is normalized to 1.7 and
 some coordinates are rounded. Those changes were made by Sirus Code. The attribution and license
 texts are kept in `public/licenses/solar-icons/`.
+
+## Word, PowerPoint and Excel previews (ADR-184)
+
+Office files are drawn by `@betteroffice/docx`, `@betteroffice/pptx`, `@betteroffice/xlsx` (Apache License 2.0; Copyright 2026 The
+OpenOOXML contributors and Elia Hilse) and `@betteroffice/fonts` (Apache-2.0 for the package, SIL Open Font License 1.1 for the
+bundled font faces: Carlito, Caladea, Liberation, Open Sans, Roboto, Inter and others), with `effect` (MIT) in the workers.
+The integration (the worker protocol, painting and text layers under `src/components/office/`) is adapted from T3 Code's
+Office previews (MIT, listed above), which in turn adapt opencode (MIT, Copyright (c) 2025 opencode). The licence texts are
+kept in `public/licenses/office/`.

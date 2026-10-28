@@ -187,8 +187,13 @@ export class SirusClient {
     return this.transport.thumbnailUrl?.(id);
   }
 
-  attachmentPreview(owner: string, id: string) {
-    return this.transport.invoke<import("./types").DocumentPreview>("attachment_preview", { owner, id });
+  /** `plain` asks for the typed text and table view of a Word or Excel file instead of the Office renderer. */
+  attachmentPreview(owner: string, id: string, plain = false) {
+    return this.transport.invoke<import("./types").DocumentPreview>("attachment_preview", { owner, id, plain });
+  }
+  /** A document in a session's workspace (a project file or one an agent wrote), under the same bounds. */
+  workspaceDocument(sessionId: string, path: string, plain = false) {
+    return this.transport.invoke<import("./types").DocumentPreview>("workspace_document", { sessionId, path, plain });
   }
 
   pickFolder() {
