@@ -1,17 +1,22 @@
 import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons";
-import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Children, createContext, isValidElement, memo, useContext, useEffect, useMemo, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
+import Markdown, { type Components } from "react-markdown";
 import { client } from "@/client";
 import type { EditorId } from "@/client/types";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { ChatLink } from "@/components/ChatLink";
 import { useTranslation } from "@/i18n/use-translation";
-import { fileReference, localMediaKind, parseChatInline, type ChatBlock, type ChatInline } from "@/lib/chat-markdown";
-import { parseChatMarkdownStream, type ChatMarkdownParse } from "@/lib/chat-markdown-stream";
+import { fileReference, localMediaKind } from "@/lib/chat-markdown";
+import { parseMarkdownBlocks, type MarkdownBlocks } from "@/lib/markdown-blocks";
+import { MATH_MAX, prepareMath } from "@/lib/markdown-math";
+import { NO_REHYPE_PLUGINS, REMARK_PLUGINS, TAIL_REHYPE_PLUGINS, urlTransform } from "@/lib/markdown-pipeline";
 import type { StreamFade } from "@/lib/use-stream-fade";
 import { ReplyMedia } from "@/components/ReplyMedia";
 import { StreamFadeText } from "@/components/StreamFadeText";
 import { FileGlyph } from "@/components/FileGlyph";
 import { MathFormula } from "@/components/MathFormula";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
+import { CodeBlock } from "@/components/arc/code-block/code-block";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { GALLERY_EVENT } from "@/components/ImageLightbox";
@@ -154,107 +159,158 @@ async function openReplyImages(anchor: HTMLElement, owner: Owner, url: string) {
  */
 export const ChatImageSource = createContext<((url: string) => string | null | undefined) | null>(null);
 
-/** `fade` reaches only the last node (and, inside emphasis, its last child): the streaming tail. */
-function Inline({ nodes, owner, fade = null }: { nodes: ChatInline[]; owner: Owner | null; fade?: StreamFade | null }): ReactNode {
-  const imageSource = useContext(ChatImageSource);
-  return nodes.map((node, index) => {
-    const tail = fade && index === nodes.length - 1 ? fade : null;
-    switch (node.kind) {
-      case "text": return tail ? <StreamFadeText key={index} text={node.text} fade={tail} /> : <Fragment key={index}>{node.text}</Fragment>;
-      case "math": return <MathFormula key={index} tex={node.text} />;
-      case "bold": return <strong key={index} className="font-semibold text-text-primary"><Inline nodes={node.children} owner={owner} fade={tail} /></strong>;
-      case "italic": return <em key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></em>;
-      case "strike": return <s key={index}><Inline nodes={node.children} owner={owner} fade={tail} /></s>;
-      case "code": {
-        const linked = codeLinkUrl(node.text);
-        if (linked) return <ChatLink key={index} url={linked} chip />;
-        const reference = owner ? fileReference(node.text, owner.cwd) : null;
-        const code = <code className="chat-inline-code">{node.text}</code>;
-        return reference && owner ? <FileReference key={index} owner={owner} path={reference.path} line={reference.line} fallback={code}>{node.text}</FileReference> : <Fragment key={index}>{code}</Fragment>;
-      }
-      case "image": {
-        const source = imageSource?.(node.url);
-        if (source === null) return node.alt ? <ChatLink key={index} url={node.url}>{node.alt}</ChatLink> : <ChatLink key={index} url={node.url} chip />;
-        const src = source ?? node.url;
-        // Images in a reply open together in the gallery, in the order they appear in the message.
-        return <button key={index} type="button" className="chat-image-button" aria-label={node.alt || node.url} onClick={(event) => openGallery(event.currentTarget, src)}>
-          <img src={src} alt={node.alt} loading="lazy" decoding="async" className="chat-image" draggable={false} />
-        </button>;
-      }
-      case "link": {
-        if (/^https?:\/\//i.test(node.url)) {
-          // A link whose text is its own address reads as a chip; written text keeps its words after the icon.
-          const only = node.children.length === 1 && node.children[0].kind === "text" ? node.children[0].text : null;
-          return only !== null && isBareLinkText(only, node.url) ? <ChatLink key={index} url={node.url} chip />
-            : <ChatLink key={index} url={node.url}><Inline nodes={node.children} owner={owner} /></ChatLink>;
-        }
-        const plainLink = () => {
-          const reference = owner ? fileReference(node.url, owner.cwd) : null;
-          const label = <span className="underline underline-offset-2"><Inline nodes={node.children} owner={owner} /></span>;
-          return reference && owner ? <FileReference owner={owner} path={reference.path} line={reference.line} fallback={label}><Inline nodes={node.children} owner={owner} /></FileReference> : label;
-        };
-        const media = owner ? localMediaKind(node.url) : null;
-        if (owner && media) {
-          // Local images and videos show inline (ADR-119); the link the reply wrote stays as the fallback.
-          const link = media === "image"
-            ? <a href="#" title={node.url} data-reply-image={node.url} className="chat-link chat-image-link" onClick={(event) => { event.preventDefault(); void openReplyImages(event.currentTarget, owner, node.url); }}>
-              <ImagePlus size={13} aria-hidden="true" className="chat-file-ref-icon" /><Inline nodes={node.children} owner={owner} />
-            </a>
-            : plainLink();
-          return <ReplyMedia key={index} sessionId={owner.sessionId} url={node.url} kind={media} caption={<Inline nodes={node.children} owner={owner} />} fallback={link}
-            onOpen={(anchor) => void openReplyImages(anchor, owner, node.url)} />;
-        }
-        return <Fragment key={index}>{plainLink()}</Fragment>;
-      }
-    }
-  });
+
+/** The workspace a reply belongs to, for file links and local media; null outside a session. */
+const OwnerContext = createContext<Owner | null>(null);
+/** Set around the streaming reply's last block only: its last text fades in (ADR-119). */
+const FadeContext = createContext<StreamFade | null>(null);
+
+function plainText(children: ReactNode): string | null {
+  const parts = Children.toArray(children);
+  return parts.length === 1 && typeof parts[0] === "string" ? parts[0] : null;
 }
 
-/** One parsed block. While a reply streams only its last block changes, so earlier
- * blocks skip inline parsing and reconciliation (compared by their source). */
-const MarkdownBlock = memo(function MarkdownBlock({ block, owner, fade }: { block: ChatBlock; source: string; owner: Owner | null; fade: StreamFade | null }) {
-  const inline = (value: string, tail = false) => <Inline nodes={parseChatInline(value)} owner={owner} fade={tail ? fade : null} />;
-  switch (block.kind) {
-    case "heading": return <div role="heading" aria-level={block.level} className={block.level <= 2 ? "chat-heading ui-title" : "chat-heading font-semibold text-text-primary"}>{inline(block.text, true)}</div>;
-    case "paragraph": return <div className="whitespace-pre-wrap">{inline(block.text, true)}</div>;
-    case "quote": return <div className="chat-quote whitespace-pre-wrap">{inline(block.text, true)}</div>;
-    case "rule": return <hr className="border-border-subtle" />;
-    case "math": return <MathFormula tex={block.text} display />;
-    case "list": return <div role="list" className="chat-list">
-      {block.items.map((item, position) => <div key={position} role="listitem" className="chat-list-item" style={{ paddingInlineStart: `${item.depth * 1.25}rem` }}>
-        <span className="chat-list-marker" aria-hidden="true">{item.task !== null ? (item.task ? "☑" : "☐") : item.ordered ? `${item.number}.` : item.depth % 2 ? "◦" : "•"}</span>
-        <div className="min-w-0 flex-1 whitespace-pre-wrap">{inline(item.text, position === block.items.length - 1)}</div>
-      </div>)}
-    </div>;
-    case "table": return <div className="chat-table-wrap scroll-thin"><table className="chat-table">
-      <thead><tr>{block.header.map((cell, column) => <th key={column} style={{ textAlign: block.align[column] ?? undefined }}>{inline(cell)}</th>)}</tr></thead>
-      <tbody>{block.rows.map((row, rowIndex) => <tr key={rowIndex}>{block.header.map((_, column) => <td key={column} style={{ textAlign: block.align[column] ?? undefined }}>{inline(row[column] ?? "")}</td>)}</tr>)}</tbody>
-    </table></div>;
+/** A link or a local image in a reply: web links by Chat behavior's rules, files and media of the workspace. */
+function ReplyLink({ url, children }: { url: string; children: ReactNode }) {
+  const owner = useContext(OwnerContext);
+  if (/^https?:\/\//i.test(url)) {
+    // A link whose text is its own address reads as a chip; written text keeps its words after the icon.
+    const only = plainText(children);
+    return only !== null && isBareLinkText(only, url) ? <ChatLink url={url} chip /> : <ChatLink url={url}>{children}</ChatLink>;
   }
-}, (previous, next) => previous.source === next.source && previous.owner === next.owner && previous.fade === next.fade);
-
-/** Each block's source for `MarkdownBlock`'s comparison, encoded once per block object. */
-const blockSources = new WeakMap<ChatBlock, string>();
-function blockSource(block: ChatBlock): string {
-  let source = blockSources.get(block);
-  if (source === undefined) { source = JSON.stringify(block); blockSources.set(block, source); }
-  return source;
+  const plainLink = () => {
+    const reference = owner ? fileReference(url, owner.cwd) : null;
+    const label = <span className="underline underline-offset-2">{children}</span>;
+    return reference && owner ? <FileReference owner={owner} path={reference.path} line={reference.line} fallback={label}>{children}</FileReference> : label;
+  };
+  const media = owner ? localMediaKind(url) : null;
+  if (owner && media) {
+    // Local images and videos show inline (ADR-119); the link the reply wrote stays as the fallback.
+    const link = media === "image"
+      ? <a href="#" title={url} data-reply-image={url} className="chat-link chat-image-link" onClick={(event) => { event.preventDefault(); void openReplyImages(event.currentTarget, owner, url); }}>
+        <ImagePlus size={13} aria-hidden="true" className="chat-file-ref-icon" />{children}
+      </a>
+      : plainLink();
+    return <ReplyMedia sessionId={owner.sessionId} url={url} kind={media} caption={children} fallback={link} onOpen={(anchor) => void openReplyImages(anchor, owner, url)} />;
+  }
+  return plainLink();
 }
+
+function ReplyImage({ src, alt }: { src?: string; alt?: string }) {
+  const imageSource = useContext(ChatImageSource);
+  const url = src ?? "";
+  if (!url) return <>{alt}</>;
+  // Only https and base64 raster images are drawn; any other path stays a link (ADR-085).
+  if (!/^https:\/\//i.test(url) && !/^data:image\//i.test(url)) return <ReplyLink url={url}>{alt || url}</ReplyLink>;
+  const source = imageSource?.(url);
+  if (source === null) return alt ? <ChatLink url={url}>{alt}</ChatLink> : <ChatLink url={url} chip />;
+  const shown = source ?? url;
+  // Images in a reply open together in the gallery, in the order they appear in the message.
+  return <button type="button" className="chat-image-button" aria-label={alt || url} onClick={(event) => openGallery(event.currentTarget, shown)}>
+    <img src={shown} alt={alt ?? ""} loading="lazy" decoding="async" className="chat-image" draggable={false} />
+  </button>;
+}
+
+function InlineCode({ text }: { text: string }) {
+  const owner = useContext(OwnerContext);
+  const linked = codeLinkUrl(text);
+  if (linked) return <ChatLink url={linked} chip />;
+  const reference = owner ? fileReference(text, owner.cwd) : null;
+  const code = <code className="chat-inline-code">{text}</code>;
+  return reference && owner ? <FileReference owner={owner} path={reference.path} line={reference.line} fallback={code}>{text}</FileReference> : code;
+}
+
+function MarkdownCode({ className, children }: { className?: string; children?: ReactNode }) {
+  const text = Children.toArray(children).join("");
+  if (className?.includes("language-math")) return text.length <= MATH_MAX ? <MathFormula tex={text} /> : <code className="chat-inline-code">{`$${text}$`}</code>;
+  return <InlineCode text={text} />;
+}
+
+const FencedCode = memo(CodeBlock);
+
+/** A fenced block: display math, a diagram, or a code block with its header, language and copy button. */
+function MarkdownPre({ children }: { children?: ReactNode }) {
+  const streaming = useContext(FadeContext) !== null;
+  const child = Children.toArray(children)[0];
+  const props = isValidElement(child) ? child.props as { className?: string; children?: ReactNode } : null;
+  const code = Children.toArray(props?.children).join("").replace(/\n$/, "");
+  const className = props?.className ?? "";
+  if (className.includes("language-math")) return code.length <= MATH_MAX ? <MathFormula tex={code} display /> : <FencedCode code={code} language="latex" animateChanges={false} />;
+  const language = /(?:^|\s)language-(\S+)/.exec(className)?.[1] ?? "text";
+  const block = language.toLowerCase() === "mermaid" && !streaming
+    ? <MermaidDiagram source={code} />
+    : <FencedCode code={code} language={language} maxLines={18} animateChanges={false} />;
+  return <div className="chat-code">{block}</div>;
+}
+
+function SpanNode({ children, ...attributes }: HTMLAttributes<HTMLSpanElement> & { node?: unknown; "data-stream-tail"?: string }) {
+  const fade = useContext(FadeContext);
+  const text = plainText(children);
+  // `node` is react-markdown's own prop, not a DOM attribute.
+  const { "data-stream-tail": tail, node: _node, ...rest } = attributes;
+  void _node;
+  if (tail !== undefined && fade && text !== null) return <StreamFadeText text={text} fade={fade} />;
+  return <span {...rest}>{children}</span>;
+}
+
+function heading(level: 1 | 2 | 3 | 4 | 5 | 6) {
+  const Tag = `h${level}` as const;
+  const className = level <= 2 ? "chat-heading ui-title" : "chat-heading font-semibold text-text-primary";
+  return function Heading({ children }: { children?: ReactNode }) {
+    return <Tag className={className}>{children}</Tag>;
+  };
+}
+
+/** Task list checkboxes are drawn, not form controls: read-only and part of the sentence. */
+function TaskBox({ checked, type }: { checked?: boolean; type?: string }) {
+  if (type !== "checkbox") return null;
+  return <span className="chat-task-box" role="checkbox" aria-checked={!!checked} aria-readonly="true" data-checked={checked ? "" : undefined} />;
+}
+
+function MarkdownTable({ children }: { children?: ReactNode }) {
+  return <div className="chat-table-wrap scroll-thin"><table className="chat-table">{children}</table></div>;
+}
+
+/** One stable object: the elements never remount between deltas, since they never change identity. */
+const COMPONENTS: Components = {
+  a: ({ href, children }) => <ReplyLink url={href ?? ""}>{children}</ReplyLink>,
+  img: ({ src, alt }) => <ReplyImage src={typeof src === "string" ? src : undefined} alt={alt} />,
+  code: MarkdownCode,
+  pre: MarkdownPre,
+  span: SpanNode,
+  input: TaskBox,
+  table: MarkdownTable,
+  // Link and file chips are menu wrappers (div), which a <p> cannot hold.
+  p: ({ children }) => <div role="paragraph">{children}</div>,
+  h1: heading(1), h2: heading(2), h3: heading(3), h4: heading(4), h5: heading(5), h6: heading(6),
+};
+
+/** One top-level block. A settled block has the same source on every delta, so it is not parsed or rendered again. */
+const MarkdownBlock = memo(function MarkdownBlock({ source, tail }: { source: string; tail: boolean }) {
+  const prepared = useMemo(() => prepareMath(source), [source]);
+  return <Markdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={tail ? TAIL_REHYPE_PLUGINS : NO_REHYPE_PLUGINS} components={COMPONENTS} urlTransform={urlTransform}>{prepared}</Markdown>;
+});
 
 /**
- * An assistant reply's prose as formatted text, with workspace files as links. `fade` is set
- * on the streaming reply's last prose: its last block fades the words that just arrived (ADR-119).
+ * An assistant reply's prose as formatted text, with workspace files as links (ADR-179).
+ * `fade` is set on the streaming reply's last prose: its last block fades the words that just arrived (ADR-119).
  */
 export const ChatMarkdown = memo(function ChatMarkdown({ text, sessionId, cwd, fade = null }: { text: string; sessionId?: string; cwd?: string; fade?: StreamFade | null }) {
   // Codex's own directives (cited files, next steps) read as paths and reply choices (codex-directives).
-  // While it streams, only the text after the last blank line is parsed and encoded again.
-  const parsed = useRef<ChatMarkdownParse | null>(null);
+  // While it streams, only the last block is scanned and parsed again; the settled ones keep their source.
+  const parsed = useRef<MarkdownBlocks | null>(null);
   const blocks = useMemo(() => {
-    parsed.current = parseChatMarkdownStream(parsed.current, readableCodexText(text));
-    return parsed.current.blocks.map((block) => ({ block, source: blockSource(block) }));
+    parsed.current = parseMarkdownBlocks(parsed.current, readableCodexText(text));
+    return parsed.current.blocks;
   }, [text]);
   const owner = useMemo(() => sessionId && cwd ? { sessionId, cwd } : null, [sessionId, cwd]);
-  return <div className="chat-markdown">
-    {blocks.map(({ block, source }, index) => <MarkdownBlock key={index} block={block} source={source} owner={owner} fade={index === blocks.length - 1 ? fade : null} />)}
-  </div>;
+  const last = blocks.length - 1;
+  // Every block sits in the same wrapper type, so a block that stops being the last one is not remounted.
+  return <OwnerContext.Provider value={owner}>
+    <div className="chat-markdown">
+      {blocks.map((source, index) => <FadeContext.Provider key={index} value={index === last ? fade : null}>
+        <MarkdownBlock source={source} tail={index === last && fade !== null} />
+      </FadeContext.Provider>)}
+    </div>
+  </OwnerContext.Provider>;
 });

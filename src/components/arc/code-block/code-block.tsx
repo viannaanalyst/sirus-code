@@ -4,7 +4,8 @@ import { useTranslation } from "@/i18n/use-translation";
 import { SearchText } from "@/components/SearchText";
 import { codeChunks, shouldHighlight } from "@/lib/code-chunks";
 import { normaliseLanguage, tokenKind, tokenPattern } from "@/lib/code-tokens";
-import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { cachedHighlight, highlightCode, pierreLanguage, type CodeAppearance, type HighlightedLines } from "@/lib/code-highlight";
 import { ChevronDown, FileCode2 } from "@/components/icons";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -56,6 +57,47 @@ function Highlighted({ code, language }: { code: string; language: string }) {
   return <>{chunks.map((chunk, index) => <HighlightedChunk key={index} text={chunk} language={language} />)}</>;
 }
 
+function subscribeAppearance(listener: () => void) {
+  const observer = new MutationObserver(listener);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+/** The app's resolved theme (`data-theme` on the root, absent meaning dark). */
+const readAppearance = (): CodeAppearance => document.documentElement.dataset.theme === "light" ? "light" : "dark";
+
+/**
+ * Pierre's colours for the source (ADR-179), or null while they are not ready, for languages it
+ * does not know, and during a search: the regex colours show meanwhile. A streaming block asks
+ * again only after its source rests for a moment; the tokenizing is cached per source.
+ */
+function usePierreLines(code: string, language: string, enabled: boolean): HighlightedLines | null {
+  const appearance = useSyncExternalStore(subscribeAppearance, readAppearance, () => "dark" as CodeAppearance);
+  const lang = enabled && shouldHighlight(code) ? pierreLanguage(language) : null;
+  const key = `${appearance}\0${lang}\0${code}`;
+  const [loaded, setLoaded] = useState<{ key: string; lines: HighlightedLines } | null>(null);
+  const asked = useRef(false);
+  const cached = lang ? cachedHighlight(code, lang, appearance) : undefined;
+  useEffect(() => {
+    if (!lang || cached) return;
+    let alive = true;
+    const timer = setTimeout(() => {
+      void highlightCode(code, lang, appearance).then((lines) => { if (alive && lines) setLoaded({ key, lines }); });
+    }, asked.current ? 160 : 0);
+    asked.current = true;
+    return () => { alive = false; clearTimeout(timer); };
+  }, [code, lang, appearance, cached, key]);
+  return cached ?? (loaded?.key === key ? loaded.lines : null);
+}
+
+const PierreCode = memo(function PierreCode({ lines }: { lines: HighlightedLines }) {
+  return <>{lines.map((line, index) => <Fragment key={index}>
+    {index ? "\n" : null}
+    {line.map((token, position) => token.color || token.fontStyle
+      ? <span key={position} style={{ color: token.color, fontStyle: token.fontStyle && token.fontStyle & 1 ? "italic" : undefined, fontWeight: token.fontStyle && token.fontStyle & 2 ? 600 : undefined }}>{token.content}</span>
+      : <Fragment key={position}>{token.content}</Fragment>)}
+  </Fragment>)}</>;
+});
+
 const textEnter = { duration: motionTokens.duration.standard, ease: [...motionTokens.ease.enter] } as const;
 const textExit = { duration: motionTokens.duration.instant, ease: [...motionTokens.ease.standard] } as const;
 
@@ -98,7 +140,8 @@ export function CodeBlock({ code, filename, language = "tsx", maxLines, animateC
   const t = useTranslation();
   const displayLanguage = normaliseLanguage(language);
   // Highlighting is the costliest part of a render: chunks that did not change are reused.
-  const highlighted = <Highlighted code={code} language={displayLanguage} />;
+  const pierre = usePierreLines(code, displayLanguage, !searchQuery.trim());
+  const highlighted = pierre ? <PierreCode lines={pierre} /> : <Highlighted code={code} language={displayLanguage} />;
   const reduced = useReducedMotion() ?? false;
   const preId = useId();
   const lineCount = code.split("\n").length;
