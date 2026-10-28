@@ -6,6 +6,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { providerById } from "@/lib/provider-registry";
 import { canSteer } from "@/lib/steering";
 import { canMove } from "@/lib/queue-order";
+import { focusComposer } from "@/lib/composer-focus";
 
 export function ComposerPromptQueue({ sessionId }: { sessionId: string }) {
   const t = useTranslation();
@@ -19,7 +20,8 @@ export function ComposerPromptQueue({ sessionId }: { sessionId: string }) {
   const card = useRef<HTMLElement>(null);
   const restoreFocus = (id?: string) => requestAnimationFrame(() => {
     const edit = [...(card.current?.querySelectorAll<HTMLButtonElement>("[data-queue-edit]") ?? [])].find(button => button.dataset.queueEdit === id && !button.disabled);
-    (edit ?? card.current?.querySelector<HTMLButtonElement>("button:not(:disabled)") ?? [...document.querySelectorAll<HTMLTextAreaElement>("textarea[data-draft-owner]")].find(area => area.dataset.draftOwner === `session:${sessionId}`))?.focus();
+    const button = edit ?? card.current?.querySelector<HTMLButtonElement>("button:not(:disabled)");
+    if (button) button.focus(); else focusComposer(`session:${sessionId}`);
   });
   if (!queue?.items.length) return null;
   const store = () => useAppStore.getState();

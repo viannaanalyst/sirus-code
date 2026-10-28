@@ -1,21 +1,21 @@
 import { useEffect, useId, useState } from "react";
-import type { KeyboardEvent, RefObject } from "react";
 import { client } from "@/client";
 import type { WorkspaceFiles } from "@/client/types";
-import { composerTrigger, completeComposerToken, suggestionIndex } from "@/lib/composer-suggestions";
+import { activeComposerTrigger, completeComposerToken, suggestionIndex } from "@/lib/composer-suggestions";
 import { filterSkills, skillContextKey } from "@/lib/skills";
 import { useSkillsCatalog } from "@/lib/use-skills-catalog";
 import { formatUnknownError } from "@/lib/format-error";
 import { useAppStore } from "@/store/app-store";
 import { availableCommands, commandPosition, filterCommands, type CommandContext, type ComposerCommandId } from "@/lib/composer-commands";
 import { translate } from "@/i18n";
+import { composerFor } from "@/lib/composer-focus";
 
 export interface ComposerSuggestion { key: string; label: string; description: string; path?: string; directory?: boolean; command?: ComposerCommandId }
 
 /** App commands join the `/` list; `run` receives the chosen command after its token leaves the draft. */
 export interface ComposerCommands { context: CommandContext; run: (id: ComposerCommandId) => void }
 
-export function useComposerSuggestions(ownerKey: string, value: string, area: RefObject<HTMLTextAreaElement | null>, unavailable: boolean, commands?: ComposerCommands) {
+export function useComposerSuggestions(ownerKey: string, value: string, unavailable: boolean, commands?: ComposerCommands) {
   const listId = useId();
   const [cursor, setCursor] = useState({ ownerKey, value, start: 0, end: 0 });
   const [focused, setFocused] = useState(false);
@@ -25,7 +25,7 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
   const owner = { projectId: ownerKey.startsWith("project:") ? ownerKey.slice(8) : null, sessionId: ownerKey.startsWith("session:") ? ownerKey.slice(8) : null };
   const contextKey = useAppStore(state => skillContextKey(state, owner));
   const disabledSkills = useAppStore(state => state.settings.disabledSkills);
-  const trigger = focused && !unavailable && !composing && cursor.ownerKey === ownerKey && cursor.value === value ? composerTrigger(value, cursor.start, cursor.end) : null;
+  const trigger = activeComposerTrigger({ focused, unavailable, composing, current: cursor.ownerKey === ownerKey && cursor.value === value }, value, cursor.start, cursor.end);
   const identity = JSON.stringify([ownerKey, contextKey, value, cursor.start, cursor.end]);
   const visible = trigger !== null && identity !== dismissed;
   const kind = visible ? trigger.kind : null;
@@ -63,7 +63,7 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
     ? [...exact, ...commandRows, ...skillRows.filter(row => row.key !== query)]
     : kind === "file" ? (fileData?.data?.entries ?? []).map(entry => ({ key: entry.path, label: entry.path.split("/").at(-1)! + (entry.isDir ? "/" : ""), description: entry.path.includes("/") ? entry.path.slice(0, entry.path.lastIndexOf("/")) : "", path: entry.path, directory: entry.isDir })) : [];
   const index = selection.key === requestKey ? Math.min(selection.index, Math.max(0, rows.length - 1)) : 0;
-  const syncCursor = (node: HTMLTextAreaElement) => setCursor({ ownerKey, value: node.value, start: node.selectionStart, end: node.selectionEnd });
+  const syncCursor = (text: string, start: number, end: number) => setCursor({ ownerKey, value: text, start, end });
   const choose = (row: ComposerSuggestion) => {
     if (!trigger || (loading && !row.command) || unavailable) return;
     const store = useAppStore.getState();
@@ -79,19 +79,17 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
     }
     if (trigger.kind === "skill" && store.settings.disabledSkills.includes(row.key)) return;
     const next = completeComposerToken(value, trigger, row.path ?? row.key, row.directory);
-    store.setComposerDraft(ownerKey, next.value);
+    // The editor replaces just the token, so undo keeps working and the caret lands after it.
+    const handle = composerFor(ownerKey);
+    handle?.replaceRange(trigger.start, trigger.end, next.value.slice(trigger.start, next.caret));
+    handle?.focus({ preventScroll: true });
+    if ((store.composerDrafts[ownerKey] ?? "") !== next.value) store.setComposerDraft(ownerKey, next.value);
     if (!row.directory) setDismissed(JSON.stringify([ownerKey, contextKey, next.value, next.caret, next.caret]));
     setCursor({ ownerKey, value: next.value, start: next.caret, end: next.caret });
-    requestAnimationFrame(() => {
-      if ((useAppStore.getState().composerDrafts[ownerKey] ?? "") !== next.value) return;
-      if (area.current?.dataset.draftOwner !== ownerKey) return;
-      area.current?.focus();
-      area.current?.setSelectionRange(next.caret, next.caret);
-    });
   };
   const dismiss = () => setDismissed(identity);
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    if (!visible || event.nativeEvent.isComposing || event.metaKey || event.ctrlKey || event.altKey) return false;
+  const onKeyDown = (event: KeyboardEvent): boolean => {
+    if (!visible || event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey) return false;
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); dismiss(); return true; }
     if (event.key === "Enter" && !event.shiftKey && error) { event.preventDefault(); retry(); return true; }
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && rows.length) {
@@ -108,10 +106,10 @@ export function useComposerSuggestions(ownerKey: string, value: string, area: Re
     visible, kind, listId, rows, index, loading, error, choose, onKeyDown, syncCursor,
     hasCommands: commandRows.length > 0,
     truncated: kind === "skill" ? catalog?.truncated ?? false : fileData?.data?.truncated ?? false,
-    onFocus: (node: HTMLTextAreaElement) => { setFocused(true); syncCursor(node); },
+    onFocus: () => setFocused(true),
     onBlur: () => setFocused(false),
     onCompositionStart: () => setComposing(true),
-    onCompositionEnd: (node: HTMLTextAreaElement) => { setComposing(false); syncCursor(node); },
+    onCompositionEnd: () => setComposing(false),
     retry, dismiss,
   };
 }

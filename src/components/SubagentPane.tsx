@@ -8,6 +8,7 @@ import { formatActivityDuration } from "@/lib/agent-activity";
 import { memberElapsed, memberStatus, visibleWindow } from "@/lib/subagent-team";
 import { useAppStore } from "@/store/app-store";
 import { useSubagentFeed } from "@/store/subagent-feeds";
+import { focusComposer } from "@/lib/composer-focus";
 
 const kindIcons: Record<ActivityKind, typeof Search> = { read: Search, edit: FilePenLine, command: Terminal, tool: Wrench, agent: Bot, skill: Box };
 /** Rows rendered at first; earlier ones open in pages of the same size. */
@@ -32,7 +33,7 @@ export function SubagentPane({ paneId, sessionId, view }: { paneId: string; sess
   const name = item?.label.trim() || view.label;
   const back = () => {
     closeDockPane(paneId);
-    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="session:${sessionId}"]`)?.focus());
+    requestAnimationFrame(() => focusComposer(`session:${sessionId}`));
   };
   const [shown, setShown] = useState(PAGE);
   const scroller = useRef<HTMLDivElement>(null);

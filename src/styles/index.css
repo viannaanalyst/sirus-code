@@ -387,7 +387,7 @@ html[data-density="comfortable"] {
 }
 
 /* The composer is one field surface; keyboard focus belongs to its outer edge. */
-.agent-composer:has(textarea:focus-visible) {
+.agent-composer:has(.composer-prompt:focus-visible) {
   border-color: color-mix(in srgb, var(--text-secondary) 45%, var(--border-default));
 }
 

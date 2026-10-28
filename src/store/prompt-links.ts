@@ -2,6 +2,7 @@ import { client } from "@/client";
 import { formatUnknownError } from "@/lib/format-error";
 import { linkedModel, placeLinkedPrompt, promptLinkSource } from "@/lib/prompt-link";
 import { selectEnabledAgents, useAppStore, type PromptLinkNotice } from "@/store/app-store";
+import { focusComposer } from "@/lib/composer-focus";
 
 /**
  * Prompt links (ADR-122). The native side checks the link and matches its project; here
@@ -63,7 +64,7 @@ async function openWaitingLink() {
       providerNote,
       restore: replaced === null ? null : { owner, text: replaced },
     });
-    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="${owner}"]`)?.focus());
+    requestAnimationFrame(() => focusComposer(owner));
   } catch (error) {
     useAppStore.setState({ error: formatUnknownError(error) });
   }

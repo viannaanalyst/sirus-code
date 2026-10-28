@@ -140,7 +140,7 @@ function useComposerShape(page: RefObject<HTMLDivElement | null>, sessionId: str
     const root = page.current;
     if (!root) return;
     let timer: number | undefined;
-    const isField = (target: EventTarget | null) => target instanceof HTMLTextAreaElement && !!target.closest(".agent-composer");
+    const isField = (target: EventTarget | null) => target instanceof HTMLElement && target.matches("[data-draft-owner]") && !!target.closest(".agent-composer");
     const onIn = (event: FocusEvent) => { if (isField(event.target)) { window.clearTimeout(timer); setFocused(true); } };
     const onOut = (event: FocusEvent) => { if (isField(event.target)) { window.clearTimeout(timer); timer = window.setTimeout(() => setFocused(false), 220); } };
     root.addEventListener("focusin", onIn);

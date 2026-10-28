@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { Dropdown, DropdownContent, DropdownItem, DropdownSeparator, DropdownTrigger } from "@/primitives/Dropdown";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useAppStore } from "@/store/app-store";
+import { focusComposer } from "@/lib/composer-focus";
 
 type Tab = "summary" | "timeline" | "checks" | "code" | "guide";
 type PullDiff = { files: ReturnType<typeof splitDiff>; truncated: boolean } | { error: string };
@@ -130,7 +131,7 @@ export function PullRequestDetail({ item, projectIds, onChanged, askOpen = false
         ? pullRequestGuidePrompt({ ...detail.item, headOid: detail.headOid })
         : agentDraft(detail, purpose, failures, fix?.selected);
       next.setComposerDraft(`project:${projectId}`, draft);
-      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="project:${projectId}"]`)?.focus());
+      requestAnimationFrame(() => focusComposer(`project:${projectId}`));
     });
   };
 

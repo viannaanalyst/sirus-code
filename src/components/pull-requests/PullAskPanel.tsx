@@ -15,6 +15,7 @@ import { IconButton } from "@/primitives/IconButton";
 import { ResizeHandle } from "@/primitives/ResizablePanel";
 import { useAppStore } from "@/store/app-store";
 import "@/styles/pull-ask.css";
+import { focusComposer } from "@/lib/composer-focus";
 
 /** Survives closing the panel and switching items; memory only. */
 let rememberedWidth = PULL_ASK_DEFAULT_WIDTH;
@@ -75,7 +76,7 @@ function PullAskConversation({ item, body, onClose }: { item: GithubItem; body: 
     const opened = await useAppStore.getState().openPullAsk(item, body);
     setOpening(false);
     if (!opened) { setFailed(true); return; }
-    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="session:${opened.id}"]`)?.focus({ preventScroll: true }));
+    requestAnimationFrame(() => focusComposer(`session:${opened.id}`, { preventScroll: true }));
   }, [item, body]);
   const ready = body !== null;
   const opened = useRef(false);

@@ -6,6 +6,7 @@ import { useAppStore } from "@/store/app-store";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
 import { diffViewState } from "@/lib/diff-view-state";
+import { focusComposer } from "@/lib/composer-focus";
 
 /** Uses retained turn data, never mutable git_diff/current worktree status. */
 export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: string; messageId: string; path?: string }) {
@@ -57,8 +58,7 @@ export function TurnReviewPane({ sessionId, messageId, path }: { sessionId: stri
         window.getSelection()?.removeAllRanges();
         requestAnimationFrame(() => {
           if (useAppStore.getState().selectedSessionId !== sessionId) return;
-          const composer = Array.from(document.querySelectorAll<HTMLTextAreaElement>("textarea[data-draft-owner]")).find(node => node.dataset.draftOwner === `session:${sessionId}`);
-          if (composer) { composer.focus({ preventScroll: true }); composer.setSelectionRange(composer.value.length, composer.value.length); }
+          focusComposer(`session:${sessionId}`, { preventScroll: true, end: true });
         });
         return true;
       } : undefined} /> : <p className="p-4 ui-control text-text-muted">{t("review.emptyPartial")}</p>}
