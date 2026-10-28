@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Hammer, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, Message, TurnActivity, WorkflowProgress } from "@/client/types";
 import { memberAnswer, workflowGroups } from "@/lib/workflow-groups";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -11,9 +11,10 @@ import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { foldBoundary, liveFoldBoundary, groupFailures, groupSentence, isSecretRow, markerSentence, stepCategory, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { foldBoundary, liveFoldBoundary, groupFailures, groupSentence, isSecretRow, markerSentence, stepCategory, stepDetail, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
 import { cascadeIndex } from "@/lib/cascade";
+import { assignReveals, splitAroundDetail } from "@/lib/tree-reveal";
 import { backgroundTaskId, backgroundTone, interruptedBackground, resumeBackgroundPrompt, runningBackground, type BackgroundTone } from "@/lib/background-tasks";
 import { client } from "@/client";
 import { formatUnknownError } from "@/lib/format-error";
@@ -201,21 +202,24 @@ function StepStatus({ item }: { item: Pick<ActivityItem, "state"> }) {
 /** Category icons for timeline rows; a mixed group shows a hammer. */
 const categoryIcons: Record<StepCategory, typeof Search> = { skill: Box, edit: FilePenLine, command: Terminal, read: Eye, search: Search, web: Globe, tool: Wrench, agent: Bot };
 
-function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: string; live?: boolean }) {
+function StepLine({ item, cwd, live = false, tree = false }: { item: ActivityItem; cwd?: string; live?: boolean; tree?: boolean }) {
   const t = useTranslation();
   const outputId = useId();
   const category = stepCategory(item);
   const Icon = isSecretRow(item) ? Lock : categoryIcons[category];
   const sentence = stepSentence(item, t, cwd);
+  // In the tree the command or path reads in mono, apart from its verb.
+  const detail = tree && !item.finishedTask && category !== "skill" && category !== "agent" && !isSecretRow(item) ? stepDetail(item.detail, cwd) : "";
+  const [before, mono, after] = splitAroundDetail(sentence, detail);
   // Rows recorded before native masking are masked here too.
   const output = useMemo(() => item.output?.trim() ? maskSecrets(item.output) : "", [item.output]);
   // Output always starts folded (failed steps stay visible as red rows); a click opens it.
   const [open, setOpen] = useState(false);
   const expanded = Boolean(output) && open;
   const body = <>
-    <span className="tl-icon"><Icon size={15} aria-hidden="true" /></span>
+    <span className="tl-icon"><Icon size={tree ? 16 : 15} aria-hidden="true" /></span>
     <span className={`tl-label${live ? " tl-shine" : ""}`}>
-      {sentence}{category === "skill" && item.detail ? <> <span className="tl-skill">/{item.detail}</span></> : null}
+      {mono ? <>{before}<span className="tl-mono">{mono}</span>{after}</> : sentence}{category === "skill" && item.detail ? <> <span className="tl-skill">/{item.detail}</span></> : null}
     </span>
     {item.state === "failed" ? <X size={12} className="tl-failed" aria-label={t("timeline.failed")} /> : item.state === "stopped" ? <Square size={10} className="tl-stopped" aria-label={t("timeline.stopped")} /> : null}
     {output ? <ChevronRight size={12} className={expanded ? "tl-detail-chevron tl-fold-open" : "tl-detail-chevron"} aria-hidden="true" /> : null}
@@ -225,6 +229,26 @@ function StepLine({ item, cwd, live = false }: { item: ActivityItem; cwd?: strin
     <button type="button" className="tl-line tl-toggle" data-state={item.state} data-category={category} aria-expanded={expanded} aria-controls={outputId} onClick={() => setOpen(!expanded)}>{body}</button>
     {expanded ? <ToolOutputBlock id={outputId} item={item} preview={output} /> : null}
   </>;
+}
+
+/**
+ * An open group as a tree (ADR-176): a trunk down the left, an elbow into every row. A row that
+ * arrives while the turn is live reveals; rows there when the tree opened, or a loaded transcript, stay still.
+ */
+function ActivityTree({ id, items, cwd, active, moving }: { id: string; items: ActivityItem[]; cwd?: string; active: boolean; moving: boolean }) {
+  const [known] = useState(() => new Map<string, number | null>());
+  // The first pass records the rows already there as still; later passes reveal only new arrivals.
+  const [started] = useState(() => ({ done: false }));
+  assignReveals(known, items.map(item => item.id), started.done && active);
+  started.done = true;
+  return <div id={id} className="tl-rows tl-tree">
+    {items.map((item, index) => {
+      const delay = known.get(item.id);
+      return <div key={item.id} className="tl-node" data-last={index === items.length - 1 || undefined} data-reveal={delay != null || undefined} style={delay != null ? { "--tl-delay": `${delay}ms` } as CSSProperties : undefined}>
+        <StepLine item={item} cwd={cwd} tree live={moving && item.state === "running"} />
+      </div>;
+    })}
+  </div>;
 }
 
 /** Where a background subagent or command finished (ADR-101): its name and outcome; the reply below is its answer. */
@@ -252,19 +276,17 @@ function WorkGroup({ items, cwd, live, active, modelLabel, now, moving, controls
   const settled = current ? steps.filter(item => item !== current) : steps;
   // Failures stay visible even inside a closed group.
   const failed = open ? [] : settled.filter(item => item.state === "failed");
-  const categories = new Set(settled.map(stepCategory));
-  const GroupIcon = categories.size === 1 ? categoryIcons[[...categories][0]] : Hammer;
   return <div className="tl-group">
     {settled.length === 1 ? <StepLine item={settled[0]} cwd={cwd} /> : null}
     {settled.length > 1 ? <>
-      <button type="button" className="tl-line tl-toggle" aria-expanded={open} aria-controls={listId} onClick={() => setOpen(value => !value)}>
-        <span className="tl-icon"><GroupIcon size={15} aria-hidden="true" /></span>
+      <button type="button" className="tl-line tl-toggle tl-sum" data-shimmer={(live && moving) || undefined} aria-expanded={open} aria-controls={listId} onClick={() => setOpen(value => !value)}>
+        <ChevronRight size={12} className={open ? "tl-sum-chevron tl-fold-open" : "tl-sum-chevron"} aria-hidden="true" />
         <span className="tl-label">{groupSentence(settled, t)}{groupFailures(settled) ? <span className="tl-failed-count">{`, ${t(groupFailures(settled) === 1 ? "timeline.failedCount.one" : "timeline.failedCount", { count: groupFailures(settled) })}`}</span> : null}</span>
       </button>
-      {open ? <div id={listId} className="tl-rows">{settled.map(item => <StepLine key={item.id} item={item} cwd={cwd} />)}</div> : null}
+      {open ? <ActivityTree id={listId} items={current ? [...settled, current] : settled} cwd={cwd} active={active} moving={moving} /> : null}
       {failed.map(item => <StepLine key={item.id} item={item} cwd={cwd} />)}
     </> : null}
-    {current ? <StepLine item={current} cwd={cwd} live={moving} /> : null}
+    {current && !(open && settled.length > 1) ? <StepLine item={current} cwd={cwd} live={moving} /> : null}
     {children.length ? <ol className="subagent-cards" data-cascade>
       {children.map((item, index) => <ChildRow key={item.id} item={item} modelLabel={modelLabel} name={item.label || t("Subagent {number}", { number: index + 1 })} now={now} index={index - firstNew} entering={active} controls={controls} />)}
     </ol> : null}
