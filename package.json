@@ -11,8 +11,9 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "tauri": "tauri",
-    "test": "node --import ./scripts/register-test-loader.mjs --test tests/*.test.ts && node scripts/verify-browser-panel.mjs && node scripts/verify-skills.mjs && node scripts/verify-keybindings.mjs && node scripts/verify-appearance.mjs && node scripts/verify-sidebar-rail.mjs && node scripts/verify-working-panel.mjs && node scripts/verify-editor.mjs && node scripts/verify-document-reader.mjs && node scripts/verify-turn-review.mjs && node scripts/verify-pr-body.mjs && node scripts/verify-message-trail.mjs && node scripts/verify-conversation-tools.mjs && node scripts/verify-agent-activity.mjs && node scripts/verify-background-tasks.mjs && node scripts/verify-prompt-queue.mjs && node scripts/verify-cascade.mjs",
+    "test": "node --import ./scripts/register-test-loader.mjs --test tests/*.test.ts && vitest run && node scripts/verify-browser-panel.mjs && node scripts/verify-skills.mjs && node scripts/verify-keybindings.mjs && node scripts/verify-appearance.mjs && node scripts/verify-sidebar-rail.mjs && node scripts/verify-working-panel.mjs && node scripts/verify-editor.mjs && node scripts/verify-document-reader.mjs && node scripts/verify-turn-review.mjs && node scripts/verify-pr-body.mjs && node scripts/verify-message-trail.mjs && node scripts/verify-conversation-tools.mjs && node scripts/verify-agent-activity.mjs && node scripts/verify-background-tasks.mjs && node scripts/verify-prompt-queue.mjs && node scripts/verify-cascade.mjs",
     "lint": "eslint src scripts tests",
+    "build:ghostty-wasm": "bash scripts/build-libghostty-wasm.sh",
     "test:arc": "node src/components/arc/demo/verify-previews.mjs",
     "release": "node scripts/release.ts"
   },
@@ -59,9 +60,6 @@
     "@tiptap/extensions": "^3.32.0",
     "@tiptap/pm": "^3.32.0",
     "@tiptap/react": "^3.32.0",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/addon-web-links": "^0.12.0",
-    "@xterm/xterm": "^6.0.0",
     "clsx": "^2.1.1",
     "codemirror": "^6.0.2",
     "get-nonce": "^1.0.1",
@@ -89,7 +87,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.0",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": ">=22.18.0"

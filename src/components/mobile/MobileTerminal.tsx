@@ -84,7 +84,7 @@ export function MobileTerminal({ sessionId, navigation }: { sessionId: string; n
     else write(withTerminalModifier(key.data, modifier));
   };
   const toggleKeyboard = () => {
-    const field = body.current?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea");
+    const field = body.current?.querySelector<HTMLTextAreaElement>(".terminal-input");
     if (!field) return;
     if (document.activeElement === field) field.blur(); else field.focus();
   };

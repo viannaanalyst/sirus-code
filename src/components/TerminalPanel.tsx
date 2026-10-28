@@ -1,14 +1,12 @@
-import { monoFontFamily } from "@/lib/fonts";
 import { composerContextForOwner, MAX_SNIPPET } from "@/lib/composer-context";
 import { isConversationStarted, resolveAppearanceMaterial, terminalAppearance, terminalTransparent } from "@/lib/appearance";
 import { terminalSurface } from "@/lib/terminal-surface";
 import { readSystemPalette, useSystemPalette } from "@/lib/use-system-palette";
-import { FitAddon } from "@xterm/addon-fit";
-import { WebLinksAddon } from "@xterm/addon-web-links";
+import { GhosttyTerminalSurface } from "@/terminal/ghostty/surface";
+import { ghosttyCursorStyle, ghosttyTheme, terminalFontFamily, terminalOwnsKey } from "@/lib/terminal-theme";
 import { openLinkFrom, useLinkMenuItems } from "@/components/ChatLink";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { terminalLinkTarget } from "@/lib/terminal-links";
-import { Terminal } from "@xterm/xterm";
 import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "@/client";
@@ -21,7 +19,6 @@ import { cn } from "@/lib/cn";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { SplitDownIcon, SplitRightIcon } from "@/components/icons/SquareSplitIcons";
 import { usePhoneSetting } from "@/lib/phone-prefs";
-import "@xterm/xterm/css/xterm.css";
 
 const actionButton = "rounded-[6px] p-1 text-text-muted transition-colors duration-[var(--motion-fast)] hover:bg-background-3 hover:text-text-primary disabled:pointer-events-none disabled:opacity-40";
 
@@ -204,19 +201,20 @@ function PaneHeader({
 /**
  * A terminal outlives its view. Collapsing the dock, switching dock tabs or sessions, or
  * maximizing unmounts the view, but the shell keeps running (a dev server must survive a
- * glance elsewhere) and xterm keeps its screen: the view re-attaches the same element.
+ * glance elsewhere) and Ghostty keeps its screen: the view re-attaches the same element.
  * The shell stops only when its terminal is closed, its session is removed, or it is reopened.
  */
 interface LiveTerminal {
   sessionId: string;
-  term: Terminal;
-  fit: FitAddon;
+  /** Null until Ghostty's WebAssembly core and the fonts are ready. */
+  surface: GhosttyTerminalSurface | null;
   element: HTMLDivElement;
   started: boolean;
   ended: boolean;
   error: string | null;
   attached: boolean;
-  view: { ended: (value: boolean) => void; error: (value: string | null) => void; selection: (value: string) => void; link: (url: string | null) => void } | null;
+  visible: boolean;
+  view: { ended: (value: boolean) => void; error: (value: string | null) => void; selection: (value: string) => void; link: (url: string | null) => void; ready: () => void } | null;
   dispose: () => void;
 }
 const liveTerminals = new Map<string, LiveTerminal>();
@@ -237,61 +235,30 @@ function watchClosedTerminals() {
   });
 }
 
-function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLElement): LiveTerminal {
+function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLElement, visible: boolean): LiveTerminal {
   watchClosedTerminals();
   const settings = useAppStore.getState().settings;
   const support = useAppStore.getState().hostInfo?.appearanceSupport;
   const element = document.createElement("div");
-  element.className = "h-full w-full";
+  // `xterm` is kept for DiffViewer's keyboard-focus guard, which names it.
+  element.className = "terminal-canvas xterm relative h-full w-full";
   host.appendChild(element);
   // The link under the pointer, for the view's right-click menu (`live` exists by the time a link is hovered).
   const hoverLink = (uri: string | null) => live.view?.link(uri ? terminalLinkTarget(uri) : null);
-  const term = new Terminal({
-    convertEol: true,
-    cursorBlink: true,
-    cursorInactiveStyle: "outline",
-    lineHeight: 1.15,
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-    // Transparency costs xterm a slower composite; only window glass needs it.
-    allowTransparency: terminalTransparent(settings, support, readSystemPalette()),
-    fontSize: settings.terminalFontSize,
-    cursorStyle: settings.terminalCursorStyle === "bar" ? "bar" : settings.terminalCursorStyle === "underline" ? "underline" : "block",
-    scrollback: settings.terminalScrollback,
-    theme: terminalAppearance(settings, support, readSystemPalette()),
-    // OSC 8 hyperlinks (`ls --hyperlink`, CLIs that print link text) open like plain addresses.
-    linkHandler: {
-      allowNonHttpProtocols: false,
-      activate: (event, uri) => {
-        const target = terminalLinkTarget(uri);
-        if (!target) return;
-        event.preventDefault();
-        void openLinkFrom(target, event);
-      },
-      hover: (_event, uri) => hoverLink(uri),
-      leave: () => hoverLink(null),
-    },
-  });
-  const fit = new FitAddon();
-  term.loadAddon(fit);
-  // http(s) addresses (localhost included) open like links in replies (ADR-149); the one
-  // under the pointer gives the right-click its link actions.
-  term.loadAddon(new WebLinksAddon((event, uri) => { event.preventDefault(); void openLinkFrom(uri, event); },
-    { hover: (_event, uri) => hoverLink(uri), leave: () => hoverLink(null) }));
-  term.open(element);
   let disposed = false;
   let exited = false;
   const unlisteners: (() => void)[] = [];
   const live: LiveTerminal = {
-    sessionId, term, fit, element, started: false, ended: false, error: null, attached: true, view: null,
+    sessionId, surface: null, element, started: false, ended: false, error: null, attached: true, visible, view: null,
     dispose: () => {
       if (disposed) return;
       disposed = true;
       if (liveTerminals.get(terminalId) === live) liveTerminals.delete(terminalId);
       useAppStore.getState().setTerminalRunning(sessionId, terminalId, false);
-      input.dispose();
-      selection.dispose();
       unlisteners.forEach((unlisten) => unlisten());
-      term.dispose();
+      // Creation may still be in flight; it disposes its surface when it finds this terminal gone.
+      live.surface?.dispose();
+      live.surface = null;
       element.remove();
       void queueTerminalOperation(terminalId, () => client.stopTerminal(sessionId, terminalId)).catch((reason: unknown) => useAppStore.setState({ error: formatUnknownError(reason) }));
     },
@@ -301,13 +268,43 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
   const markRunning = (value: boolean) => useAppStore.getState().setTerminalRunning(sessionId, terminalId, value);
   const setEnded = (value: boolean) => { live.ended = value; live.view?.ended(value); markRunning(live.started && !value && !disposed); };
   const report = (reason: unknown) => { if (disposed) return; live.error = formatUnknownError(reason); live.view?.error(live.error); };
-  const selection = term.onSelectionChange(() => { if (!disposed) live.view?.selection(term.getSelection()); });
-  const input = term.onData((data) => { if (live.started) void client.writeTerminal(sessionId, terminalId, data).catch(report); });
+  const created = GhosttyTerminalSurface.create(element, {
+    theme: ghosttyTheme(terminalAppearance(settings, support, readSystemPalette())),
+    font: { family: terminalFontFamily(settings.terminalFont), size: settings.terminalFontSize },
+    visible,
+    scrollback: settings.terminalScrollback,
+    cursorStyle: ghosttyCursorStyle(settings.terminalCursorStyle),
+    labels: { input: translate(settings.locale, "terminal.input"), scrollback: translate(settings.locale, "terminal.scrollback") },
+    onData: (data) => { if (live.started) void client.writeTerminal(sessionId, terminalId, data).catch(report); },
+    onResize: (cols, rows) => { if (live.started) void client.resizeTerminal(sessionId, terminalId, cols, rows).catch(report); },
+    onSelectionChange: () => { if (!disposed) live.view?.selection(live.surface?.getSelection() ?? ""); },
+    beforeKey: terminalOwnsKey,
+    // http(s) addresses (localhost included) and OSC 8 hyperlinks open like links in replies
+    // (ADR-149); the one under the pointer gives the right-click its link actions.
+    canActivateLink: (text) => terminalLinkTarget(text) !== null,
+    onLinkActivate: (text, event) => {
+      const target = terminalLinkTarget(text);
+      if (!target) return;
+      event.preventDefault();
+      void openLinkFrom(target, event);
+    },
+    onLinkHover: hoverLink,
+  }).then((surface) => {
+    if (disposed) { surface.dispose(); throw new Error("terminal closed"); }
+    live.surface = surface;
+    live.view?.ready();
+    if (live.attached && live.visible) surface.focus();
+    return surface;
+  });
+  created.catch(() => undefined);
+  // The shell starts once its screen exists, so no early output is dropped.
   void queueTerminalOperation(terminalId, async () => {
+    if (disposed) return;
+    const surface = await created;
     if (disposed) return;
     // Register only after older cleanup has completed, before this spawn.
     for (const subscribe of [
-      () => client.onPtyOutput((event) => { if (!disposed && event.sessionId === sessionId && event.terminalId === terminalId) term.write(event.data); }),
+      () => client.onPtyOutput((event) => { if (!disposed && event.sessionId === sessionId && event.terminalId === terminalId) live.surface?.write(event.data); }),
       () => client.onPtyExit((event) => { if (!disposed && event.sessionId === sessionId && event.terminalId === terminalId) { exited = true; live.started = false; setEnded(true); } }),
     ]) {
       const unlisten = await subscribe();
@@ -315,12 +312,12 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
       unlisteners.push(unlisten);
     }
     if (disposed) return;
-    await client.startTerminal(sessionId, terminalId, term.cols, term.rows);
+    await client.startTerminal(sessionId, terminalId, surface.cols, surface.rows);
     // A server started in the shell may now listen; the open views rescan once (ADR-151).
     useAppStore.getState().noteServerProcessStarted(sessionId);
     live.started = !exited;
-    if (!disposed) { setEnded(exited); live.error = null; live.view?.error(null); }
-  }).catch((reason: unknown) => { report(reason); if (!disposed) setEnded(true); });
+    if (!disposed) { setEnded(exited); live.error = null; live.view?.error(null); surface.resendSize(); }
+  }).catch((reason: unknown) => { if (!disposed) { report(reason); setEnded(true); } });
   return live;
 }
 
@@ -332,7 +329,6 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
   const terminalFont = useAppStore((state) => state.settings.terminalFont);
   const terminalFontSize = usePhoneSetting("terminalFontSize", useAppStore((state) => state.settings.terminalFontSize));
   const terminalCursorStyle = useAppStore((state) => state.settings.terminalCursorStyle);
-  const terminalScrollback = useAppStore((state) => state.settings.terminalScrollback);
   const terminalBackground = useAppStore((state) => terminalAppearance(state.settings, state.hostInfo?.appearanceSupport, systemPalette).background);
   const terminalGlass = useAppStore((state) => terminalTransparent(state.settings, state.hostInfo?.appearanceSupport, systemPalette));
   // What the surface around the terminal depends on: the dock's material changes with these.
@@ -341,9 +337,9 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     const session = state.sessions.find((row) => row.id === sessionId) ?? null;
     return `${material.palette}:${material.windowGlass}:${material.sidebarGlass}:${material.sidebarOpacity}:${isConversationStarted(session)}`;
   });
-  const terminal = useRef<Terminal | null>(null);
-  const refit = useRef<(() => void) | null>(null);
   const [generation, setGeneration] = useState(0);
+  // Counts the moments the surface became ready: the effects below need it once it exists.
+  const [ready, setReady] = useState(0);
   const [ended, setEnded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState("");
@@ -362,93 +358,74 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
     let cancelled = false;
     let existing = liveTerminals.get(terminalId);
     if (existing && existing.sessionId !== sessionId) { existing.dispose(); existing = undefined; }
-    const live = existing ?? createLiveTerminal(sessionId, terminalId, node);
+    const live = existing ?? createLiveTerminal(sessionId, terminalId, node, visibleRef.current);
     if (live === existing) node.appendChild(live.element);
     live.attached = true;
-    live.view = { ended: (value) => { if (!cancelled) setEnded(value); }, error: (value) => { if (!cancelled) setError(value); }, selection: (value) => { if (!cancelled) setSelected(value); }, link: (value) => { if (!cancelled) setLinkUrl(value); } };
+    live.visible = visibleRef.current;
+    live.view = {
+      ended: (value) => { if (!cancelled) setEnded(value); },
+      error: (value) => { if (!cancelled) setError(value); },
+      selection: (value) => { if (!cancelled) setSelected(value); },
+      link: (value) => { if (!cancelled) setLinkUrl(value); },
+      ready: () => { if (!cancelled) setReady((value) => value + 1); },
+    };
     setEnded(live.ended);
     setError(live.error);
-    const { term, fit } = live;
-    terminal.current = term;
-    const safeFit = () => {
-      if (cancelled || !node.isConnected || node.clientWidth < 2 || node.clientHeight < 2) return;
-      fit.fit();
-    };
-    const resize = () => {
-      if (cancelled || !visibleRef.current) return;
-      safeFit();
-      if (live.started) void client.resizeTerminal(sessionId, terminalId, term.cols, term.rows).catch((reason: unknown) => { if (!cancelled) setError(formatUnknownError(reason)); });
-    };
-    safeFit();
-    // A re-attached screen was painted while detached; draw it again in place.
-    if (live === existing) { term.refresh(0, term.rows - 1); resize(); }
-    refit.current = resize;
-    const observer = new ResizeObserver(resize);
-    observer.observe(node);
+    // A re-attached screen was painted while detached: it measures its new place and draws again.
+    if (live === existing && live.surface) { live.surface.setVisible(visibleRef.current); live.surface.resendSize(); }
     return () => {
       cancelled = true;
-      observer.disconnect();
       live.view = null;
       live.attached = false;
-      if (terminal.current === term) terminal.current = null;
-      if (refit.current === resize) refit.current = null;
       // Closed tabs stop their shell; any other unmount only detaches the view.
       if (!terminalListed(sessionId, terminalId)) live.dispose();
       else live.element.remove();
     };
   }, [sessionId, terminalId, generation]);
 
+  // The font, size and cursor follow the settings; the font swaps in once its face settles.
   useEffect(() => {
-    const term = terminal.current;
-    if (!term) return;
+    const surface = liveTerminals.get(terminalId)?.surface;
+    if (!surface) return;
+    surface.setCursorStyle(ghosttyCursorStyle(terminalCursorStyle));
+    void surface.setFont({ family: terminalFontFamily(terminalFont), size: terminalFontSize });
+  }, [terminalId, terminalFont, terminalFontSize, terminalCursorStyle, generation, ready]);
+
+  useEffect(() => {
+    const surface = liveTerminals.get(terminalId)?.surface;
+    if (!surface) return;
     let cancelled = false;
-    term.options.fontSize = terminalFontSize;
-    term.options.cursorStyle = terminalCursorStyle === "bar" ? "bar" : terminalCursorStyle === "underline" ? "underline" : "block";
-    term.options.scrollback = terminalScrollback;
     const appearance = terminalAppearance(useAppStore.getState().settings, useAppStore.getState().hostInfo?.appearanceSupport, systemPalette);
-    term.options.allowTransparency = terminalGlass;
-    term.options.theme = appearance;
-    const fit = () => { if (!cancelled && terminal.current === term) refit.current?.(); };
+    surface.setTheme(ghosttyTheme(appearance));
     const frame = requestAnimationFrame(() => {
       // Paint the surface the terminal sits on (the dock's material), read once styles apply.
       const backgrounds: string[] = [];
       for (let node = host.current?.parentElement ?? null; node && backgrounds.length < 12; node = node.parentElement) backgrounds.push(getComputedStyle(node).backgroundColor);
-      const surface = terminalSurface(backgrounds, appearance.background);
-      if (!cancelled && terminal.current === term) {
-        term.options.allowTransparency = surface.transparent;
-        term.options.theme = { ...appearance, background: surface.background, cursorAccent: surface.background.slice(0, 7) };
-      }
-      fit();
+      if (!cancelled) surface.setTheme(ghosttyTheme(appearance, terminalSurface(backgrounds, appearance.background)));
     });
-    // Set the new family only once its face settles, so xterm measures loaded glyphs.
-    // The public font option triggers measurement without restarting the owned PTY.
-    const applyFont = () => {
-      if (cancelled || terminal.current !== term) return;
-      term.options.fontFamily = monoFontFamily(terminalFont);
-      fit();
-    };
-    void document.fonts.load(`${terminalFontSize}px ${monoFontFamily(terminalFont)}`).then(applyFont).catch(applyFont);
     return () => { cancelled = true; cancelAnimationFrame(frame); };
-  }, [terminalFont, terminalFontSize, terminalCursorStyle, terminalScrollback, terminalBackground, terminalGlass, systemPalette, surfaceKey, generation]);
+  }, [terminalId, terminalBackground, terminalGlass, systemPalette, surfaceKey, generation, ready]);
 
   useEffect(() => {
+    const live = liveTerminals.get(terminalId);
+    if (live) live.visible = visible;
+    const surface = live?.surface;
+    if (!surface) return;
+    surface.setVisible(visible);
     if (!visible) return;
-    const frame = requestAnimationFrame(() => {
-      refit.current?.();
-      terminal.current?.focus();
-    });
+    const frame = requestAnimationFrame(() => surface.focus());
     return () => cancelAnimationFrame(frame);
-  }, [visible]);
+  }, [terminalId, visible, generation, ready]);
 
   return (
-    // Inactive tabs stay mounted (their shell and history live in xterm) but are skipped:
-    // `visibility` + `content-visibility: hidden` stop layout, paint and compositing of
-    // their rows, so writes to a background terminal cost only parsing.
+    // Inactive tabs stay mounted (their shell and history live in Ghostty) but are skipped:
+    // the surface stops drawing while hidden, and `visibility` + `content-visibility: hidden`
+    // stop layout, paint and compositing, so writes to a background terminal cost only parsing.
     <div className={cn("absolute inset-0 flex flex-col transition-opacity duration-[var(--motion-fast)]", visible ? "opacity-100" : "pointer-events-none invisible opacity-0 [content-visibility:hidden]")} aria-hidden={!visible}>
       {error ? <p role="alert" className="p-2 ui-control text-danger">{error}</p> : null}
       {ended ? <button type="button" onClick={() => { liveTerminals.get(terminalId)?.dispose(); setGeneration((value) => value + 1); }} className="p-2 ui-control text-text-secondary">{t("terminal.reopen")}</button> : null}
       <ContextMenu activation="context-only" nativeWhenEmpty className="flex min-h-0 flex-1 flex-col" label={translate(locale, "link.actions", { url: menuUrl ?? linkUrl ?? "" })} items={linkItems} onOpenChange={linkMenuChanged}>
-        <div ref={host} className="min-h-0 flex-1 p-2" onContextMenuCapture={() => setMenuUrl(linkUrl)} />
+        <div ref={host} className="min-h-0 flex-1 p-1" onContextMenuCapture={() => setMenuUrl(linkUrl)} />
       </ContextMenu>
       {selected.trim() && visible ? <button type="button" className="terminal-add-to-chat" onMouseDown={(event) => event.preventDefault()} onClick={() => {
         // The selection becomes a Terminal chip in this session's composer as context.
@@ -456,7 +433,7 @@ function TerminalInstance({ sessionId, terminalId, visible }: { sessionId: strin
         const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
         const text = selected.replace(/\s+$/, "").slice(0, MAX_SNIPPET);
         state.setComposerContext(owner, { ...current, snippets: [...(current.snippets ?? []), { id: crypto.randomUUID(), text }] });
-        terminal.current?.clearSelection();
+        liveTerminals.get(terminalId)?.surface?.clearSelection();
         setSelected("");
       }}><MessageSquarePlus size={13} aria-hidden="true" />{t("Add to chat")}</button> : null}
     </div>

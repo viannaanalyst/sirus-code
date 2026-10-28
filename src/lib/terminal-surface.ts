@@ -1,5 +1,5 @@
 /**
- * The terminal paints the surface it sits on (2026-10-09): xterm needs a concrete colour, and a
+ * The terminal paints the surface it sits on (2026-10-09): the canvas terminal needs a concrete colour, and a
  * fixed one (#0c0c0c) left the terminal darker than the dock beside a started conversation,
  * which uses the sidebar material. `backgrounds` are computed `background-color`s from the
  * terminal outwards; the first painted one decides.
@@ -15,7 +15,7 @@ export function parseCssColor(value: string): Rgba | null {
 
 const hex = (value: number) => Math.max(0, Math.min(255, value)).toString(16).padStart(2, "0");
 
-/** `transparent` when the surface lets the window show through: xterm then composes over it. */
+/** `transparent` when the surface lets the window show through: default-background cells then stay unpainted over it. */
 export function terminalSurface(backgrounds: string[], fallback: string): { background: string; transparent: boolean } {
   for (const value of backgrounds) {
     const color = parseCssColor(value);
