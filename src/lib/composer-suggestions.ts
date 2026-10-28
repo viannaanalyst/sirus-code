@@ -34,6 +34,13 @@ export function completeComposerToken(value: string, trigger: ComposerTrigger, s
   return { value: next, caret: trigger.start + token.length + spacer.length };
 }
 
+/** Tab on an app command writes its name and leaves the caret on it, so the list stays open
+ * and Enter runs the command; nothing is run or sent. */
+export function completeComposerCommand(value: string, trigger: ComposerTrigger, id: string): { value: string; caret: number } {
+  const token = `/${id}`;
+  return { value: value.slice(0, trigger.start) + token + value.slice(trigger.end), caret: trigger.start + token.length };
+}
+
 export function suggestionIndex(current: number, delta: number, count: number): number {
   return count ? (current + delta + count) % count : 0;
 }

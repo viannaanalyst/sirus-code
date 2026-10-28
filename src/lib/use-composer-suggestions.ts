@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { client } from "@/client";
 import type { WorkspaceFiles } from "@/client/types";
-import { activeComposerTrigger, completeComposerToken, suggestionIndex } from "@/lib/composer-suggestions";
+import { activeComposerTrigger, completeComposerCommand, completeComposerToken, suggestionIndex } from "@/lib/composer-suggestions";
 import { filterSkills, skillContextKey } from "@/lib/skills";
 import { useSkillsCatalog } from "@/lib/use-skills-catalog";
 import { formatUnknownError } from "@/lib/format-error";
@@ -87,6 +87,20 @@ export function useComposerSuggestions(ownerKey: string, value: string, unavaila
     if (!row.directory) setDismissed(JSON.stringify([ownerKey, contextKey, next.value, next.caret, next.caret]));
     setCursor({ ownerKey, value: next.value, start: next.caret, end: next.caret });
   };
+  // Tab completes a command's name instead of running it: commands act at once (`/review`
+  // sends a review request), so only Enter, or a click, runs one.
+  const completeCommand = (row: ComposerSuggestion) => {
+    if (!trigger || !row.command || unavailable) return;
+    const store = useAppStore.getState();
+    if ((store.composerDrafts[ownerKey] ?? "") !== value || skillContextKey(store, owner) !== contextKey) return;
+    const next = completeComposerCommand(value, trigger, row.command);
+    const handle = composerFor(ownerKey);
+    handle?.replaceRange(trigger.start, trigger.end, `/${row.command}`);
+    handle?.focus({ preventScroll: true });
+    if ((store.composerDrafts[ownerKey] ?? "") !== next.value) store.setComposerDraft(ownerKey, next.value);
+    setCursor({ ownerKey, value: next.value, start: next.caret, end: next.caret });
+    setSelection({ key: JSON.stringify([ownerKey, contextKey, "skill", row.command]), index: 0 });
+  };
   const dismiss = () => setDismissed(identity);
   const onKeyDown = (event: KeyboardEvent): boolean => {
     if (!visible || event.isComposing || event.keyCode === 229 || event.metaKey || event.ctrlKey || event.altKey) return false;
@@ -96,7 +110,11 @@ export function useComposerSuggestions(ownerKey: string, value: string, unavaila
       event.preventDefault(); setSelection({ key: requestKey, index: suggestionIndex(index, event.key === "ArrowDown" ? 1 : -1, rows.length) }); return true;
     }
     if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey && (rows.length || loading)) {
-      event.preventDefault(); if (rows[index]) choose(rows[index]); return true;
+      event.preventDefault();
+      const row = rows[index];
+      if (row?.command && event.key === "Tab") completeCommand(row);
+      else if (row) choose(row);
+      return true;
     }
     if (event.key === "Tab") dismiss();
     return false;

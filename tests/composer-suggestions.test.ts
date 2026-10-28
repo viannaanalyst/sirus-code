@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { completeComposerToken, composerTrigger, suggestionIndex } from "../src/lib/composer-suggestions.ts";
+import { completeComposerCommand, completeComposerToken, composerTrigger, suggestionIndex } from "../src/lib/composer-suggestions.ts";
 
 test("composer detects slash and file tokens at the caret, including quoted directories", () => {
   assert.deepEqual(composerTrigger("/", 1), { kind: "skill", query: "", start: 0, end: 1 });
@@ -47,4 +47,12 @@ test("composer highlights standalone skill invocations and file mentions, not pa
   assert.deepEqual(composerSegments("fix /graphify with @docs/a.md now").map((s) => [s.kind, s.text]), [["text", "fix "], ["skill", "/graphify"], ["text", " with "], ["file", "@docs/a.md"], ["text", " now"]]);
   assert.deepEqual(composerSegments('see @"my file.md" and /usr/bin').filter((s) => s.kind !== "text").map((s) => s.text), ['@"my file.md"']);
   assert.equal(hasComposerTokens("plain text"), false);
+});
+
+test("Tab on an app command only writes its name, leaving the list open for Enter to run it", () => {
+  const next = completeComposerCommand("/re", composerTrigger("/re", 3)!, "review");
+  assert.deepEqual(next, { value: "/review", caret: 7 });
+  // The caret stays on the token, so the `/` list is still offered with the command's own row.
+  assert.deepEqual(composerTrigger(next.value, next.caret), { kind: "skill", query: "review", start: 0, end: 7 });
+  assert.deepEqual(completeComposerCommand("/co later", composerTrigger("/co later", 3)!, "compact"), { value: "/compact later", caret: 8 });
 });
