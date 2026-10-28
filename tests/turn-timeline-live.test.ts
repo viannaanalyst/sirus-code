@@ -43,3 +43,20 @@ test("each reply after a background subagent's marker stays visible (ADR-101)", 
   const shell = { ...row("agent:b1", 2), kind: "agent" as const, background: true, shell: true };
   assert.deepEqual(timelineParts("Go.", [row("bash", 2), shell]).flatMap((part) => part.kind === "work" ? part.items.map((item) => item.id) : []), ["bash"]);
 });
+
+test("a group is live only while the turn works on it and no reply text follows (ADR-176)", async () => {
+  const { workIsLive, groupExpanded } = await import("../src/lib/turn-timeline.ts");
+  const work = { kind: "work" as const, items: [] };
+  const text = { kind: "text" as const, start: 0, end: 1 };
+  assert.equal(workIsLive([text, work], 1, true), true, "the newest group of a running turn");
+  assert.equal(workIsLive([text, work], 1, false), false, "the turn ended");
+  assert.equal(workIsLive([work, text], 0, true), false, "the agent wrote text after it");
+  assert.equal(workIsLive([work, text, work], 0, true), false, "an earlier group");
+  assert.equal(workIsLive([work, text, work], 2, true), true);
+  assert.equal(workIsLive([text], 0, true), false, "not a work part");
+  // Live opens, settled closes, the person's choice wins either way.
+  assert.equal(groupExpanded(null, true), true);
+  assert.equal(groupExpanded(null, false), false);
+  assert.equal(groupExpanded(false, true), false, "closed by the person while live");
+  assert.equal(groupExpanded(true, false), true, "opened by the person once settled");
+});

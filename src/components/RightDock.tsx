@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Bot,
@@ -7,10 +7,10 @@ import {
   FileText,
   GitCompareArrows,
   Globe,
-  Maximize2,
+  CollapseArrows,
+  ExpandArrows,
   MessagesSquare,
-  Minimize2,
-  PanelRightClose,
+  SidebarRight,
   Plus,
   Smartphone,
   SquareTerminal,
@@ -107,6 +107,15 @@ export function RightDock() {
   const [pendingCloseAll, setPendingCloseAll] = useState<DockCloseAllPlan | null>(null);
   // The tab under the pointer when the tab strip's context menu opened; null for the empty strip.
   const [menuPaneId, setMenuPaneId] = useState<string | null>(null);
+  // Chips are a fixed width: when they overflow, the strip fades 36px at each edge that hides more.
+  const strip = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState("");
+  const measureFade = () => {
+    const node = strip.current;
+    if (!node) return;
+    const edges = [node.scrollLeft > 1 ? "start" : "", node.scrollLeft + node.clientWidth < node.scrollWidth - 1 ? "end" : ""].filter(Boolean).join(" ");
+    setFade((current) => (current === edges ? current : edges));
+  };
 
   const isDirty = (pane: DockPane) => {
     if (pane.kind !== "editor" || !pane.path || !pane.sessionId) return false;
@@ -118,6 +127,19 @@ export function RightDock() {
     [panes, session, project],
   );
   const active = visible.find((pane) => pane.id === activePaneId) ?? visible[0] ?? null;
+  const activeId = active?.id;
+  // The selected chip scrolls into view; the edge fades follow the strip's size and its chips.
+  useEffect(() => {
+    strip.current?.querySelector("[data-dock-pane][data-active]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    measureFade();
+  }, [activeId, visible.length]);
+  useEffect(() => {
+    const node = strip.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measureFade);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const requestClose = (pane: DockPane) => {
     if (pane.kind === "editor" && pane.sessionId && pane.path && editorSaving[editorKey(pane.sessionId, pane.path)]) return;
@@ -168,7 +190,7 @@ export function RightDock() {
           ...(menuPane ? [{ id: "close", label: t("Close panel"), icon: <X size={15} />, onSelect: () => requestClose(menuPane) }] : []),
           { id: "close-all", label: t("dock.closeAll"), icon: <XCircle size={15} />, disabled: visible.length === 0, onSelect: requestCloseAll },
         ]}>
-        <div className="dock-tabs flex h-full min-w-0 flex-1 items-center gap-1" data-reorder-scope=""
+        <div ref={strip} onScroll={measureFade} className="dock-tabs dock-tabs-fade flex h-full min-w-0 flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden px-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-fade={fade || undefined} data-reorder-scope=""
           onContextMenuCapture={(event) => setMenuPaneId((event.target as HTMLElement).closest<HTMLElement>("[data-dock-pane]")?.dataset.dockPane ?? null)}>
           {visible.map((pane) => (
             <DockTab
@@ -187,8 +209,8 @@ export function RightDock() {
         </div>
         <Dropdown>
           <DropdownTrigger asChild>
-            <button type="button" aria-label={t("New panel")} title={t("New panel")} className="flex size-6 shrink-0 items-center justify-center rounded-[6px] text-text-muted hover:bg-background-3 hover:text-text-primary">
-              <Plus size={13} />
+            <button type="button" aria-label={t("New panel")} title={t("New panel")} className="flex size-7 shrink-0 items-center justify-center rounded-[6px] text-text-muted hover:bg-background-3 hover:text-text-primary">
+              <Plus size={16} />
             </button>
           </DropdownTrigger>
           <DropdownContent align="end" side="bottom">
@@ -199,11 +221,11 @@ export function RightDock() {
             ))}
           </DropdownContent>
         </Dropdown>
-        <IconButton label={t(maximized ? "Restore panel" : "Maximize panel")} onClick={toggleDockMaximized} className="size-6 min-h-0 shrink-0 rounded-[6px] p-0 text-text-muted">
-          {maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+        <IconButton label={t(maximized ? "Restore panel" : "Maximize panel")} onClick={toggleDockMaximized} className="size-7 min-h-0 shrink-0 rounded-[6px] p-0 text-text-muted">
+          {maximized ? <CollapseArrows size={16} /> : <ExpandArrows size={16} />}
         </IconButton>
-        <IconButton label={t("Collapse panel")} onClick={toggleDock} className="size-6 min-h-0 shrink-0 rounded-[6px] p-0 text-text-muted">
-          <PanelRightClose size={13} />
+        <IconButton label={t("Collapse panel")} onClick={toggleDock} className="size-7 min-h-0 shrink-0 rounded-[6px] p-0 text-text-muted">
+          <SidebarRight size={16} />
         </IconButton>
       </div>
       <div className="relative min-h-0 flex-1">
@@ -294,7 +316,7 @@ export function RightDock() {
   );
 }
 
-/** A pill tab: icon (a drag grip on hover), name and close; tabs shrink to fit and reorder by dragging. */
+/** A 112x24 chip (ADR-178): icon, name and close; the whole chip is the drag handle that reorders. */
 function DockTab({ pane, active, dirty, reorder, dragging, onSelect, onClose }: { pane: DockPane; active: boolean; dirty: boolean; reorder: ReturnType<ReturnType<typeof usePointerReorder>["bind"]>; dragging: boolean; onSelect: () => void; onClose: () => void }) {
   const t = useTranslation();
   const meta = paneMeta[pane.kind];
@@ -302,8 +324,8 @@ function DockTab({ pane, active, dirty, reorder, dragging, onSelect, onClose }: 
   return (
     <div {...reorder} data-dock-pane={pane.id} data-active={active || undefined} data-dragging={dragging || undefined} className="dock-tab group">
       <button type="button" className="dock-tab-open" aria-pressed={active} onClick={onSelect} title={t(label)}>
-        <span className="dock-tab-icon" aria-hidden="true"><meta.icon size={14} /><span className="dock-tab-grip">⠿</span></span>
-        <span className="dock-tab-label ui-control">{dirty ? `• ${t(label)}` : t(label)}</span>
+        <span className="dock-tab-icon" aria-hidden="true"><meta.icon size={14} /></span>
+        <span className="dock-tab-label">{dirty ? `• ${t(label)}` : t(label)}</span>
       </button>
       <button type="button" data-no-reorder="" aria-label={t("Close panel")} title={t("Close panel")} className="dock-tab-close" onClick={onClose}>
         <X size={12} aria-hidden="true" />

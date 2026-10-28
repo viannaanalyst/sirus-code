@@ -52,6 +52,19 @@ try {
     const group = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [1, 2, 3].map((n) => ({ id: `g${n}`, kind: "command", label: "Command", state: "completed", model: null, detail: `npm run ${n}` })) } }));
     assert.match(group, /class="tl-line tl-toggle tl-sum"[^>]*aria-expanded="false"/, "the group summary is a disclosure");
     assert.ok(group.includes("tl-sum-chevron") && !group.includes("tl-tree"), "closed: chevron, no tree");
+    // ADR-176: a group being worked on is open as a tree, its failed step tints only the action name, and no step
+    // renders outside the tree; once reply text follows (or the turn ends) it collapses to its summary.
+    const run = { ...activity, status: "running", endedAt: null, items: [{ id: "w1", kind: "command", label: "Command", state: "failed", model: null, detail: "npm run bad", offset: 0, output: "boom" }, { id: "w2", kind: "edit", label: "Edit", state: "running", model: null, detail: "/fixture/a.ts", offset: 0 }] };
+    const text = () => createElement("p", null, "x");
+    const liveHtml = renderToString(createElement(AgentActivity, { activity: run, content: "", cwd: "/fixture", renderText: text }));
+    assert.match(liveHtml, /class="tl-line tl-toggle tl-sum"[^>]*aria-expanded="true"/, "live: the group is open");
+    assert.ok(liveHtml.includes("tl-tree") && liveHtml.includes('data-state="running"'), "live: the tree, the running step last");
+    assert.equal((liveHtml.match(/class="tl-line/g) ?? []).length, 3, "summary plus two rows, nothing outside the tree");
+    assert.ok(!liveHtml.includes('tl-failed"'), "a failed row has no red cross");
+    assert.ok(liveHtml.includes('<span class="tl-action">'), "rows name their action apart from the detail");
+    const after = renderToString(createElement(AgentActivity, { activity: run, content: "Done.", cwd: "/fixture", renderText: text }));
+    assert.match(after, /class="tl-line tl-toggle tl-sum"[^>]*aria-expanded="false"/, "settled by reply text: collapsed");
+    assert.ok(!after.includes("tl-tree"), "settled: no tree");
     const empty = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [] } }));
     assert.ok(!empty.includes("<button"), "no disclosure when no details are offered");
     const request = { requestId: "r", generation: "g", turnId: "t", itemId: "i", kind: { type: "userInput", questions: [{ id: "q1", header: "Scope", question: "First question?", isOther: true, isSecret: false, options: [{ label: "Choice", description: "Description" }] }, { id: "q2", header: "Style", question: "Second question?", isOther: true, isSecret: false, options: null }] } };

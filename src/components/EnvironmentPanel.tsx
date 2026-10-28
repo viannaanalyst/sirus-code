@@ -56,12 +56,12 @@ export function EnvironmentToggle() {
       aria-expanded={open}
       title={t("Environment")}
       className={cn(
-        "flex size-6 items-center justify-center rounded-[6px] text-text-muted hover:bg-background-3 hover:text-text-primary",
+        "flex size-7 items-center justify-center rounded-[6px] text-text-muted hover:bg-background-3 hover:text-text-primary",
         open && "bg-background-3 text-text-primary",
       )}
       onClick={toggle}
     >
-      <WindowIcon size={14} />
+      <WindowIcon size={16} />
     </button>
   );
 }

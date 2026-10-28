@@ -158,3 +158,18 @@ export function groupSentence(items: readonly ActivityItem[], t: Translate): str
 export function groupFailures(items: readonly ActivityItem[]): number {
   return items.filter((item) => item.state === "failed").length;
 }
+
+/**
+ * Whether the work group at `index` is the one being worked on right now (ADR-176): the turn is
+ * running, it is the turn's last group of steps and no reply text has been written after it.
+ * Once the agent writes text, or the turn ends, the group has settled.
+ */
+export function workIsLive(parts: readonly TimelinePart[], index: number, active: boolean): boolean {
+  if (!active || parts[index]?.kind !== "work") return false;
+  return !parts.slice(index + 1).some((part) => part.kind === "work" || part.kind === "text");
+}
+
+/** A group's open state: the person's own choice always wins; otherwise a live group is open and a settled one is closed. */
+export function groupExpanded(choice: boolean | null, live: boolean): boolean {
+  return choice ?? live;
+}

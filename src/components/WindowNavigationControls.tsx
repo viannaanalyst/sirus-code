@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, PanelLeft } from "@/components/icons";
+import { ArrowLeft, ArrowRight, SidebarLeft } from "@/components/icons";
 import { IconSwap } from "@/components/icons/IconSwap";
 import { useTranslation } from "@/i18n/use-translation";
 import { IconButton } from "@/primitives/IconButton";
@@ -15,8 +15,8 @@ export function WindowNavigationControls() {
   const goForward = useAppStore(state => state.goForward);
   const controlClass = "size-[24px] min-h-0 rounded-[6px] p-0 text-text-muted";
   return <div className="titlebar-no-drag absolute top-0 left-[var(--window-controls-inset)] z-30 flex h-[var(--window-controls-height)] items-center gap-0.5">
-    <IconButton tooltip={false} label={t(collapsed ? "sidebar.show" : "sidebar.hide")} aria-expanded={!collapsed} onClick={toggleSidebar} className={controlClass}><IconSwap id={collapsed ? "hidden" : "shown"}><PanelLeft size={14} strokeWidth={1.7} fill={collapsed ? "none" : "currentColor"} /></IconSwap></IconButton>
-    <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={goBack} className={controlClass}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>
-    <IconButton tooltip={false} label={t("Forward")} disabled={index >= length - 1} onClick={goForward} className={controlClass}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>
+    <IconButton tooltip={false} label={t(collapsed ? "sidebar.show" : "sidebar.hide")} aria-expanded={!collapsed} onClick={toggleSidebar} className={controlClass}><IconSwap id={collapsed ? "hidden" : "shown"}><SidebarLeft size={16} open={!collapsed} /></IconSwap></IconButton>
+    <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={goBack} className={controlClass}><ArrowLeft size={16} /></IconButton>
+    <IconButton tooltip={false} label={t("Forward")} disabled={index >= length - 1} onClick={goForward} className={controlClass}><ArrowRight size={16} /></IconButton>
   </div>;
 }

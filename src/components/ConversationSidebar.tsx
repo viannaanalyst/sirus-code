@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, Pencil, Pin, PinOff, Plus, Rows, Search, SidebarLeft, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -74,9 +74,9 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   }, []);
   const shortcut = (id: Parameters<typeof effectiveShortcut>[1]) => shortcutLabel(effectiveShortcut(customShortcuts, id));
   const headButton = "size-6 min-h-0 rounded-[6px] p-0 text-text-muted";
-  const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>;
-  const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>;
-  const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} fill="currentColor" /></IconButton>;
+  const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={16} /></IconButton>;
+  const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={16} /></IconButton>;
+  const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><SidebarLeft size={16} /></IconButton>;
   const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={headButton}><SquarePen size={14} strokeWidth={1.7} /></IconButton>;
 
   return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} data-avatar-gaze="" style={{ width }}>
