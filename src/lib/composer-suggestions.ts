@@ -14,6 +14,16 @@ export function composerTrigger(value: string, start: number, end = start): Comp
   return { kind: token[0] === "/" ? "skill" : "file", query: token.slice(quoted ? 2 : 1).replace(/\\"/g, '"'), start: offset, end: start + suffix.length };
 }
 
+/**
+ * The trigger the `@`/`/` list should show for, or null. Nothing opens without focus, while an input
+ * method is composing (its half-typed text is not a token yet), or when the cursor reading is for an
+ * older draft than the one on screen.
+ */
+export function activeComposerTrigger(state: { focused: boolean; unavailable: boolean; composing: boolean; current: boolean }, value: string, start: number, end: number): ComposerTrigger | null {
+  if (!state.focused || state.unavailable || state.composing || !state.current) return null;
+  return composerTrigger(value, start, end);
+}
+
 export function completeComposerToken(value: string, trigger: ComposerTrigger, selected: string, directory = false): { value: string; caret: number } {
   const path = directory ? `${selected}/` : selected;
   const quote = trigger.kind === "file" && /[\s"@]/.test(path);

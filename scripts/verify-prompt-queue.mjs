@@ -5,7 +5,7 @@ import { createServer } from "vite";
 
 const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
 const originalDocument = globalThis.document;
-globalThis.document = { hidden: false };
+globalThis.document = { hidden: false, documentElement: { style: {} } };
 try {
   const { AgentComposer } = await server.ssrLoadModule("/src/components/AgentComposer.tsx");
   const { ComposerPromptQueue } = await server.ssrLoadModule("/src/components/ComposerPromptQueue.tsx");

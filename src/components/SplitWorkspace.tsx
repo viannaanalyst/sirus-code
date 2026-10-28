@@ -10,6 +10,7 @@ import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 import { StatusIndicator } from "@/primitives/StatusIndicator";
 import { useAppStore } from "@/store/app-store";
 import "@/styles/split.css";
+import { composerWithin } from "@/lib/composer-focus";
 
 const percent = (value: number) => `${value * 100}%`;
 const box = (rect: SplitRect): CSSProperties => ({ left: percent(rect.x), top: percent(rect.y), width: percent(rect.w), height: percent(rect.h) });
@@ -49,7 +50,7 @@ function SplitPane({ leaf, active, single, style, children }: { leaf: SplitLeaf;
     if (active) return;
     const toComposer = target instanceof Element && target.closest(".split-passive-composer") !== null;
     useAppStore.getState().activateSplitPane(leaf.id);
-    if (toComposer) requestAnimationFrame(() => requestAnimationFrame(() => pane.current?.querySelector<HTMLTextAreaElement>("textarea[data-draft-owner]")?.focus()));
+    if (toComposer) requestAnimationFrame(() => requestAnimationFrame(() => composerWithin(pane.current)?.focus()));
   };
   return <div ref={pane} data-split-leaf={leaf.id} className={cn("split-pane", entering && "split-pane-enter")} style={style}
     onPointerDownCapture={(event) => activate(event.target)} onFocusCapture={(event) => activate(event.target)}>

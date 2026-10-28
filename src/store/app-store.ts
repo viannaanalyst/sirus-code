@@ -64,6 +64,7 @@ import { runningTerminalTarget, withTerminalRunning, type RunningTerminals } fro
 import { insertAt, popClosed, pushClosed, rememberBrowserTab, type ClosedItem } from "@/lib/closed-items";
 import { CONTINUE_PROMPT, exhaustedReset, RESUME_RECHECK_MS, resumeArmed, resumeAt } from "@/lib/usage-limit";
 import { providerById, PROVIDERS } from "@/lib/provider-registry";
+import { focusComposer } from "@/lib/composer-focus";
 import {
   defaultSettings,
   mergeSettings,
@@ -2081,7 +2082,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const pane = state.dockPanes.find((item) => item.kind === "sidechat" && item.sessionId === parent);
     if (pane && state.dockOpen && state.dockActivePaneId === pane.id) {
       state.closeDockPane(pane.id);
-      requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="session:${parent}"]`)?.focus());
+      requestAnimationFrame(() => focusComposer(`session:${parent}`));
       return;
     }
     void state.openSideChat(parent);
@@ -2693,11 +2694,7 @@ function showSideChat(parentSessionId: string, side: Session, quote?: string) {
     if (next !== null) store.setComposerDraft(owner, next);
   }
   void store.ensureTranscript(side.id);
-  requestAnimationFrame(() => {
-    const area = document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="${owner}"]`);
-    area?.focus({ preventScroll: true });
-    area?.setSelectionRange(area.value.length, area.value.length);
-  });
+  requestAnimationFrame(() => focusComposer(owner, { preventScroll: true, end: true }));
 }
 
 function releaseUnusedQueueAttachments(files: import("@/client/types").PromptAttachment[], owner: string) {

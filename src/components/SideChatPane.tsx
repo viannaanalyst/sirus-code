@@ -12,6 +12,7 @@ import { appendTranscriptQuote } from "@/lib/transcript-selection";
 import { useRetainedTranscripts } from "@/lib/use-retained-transcripts";
 import { Tooltip } from "@/primitives/Tooltip";
 import { useAppStore } from "@/store/app-store";
+import { focusComposer } from "@/lib/composer-focus";
 
 const SideCodeBlock = memo(CodeBlock);
 
@@ -40,7 +41,7 @@ export function SideChatPane({ parentSessionId, paneId }: { parentSessionId: str
 
   const close = () => {
     useAppStore.getState().closeDockPane(paneId);
-    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="session:${parentSessionId}"]`)?.focus());
+    requestAnimationFrame(() => focusComposer(`session:${parentSessionId}`));
   };
   // Escape hides the side chat instead of reaching the main session's Stop.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -104,9 +105,5 @@ function takeToMain(parentSessionId: string, content: string) {
   const next = appendTranscriptQuote(store.composerDrafts[owner] ?? "", content);
   if (next === null) { useAppStore.setState({ error: "Draft exceeds the 64 KiB limit" }); return; }
   store.setComposerDraft(owner, next);
-  requestAnimationFrame(() => {
-    const area = document.querySelector<HTMLTextAreaElement>(`textarea[data-draft-owner="${owner}"]`);
-    area?.focus({ preventScroll: true });
-    area?.setSelectionRange(next.length, next.length);
-  });
+  requestAnimationFrame(() => focusComposer(owner, { preventScroll: true, end: true }));
 }

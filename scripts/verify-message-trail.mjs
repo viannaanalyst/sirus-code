@@ -28,7 +28,7 @@ try {
   const session = { id: "s", projectId: "p", title: "Fixture", agent: "codex", status: "completed", createdAt: "2026-10-02T12:00:00Z", lastActivityAt: "2026-10-02T12:00:00Z", worktree: { path: "/fixture", branch: "main", isolated: false }, messages };
   // The native dictation button reads visibility during its initial render.
   const originalDocument = globalThis.document;
-  globalThis.document = { hidden: false };
+  globalThis.document = { hidden: false, documentElement: { style: {} } };
   let pane;
   // SessionPane selects the current session itself; server rendering reads the initial state.
   Object.assign(useAppStore.getInitialState(), { sessions: [session], selectedSessionId: "s" });
@@ -43,7 +43,7 @@ try {
     { id: `a${turn}`, sessionId: "s", role: "agent", content: `Resposta ${turn}`, createdAt: "2026-10-02T12:00:00Z", streaming: false },
   ]).flat();
   Object.assign(useAppStore.getInitialState(), { sessions: [{ ...session, messages: long }] });
-  globalThis.document = { hidden: false };
+  globalThis.document = { hidden: false, documentElement: { style: {} } };
   try { for (const locale of ["en", "pt-BR"]) {
     useAppStore.getInitialState().settings = { ...useAppStore.getInitialState().settings, locale };
     const windowed = renderToString(createElement(SessionPane, { agents: [], onSend: async () => false, onStop: () => {}, onNewSession: () => {} }));

@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 import { AnimatePresence, motion } from "motion/react";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import "@/styles/find-bar.css";
+import { composerWithin } from "@/lib/composer-focus";
 
 function TranscriptSearchBarView({ sessionId }: { sessionId?: string }) {
   const t = useTranslation();
@@ -53,7 +54,7 @@ function TranscriptSearchBarView({ sessionId }: { sessionId?: string }) {
   const reduced = useMotionPreferences();
   const close = () => {
     useAppStore.getState().closeTranscriptSearch();
-    root.current?.closest("section")?.querySelector<HTMLTextAreaElement>("textarea[data-draft-owner]")?.focus({ preventScroll: true });
+    composerWithin(root.current?.closest("section"))?.focus({ preventScroll: true });
   };
   const navigate = (hit: SearchHit) => {
     useAppStore.getState().jumpToMessage(hit.sessionId, hit.messageId, hit.start);

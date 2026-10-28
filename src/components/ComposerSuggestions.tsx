@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef } from "react";
-import type { RefObject } from "react";
 import { Box, Command } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { FileGlyph } from "@/components/FileGlyph";
@@ -7,7 +6,7 @@ import type { useComposerSuggestions } from "@/lib/use-composer-suggestions";
 import { cn } from "@/lib/cn";
 import { PopoverContent } from "@/primitives/Popover";
 
-export function ComposerSuggestions({ suggestions, area }: { suggestions: ReturnType<typeof useComposerSuggestions>; area: RefObject<HTMLTextAreaElement | null> }) {
+export function ComposerSuggestions({ suggestions }: { suggestions: ReturnType<typeof useComposerSuggestions> }) {
   const t = useTranslation();
   const list = useRef<HTMLDivElement>(null);
   const { visible, listId, rows, index, loading, error, kind, truncated, hasCommands } = suggestions;
@@ -15,7 +14,7 @@ export function ComposerSuggestions({ suggestions, area }: { suggestions: Return
     if (visible) list.current?.querySelector(`[data-suggestion-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
   }, [visible, index, rows.length]);
   if (!visible) return null;
-  return <PopoverContent side="top" align="start" sideOffset={8} onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()} onInteractOutside={event => { if (event.target === area.current) event.preventDefault(); }} className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-20px)] overflow-hidden p-0">
+  return <PopoverContent side="top" align="start" sideOffset={8} onOpenAutoFocus={event => event.preventDefault()} onCloseAutoFocus={event => event.preventDefault()} onInteractOutside={event => { if (event.target instanceof Element && event.target.closest("[data-draft-owner]")) event.preventDefault(); }} className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-20px)] overflow-hidden p-0">
     <div className="flex items-center justify-between gap-3 border-b border-border-default px-3 py-2">
       <span className="ui-caption text-text-secondary">{t(kind === "skill" ? hasCommands ? "commands.title" : "skills.title" : "composer.files")}</span>
       <span className="ui-caption text-text-muted">{t("composer.suggestionKeys")}</span>

@@ -5,6 +5,7 @@ import { appendTranscriptQuote, readTranscriptSelection, type TranscriptSelectio
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { Popover, PopoverAnchor, PopoverContent } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
+import { composerWithin } from "@/lib/composer-focus";
 
 function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: string; viewport: RefObject<HTMLDivElement | null> }) {
   const t = useTranslation();
@@ -80,8 +81,8 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
     const root = viewport.current, state = useAppStore.getState();
     const session = state.sessions.find(item => item.id === sessionId);
     const owner = `session:${sessionId}`;
-    const composer = root?.closest("section")?.querySelector<HTMLTextAreaElement>("textarea[data-draft-owner]");
-    if (!selection || !root || !session || state.mainView !== "session" || state.selectedSessionId !== sessionId || state.selectedProjectId !== session.projectId || state.settingsOpen || state.paletteOpen || state.newSessionOpen || composer?.dataset.draftOwner !== owner || composer.disabled || !session.messages.some(message => message.id === selection.messageId)) { dismiss(); return; }
+    const composer = composerWithin(root?.closest("section"));
+    if (!selection || !root || !session || state.mainView !== "session" || state.selectedSessionId !== sessionId || state.selectedProjectId !== session.projectId || state.settingsOpen || state.paletteOpen || state.newSessionOpen || composer?.owner !== owner || !composer.editable() || !session.messages.some(message => message.id === selection.messageId)) { dismiss(); return; }
     const live = readTranscriptSelection(root, window.getSelection());
     if ((!live || live.messageId !== selection.messageId || live.text !== selection.text) && !popup.current?.contains(document.activeElement)) { dismiss(); return; }
     const next = appendTranscriptQuote(state.composerDrafts[owner] ?? "", selection.text);
@@ -89,8 +90,7 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
     state.setComposerDraft(owner, next);
     window.getSelection()?.removeAllRanges();
     dismiss();
-    composer.focus({ preventScroll: true });
-    composer.setSelectionRange(next.length, next.length);
+    composer.focus({ preventScroll: true, end: true });
   };
 
   // Asks about the passage in the side chat without touching this session's draft (ADR-049).
@@ -113,8 +113,8 @@ function TranscriptSelectionMenuView({ sessionId, viewport }: { sessionId: strin
         event.preventDefault();
         const root = viewport.current;
         dismiss();
-        const next = event.shiftKey ? root : root?.closest("section")?.querySelector<HTMLTextAreaElement>("textarea[data-draft-owner]");
-        next?.focus({ preventScroll: true });
+        if (event.shiftKey) root?.focus({ preventScroll: true });
+        else composerWithin(root?.closest("section"))?.focus({ preventScroll: true });
       }}
       onEscapeKeyDown={() => { window.getSelection()?.removeAllRanges(); dismiss(); }}>
       <InteractiveButton variant="ghost" className="w-full justify-start" onMouseDown={event => event.preventDefault()} onClick={add}>

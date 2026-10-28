@@ -136,16 +136,24 @@
   @media (prefers-reduced-motion:reduce) { .effort-energy *, .effort-strike path { animation:none!important; } .effort-strike, .effort-embers { display:none; } .effort-fill,.effort-energy { transition:none; } }
 }
 
-/* `/skill` and `@file` highlighting (ADR-037): the mirror paints the text, the textarea keeps caret and selection.
-   Only colour and background change on tokens, never width, so the mirror wraps exactly like the textarea. */
-.agent-composer textarea.composer-input-highlighted { color: transparent; -webkit-text-fill-color: transparent; caret-color: var(--text-primary); scrollbar-gutter: stable; }
-.composer-highlight { scrollbar-gutter: stable; overflow-wrap: break-word; }
-.composer-highlight::-webkit-scrollbar-thumb { background: transparent; }
+/* The prompt box (ADR-168): a TipTap editor over one paragraph. It wraps like the textarea it replaced. */
+.composer-prompt { outline: none; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; cursor: text; caret-color: var(--text-primary); scrollbar-gutter: stable; }
+.composer-prompt p { margin: 0; }
+.composer-prompt[contenteditable="false"] { opacity: .5; cursor: default; }
+.composer-placeholder { padding: var(--composer-editor-padding-top) var(--composer-editor-padding-x-end) var(--composer-editor-padding-bottom) var(--composer-editor-padding-x); text-overflow: ellipsis; white-space: nowrap; }
+/* `/skill`, `@file` and web addresses as inline chips: tinted with the accent, one unit for the caret.
+   They stay inline (not boxes), so a long line wraps around them like text. */
+.composer-chip { --chip: var(--accent); display: inline; margin: 0 1px; padding: 1px .4em 1px .3em; border-radius: var(--radius-sm, 6px); background: color-mix(in oklab, var(--chip) 14%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--chip) 22%, transparent); color: color-mix(in oklab, var(--chip) 78%, var(--text-primary)); -webkit-box-decoration-break: clone; box-decoration-break: clone; white-space: nowrap; user-select: none; transition: background-color var(--motion-fast) var(--ease-out), box-shadow var(--motion-fast) var(--ease-out); }
+.composer-chip-icon { display: inline-block; width: 1em; height: 1em; margin-right: .3em; vertical-align: -.14em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+.composer-chip-label { white-space: pre; }
+/* Web addresses are quieter than commands and files: the chat link colour, no outline. */
+.composer-chip-link { --chip: var(--info); background: color-mix(in oklab, var(--chip) 8%, transparent); box-shadow: none; color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); }
+.composer-chip.ProseMirror-selectednode { background: color-mix(in oklab, var(--chip) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--chip) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) { .composer-chip { transition: none; } }
+/* Sent messages still paint the typed characters (SessionPane), with the same colours. */
 .composer-token { border-radius: 3px; }
-/* Commands and skills take the app accent. */
 .composer-token-skill { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .composer-token-file { color: var(--info); background: color-mix(in srgb, var(--info) 12%, transparent); }
-/* Web addresses take the chat link colour (ADR-149). The text stays the raw URL, so the mirror still wraps like the textarea. */
 .composer-token-link { color: color-mix(in oklab, var(--info) 72%, var(--text-primary)); }
 
 /* Drafts set aside with ⌘S. */
@@ -225,7 +233,7 @@ button.attachment-chip-open:hover .attachment-chip-name { text-decoration: under
 }
 .agent-composer[data-single]:focus-within::before { border-color: color-mix(in oklab, var(--text-primary) 20%, transparent); }
 .agent-composer[data-single] .composer-editor { grid-row: 1; grid-column: 2; min-width: 0; }
-.agent-composer[data-single] .composer-editor textarea { overflow: hidden; }
+.agent-composer[data-single] .composer-editor .composer-prompt { overflow: hidden; }
 .agent-composer[data-single] :is(.composer-footer, .composer-footer-context, .composer-footer-actions) { display: contents; }
 .agent-composer[data-single] .composer-add-slot { grid-row: 1; grid-column: 1; padding: 5px 2px 5px 8px; }
 .agent-composer[data-single] .composer-dictation-slot { grid-row: 1; grid-column: 3; }

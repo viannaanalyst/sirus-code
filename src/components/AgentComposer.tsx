@@ -4,18 +4,18 @@ import { useShallow } from "zustand/react/shallow";
 import { appendAttachments, isAttachmentPaste, pastedFiles } from "@/lib/composer-attachments";
 import { returnAddsLine } from "@/lib/phone-prefs";
 import { formatUnknownError } from "@/lib/format-error";
-import { Textarea } from "@/components/arc/textarea/textarea";
+import { ComposerEditor, type ComposerPasteContext } from "@/components/ComposerEditor";
+import type { ComposerHandle } from "@/lib/composer-focus";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
 import { Bot, Check, ChevronDown, ClipboardList, Hand, Square, ArrowUp, Minimize2, Zap } from "@/components/icons/phosphor";
 import { AnimatePresence, motion } from "motion/react";
-import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AgentInstall, AgentProviderId, ApprovalMode, ExecutionOptions, Session } from "@/client/types";
 import { ComposerAddMenu, ComposerContextChips } from "@/components/ComposerAddMenu";
 import { ComposerSuggestions } from "@/components/ComposerSuggestions";
 import { useComposerSuggestions } from "@/lib/use-composer-suggestions";
-import { composerPaintSegments } from "@/lib/link-chips";
 import { ComposerDictationButton } from "@/components/ComposerDictationButton";
 import { ContextMeter } from "@/components/ContextMeter";
 import { ComposerPromptQueue } from "@/components/ComposerPromptQueue";
@@ -60,17 +60,6 @@ interface Props {
   onModelChange?: (provider: AgentProviderId, model: string | null) => void;
 }
 
-function fitComposerHeight(node: HTMLTextAreaElement) {
-  // CSS owns the minimum/maximum; measure wrapped text after releasing the old height.
-  const { scrollTop } = node;
-  const atEnd = document.activeElement === node && node.selectionEnd === node.value.length;
-  node.style.height = "0px";
-  node.style.height = `${node.scrollHeight}px`;
-  // Releasing the height lost the scroll position: writing at the end keeps the last line
-  // (with its bottom padding) in view; anywhere else the text stays where it was.
-  node.scrollTop = atEnd ? node.scrollHeight : scrollTop;
-}
-
 function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }: Props) {
   const t = useTranslation();
   const autocorrect = useAppStore((state) => state.settings.composerAutocorrect);
@@ -79,10 +68,6 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const draftKey = session ? `session:${session.id}` : `project:${draftProjectId}`;
   const value = useAppStore((state) => state.composerDrafts[draftKey] ?? "");
   const updateDraft = useAppStore((state) => state.setComposerDraft);
-  // `/skill` and `@file` tokens and web addresses are painted by a mirror behind the transparent textarea text.
-  const painted = useMemo(() => composerPaintSegments(value), [value]);
-  const highlighted = painted.some((segment) => segment.kind !== "text");
-  const mirror = useRef<HTMLDivElement>(null);
   const setValue = (next: string) => updateDraft(draftKey, next);
   const [sending, setSending] = useState(false);
   const [queueSending, setQueueSending] = useState(false);
@@ -96,7 +81,8 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const setContext = useAppStore((state) => state.setComposerContext);
   const changeContext = (next: typeof context) => setContext(draftKey, next);
   const sendingRef = useRef(false);
-  const area = useRef<HTMLTextAreaElement>(null);
+  // `/skill` and `@file` tokens and web addresses are chips inside the editor (ADR-168).
+  const editor = useRef<ComposerHandle>(null);
   const boundary = useRef<HTMLDivElement>(null);
   const approvalTrigger = useRef<HTMLButtonElement>(null);
   const [approvalLayout, setApprovalLayout] = useState({ sideOffset: 6, alignOffset: 0, width: 320 });
@@ -195,31 +181,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       case "new": store.requestNewSession(); break;
     }
   };
-  const suggestions = useComposerSuggestions(draftKey, value, area, !canType || submitting || pasting || dictating || modelChanging, { context: { session, agent: agentId, fastAvailable: fastToggle }, run: runCommand });
-
-  useLayoutEffect(() => {
-    const node = area.current;
-    if (!node) return;
-    fitComposerHeight(node);
-  }, [value, draftKey]);
-
-  useLayoutEffect(() => {
-    const node = area.current;
-    if (!node) return;
-    let width = node.getBoundingClientRect().width;
-    const resize = () => fitComposerHeight(node);
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width === width) return;
-      width = entry.contentRect.width;
-      resize();
-    });
-    observer.observe(node);
-    document.fonts.addEventListener("loadingdone", resize);
-    return () => {
-      observer.disconnect();
-      document.fonts.removeEventListener("loadingdone", resize);
-    };
-  }, []);
+  const suggestions = useComposerSuggestions(draftKey, value, !canType || submitting || pasting || dictating || modelChanging, { context: { session, agent: agentId, fastAvailable: fastToggle }, run: runCommand });
 
   // Compact and send: a heavy context idle past the provider's cache compacts first.
   const [now, setNow] = useState(() => Date.now());
@@ -358,7 +320,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       const draft = state.composerDrafts[draftKey] ?? "";
       if (text !== null && !draft.trim()) { quickReply.current = text; updateDraft(draftKey, text); return; }
       if (text !== null) updateDraft(draftKey, `${text}\n\n${draft}`);
-      requestAnimationFrame(() => area.current?.focus());
+      requestAnimationFrame(() => editor.current?.focus());
     };
     window.addEventListener(QUICK_REPLY_EVENT, onQuickReply);
     return () => window.removeEventListener(QUICK_REPLY_EVENT, onQuickReply);
@@ -371,14 +333,12 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   typingOwner.current = { sessionId, sideChat: Boolean(session?.sideChat || session?.pullAsk) };
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      const field = area.current;
-      if (!field || field.disabled) return;
+      const field = editor.current;
+      if (!field || !field.editable()) return;
       if (!typingGoesToComposer(event, document.activeElement as HTMLElement | null, document.body)) return;
-      if (!composerOwnsTyping({ ...typingOwner.current, visible: field.getClientRects().length > 0 }, useAppStore.getState().selectedSessionId)) return;
+      if (!composerOwnsTyping({ ...typingOwner.current, visible: field.visible() }, useAppStore.getState().selectedSessionId)) return;
       // Focus moves before the key's default action, so the character lands in the composer.
-      field.focus({ preventScroll: true });
-      const end = field.value.length;
-      field.setSelectionRange(end, end);
+      field.focus({ preventScroll: true, end: true });
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -386,22 +346,21 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
 
   // ↑/↓ on an empty composer walk this session's sent prompts (recall).
   const recall = useRef<Recall>({ index: null, draft: "" });
-  const recallPrompt = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  const recallPrompt = (event: KeyboardEvent, handle: ComposerHandle): boolean => {
+    const draft = handle.text();
     if (!sessionId || event.shiftKey || event.metaKey || event.altKey || event.ctrlKey) return false;
     const direction = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
-    if (!direction || (recall.current.index === null && (direction === 1 || value !== ""))) return false;
+    if (!direction || (recall.current.index === null && (direction === 1 || draft !== ""))) return false;
     const sent: string[] = [];
     for (const message of useAppStore.getState().sessions.find((row) => row.id === sessionId)?.messages ?? []) {
       const request = message.role === "user" ? splitPromptContext(message.content).request.trim() : "";
       if (request && sent.at(-1) !== request) sent.push(request);
     }
-    const step = recallStep(sent, recall.current, value, direction);
+    const step = recallStep(sent, recall.current, draft, direction);
     if (!step) return false;
     event.preventDefault();
     recall.current = step.state;
     setValue(step.value);
-    const node = event.currentTarget;
-    requestAnimationFrame(() => node.setSelectionRange(step.value.length, step.value.length));
     return true;
   };
 
@@ -417,9 +376,9 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     saveStash(next);
     setValue(stash[index]);
     setStashOpen(false);
-    requestAnimationFrame(() => area.current?.focus());
+    requestAnimationFrame(() => editor.current?.focus());
   };
-  const stashKey = (event: KeyboardEvent<HTMLTextAreaElement>): boolean => {
+  const stashKey = (event: KeyboardEvent): boolean => {
     // ⇧⌘S: plain ⌘S hides and shows the sidebar.
     if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s" || !event.shiftKey || event.altKey) return false;
     event.preventDefault();
@@ -436,16 +395,25 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
   const singleWidth = useRef(0);
   const plain = !context.attachments.length && !context.snippets?.length && !context.goal && !context.planning && !context.debugging && !context.team && !session?.handoff;
   const single = !phone && started && plain && !dictating && !compactFirst && !value.includes("\n") && !wraps;
+  const [fieldWidth, setFieldWidth] = useState(0);
   useLayoutEffect(() => {
-    const field = area.current;
+    const field = editor.current?.element;
     if (!field) return;
+    const observer = new ResizeObserver(([entry]) => setFieldWidth(Math.round(entry.contentRect.width)));
+    observer.observe(field);
+    return () => observer.disconnect();
+  }, []);
+  useLayoutEffect(() => {
+    const field = editor.current?.element;
+    // Not laid out yet (or hidden): there is no line to measure.
+    if (!field || !field.clientWidth) return;
     const style = getComputedStyle(field);
     // The field grows with its text, so the line is measured rather than its scroll height.
     if (single) {
       singleWidth.current = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
       if (!fitsSingleLine(value, style.font, singleWidth.current + 12)) setWraps(true);
     } else if (wraps && fitsSingleLine(value, style.font, singleWidth.current)) setWraps(false);
-  }, [single, value, wraps]);
+  }, [single, value, wraps, fieldWidth]);
   const planPending = useAppStore((state) => {
     const row = sessionId ? state.sessions.find((item) => item.id === sessionId) : null;
     // A team plan has its own Confirm and start (ADR-043); an Ask conversation stays read-only (ADR-050).
@@ -464,7 +432,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     updateDraft(draftKey, `${current}${current && !/\s$/.test(current) ? " " : ""}${text}`);
     // Sent once the draft and the dictation state have settled (see the effect below).
     sendAfterDictation.current = sendAfter;
-    requestAnimationFrame(() => area.current?.focus());
+    requestAnimationFrame(() => editor.current?.focus());
   }, [draftKey, updateDraft]);
   const sendAfterDictation = useRef(false);
   useEffect(() => {
@@ -473,6 +441,53 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
     void send();
   });
 
+  // Files, images and paths pasted into the box become attachments; plain text goes in as it is.
+  const pasteIntoComposer = (event: ClipboardEvent, { text: original, start, end }: ComposerPasteContext): boolean => {
+    if (pastingRef.current) { event.preventDefault(); return true; }
+    if (!canType || submitting) return false;
+    const files = Array.from(event.clipboardData?.files ?? []);
+    const text = event.clipboardData?.getData("text/plain") ?? "";
+    if (!files.length && text && !isAttachmentPaste(text)) return false;
+    event.preventDefault();
+    const owner = draftKey;
+    pastingRef.current = true;
+    setPasting(true); setAttachmentError(null);
+    void (async () => {
+      try {
+        // The desktop reads the clipboard natively, off the page's thread; files are
+        // only encoded here when that finds nothing (a menu paste, the phone).
+        const native = files.length ? await client.pastePromptAttachments(owner, [], text || undefined).catch(() => []) : [];
+        const attachments = native.length ? native : await client.pastePromptAttachments(owner, await pastedFiles(files), text || undefined);
+        const state = useAppStore.getState();
+        if (attachments.length) {
+          const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
+          try { state.setComposerContext(owner, { ...current, attachments: appendAttachments(current.attachments, attachments) }); }
+          catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
+        } else if (text) {
+          // A nonexistent path is still valid text. Preserve the captured draft owner.
+          if ((state.composerDrafts[owner] ?? "") === original) state.setComposerDraft(owner, original.slice(0, start) + text + original.slice(end));
+        }
+      } catch (error) { setAttachmentError(formatUnknownError(error)); }
+      finally { pastingRef.current = false; setPasting(false); }
+    })();
+    return true;
+  };
+
+  const keyInComposer = (event: KeyboardEvent, handle: ComposerHandle): boolean => {
+    if (suggestions.onKeyDown(event)) return true;
+    if (stashKey(event) || recallPrompt(event, handle)) return true;
+    const composing = event.isComposing || event.keyCode === 229;
+    if (!composing && shortcutMatches(event, sendNewCombo)) { event.preventDefault(); void sendAndStartNew(); return true; }
+    if (!composing && shortcutMatches(event, effortCombo) && cycleEffort()) { event.preventDefault(); return true; }
+    if (event.key !== "Enter" || composing) return false;
+    if (planPending && (event.metaKey || event.ctrlKey) && !handle.text().trim()) { event.preventDefault(); implementPlan(); return true; }
+    event.preventDefault();
+    // Shift-Enter adds a line; so does Return in the phone app, where Command-Return sends instead.
+    if (event.shiftKey || (returnAddsLine() && !event.metaKey && !event.ctrlKey)) { handle.insert("\n"); return true; }
+    void send(event.metaKey || event.ctrlKey);
+    return true;
+  };
+
   return (
     <>
     {/* Command cards fold in and out with their height, so the composer glides instead of jumping. */}
@@ -480,13 +495,13 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       {commandPanel === "usage" || (session && commandPanel === "status") ? <motion.div key={commandPanel} className="overflow-hidden"
         initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
         transition={{ duration: reducedMotion ? 0 : motionTokens.fast, ease: motionTokens.ease }}>
-        {commandPanel === "usage" ? <ComposerUsageCard onClose={() => { setCommandPanel(null); area.current?.focus({ preventScroll: true }); }} />
-          : session ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); area.current?.focus({ preventScroll: true }); }} /> : null}
+        {commandPanel === "usage" ? <ComposerUsageCard onClose={() => { setCommandPanel(null); editor.current?.focus({ preventScroll: true }); }} />
+          : session ? <ComposerStatusCard session={session} effort={execution.effort} fast={execution.fast} approval={approvalLabel} planning={context.planning} onClose={() => { setCommandPanel(null); editor.current?.focus({ preventScroll: true }); }} /> : null}
       </motion.div> : null}
     </AnimatePresence>
     <AnimatePresence initial={false}>
       {session && commandPanel === "mcp" ? <motion.div key="mcp" initial={{ opacity: 0, y: 6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4, scale: 0.98 }} transition={{ duration: reducedMotion ? 0 : motionTokens.fast }}>
-        <ComposerMcpCard session={session} onClose={() => { setCommandPanel(null); area.current?.focus(); }} />
+        <ComposerMcpCard session={session} onClose={() => { setCommandPanel(null); editor.current?.focus(); }} />
       </motion.div> : null}
     </AnimatePresence>
     {session ? <RenameSessionDialog session={session} open={commandPanel === "rename"} onClose={() => setCommandPanel(null)} /> : null}
@@ -506,83 +521,35 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       <ComposerContextChips owner={draftKey} context={context} disabled={submitting} onChange={changeContext} planningAvailable={planningAvailable} readOnly={Boolean(session?.pullAsk)} />
       {attachmentError ? <p role="alert" className="pb-0 pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-2 ui-description text-danger">{t(attachmentError)}</p> : null}
       <div className="composer-editor relative">
-      {highlighted ? <div ref={mirror} aria-hidden="true" className="composer-highlight pointer-events-none absolute inset-0 max-h-[200px] overflow-y-auto whitespace-pre-wrap break-words pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary">
-        {painted.map((segment, index) => segment.kind === "text" ? segment.text : <span key={index} className={`composer-token composer-token-${segment.kind}`}>{segment.text}</span>)}{"\n"}
-      </div> : null}
-      <Textarea
-        label={t("session.prompt")}
-        hideLabel
-        variant="plain"
-        ref={area}
-        data-draft-owner={draftKey}
-        spellCheck={autocorrect}
-        autoCorrect={autocorrect ? "on" : "off"}
+      <ComposerEditor
+        ref={editor}
+        owner={draftKey}
         value={value}
-        disabled={!canType || pasting}
+        readValue={() => useAppStore.getState().composerDrafts[draftKey] ?? ""}
+        editable={canType && !pasting}
         placeholder={phone?.placeholder ?? (session?.pullAsk ? t("pulls.ask.prompt", { kind: t(`pulls.ask.kind.${session.pullAsk.kind}`) }) : t(approvalsPending ? "session.promptRedirect" : "session.prompt"))}
-        aria-label={t("session.prompt")}
-        aria-autocomplete="list"
-        aria-haspopup="listbox"
-        aria-controls={suggestions.visible ? suggestions.listId : undefined}
-        aria-activedescendant={suggestions.visible && suggestions.rows.length ? `${suggestions.listId}-${suggestions.index}` : undefined}
-        rows={1}
-        onChange={(event) => { recall.current = { index: null, draft: "" }; setValue(event.target.value); suggestions.syncCursor(event.currentTarget); }}
-        onSelect={(event) => { suggestions.syncCursor(event.currentTarget); }}
-        onFocus={(event) => suggestions.onFocus(event.currentTarget)}
+        className="composer-prompt selectable scroll-thin max-h-[200px] min-h-[var(--composer-editor-min-height)] w-full overflow-y-auto bg-transparent pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary"
+        attributes={{
+          "aria-label": t("session.prompt"),
+          "aria-autocomplete": "list",
+          "aria-haspopup": "listbox",
+          "aria-controls": suggestions.visible ? suggestions.listId : undefined,
+          "aria-activedescendant": suggestions.visible && suggestions.rows.length ? `${suggestions.listId}-${suggestions.index}` : undefined,
+          spellcheck: autocorrect ? "true" : "false",
+          autocorrect: autocorrect ? "on" : "off",
+          autocapitalize: autocorrect ? "sentences" : "off",
+        }}
+        onText={(text) => {
+          recall.current = { index: null, draft: "" };
+          if ((useAppStore.getState().composerDrafts[draftKey] ?? "") !== text) setValue(text);
+        }}
+        onCursor={suggestions.syncCursor}
+        onFocus={suggestions.onFocus}
         onBlur={suggestions.onBlur}
         onCompositionStart={suggestions.onCompositionStart}
-        onCompositionEnd={(event) => suggestions.onCompositionEnd(event.currentTarget)}
-        onPaste={(event) => {
-          if (!canType || submitting || pastingRef.current) { if (pastingRef.current) event.preventDefault(); return; }
-          const files = Array.from(event.clipboardData.files);
-          const text = event.clipboardData.getData("text/plain");
-          if (!files.length && text && !isAttachmentPaste(text)) return;
-          event.preventDefault();
-          const owner = draftKey;
-          const start = event.currentTarget.selectionStart;
-          const end = event.currentTarget.selectionEnd;
-          const original = event.currentTarget.value;
-          pastingRef.current = true;
-          setPasting(true); setAttachmentError(null);
-          void (async () => {
-            try {
-              // The desktop reads the clipboard natively, off the page's thread; files are
-              // only encoded here when that finds nothing (a menu paste, the phone).
-              const native = files.length ? await client.pastePromptAttachments(owner, [], text || undefined).catch(() => []) : [];
-              const attachments = native.length ? native : await client.pastePromptAttachments(owner, await pastedFiles(files), text || undefined);
-              const state = useAppStore.getState();
-              if (attachments.length) {
-                const current = composerContextForOwner(owner, state.composerContexts, state.sessions);
-                try { state.setComposerContext(owner, { ...current, attachments: appendAttachments(current.attachments, attachments) }); }
-                catch (error) { await client.releasePromptAttachments(owner, attachments.map((file) => file.id)); throw error; }
-              } else if (text) {
-                // A nonexistent path is still valid text. Preserve the captured draft owner.
-                if ((state.composerDrafts[owner] ?? "") === original) state.setComposerDraft(owner, original.slice(0, start) + text + original.slice(end));
-              }
-            } catch (error) { setAttachmentError(formatUnknownError(error)); }
-            finally { pastingRef.current = false; setPasting(false); }
-          })();
-        }}
-        onKeyDown={(event) => {
-          if (suggestions.onKeyDown(event)) return;
-          if (stashKey(event) || recallPrompt(event)) return;
-          if (!event.nativeEvent.isComposing && shortcutMatches(event, sendNewCombo)) { event.preventDefault(); void sendAndStartNew(); return; }
-          if (!event.nativeEvent.isComposing && shortcutMatches(event, effortCombo) && cycleEffort()) { event.preventDefault(); return; }
-          if (planPending && event.key === "Enter" && (event.metaKey || event.ctrlKey) && !value.trim()) { event.preventDefault(); implementPlan(); return; }
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-            // The phone app can make Return add a line; Command-Return sends then.
-            if (returnAddsLine()) {
-              if (!event.metaKey && !event.ctrlKey) return;
-              event.preventDefault();
-              void send();
-              return;
-            }
-            event.preventDefault();
-            void send(event.metaKey || event.ctrlKey);
-          }
-        }}
-        className={`selectable scroll-thin max-h-[200px] min-h-[var(--composer-editor-min-height)] w-full resize-none overflow-y-auto bg-transparent pb-[var(--composer-editor-padding-bottom)] pl-[var(--composer-editor-padding-x)] pr-[var(--composer-editor-padding-x-end)] pt-[var(--composer-editor-padding-top)] ui-chat text-text-primary placeholder:text-text-muted disabled:opacity-50${highlighted ? " composer-input-highlighted" : ""}`}
-        onScroll={(event) => { if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop; }}
+        onCompositionEnd={suggestions.onCompositionEnd}
+        onPaste={pasteIntoComposer}
+        onKeyDown={keyInComposer}
       />
       </div>
       <div className="composer-footer flex items-center justify-between gap-1.5 pb-[var(--composer-footer-padding)] pl-[var(--composer-footer-padding)] pr-[var(--composer-footer-padding-end)]">
@@ -718,7 +685,7 @@ function AgentComposerView({ session, disabled, onSend, onStop, onModelChange }:
       </div>
     </div>
     </PopoverAnchor>
-    <ComposerSuggestions suggestions={suggestions} area={area} />
+    <ComposerSuggestions suggestions={suggestions} />
     </Popover>
     </>
   );

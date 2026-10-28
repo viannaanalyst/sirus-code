@@ -87,7 +87,7 @@ html[data-theme="light"] .mobile-chat { --phone-composer-surface: #fff; --phone-
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) > * { flex-basis: 100%; }
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) :is(.composer-footer, .composer-footer-context, .composer-footer-actions) { display: contents; }
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .composer-editor { flex: 1 1 0; min-width: 0; order: 2; }
-.mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .composer-editor textarea { max-height: 2lh; }
+.mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .composer-editor .composer-prompt { max-height: 2lh; }
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .phone-composer-add { order: 1; }
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .composer-footer-actions > * { order: 3; }
 .mobile-chat[data-composer="collapsed"] .agent-composer:not([data-dictating="true"]) .composer-footer-actions > :last-child { order: 4; }

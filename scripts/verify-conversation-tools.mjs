@@ -6,7 +6,7 @@ import { createServer } from "vite";
 const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom" });
 const originalDocument = globalThis.document;
 // Native dictation reads only visibility during its initial render.
-globalThis.document = { hidden: false };
+globalThis.document = { hidden: false, documentElement: { style: {} } };
 try {
   const { SessionPane } = await server.ssrLoadModule("/src/components/SessionPane.tsx");
   const { TurnReviewPane } = await server.ssrLoadModule("/src/components/TurnReviewPane.tsx");
