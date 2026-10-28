@@ -521,7 +521,6 @@ export interface AppSettings {
   defaultAgent: AgentProviderId;
   openLastProject: boolean;
   /** Projects without a chosen icon show their own favicon or logo. */
-  projectAutoIcons: boolean;
   /** The chat background image file on this Mac (ADR-089), or null. */
   chatBackground: string | null;
   /** How the background is drawn. */

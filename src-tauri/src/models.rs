@@ -732,8 +732,6 @@ pub struct AppSettings {
     pub custom_shortcuts: std::collections::HashMap<String, String>,
     pub default_agent: AgentProviderId,
     pub open_last_project: bool,
-    /// Projects without a chosen icon show their own favicon or logo (off by default).
-    pub project_auto_icons: bool,
     /// The chat background image saved in `backgrounds/` (ADR-089), if any.
     pub chat_background: Option<String>,
     /// How the image is drawn: none, dither, ascii, halftone, scanlines or haze.
@@ -935,7 +933,6 @@ impl Default for AppSettings {
             rail_project_shortcuts: Vec::new(),
             default_agent: AgentProviderId::Codex,
             open_last_project: true,
-            project_auto_icons: false,
             chat_background: None,
             chat_background_effect: "none".into(),
             chat_background_show_on: "all".into(),

@@ -103,8 +103,9 @@ layout simply does not have them.
   simply ignored (never rewritten, so nothing is lost if the owner goes back); the setting
   `projectAutoIcons` stays in `AppSettings`. Project folders (groups in the switcher) keep their
   own icon and picker (`ProjectGlyph`, `LookPicker`), since they have no avatar.
-- Follow-up: prune `project_look_action`, `project_auto_icon` and the project half of
-  `project_look.rs` once no older client needs them.
+- Pruned: `project_look_action`, `project_auto_icon`, the ICNS and automatic-favicon readers and
+  the `projectAutoIcons` setting are removed. `Project.look` is still stored and ignored, and folder
+  icons keep `pick_look_image` and `validate_look`.
 
 ## Consequences
 
