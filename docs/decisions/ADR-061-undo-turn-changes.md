@@ -2,6 +2,8 @@
 
 **Status:** Accepted. Amends ADR-040: the turn summary now offers Undo.
 
+Amended by ADR-187 (undo is all-or-nothing and refuses on a moved HEAD or an overlapping session).
+
 ## Context
 
 ADR-040 kept turn reviews read-only (Keep/Review, no Undo). The owner asked to undo what a reply changed.
