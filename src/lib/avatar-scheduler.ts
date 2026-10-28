@@ -6,8 +6,9 @@
  * - one shared timer ticks about five times a second, and only while an avatar on screen is
  *   working; one more timer starts blinks, a few avatars at a time, and only while an avatar on
  *   screen is idle;
- * - the pointer is listened to (one passive listener, at most one pass per frame) only while an
- *   avatar is on screen, and repaints only the avatars whose gaze actually changed;
+ * - the pointer is listened to only on the surfaces that hold avatars (`[data-avatar-gaze]`, the
+ *   sidebar), never on the window, at most one pass per frame and only while an idle avatar is on
+ *   screen; leaving the surface turns the eyes back, and only changed gazes repaint;
  * - everything stops while the document is hidden or the window is not focused, and with
  *   `data-animations="off"` or reduced motion the avatars keep one static frame.
  */
@@ -41,7 +42,8 @@ export interface SchedulerEnv {
   motion(): boolean;
   /** Calls back when `active()` or `motion()` may have changed. */
   watch(onChange: () => void): () => void;
-  /** Calls back with the pointer position, at most once per frame. */
+  /** Calls back with the pointer position over the avatar surfaces, at most once per frame;
+   * leaving a surface reports a point far away. */
   pointer(onMove: (x: number, y: number) => void): () => void;
 }
 
@@ -68,11 +70,11 @@ export class AvatarScheduler {
     this.entries.set(target, { target, visible, gaze: 0, blinking: false });
     if (this.entries.size === 1) this.stopWatching = this.env.watch(() => this.sync());
     this.paint(this.entries.get(target)!);
-    this.sync();
+    this.repointer();
     return () => {
       this.entries.delete(target);
       if (!this.entries.size) { this.stopWatching?.(); this.stopWatching = null; }
-      this.sync();
+      this.repointer();
     };
   }
 
@@ -90,6 +92,12 @@ export class AvatarScheduler {
     if (!entry) return;
     entry.blinking = false;
     this.paint(entry);
+    this.sync();
+  }
+
+  /** Avatars came or went, and with them perhaps the surfaces that hold them: listen afresh. */
+  private repointer() {
+    if (this.stopPointer) { this.stopPointer(); this.stopPointer = null; }
     this.sync();
   }
 
@@ -201,14 +209,24 @@ function browserEnv(): SchedulerEnv {
       };
     },
     pointer(onMove) {
+      // Only the surfaces that hold avatars, never the window (Design system: pointer effects stay on their control).
+      const surfaces = [...doc.querySelectorAll<HTMLElement>("[data-avatar-gaze]")];
       let frame = 0, x = 0, y = 0;
+      const report = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; onMove(x, y); }); };
       const move = (event: PointerEvent) => {
         if (event.pointerType === "touch") return;
         x = event.clientX; y = event.clientY;
-        if (!frame) frame = requestAnimationFrame(() => { frame = 0; onMove(x, y); });
+        report();
       };
-      window.addEventListener("pointermove", move, { passive: true });
-      return () => { window.removeEventListener("pointermove", move); if (frame) cancelAnimationFrame(frame); };
+      const leave = () => { x = Number.POSITIVE_INFINITY; y = Number.POSITIVE_INFINITY; report(); };
+      for (const surface of surfaces) {
+        surface.addEventListener("pointermove", move, { passive: true });
+        surface.addEventListener("pointerleave", leave, { passive: true });
+      }
+      return () => {
+        for (const surface of surfaces) { surface.removeEventListener("pointermove", move); surface.removeEventListener("pointerleave", leave); }
+        if (frame) cancelAnimationFrame(frame);
+      };
     },
   };
 }

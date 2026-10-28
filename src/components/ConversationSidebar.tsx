@@ -79,7 +79,7 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} fill="currentColor" /></IconButton>;
   const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={headButton}><SquarePen size={14} strokeWidth={1.7} /></IconButton>;
 
-  return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} style={{ width }}>
+  return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} data-avatar-gaze="" style={{ width }}>
     <div data-tauri-drag-region className="conversation-sidebar-head titlebar-drag">
       <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}{newConversation}</div>
     </div>
@@ -198,7 +198,7 @@ function ConversationList() {
     if (!next.delete(projectId)) next.add(projectId);
     return next;
   }), []);
-  // Selecting a conversation (anywhere: tabs, palette, Inbox) opens its folder.
+  // Selecting a conversation (anywhere: tabs, palette) opens its folder.
   const seenSelection = useRef(selectedSessionId);
   useEffect(() => {
     if (seenSelection.current === selectedSessionId) return;
