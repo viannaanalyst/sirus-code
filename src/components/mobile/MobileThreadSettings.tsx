@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { AgentProviderId, ApprovalMode, ExecutionOptions } from "@/client/types";
-import { Bot, Check, ChevronLeft, ChevronRight, Hand, Lightbulb, Search, X, Zap } from "@/components/icons/phosphor";
+import { Bot, Check, ChevronLeft, ChevronRight, Hand, Lightbulb, Search, X, Zap } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import type { PhoneModelButtonProps } from "@/components/phone-composer-slot";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";

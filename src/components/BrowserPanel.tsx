@@ -25,7 +25,7 @@ import {
   Smartphone,
   SquareDashedMousePointer,
   X,
-} from "@/components/icons/phosphor";
+} from "@/components/icons";
 import { BrowserDeviceToolbar, BrowserViewport } from "@/components/BrowserDevice";
 import { presetViewport, type DeviceViewport } from "@/lib/browser-device";
 import { startRecording, stopRecording, useBrowserRecording } from "@/lib/browser-recordings";

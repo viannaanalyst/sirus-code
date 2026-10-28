@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Session } from "@/client/types";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Input } from "@/components/arc/input/input";
-import { RefreshCw, X } from "@/components/icons/phosphor";
+import { RefreshCw, X } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/provider-registry";

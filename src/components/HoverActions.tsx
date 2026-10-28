@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { GitCompareArrows, Pin, PinOff, SquarePen, SquareTerminal } from "@/components/icons/phosphor";
+import { GitCompareArrows, Pin, PinOff, SquarePen, SquareTerminal } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { toggleSidebarId } from "@/lib/sidebar-layout";

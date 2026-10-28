@@ -1,4 +1,4 @@
-import { CircleCheck, CircleDot, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from "@/components/icons/phosphor";
+import { CircleCheck, CircleDot, GitMerge, GitPullRequest, GitPullRequestClosed, GitPullRequestDraft } from "@/components/icons";
 import type { GithubItem } from "@/client/types";
 
 /** State glyph shared by rows and the detail header. */

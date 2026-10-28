@@ -1,5 +1,5 @@
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
-import { Star } from "@/components/icons/phosphor";
+import { Star } from "@/components/icons";
 import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { motionTokens } from "@/lib/motion";

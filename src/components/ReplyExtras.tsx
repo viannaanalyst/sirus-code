@@ -1,4 +1,4 @@
-import { ChevronRight, MessagesSquare } from "@/components/icons/phosphor";
+import { ChevronRight, MessagesSquare } from "@/components/icons";
 import type { Message } from "@/client/types";
 import { DelegatedTasks } from "@/components/DelegatedTasks";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

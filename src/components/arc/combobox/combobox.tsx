@@ -2,7 +2,7 @@
 
 import { animate, AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Check, ChevronDown, Search, X } from "@/components/icons/phosphor";
+import { Check, ChevronDown, Search, X } from "@/components/icons";
 import {
   forwardRef,
   useEffect,

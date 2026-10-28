@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowUpDown, ChartBar, ChevronDown, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
+import { ArrowUpDown, ChartBar, ChevronDown, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { RailGlyph } from "@/components/SidebarRailMore";

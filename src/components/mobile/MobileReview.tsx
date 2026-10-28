@@ -1,4 +1,4 @@
-import { ChevronLeft } from "@/components/icons/phosphor";
+import { ChevronLeft } from "@/components/icons";
 import { ChangesPane } from "@/components/ChangesPane";
 import { useState } from "react";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";

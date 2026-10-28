@@ -2,7 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "
 import { client } from "@/client";
 import type { Project } from "@/client/types";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
-import { Copy, Folder, FolderOpen, FolderOutput, FolderPlus, Palette, Pencil, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { Copy, Folder, FolderOpen, FolderOutput, FolderPlus, Palette, Pencil, SquarePen, Trash2 } from "@/components/icons";
 import { ProjectAppearancePopover } from "@/components/ProjectAppearancePopover";
 import { ProjectFolderDialog } from "@/components/ProjectFolderDialog";
 import { useSidebarHoverCardHold } from "@/components/SidebarHoverCard";

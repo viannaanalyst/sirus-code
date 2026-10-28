@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff, Folder, FolderOpen } from "@/components/icons/phosphor";
+import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff, Folder, FolderOpen } from "@/components/icons";
 import { buildDiffTree, diffTotals, type DiffTreeNode } from "@/lib/diff-tree";
 import type { TurnReview } from "@/client/types";
 import { FileGlyph } from "@/components/FileGlyph";

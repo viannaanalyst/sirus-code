@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { MessageSquarePlus, MessagesSquare } from "@/components/icons/phosphor";
+import { MessageSquarePlus, MessagesSquare } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { appendTranscriptQuote, readTranscriptSelection, type TranscriptSelection } from "@/lib/transcript-selection";
 import { InteractiveButton } from "@/primitives/InteractiveButton";

@@ -1,7 +1,6 @@
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { memo, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons/phosphor";
-import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
+import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons";
 import type { Project, Session } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

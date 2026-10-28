@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
-import { DeviceRotate, X } from "@/components/icons/phosphor";
+import { DeviceRotate, X } from "@/components/icons";
 import { client } from "@/client";
 import { useTranslation } from "@/i18n/use-translation";
 import "@/styles/browser.css";

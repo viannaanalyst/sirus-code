@@ -1,4 +1,4 @@
-import { AppWindow, CircleDot, Copy, ExternalLink, GitPullRequest, Globe, Server } from "@/components/icons/phosphor";
+import { AppWindow, CircleDot, Copy, ExternalLink, GitPullRequest, Globe, Server } from "@/components/icons";
 import { useEffect, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
 import { client, isRemoteUi } from "@/client";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";

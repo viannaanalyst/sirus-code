@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { client } from "@/client";
 import type { ResourceProcess, ResourceSnapshot } from "@/client/types";
-import { ChevronRight, Gauge } from "@/components/icons/phosphor";
+import { ChevronRight, Gauge } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { canStopProcess, formatCpu, formatMemory, kindLabelKey, resourceRows, rowLevel, runningKey, snapshotLevel, tweenValue, withoutStopping, type ResourceLevel, type ResourceRow } from "@/lib/agent-resources";

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Check, ChevronRight } from "@/components/icons/phosphor";
+import { Check, ChevronRight } from "@/components/icons";
 import { Switch } from "@/primitives/Switch";
 
 /** One settings row: icon, name, an optional value, and a chevron when it opens something. */

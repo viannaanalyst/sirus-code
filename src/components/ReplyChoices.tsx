@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Message, Session } from "@/client/types";
-import { Check, ClipboardList } from "@/components/icons/phosphor";
+import { Check, ClipboardList } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { codexFollowups } from "@/lib/codex-directives";
 import { replyChoices } from "@/lib/reply-choices";

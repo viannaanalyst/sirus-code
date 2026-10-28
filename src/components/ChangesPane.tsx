@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Signpost, Sparkles, GitCommitHorizontal, ArrowUpFromLine, Undo2 } from "@/components/icons/phosphor";
+import { Check, ChevronDown, GitBranch, LoaderCircle, Minus, Plus, RefreshCw, Signpost, Sparkles, GitCommitHorizontal, ArrowUpFromLine, Undo2 } from "@/components/icons";
 import { client, type SirusClient } from "@/client";
 import type { FileChange, GitWorkspaceEntry, GitWorkspaceSnapshot, ReviewGuideAnchor } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

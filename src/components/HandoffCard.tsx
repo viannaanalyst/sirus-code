@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronRight, X } from "@/components/icons/phosphor";
+import { ChevronRight, X } from "@/components/icons";
 import { HandoffIcon } from "@/components/icons/HandoffIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { IconButton } from "@/primitives/IconButton";

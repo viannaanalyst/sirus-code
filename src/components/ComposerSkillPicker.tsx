@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, RefreshCw, Search } from "@/components/icons/phosphor";
+import { Box, RefreshCw, Search } from "@/components/icons";
 import { useAppStore } from "@/store/app-store";
 import { useSkillsCatalog } from "@/lib/use-skills-catalog";
 import { filterSkills, insertSkillInvocation } from "@/lib/skills";

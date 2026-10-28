@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, Folder, FolderOpen, FolderPlus, GitBranch, GitBranchPlus, MessageCircle, Plus, Search, X } from "@/components/icons/phosphor";
+import { Check, ChevronDown, Folder, FolderOpen, FolderPlus, GitBranch, GitBranchPlus, MessageCircle, Plus, Search, X } from "@/components/icons";
 import { ComputerIcon, useMergedComputers } from "@/components/ComputerSwitcher";
 import { computerLabel, useComputers } from "@/store/computers-store";
 import { client } from "@/client";

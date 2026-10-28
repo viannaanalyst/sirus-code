@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronLeft, ChevronRight, X } from "@/components/icons/phosphor";
+import { ChevronLeft, ChevronRight, X } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { panBy, RESTING, toggleZoom, wheelFactor, zoomAt, type ZoomBounds, type ZoomView } from "@/lib/image-zoom";

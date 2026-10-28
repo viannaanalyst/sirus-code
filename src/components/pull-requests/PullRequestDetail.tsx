@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { Bot, ChevronDown, MessagesSquare, CircleAlert, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw, Signpost } from "@/components/icons/phosphor";
+import { Bot, ChevronDown, MessagesSquare, CircleAlert, Copy, ExternalLink, GitCommitHorizontal, GitMerge, MessageSquare, Wrench, GitPullRequestDraft, GitPullRequestClosed, RotateCcw, Signpost } from "@/components/icons";
 import { client } from "@/client";
 import type { FileChange, GithubDetail, GithubItem, GithubMergeMethod } from "@/client/types";
 import { DiffViewer, type DiffReviewFile } from "@/components/DiffViewer";

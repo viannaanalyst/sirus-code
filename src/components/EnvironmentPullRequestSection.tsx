@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, Pause, RefreshCw, XCircle, Zap } from "@/components/icons/phosphor";
+import { CheckCircle2, ChevronRight, CircleDashed, CircleMinus, Clock3, ExternalLink, GitMerge, GitPullRequest, GitPullRequestClosed, LoaderCircle, Pause, RefreshCw, XCircle, Zap } from "@/components/icons";
 import { client } from "@/client";
 import type { PullRequest, PullRequestCheckStatus, Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

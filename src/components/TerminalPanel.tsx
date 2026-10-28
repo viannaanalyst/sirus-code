@@ -7,7 +7,7 @@ import { ghosttyCursorStyle, ghosttyTheme, terminalFontFamily, terminalOwnsKey }
 import { openLinkFrom, useLinkMenuItems } from "@/components/ChatLink";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { terminalLinkTarget } from "@/lib/terminal-links";
-import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons/phosphor";
+import { MessageSquarePlus, Plus, SquareTerminal, Trash2, X } from "@/components/icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import { queueTerminalOperation } from "@/lib/terminal-lifecycle";

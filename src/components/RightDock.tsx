@@ -16,7 +16,7 @@ import {
   SquareTerminal,
   X,
   XCircle,
-} from "@/components/icons/phosphor";
+} from "@/components/icons";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { dockCloseAllPrompt, planDockCloseAll, type DockCloseAllPlan } from "@/lib/dock-close-all";
 import { useTranslation } from "@/i18n/use-translation";

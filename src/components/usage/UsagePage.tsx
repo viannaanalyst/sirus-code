@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { client } from "@/client";
 import type { AgentProviderId, UsageHistory, UsagePrices } from "@/client/types";
-import { Plus, RefreshCw } from "@/components/icons/phosphor";
+import { Plus, RefreshCw } from "@/components/icons";
 import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";

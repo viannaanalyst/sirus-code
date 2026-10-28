@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from "react";
-import { CornerUpLeft } from "@/components/icons/phosphor";
+import { CornerUpLeft } from "@/components/icons";
 import type { Message } from "@/client/types";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";

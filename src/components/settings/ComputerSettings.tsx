@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Hand, OctagonX, ShieldCheck, Telescope } from "@/components/icons/phosphor";
+import { Hand, OctagonX, ShieldCheck, Telescope } from "@/components/icons";
 import type { AppSettings, WindowSnapShortcut } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { InteractiveButton } from "@/primitives/InteractiveButton";

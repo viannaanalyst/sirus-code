@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from "react";
-import { Box, Bug, Camera, Check, ChevronLeft, ImagePlus, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons/phosphor";
+import { Box, Bug, Camera, Check, ChevronLeft, ImagePlus, Lightbulb, Paperclip, Plus, Target, TerminalSquare, Users, X, AppWindow } from "@/components/icons";
 import { appendAttachments, replaceAttachment } from "@/lib/composer-attachments";
 import { canPreviewAttachment } from "@/lib/document-reader";
 import { FileTypeIcon, fileKind, formatFileSize } from "@/components/FileTypeIcon";

@@ -3,7 +3,7 @@ import { client } from "@/client";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Input } from "@/components/arc/input/input";
 import { GitHubIcon } from "@/components/icons/BrandIcons";
-import { Folder, FolderOpen, Sparkles } from "@/components/icons/phosphor";
+import { Folder, FolderOpen, Sparkles } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { cloneFolderName, lastProjectMode, lastProjectParent, projectTarget, rememberProjectMode, rememberProjectParent, validProjectName, type ProjectDialogMode } from "@/lib/new-project";

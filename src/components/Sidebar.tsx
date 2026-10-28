@@ -1,7 +1,7 @@
 import { formatUnknownError } from "@/lib/format-error";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { useEffect, useMemo } from "react";
-import { Settings } from "@/components/icons/phosphor";
+import { Settings } from "@/components/icons";
 import { SidebarUsageRings } from "@/components/SidebarUsageRings";
 import { AgentResources } from "@/components/AgentResources";
 import { RailGlyph, SidebarRailMore } from "@/components/SidebarRailMore";

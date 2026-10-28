@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { GitHistoryEntry } from "@/client/types";
-import { ChevronDown, GitBranch } from "@/components/icons/phosphor";
+import { ChevronDown, GitBranch } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { graphCommitFromDecorations, GRAPH_ROW_PX, historyItemGraph, layoutGitGraph, type GraphRef } from "@/lib/git-graph";
 

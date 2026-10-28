@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Laptop, ListFilter, Moon, MoreHorizontal, Search, Server, SquarePen, X } from "@/components/icons/phosphor";
+import { Laptop, ListFilter, Moon, MoreHorizontal, Search, Server, SquarePen, X } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { useHostLabel, usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { homeSections, listedSessions, projectGroups } from "@/lib/mobile";

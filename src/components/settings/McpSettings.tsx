@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Check, OctagonX, Plus, RefreshCw, Trash2 } from "@/components/icons/phosphor";
+import { Bot, Check, OctagonX, Plus, RefreshCw, Trash2 } from "@/components/icons";
 import { client } from "@/client";
 import type { AgentInstall, AppSettings, McpProvider, McpServer } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

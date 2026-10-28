@@ -6,7 +6,7 @@
 import { parseDiffFromFile, type FileDiffMetadata, type SelectedLineRange } from "@pierre/diffs";
 import { CodeView, type CodeViewHandle } from "@pierre/diffs/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
-import { ChevronRight } from "@/components/icons/phosphor";
+import { ChevronRight } from "@/components/icons";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { clearFindMatches, lineSelector, paintFindMatches, type RenderedDiffFile } from "@/lib/diff-find-dom";
 import type { DiffMatch } from "@/lib/diff-find";

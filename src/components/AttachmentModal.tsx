@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronRight, Code, Copy, Eye, Trash2, X } from "@/components/icons/phosphor";
+import { ChevronRight, Code, Copy, Eye, Trash2, X } from "@/components/icons";
 import type { PromptAttachment } from "@/client/types";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
 import { DocumentBody } from "@/components/DocumentReader";

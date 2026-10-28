@@ -1,6 +1,6 @@
 import { memo, useEffect, useId, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown, CircleHelp, Square, Users, X, Zap } from "@/components/icons/phosphor";
+import { Check, ChevronDown, CircleHelp, Square, Users, X, Zap } from "@/components/icons";
 import type { ActivityItem, AgentProviderId } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

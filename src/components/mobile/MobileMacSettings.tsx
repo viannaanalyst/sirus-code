@@ -1,4 +1,4 @@
-import { Download, GitFork, Globe, RefreshCw, RotateCcw } from "@/components/icons/phosphor";
+import { Download, GitFork, Globe, RefreshCw, RotateCcw } from "@/components/icons";
 import type { AppSettings } from "@/client/types";
 import { useHostFeatures, usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { APPROVAL_CHOICES, STREAMING_CHOICES, WORKSPACE_CHOICES } from "@/lib/settings";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { client } from "@/client";
 import type { DeviceHubAccess, DeviceStatus, SimDevice } from "@/client/types";
-import { ChevronDown, DeviceRotate, HomeButton, Link, Lock, Moon, PowerIcon, Sun } from "@/components/icons/phosphor";
+import { ChevronDown, DeviceRotate, HomeButton, Link, Lock, Moon, PowerIcon, Sun } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";

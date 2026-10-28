@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { REMOTE_TOKEN_KEY, deviceName } from "@/client/remote-pairing";
 import { disablePush, enablePush, pushEnabled, pushSupport, sharePushWith, unsharePushWith } from "@/client/remote-push";
-import { Bell, Bot, Box, Bug, ChevronLeft, Code, FileText, Folder, Gauge, GitBranch, Info, Keyboard, MessageSquarePlus, Palette, Rows, Shield, Smartphone, TerminalSquare, Wrench, X } from "@/components/icons/phosphor";
+import { Bell, Bot, Box, Bug, ChevronLeft, Code, FileText, Folder, Gauge, GitBranch, Info, Keyboard, MessageSquarePlus, Palette, Rows, Shield, Smartphone, TerminalSquare, Wrench, X } from "@/components/icons";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { HOME_ENVIRONMENT } from "@/lib/environments";
 import { useEnvironments } from "@/store/environments-store";

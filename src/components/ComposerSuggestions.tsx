@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { Box, Command } from "@/components/icons/phosphor";
+import { Box, Command } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { FileGlyph } from "@/components/FileGlyph";
 import type { useComposerSuggestions } from "@/lib/use-composer-suggestions";

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@/client/types";
-import { Clock3, Gauge, Play, X } from "@/components/icons/phosphor";
+import { Clock3, Gauge, Play, X } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { resetDistance, RESUME_GRACE_MS } from "@/lib/usage-limit";

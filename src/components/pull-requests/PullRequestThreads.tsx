@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronRight, CornerUpLeft, FileCode2, RotateCcw } from "@/components/icons/phosphor";
+import { Check, ChevronRight, CornerUpLeft, FileCode2, RotateCcw } from "@/components/icons";
 import { client } from "@/client";
 import type { GithubReviewThread } from "@/client/types";
 import { GithubMarkdown } from "@/components/pull-requests/GithubMarkdown";

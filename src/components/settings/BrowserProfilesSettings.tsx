@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "@/components/icons/phosphor";
+import { Plus, Trash2 } from "@/components/icons";
 import type { AppSettings, BrowserProfile } from "@/client/types";
 import { client } from "@/client";
 import { useTranslation } from "@/i18n/use-translation";

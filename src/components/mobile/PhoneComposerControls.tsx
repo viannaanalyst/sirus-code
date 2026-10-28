@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChevronDown, ImagePlus, Paperclip, Plus } from "@/components/icons/phosphor";
+import { ChevronDown, ImagePlus, Paperclip, Plus } from "@/components/icons";
 import { client } from "@/client";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

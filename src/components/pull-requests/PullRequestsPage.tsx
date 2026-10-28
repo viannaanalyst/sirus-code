@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { ArrowUpDown, Check, ChevronDown, Ellipsis, Eye, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons/phosphor";
+import { ArrowUpDown, Check, ChevronDown, Ellipsis, Eye, GitPullRequest, ListFilter, MessageSquare, Pin, Search, TriangleAlert, X, RefreshCw, Eraser } from "@/components/icons";
 import { ItemStateIcon } from "@/components/pull-requests/ItemStateIcon";
 import type { GithubInbox, GithubItem, GithubItemKind, GithubItemState } from "@/client/types";
 import { PullRequestDetail } from "@/components/pull-requests/PullRequestDetail";

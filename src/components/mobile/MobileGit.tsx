@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { BranchInfo } from "@/client/types";
 import { client } from "@/client";
-import { Check, ExternalLink, ChevronLeft, GitBranch, GitPullRequest, LoaderCircle, Plus, RefreshCw, Search } from "@/components/icons/phosphor";
+import { Check, ExternalLink, ChevronLeft, GitBranch, GitPullRequest, LoaderCircle, Plus, RefreshCw, Search } from "@/components/icons";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { formatUnknownError } from "@/lib/format-error";
 import { checkSummary, lookupLabels, pullRequestState } from "@/lib/pull-requests";

@@ -5,7 +5,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { FocusEvent, KeyboardEvent, ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { Check, Copy, Trash2 } from "@/components/icons/phosphor";
+import { Check, Copy, Trash2 } from "@/components/icons";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./context-menu.module.css";
 

@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import { Check, Mic, X } from "@/components/icons/phosphor";
+import { Check, Mic, X } from "@/components/icons";
 import { client, isRemoteUi } from "@/client";
 import { useTranslation } from "@/i18n/use-translation";
 import { recordingClock, waveformBars } from "@/lib/dictation-bar";

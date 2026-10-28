@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { client } from "@/client";
 import type { ProviderUsage, Session } from "@/client/types";
-import { LoaderCircle, Users } from "@/components/icons/phosphor";
+import { LoaderCircle, Users } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { cascadeIndex, useCascade } from "@/lib/cascade";
 import { formatUnknownError } from "@/lib/format-error";

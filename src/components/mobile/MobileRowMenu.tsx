@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronLeft, ChevronRight } from "@/components/icons/phosphor";
+import { Check, ChevronLeft, ChevronRight } from "@/components/icons";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { motionTokens } from "@/lib/motion";
 import { contextMenuTop } from "@/lib/phone-home";

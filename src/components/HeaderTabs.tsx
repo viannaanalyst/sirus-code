@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Check, ChevronDown, ChevronRight, Clock3, Folder, GitBranch, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import { Check, ChevronDown, ChevronRight, Clock3, Folder, GitBranch, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons";
 import type { Project, ProjectFolder, Session } from "@/client/types";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ComputerBadge, SwitcherElsewhereProjects, SwitcherRemoteSessions, memberKey, useMergedComputers } from "@/components/ComputerSwitcher";

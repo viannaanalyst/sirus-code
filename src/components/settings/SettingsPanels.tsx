@@ -4,7 +4,7 @@ import { formatDiskSize } from "@/lib/project-scripts";
 import { client, localClient } from "@/client";
 import { AppUpdateControl } from "@/components/AppUpdateToast";
 import { WhatsNewDialog } from "@/components/AppUpdatePill";
-import { RefreshCw } from "@/components/icons/phosphor";
+import { RefreshCw } from "@/components/icons";
 import "@/styles/general-settings.css";
 import { KeybindingsSettings } from "./KeybindingsSettings";
 import { ProviderRow } from "@/components/settings/ProviderRow";

@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Eye, ListOrdered, Signpost, TriangleAlert, X } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, Check, Eye, ListOrdered, Signpost, TriangleAlert, X } from "@/components/icons";
 import type { ReviewGuide, ReviewGuideAnchor } from "@/client/types";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { useTranslation } from "@/i18n/use-translation";

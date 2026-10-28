@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, ChevronUp, FileDiff, MessageSquarePlus, Search, X } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronUp, FileDiff, MessageSquarePlus, Search, X } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import type { FileChange } from "@/client/types";
 import { nextDiffRange, type DiffComment } from "@/lib/diff-comment";

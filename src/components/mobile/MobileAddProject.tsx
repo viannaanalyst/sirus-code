@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { client } from "@/client";
 import type { Project } from "@/client/types";
-import { FolderOpen, LoaderCircle, TriangleAlert, X } from "@/components/icons/phosphor";
+import { FolderOpen, LoaderCircle, TriangleAlert, X } from "@/components/icons";
 import { GitHubIcon } from "@/components/icons/BrandIcons";
 import { formatUnknownError } from "@/lib/format-error";
 import { motionTokens } from "@/lib/motion";

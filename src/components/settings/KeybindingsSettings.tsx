@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Command, RotateCcw, Search } from "@/components/icons/phosphor";
+import { Command, RotateCcw, Search } from "@/components/icons";
 import type { AppSettings } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { filterKeybindings, KEYBINDINGS, type CustomShortcuts } from "@/lib/keybindings";

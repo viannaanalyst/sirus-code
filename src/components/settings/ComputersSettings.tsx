@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Laptop, Server } from "@/components/icons/phosphor";
+import { Laptop, Server } from "@/components/icons";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Input } from "@/components/arc/input/input";
 import { normalizePairingCode } from "@/client/remote-pairing";

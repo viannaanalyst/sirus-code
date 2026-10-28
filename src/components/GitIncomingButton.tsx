@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { client } from "@/client";
 import type { GitIncoming } from "@/client/types";
-import { Check, CloudArrowDown, LoaderCircle } from "@/components/icons/phosphor";
+import { Check, CloudArrowDown, LoaderCircle } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatUnknownError } from "@/lib/format-error";
 import { commitAge, incomingButton, INCOMING_REFRESH_MS, PULLED_FOR_MS, pullFeedback, turnSettled, type PullFeedback } from "@/lib/git-incoming";

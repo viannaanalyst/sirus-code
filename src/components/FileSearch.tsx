@@ -1,6 +1,6 @@
 import { Fragment, memo, useEffect, useMemo, useState, type RefObject } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronRight, Search, X } from "@/components/icons/phosphor";
+import { ChevronRight, Search, X } from "@/components/icons";
 import { client } from "@/client";
 import type { TextSearchFile, TextSearchResult } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

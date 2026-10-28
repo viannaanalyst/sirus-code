@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Settings2 } from "@/components/icons/phosphor";
+import { Plus, RefreshCw, Settings2 } from "@/components/icons";
 import { useState } from "react";
 import type { AgentProviderId, ProviderUsage } from "@/client/types";
 import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
