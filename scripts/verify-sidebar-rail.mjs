@@ -17,8 +17,8 @@ try {
     for (const collapsed of [false, true]) {
       snapshot.sidebarCollapsed = collapsed;
       const html = renderToString(createElement(TooltipProvider, null, createElement(Sidebar)));
-      // Three customizable rail items (ADR-052; Kanban retired, ADR-110; Tasks removed, ADR-172; Archived removed, ADR-173), the "more" menu and Settings.
-      assert.equal((html.match(/data-section=/g) ?? []).length, 5);
+      // Two customizable rail items (ADR-052; Kanban retired, ADR-110; Tasks removed, ADR-172; Archived removed, ADR-173; Inbox removed, ADR-174), the "more" menu and Settings.
+      assert.equal((html.match(/data-section=/g) ?? []).length, 4);
       assert.ok(!html.includes('data-section="drafts"') && !html.includes('data-section="automations"') && !html.includes('data-section="kanban"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");

@@ -1,6 +1,6 @@
 # ADR-052: Inbox, Tasks and a customizable rail
 
-**Status:** Accepted. *Amended 2026-10-07:* the Automations rail item and the Activity view were removed. Superseded by ADR-172 (Tasks and scheduled tasks removed).
+**Status:** Accepted. *Amended 2026-10-07:* the Automations rail item and the Activity view were removed. Superseded by ADR-172 (Tasks and scheduled tasks removed) and, for the Inbox page, by ADR-174.
 
 ## Context
 

@@ -1015,7 +1015,7 @@ impl Default for AppSettings {
 
 /// Customizable rail items (Settings is fixed at the bottom).
 /// The Kanban board was retired on 2026-10-11 (ADR-110); saved settings drop its id.
-pub const RAIL_ITEMS: [&str; 3] = ["home", "inbox", "pulls"];
+pub const RAIL_ITEMS: [&str; 2] = ["home", "pulls"];
 
 /// Most unread markers kept for the Pull requests page; the renderer drops the oldest.
 pub const GITHUB_SEEN_LIMIT: usize = 500;

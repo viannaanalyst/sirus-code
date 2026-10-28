@@ -118,8 +118,8 @@ function withWorkspace(
 ) {
   return { terminalWorkspacesBySession: { ...state.terminalWorkspacesBySession, [sessionId]: workspace } };
 }
-/** Main column: conversation or a page (inbox, pull requests; ADR-050). The Kanban board was retired (ADR-110). */
-export type MainView = "session" | "pulls" | "inbox" | "usage";
+/** Main column: conversation or a page (pull requests; ADR-050). The Kanban board was retired (ADR-110). */
+export type MainView = "session" | "pulls" | "usage";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
   mainView: MainView;

@@ -91,7 +91,7 @@ test("opening a session from a page preserves execution state and unsent drafts"
   const sessions = [{ id: "board-card", projectId: "owned", status: "running", messages: [{ content: "stream" }] }] as import("../src/client/types.ts").Session[];
   const drafts = { "session:board-card": "unsent" };
   useAppStore.setState({ mainView: "session", sessions, composerDrafts: drafts, selectedSessionId: null });
-  useAppStore.getState().setMainView("inbox");
+  useAppStore.getState().setMainView("pulls");
   assert.equal(useAppStore.getState().selectedSessionId, null);
   await useAppStore.getState().selectSession("board-card");
   assert.equal(useAppStore.getState().mainView, "session");

@@ -215,12 +215,13 @@ mod tests {
             "drafts".into(),
             "automations".into(),
             "inbox".into(),
-            "inbox".into(),
+            "pulls".into(),
+            "pulls".into(),
         ];
         data.settings.hidden_rail_items =
             vec!["drafts".into(), "automations".into(), "pulls".into()];
         prune(&mut data);
-        assert_eq!(data.settings.rail_item_order, ["inbox"]);
+        assert_eq!(data.settings.rail_item_order, ["pulls"]);
         assert_eq!(data.settings.hidden_rail_items, ["pulls"]);
         assert!(data.settings.validate_controls().is_ok());
     }
