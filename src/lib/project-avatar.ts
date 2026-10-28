@@ -1,30 +1,34 @@
 /**
- * Project avatars (ADR-175): a 12x12 pixel speech bubble with a face, drawn pixel by pixel into
- * a buffer. Everything here is pure: the colour ramp (a hex colour turned into role colours in
- * OKLCH with hue shifts), the deterministic defaults from the project name, and the sprite
- * (mask, shading, face layers). `components/ProjectAvatar.tsx` paints the buffer on a canvas and
- * `avatar-scheduler.ts` decides when to repaint.
+ * Project avatars (ADR-175, v2): a 16x16 pixel speech bubble (a rounded block with the bubble's
+ * tail) with eyes and an optional accessory, drawn pixel by pixel into a buffer. Everything here
+ * is pure: the colour ramp (a hex colour turned into role colours in OKLCH with hue shifts), the
+ * deterministic defaults from the project name, and the sprite (mask, shading, eyes, accessories).
+ * `components/ProjectAvatar.tsx` paints the buffer on a canvas and `avatar-scheduler.ts` decides
+ * when to repaint.
  */
 import type { ProjectAppearance } from "@/client/types";
 
-export const AVATAR_SIZE = 12;
+export const AVATAR_SIZE = 16;
 /** One spare row under the sprite, for the two-frame bob. */
-export const AVATAR_ROWS = 13;
+export const AVATAR_ROWS = 17;
 
-export const AVATAR_EYES = ["dot", "round", "wide", "sleepy"] as const;
-export const AVATAR_MOUTHS = ["smile", "o", "flat"] as const;
+export const AVATAR_EYES = ["bars", "dots", "sleepy", "happy"] as const;
+export const AVATAR_ACCESSORIES = ["none", "tophat", "crown", "antenna", "bow", "flower", "beanie", "headset", "scarf"] as const;
 export type AvatarEyes = (typeof AVATAR_EYES)[number];
-export type AvatarMouth = (typeof AVATAR_MOUTHS)[number];
+export type AvatarAccessory = (typeof AVATAR_ACCESSORIES)[number];
 export type AvatarState = "idle" | "working" | "waiting";
 export type AvatarGaze = -1 | 0 | 1;
 
-export interface AvatarLook { color: string; eyes: AvatarEyes; mouth: AvatarMouth; cheeks: boolean }
+export interface AvatarLook { color: string; eyes: AvatarEyes; accessory: AvatarAccessory }
 /** One frame of the animation: what moves, not how it is drawn. */
-export interface AvatarPose { state: AvatarState; blink: boolean; gaze: AvatarGaze; bob: boolean; talk: boolean }
+export interface AvatarPose { state: AvatarState; blink: boolean; gaze: AvatarGaze; bob: boolean }
 
 export const AVATAR_SWATCHES = ["#8b7cf6", "#5b8def", "#38bdf8", "#2dd4bf", "#4ade80", "#a3c94a", "#facc15", "#fb923c", "#f87171", "#f472b6", "#c084fc", "#94a3b8"] as const;
 
-export const RESTING_POSE: AvatarPose = { state: "idle", blink: false, gaze: 0, bob: false, talk: false };
+export const RESTING_POSE: AvatarPose = { state: "idle", blink: false, gaze: 0, bob: false };
+
+/** Eye names saved before v2 and the v2 eyes they become (the Rust side maps them on load too). */
+export const LEGACY_EYES: Readonly<Record<string, AvatarEyes>> = { dot: "dots", round: "dots", wide: "bars", sleepy: "sleepy" };
 
 // ---------------------------------------------------------------------------------------------
 // Colour: hex -> OKLCH -> role ramp -> sRGB
@@ -64,7 +68,7 @@ export function hueToward(h: number, target: number, amount: number): number {
   return (h + delta * amount + 360) % 360;
 }
 
-export interface AvatarRamp { outline: Rgba; shadow: Rgba; base: Rgba; light: Rgba; shine: Rgba; white: Rgba; cheek: Rgba; notchDark: Rgba; notchLight: Rgba }
+export interface AvatarRamp { edge: Rgba; side: Rgba; base: Rgba; light: Rgba; shine: Rgba; eye: Rgba; eyeShade: Rgba; notchDark: Rgba; notchLight: Rgba }
 
 /**
  * Roles, not pixels: a new colour only rebuilds this ramp. Shadows drift cool (towards blue) and
@@ -72,16 +76,16 @@ export interface AvatarRamp { outline: Rgba; shadow: Rgba; base: Rgba; light: Rg
  */
 export function avatarRamp(hex: string): AvatarRamp {
   const { c, h } = hexToOklch(hex);
-  const chroma = Math.max(0.04, Math.min(0.17, c));
+  const chroma = Math.max(0.05, Math.min(0.17, c));
   const k = (x: number) => Math.max(0.02, chroma * x);
   return {
-    outline: oklchToRgba(0.29, k(0.5), hueToward(h, 265, 0.35)),
-    shadow: oklchToRgba(0.52, k(0.9), hueToward(h, 265, 0.18)),
-    base: oklchToRgba(0.67, k(1), h),
-    light: oklchToRgba(0.79, k(0.8), hueToward(h, 85, 0.12)),
-    shine: oklchToRgba(0.95, k(0.3), hueToward(h, 85, 0.25)),
-    white: oklchToRgba(0.98, 0.01, hueToward(h, 85, 0.2)),
-    cheek: oklchToRgba(0.74, 0.13, hueToward(h, 10, 0.7)),
+    edge: oklchToRgba(0.36, k(0.8), hueToward(h, 265, 0.3)),
+    side: oklchToRgba(0.47, k(0.95), hueToward(h, 265, 0.2)),
+    base: oklchToRgba(0.64, k(1), h),
+    light: oklchToRgba(0.73, k(0.9), hueToward(h, 85, 0.1)),
+    shine: oklchToRgba(0.93, k(0.35), hueToward(h, 85, 0.25)),
+    eye: oklchToRgba(0.99, 0.01, h),
+    eyeShade: oklchToRgba(0.3, k(0.6), hueToward(h, 265, 0.3)),
     notchDark: oklchToRgba(0.3, 0.08, 288),
     notchLight: oklchToRgba(0.84, 0.12, 288),
   };
@@ -99,34 +103,53 @@ export function hashName(name: string): number {
   return h >>> 0;
 }
 
-/** The look every project has with no setup: stable, taken from the name. */
+/** The look every project has with no setup: colour and accessory taken from the name, `bars` eyes. */
 export function defaultLook(name: string): AvatarLook {
   const h = hashName(name);
-  return { color: AVATAR_SWATCHES[h % AVATAR_SWATCHES.length]!, eyes: AVATAR_EYES[(h >>> 4) % AVATAR_EYES.length]!, mouth: AVATAR_MOUTHS[(h >>> 8) % AVATAR_MOUTHS.length]!, cheeks: ((h >>> 12) & 1) === 1 };
+  return { color: AVATAR_SWATCHES[h % AVATAR_SWATCHES.length]!, eyes: "bars", accessory: AVATAR_ACCESSORIES[(h >>> 5) % AVATAR_ACCESSORIES.length]! };
 }
 
 const HEX = /^#[0-9a-f]{6}$/i;
 export const isAvatarColor = (value: unknown): value is string => typeof value === "string" && HEX.test(value);
 
-/** The saved choices over the defaults; a value the app does not know falls back to the default. */
+/** An eye name from a saved appearance, old ones mapped to their v2 equivalent; undefined when unknown. */
+export function eyesFromSaved(value: unknown): AvatarEyes | undefined {
+  if (typeof value !== "string") return undefined;
+  if ((AVATAR_EYES as readonly string[]).includes(value)) return value as AvatarEyes;
+  return Object.hasOwn(LEGACY_EYES, value) ? LEGACY_EYES[value] : undefined;
+}
+
+/** The saved choices over the defaults; a value the app does not know falls back to the default. Old `mouth` and `cheeks` are ignored. */
 export function resolveLook(name: string, appearance?: Partial<ProjectAppearance> | null): AvatarLook {
   const base = defaultLook(name);
   if (!appearance) return base;
   return {
     color: isAvatarColor(appearance.color) ? appearance.color.toLowerCase() : base.color,
-    eyes: (AVATAR_EYES as readonly string[]).includes(appearance.eyes ?? "") ? appearance.eyes as AvatarEyes : base.eyes,
-    mouth: (AVATAR_MOUTHS as readonly string[]).includes(appearance.mouth ?? "") ? appearance.mouth as AvatarMouth : base.mouth,
-    cheeks: typeof appearance.cheeks === "boolean" ? appearance.cheeks : base.cheeks,
+    eyes: eyesFromSaved(appearance.eyes) ?? base.eyes,
+    accessory: (AVATAR_ACCESSORIES as readonly string[]).includes(appearance.accessory ?? "") ? appearance.accessory as AvatarAccessory : base.accessory,
   };
 }
 
 /** A random look for "Shuffle". `random` is injectable for tests. */
 export function shuffleLook(random: () => number = Math.random): AvatarLook {
   const pick = <T,>(list: readonly T[]) => list[Math.min(list.length - 1, Math.floor(random() * list.length))]!;
-  return { color: pick(AVATAR_SWATCHES), eyes: pick(AVATAR_EYES), mouth: pick(AVATAR_MOUTHS), cheeks: random() > 0.5 };
+  return { color: pick(AVATAR_SWATCHES), eyes: pick(AVATAR_EYES), accessory: pick(AVATAR_ACCESSORIES) };
 }
 
-export const lookKey = (look: AvatarLook) => `${look.color}|${look.eyes}|${look.mouth}|${look.cheeks ? 1 : 0}`;
+export const lookKey = (look: AvatarLook) => `${look.color}|${look.eyes}|${look.accessory}`;
+
+// ---------------------------------------------------------------------------------------------
+// Sizes: whole device pixels per sprite pixel
+
+/** The CSS width an avatar is drawn at for a glyph box of `size`: 16, 24 or 32 CSS px, so 2, 3 or 4 device pixels per sprite pixel at 2x. */
+export function avatarBoxSize(size: number): 16 | 24 | 32 {
+  return size <= 18 ? 16 : size <= 28 ? 24 : 32;
+}
+
+/** Device pixels per sprite pixel: a whole number, so every sprite pixel is the same square of device pixels. */
+export function avatarDeviceScale(size: number, dpr: number): number {
+  return Math.max(1, Math.floor((avatarBoxSize(size) * (dpr > 0 ? dpr : 1)) / AVATAR_SIZE + 0.49));
+}
 
 // ---------------------------------------------------------------------------------------------
 // Animation frames
@@ -137,40 +160,75 @@ export function gazeToward(dx: number, dy: number): AvatarGaze {
   return dx > 18 ? 1 : dx < -18 ? -1 : 0;
 }
 
-/** Working, at one tick (about 200 ms): the bob every second tick, the mouth every tick, a glance every fourth. */
+/** Working, at one tick (about 200 ms): the bob every second tick, a glance every fourth. */
 export function workingPose(tick: number): AvatarPose {
-  return { state: "working", blink: false, gaze: ([0, 1, 0, -1] as const)[Math.floor(tick / 4) % 4]!, bob: Math.floor(tick / 2) % 2 === 1, talk: tick % 2 === 1 };
+  return { state: "working", blink: false, gaze: ([0, 1, 0, -1] as const)[Math.floor(tick / 4) % 4]!, bob: Math.floor(tick / 2) % 2 === 1 };
 }
 
-export const poseKey = (pose: AvatarPose) => `${pose.state}${pose.blink ? "b" : ""}${pose.gaze}${pose.bob ? "u" : ""}${pose.talk ? "t" : ""}`;
+export const poseKey = (pose: AvatarPose) => `${pose.state}${pose.blink ? "b" : ""}${pose.gaze}${pose.bob ? "u" : ""}`;
 
 // ---------------------------------------------------------------------------------------------
 // Sprite
 
-const MASK = ["..########..", ".##########.", "############", "############", "############", "############", "############", "############", ".##########.", "..########..", ".##.........", "##........."];
-const BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]] as const;
+/** A rounded block (rows 3..13, columns 2..13) with the speech-bubble tail at the bottom left. */
+export const MASK = [
+  "................",
+  "................",
+  "................",
+  "....########....",
+  "...##########...",
+  "..############..",
+  "..############..",
+  "..############..",
+  "..############..",
+  "..############..",
+  "..############..",
+  "..############..",
+  "...##########...",
+  "...#########....",
+  "..##............",
+  ".##.............",
+] as const;
 
-const inside = (x: number, y: number) => y >= 0 && y < AVATAR_SIZE && x >= 0 && x < AVATAR_SIZE && MASK[y]![x] === "#";
-const edge = (x: number, y: number) => inside(x, y) && (!inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1));
+export const inside = (x: number, y: number) => y >= 0 && y < AVATAR_SIZE && x >= 0 && x < AVATAR_SIZE && MASK[y]![x] === "#";
 
-/** Which pixels the face lights for this pose; the cheeks are separate. */
-export function faceMarks(look: Pick<AvatarLook, "eyes" | "mouth">, pose: AvatarPose): Array<[number, number]> {
-  const marks: Array<[number, number]> = [];
-  const happy = pose.state === "waiting";
-  const ey = 5;
-  const gx = pose.gaze;
-  for (const ex of [3, 7]) {
-    if (pose.blink || look.eyes === "sleepy") { marks.push([ex, ey], [ex + 1, ey]); continue; }
-    if (happy) { marks.push([ex, ey], [ex + 1, ey - 1]); continue; } // the ^ ^ eyes
-    if (look.eyes === "dot") { const x = ex + (gx > 0 ? 1 : 0); marks.push([x, ey - 1], [x, ey]); }
-    else if (look.eyes === "round") { const o = gx; marks.push([ex + o, ey - 1], [ex + 1 + o, ey - 1], [ex + o, ey], [ex + 1 + o, ey]); }
-    else { const o = gx > 0 ? 1 : 0; marks.push([ex + o, ey - 1], [ex + o, ey], [ex + 1 + o, ey]); }
+type AccessoryRect = readonly [ink: string, x: number, y: number, w: number, h: number];
+/** Accessory rectangles in drawing order (later ones paint over earlier ones). Inks are named in `ACCESSORY_INK`. */
+export const ACCESSORIES: Readonly<Record<AvatarAccessory, readonly AccessoryRect[]>> = {
+  none: [],
+  tophat: [["H", 5, 0, 6, 3], ["h", 5, 0, 6, 1], ["R", 5, 2, 6, 1], ["H", 3, 3, 10, 1], ["h", 3, 3, 10, 1]],
+  crown: [["Y", 4, 0, 1, 1], ["Y", 7, 0, 2, 1], ["Y", 11, 0, 1, 1], ["Y", 4, 1, 8, 2], ["y", 4, 3, 8, 1], ["R", 7, 1, 2, 1], ["W", 5, 1, 1, 1]],
+  antenna: [["R", 7, 0, 2, 2], ["W", 7, 0, 1, 1], ["E", 8, 2, 1, 1]],
+  bow: [["P", 10, 1, 2, 3], ["P", 13, 1, 2, 3], ["p", 12, 2, 1, 1], ["P", 12, 1, 1, 1], ["W", 10, 1, 1, 1]],
+  flower: [["W", 12, 0, 1, 1], ["W", 11, 1, 1, 1], ["W", 13, 1, 1, 1], ["W", 12, 2, 1, 1], ["Y", 12, 1, 1, 1]],
+  beanie: [["B", 4, 1, 8, 2], ["b", 3, 3, 10, 1], ["W", 7, 0, 2, 1], ["bl", 5, 1, 1, 1], ["bl", 8, 1, 1, 1]],
+  headset: [["H", 3, 1, 10, 1], ["h", 3, 1, 10, 1], ["H", 2, 2, 1, 3], ["H", 13, 2, 1, 3], ["H", 0, 6, 2, 4], ["h", 0, 6, 2, 1], ["H", 14, 6, 2, 4], ["h", 14, 6, 2, 1], ["H", 1, 10, 1, 2], ["H", 2, 11, 3, 1], ["R", 5, 11, 1, 1]],
+  scarf: [["R", 2, 11, 12, 2], ["r", 2, 12, 12, 1], ["R", 3, 13, 2, 2], ["r", 3, 14, 2, 1]],
+};
+
+/** Accessory inks. No pure black: dark parts are graphite with a lit top edge so they read on the dark sidebar. "E" is the bubble's edge colour. */
+export const ACCESSORY_INK: Readonly<Record<string, Rgba>> = {
+  H: oklchToRgba(0.34, 0.015, 285), h: oklchToRgba(0.5, 0.015, 285),
+  R: oklchToRgba(0.63, 0.2, 25), r: oklchToRgba(0.5, 0.18, 25),
+  Y: oklchToRgba(0.86, 0.15, 88), y: oklchToRgba(0.7, 0.14, 70),
+  P: oklchToRgba(0.76, 0.16, 350), p: oklchToRgba(0.52, 0.15, 350),
+  W: oklchToRgba(0.98, 0.01, 90),
+  B: oklchToRgba(0.6, 0.14, 255), b: oklchToRgba(0.47, 0.12, 255), bl: oklchToRgba(0.7, 0.12, 255),
+};
+
+export type EyePixel = readonly [x: number, y: number, shade: boolean];
+/** The eye pixels for this look and pose, in sprite coordinates (before the body's one-row rest offset). `shade` marks the darker pixel under an eye. */
+export function eyePixels(eyes: AvatarEyes, pose: AvatarPose): EyePixel[] {
+  const out: EyePixel[] = [];
+  const happy = pose.state === "waiting" || eyes === "happy";
+  for (const ex of [6, 9]) {
+    const x = ex + pose.gaze;
+    if (pose.blink || eyes === "sleepy") out.push([x - 1, 9, false], [x, 9, false], [x - 1, 10, true], [x, 10, true]);
+    else if (happy) out.push([x - 1, 9, false], [x, 8, false], [x + 1, 9, false]);
+    else if (eyes === "dots") out.push([x - 1, 8, false], [x, 8, false], [x - 1, 9, false], [x, 9, false], [x - 1, 10, true], [x, 10, true]);
+    else out.push([x, 7, false], [x, 8, false], [x, 9, false], [x, 10, true]);
   }
-  const mouth = happy ? "smile" : pose.state === "working" ? (pose.talk ? "o" : "flat") : look.mouth;
-  if (mouth === "smile") marks.push([5, 7], [6, 7], [4, 6], [7, 6]);
-  else if (mouth === "o") marks.push([5, 6], [6, 6], [5, 7], [6, 7]);
-  else marks.push([5, 7], [6, 7]);
-  return marks;
+  return out;
 }
 
 const ramps = new Map<string, AvatarRamp>();
@@ -185,40 +243,33 @@ function rampFor(hex: string): AvatarRamp {
 }
 
 /**
- * The avatar as RGBA bytes, `12k` by `13k` pixels (each sprite pixel is a `k`-by-`k` block, so the
+ * The avatar as RGBA bytes, `16k` by `17k` pixels (each sprite pixel is a `k`-by-`k` block, so the
  * result is already at an exact integer scale). Transparent where nothing is drawn.
  */
 export function renderAvatar(look: AvatarLook, pose: AvatarPose = RESTING_POSE, k = 1): Uint8ClampedArray<ArrayBuffer> {
   const width = AVATAR_SIZE * k;
   const out = new Uint8ClampedArray(width * AVATAR_ROWS * k * 4);
   const ramp = rampFor(look.color);
-  const put = (x: number, y: number, color: Rgba) => {
-    if (x < 0 || x >= AVATAR_SIZE || y < 0 || y >= AVATAR_ROWS) return;
-    for (let dy = 0; dy < k; dy += 1) for (let dx = 0; dx < k; dx += 1) {
-      const at = ((y * k + dy) * width + x * k + dx) * 4;
-      out[at] = color[0]; out[at + 1] = color[1]; out[at + 2] = color[2]; out[at + 3] = color[3];
+  const put = (x: number, y: number, color: Rgba, w = 1, h = 1) => {
+    for (let sy = Math.max(0, y); sy < Math.min(AVATAR_ROWS, y + h); sy += 1) for (let sx = Math.max(0, x); sx < Math.min(AVATAR_SIZE, x + w); sx += 1) {
+      for (let dy = 0; dy < k; dy += 1) for (let dx = 0; dx < k; dx += 1) {
+        const at = ((sy * k + dy) * width + sx * k + dx) * 4;
+        out[at] = color[0]; out[at + 1] = color[1]; out[at + 2] = color[2]; out[at + 3] = color[3];
+      }
     }
   };
   const top = pose.state === "working" && pose.bob ? 0 : 1; // the body rests one row down, the hop lifts it
-  const body = (x: number, y: number, color: Rgba) => put(x, y + top, color);
   for (let y = 0; y < AVATAR_SIZE; y += 1) for (let x = 0; x < AVATAR_SIZE; x += 1) {
     if (!inside(x, y)) continue;
-    if (edge(x, y)) { body(x, y, ramp.outline); continue; }
-    const v = ((x + y) / 18) * 3;
-    const tone = Math.floor(v);
-    const step = Math.min(2, tone + (v - tone > BAYER[y & 3]![x & 3]! / 16 ? 1 : 0));
-    body(x, y, [ramp.light, ramp.base, ramp.shadow][step]!);
+    if (!inside(x - 1, y) || !inside(x, y - 1) || !inside(x + 1, y) || !inside(x, y + 1)) { put(x, y + top, ramp.edge); continue; }
+    if (y <= 13 && y >= 4 && (!inside(x + 3, y) || !inside(x, y + 2))) { put(x, y + top, ramp.side); continue; } // extruded right (2 px) and bottom (1 px) side
+    // Light from the top left: a solid lit corner, then a checker that fades into the base.
+    const d = x - 2 + (y - 3);
+    put(x, y + top, d < 4 || (d < 9 && ((x + y) & 1) === 0) ? ramp.light : ramp.base);
   }
-  body(2, 2, ramp.shine); body(3, 2, ramp.shine); body(2, 3, ramp.shine);
-  // Features are white with a one-pixel drop shadow in the bubble's outline tone; no black ink.
-  const marks = faceMarks(look, pose);
-  const lit = new Set(marks.map(([x, y]) => `${x},${y}`));
-  for (const [x, y] of marks) if (!lit.has(`${x + 1},${y + 1}`) && inside(x + 1, y + 1) && !edge(x + 1, y + 1)) body(x + 1, y + 1, ramp.outline);
-  for (const [x, y] of marks) body(x, y, ramp.white);
-  if (look.cheeks || pose.state === "waiting") { body(2, 7, ramp.cheek); body(9, 7, ramp.cheek); }
-  if (pose.state === "waiting") {
-    for (let y = 0; y < 3; y += 1) for (let x = 9; x < 12; x += 1) put(x, y, ramp.notchDark);
-    for (let y = 0; y < 2; y += 1) for (let x = 10; x < 12; x += 1) put(x, y, ramp.notchLight);
-  }
+  put(4, 5 + top, ramp.shine); put(5, 5 + top, ramp.shine); put(4, 6 + top, ramp.shine); // catch-light
+  for (const [x, y, shade] of eyePixels(look.eyes, pose)) put(x, y + top, shade ? ramp.eyeShade : ramp.eye);
+  for (const [ink, x, y, w, h] of ACCESSORIES[look.accessory]) put(x, y + top, ink === "E" ? ramp.edge : ACCESSORY_INK[ink]!, w, h);
+  if (pose.state === "waiting") { put(12, 0, ramp.notchDark, 4, 4); put(13, 0, ramp.notchLight, 3, 3); }
   return out;
 }

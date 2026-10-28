@@ -28,8 +28,8 @@ export interface Project {
   scripts?: ProjectScripts;
 }
 
-/** Avatar choices (ADR-175): `#rrggbb` colour, eye and mouth style names, cheeks on or off. Validated in Rust (`sidebar.rs`). */
-export interface ProjectAppearance { color: string; eyes: "dot" | "round" | "wide" | "sleepy"; mouth: "smile" | "o" | "flat"; cheeks: boolean }
+/** Avatar choices (ADR-175, v2): `#rrggbb` colour, eye style and accessory names. `accessory` is absent on appearances saved before v2 (the name-based default applies). Validated in Rust (`sidebar.rs`). */
+export interface ProjectAppearance { color: string; eyes: "bars" | "dots" | "sleepy" | "happy"; accessory?: "none" | "tophat" | "crown" | "antenna" | "bow" | "flower" | "beanie" | "headset" | "scarf" }
 
 /** `previewUrl` is a loopback page a script serves; `openPreview` opens it in the browser once it answers (ADR-151). */
 export interface ProjectScripts { setup?: string | null; onFinish?: string | null; previewUrl?: string | null; openPreview?: boolean }

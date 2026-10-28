@@ -104,9 +104,9 @@ export class AvatarScheduler {
   private poseOf(entry: Entry): AvatarPose {
     const { state } = entry.target;
     const moving = this.env.motion();
-    if (state === "waiting") return { state, blink: false, gaze: 0, bob: false, talk: false };
-    if (state === "working") return moving ? workingPose(this.tick) : { state, blink: false, gaze: 0, bob: false, talk: false };
-    return { state, blink: moving && entry.blinking, gaze: moving ? entry.gaze : 0, bob: false, talk: false };
+    if (state === "waiting") return { state, blink: false, gaze: 0, bob: false };
+    if (state === "working") return moving ? workingPose(this.tick) : { state, blink: false, gaze: 0, bob: false };
+    return { state, blink: moving && entry.blinking, gaze: moving ? entry.gaze : 0, bob: false };
   }
 
   private paint(entry: Entry) { entry.target.paint(this.poseOf(entry)); }
