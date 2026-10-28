@@ -240,8 +240,7 @@ function createLiveTerminal(sessionId: string, terminalId: string, host: HTMLEle
   const settings = useAppStore.getState().settings;
   const support = useAppStore.getState().hostInfo?.appearanceSupport;
   const element = document.createElement("div");
-  // `xterm` is kept for DiffViewer's keyboard-focus guard, which names it.
-  element.className = "terminal-canvas xterm relative h-full w-full";
+  element.className = "terminal-canvas relative h-full w-full";
   host.appendChild(element);
   // The link under the pointer, for the view's right-click menu (`live` exists by the time a link is hovered).
   const hoverLink = (uri: string | null) => live.view?.link(uri ? terminalLinkTarget(uri) : null);

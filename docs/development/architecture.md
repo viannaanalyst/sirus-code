@@ -16,11 +16,13 @@ Contributor basics live in [`AGENTS.md`](../../AGENTS.md). Decision history live
 | Motion | `motion` (Motion for React) + CSS tokens |
 | Diagrams | `mermaid` (lazy, strict, ADR-058) for fenced `mermaid` blocks |
 | Math | `katex` (lazy, `trust: false`, ADR-160) for `$…$`, `\(…\)`, `$$…$$` and `\[…\]` in replies |
-| Icons | Phosphor (`@phosphor-icons/react`) through `src/components/icons/phosphor.tsx`; filled weight marks active items |
+| Icons | Phosphor (`@phosphor-icons/react`) through `src/components/icons/phosphor.tsx`; filled weight marks active items; state changes cross-fade through `IconSwap` (ADR-171) |
 | State | Zustand (`src/store/app-store.ts`) — do not add another store |
 | Native | Rust 2021 edition, crate `sirus-code` / lib `sirus_code_lib`; features `desktop` (default, Tauri app) and `host` (headless `sirus-host`, ADR-131) |
 | Git | Git CLI argv + worktrees |
-| Terminal | portable-pty + `@xterm/xterm` |
+| Terminal | portable-pty + Ghostty's VT core (`libghostty-vt` in WebAssembly, `src/terminal/ghostty/`) drawn on a canvas (ADR-170) |
+| Composer | TipTap 3 (`src/components/ComposerEditor.tsx`): `@file`, `/skill` and web addresses are inline chips; the draft stays a plain string; other surfaces focus or fill it through `src/lib/composer-focus.ts` (ADR-168) |
+| Diffs | `@pierre/diffs` (`src/components/diff/`), highlighted in workers and virtualized by Pierre, themed from the app tokens (ADR-169) |
 | Persistence | SQLite `state.db` (one row per message, ADR-114); the older JSON files are only the migration source and fallback |
 
 No Next.js. No Electron. No app login.

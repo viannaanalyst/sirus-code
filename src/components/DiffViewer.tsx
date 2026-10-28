@@ -233,7 +233,7 @@ function DiffBody({ root, files, singlePath, singleDiff, selectedPath, emptyDiff
       if (!shortcutMatches(event, effectiveShortcut(useAppStore.getState().settings.customShortcuts, "find-in-conversation"))) return;
       const active = document.activeElement as HTMLElement | null;
       const inside = !!active && node.contains(active);
-      const hovered = node.matches(":hover") && (!active || active === document.body || !active.closest("input, textarea, select, [contenteditable], .xterm"));
+      const hovered = node.matches(":hover") && (!active || active === document.body || !active.closest("input, textarea, select, [contenteditable], .terminal-canvas"));
       if (!inside && !hovered) return;
       event.preventDefault();
       event.stopImmediatePropagation();
