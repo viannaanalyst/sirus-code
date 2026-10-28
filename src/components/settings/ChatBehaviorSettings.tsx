@@ -45,6 +45,7 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       {toggle("showSessionTabs", "chatBehavior.sessionTabs", "chatBehavior.sessionTabsHelp")}
       {toggle("continueInterruptedSessions", "chatBehavior.continueInterrupted", "chatBehavior.continueInterruptedHelp")}
       {toggle("compactIdleBeforeCacheExpiry", "chatBehavior.compactIdle", "chatBehavior.compactIdleHelp")}
+      {toggle("rotateAtContextLimit", "chatBehavior.rotate", "chatBehavior.rotateHelp")}
     </SettingsGroup>
     {/* Agent behavior (ADR-130), also on the phone's Mac settings. */}
     <SettingsGroup title={t("settings.agentBehavior")} card>

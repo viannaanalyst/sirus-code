@@ -36,7 +36,18 @@ pub struct StartedAgent {
     pub(crate) pool_key: Option<String>,
 }
 
+#[cfg(test)]
 pub fn conversation_prompt(messages: &[Message], prompt: &str) -> String {
+    conversation_prompt_within(
+        messages,
+        prompt,
+        crate::token_budget::HANDOFF_HISTORY_TOKENS,
+    )
+}
+
+/// The prior conversation for a provider without the native thread, newest messages first
+/// until `budget` tokens (counted by bytes, ADR-181) are used.
+pub fn conversation_prompt_within(messages: &[Message], prompt: &str, budget: u64) -> String {
     // Single-shot fallback CLIs receive bounded, explicit prior conversation.
     // Their native continuation IDs are never guessed. Codex uses its app-server adapter.
     let mut history = Vec::new();
@@ -55,10 +66,10 @@ pub fn conversation_prompt(messages: &[Message], prompt: &str) -> String {
             "assistant"
         };
         let entry = serde_json::json!({"role": role, "content": message.content}).to_string();
-        if bytes + entry.len() > 32 * 1024 {
+        if crate::token_budget::estimate(&entry) + bytes > budget {
             break;
         }
-        bytes += entry.len();
+        bytes += crate::token_budget::estimate(&entry);
         history.push(entry);
     }
     if history.is_empty() {
@@ -685,6 +696,7 @@ pub(crate) fn record_output(
                 launched: vec![],
                 visuals: Vec::new(),
                 client_request_id: None,
+                rotation: None,
             });
             *message_id = Some(id);
         } else {
@@ -1276,6 +1288,7 @@ mod tests {
             launched: vec![],
             visuals: Vec::new(),
             client_request_id: None,
+            rotation: None,
         };
         let messages = vec![
             message(MessageRole::User, "First request"),
@@ -1291,6 +1304,21 @@ mod tests {
                 "hello"
             ),
             "hello"
+        );
+        // The history is capped at 16k tokens (bytes), newest first, and shrinks with the budget.
+        let many: Vec<Message> = (0..8)
+            .map(|index| message(MessageRole::User, &format!("{index}{}", "y".repeat(3_000))))
+            .collect();
+        let capped = conversation_prompt(&many, "go");
+        assert!(
+            capped.len() < 16_000 + 200 && capped.contains("7yyy") && !capped.contains("\"0yyy")
+        );
+        assert_eq!(conversation_prompt_within(&many, "go", 0), "go");
+        assert!(
+            conversation_prompt_within(&many, "go", 7_000)
+                .matches("yyy")
+                .count()
+                < capped.matches("yyy").count()
         );
     }
 }

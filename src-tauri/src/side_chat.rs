@@ -262,6 +262,7 @@ mod tests {
             launched: vec![],
             visuals: Vec::new(),
             client_request_id: None,
+            rotation: None,
         }
     }
 

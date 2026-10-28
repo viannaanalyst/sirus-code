@@ -1998,6 +1998,7 @@ pub async fn send_prompt(
             }
             None => None,
         };
+        let rotate_at_limit = data.settings.rotate_at_context_limit;
         let session = find_session_mut(&mut data, &request.session_id)?;
         if session.status.is_active() || state.agents.lock().contains_key(&request.session_id) {
             return Err(Error::agent("session already has a running agent"));
@@ -2041,11 +2042,24 @@ pub async fn send_prompt(
         } else if crate::acp_cli::handles(&session.agent) {
             crate::acp_cli::validate_binding(session, &display_path(&cwd))?;
         }
+        // A conversation near the end of its window continues in a fresh provider session
+        // seeded with a brief built by code (ADR-181), before the prompt is assembled.
+        let rotation = if compacting || request.team {
+            None
+        } else {
+            crate::rotation::apply(session, rotate_at_limit)
+        };
         // `/compact` goes alone and verbatim: no recap, wrapper, goal or instructions around it.
         let process_prompt = if compacting {
             prompt.clone()
         } else {
-            let process_prompt = crate::transcript::process_prompt(session, &prompt)?;
+            let images = attachments.iter().filter(|file| file.image()).count() as u64;
+            let files = attachments.len() as u64 - images;
+            let process_prompt = crate::transcript::process_prompt_with(
+                session,
+                &prompt,
+                crate::token_budget::attachments(images, files),
+            )?;
             // A pending handoff recap travels with the first prompt only; the
             // persisted user message keeps the visible text.
             let process_prompt = crate::transcript::consume_handoff(session, process_prompt);
@@ -2099,6 +2113,7 @@ pub async fn send_prompt(
             launched: vec![],
             visuals: Vec::new(),
             client_request_id,
+            rotation,
         };
         session.messages.push(user);
         session.messages.push(Message {
@@ -2114,6 +2129,7 @@ pub async fn send_prompt(
             launched: vec![],
             visuals: Vec::new(),
             client_request_id: None,
+            rotation: None,
         });
         if let Some(message) = session.messages.last_mut() {
             let mut activity =
@@ -3579,6 +3595,7 @@ mod tests {
             launched: vec![],
             visuals: Vec::new(),
             client_request_id,
+            rotation: None,
         };
         session.messages.push(message(MessageRole::User, id));
         session.messages.push(message(MessageRole::Agent, None));
