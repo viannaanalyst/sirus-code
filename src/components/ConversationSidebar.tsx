@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { SessionActionDialog } from "@/components/SessionActions";
 import { RailGlyph } from "@/components/SidebarRailMore";
 import { SnoozePicker } from "@/components/SnoozePicker";
@@ -17,8 +17,6 @@ import { conversationListItems, conversationOrderSettings, conversationSortKeys,
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { tabStatus, type TabStatus } from "@/lib/header-tabs";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
-import { isAuxiliarySession } from "@/lib/pull-ask";
-import { RAIL_LABELS } from "@/lib/rail";
 import { relativeTime } from "@/lib/session-board";
 import { holdSessionOrder, sessionOrderSignature, toggleSidebarId, type SessionOrderSnapshot } from "@/lib/sidebar-layout";
 import type { SidebarMotion } from "@/lib/sidebar-motion";
@@ -35,16 +33,12 @@ import "@/styles/sidebar.css";
 import "@/styles/header-tabs.css";
 import "@/styles/conversation-sidebar.css";
 
-const NAV_ITEMS = ["inbox", "pulls"] as const;
-
-/** Rail dots for the compact nav row: a session waits for the person, or an unread pull request. */
-function useNavDots() {
-  const needsYou = useAppStore(state => state.sessions.some(session => session.status === "waiting" && !isAuxiliarySession(session) && session.id !== state.selectedSessionId));
+/** The Pull requests row's dot: an unread pull request among the lists already loaded. */
+function usePullsDot() {
   const githubInbox = useAppStore(state => state.githubInbox);
   const githubSeen = useAppStore(state => state.settings.githubSeen);
   const githubSeenFloor = useAppStore(state => state.settings.githubSeenFloor);
-  const pulls = useMemo(() => hasUnreadGithubItems(Object.values(githubInbox).flatMap(list => list.data?.items ?? []), githubSeen, githubSeenFloor), [githubInbox, githubSeen, githubSeenFloor]);
-  return { inbox: needsYou, pulls };
+  return useMemo(() => hasUnreadGithubItems(Object.values(githubInbox).flatMap(list => list.data?.items ?? []), githubSeen, githubSeenFloor), [githubInbox, githubSeen, githubSeenFloor]);
 }
 
 function useWaitingSets() {
@@ -57,9 +51,10 @@ const store = () => useAppStore.getState();
 const saveSettings = (change: Partial<AppSettings>) => { const state = store(); void state.saveSettings({ ...state.settings, ...change }); };
 
 /**
- * The column sidebar (ADR-139): recent conversations from every project, flat or in project
- * folders, with search, the list order, New project, Inbox / Tasks / PRs, usage rings and
- * Settings. It replaces the header's project switcher while it shows; ⌘S hides it.
+ * The column sidebar (ADR-139, redesigned in ADR-175): New conversation beside the history and
+ * hide buttons, search on its own line, Pull requests, then a "Projects" section (New project and
+ * the list order) over the project list with each project's pixel avatar, and usage and Settings
+ * in the foot. It replaces the header's project switcher while it shows; ⌘S hides it.
  */
 export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion }) {
   const t = useTranslation();
@@ -68,7 +63,7 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const customShortcuts = useAppStore(state => state.settings.customShortcuts);
   const index = useAppStore(state => state.navIndex);
   const historyLength = useAppStore(state => state.navHistory.length);
-  const dots = useNavDots();
+  const pullsDot = usePullsDot();
   const collapsed = useAppStore(state => state.sidebarCollapsed);
   // Hidden (⌘S), the rows unmount once the column has closed.
   const hidden = collapsed && !motion;
@@ -79,33 +74,34 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   }, []);
   const shortcut = (id: Parameters<typeof effectiveShortcut>[1]) => shortcutLabel(effectiveShortcut(customShortcuts, id));
   const headButton = "size-6 min-h-0 rounded-[6px] p-0 text-text-muted";
-  const toolButton = "conversation-sidebar-tool size-7 min-h-0 rounded-[7px] p-0 text-text-muted";
   const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>;
   const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>;
   const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} fill="currentColor" /></IconButton>;
-  const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={toolButton}><SquarePen size={15} /></IconButton>;
+  const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={headButton}><SquarePen size={14} strokeWidth={1.7} /></IconButton>;
 
   return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} style={{ width }}>
     <div data-tauri-drag-region className="conversation-sidebar-head titlebar-drag">
-      <span className="conversation-sidebar-brand" data-tauri-drag-region>Sirus <span>Code</span></span>
-      <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}</div>
+      <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}{newConversation}</div>
     </div>
-    <div className="conversation-sidebar-tools">
+    <div className="conversation-sidebar-search-row">
       <button type="button" className="conversation-sidebar-search" onClick={() => store().setPaletteOpen(true)}>
         <Search size={14} aria-hidden="true" /><span>{t("sidebarList.search")}</span><ShortcutHint keys={shortcut("palette")} />
       </button>
-      <OrderMenu />
-      {/* The New project dialog offers opening a folder, creating one and cloning. */}
-      <IconButton label={t("New project")} onClick={() => store().setCreateProjectOpen(true)} className={toolButton}><FolderPlus size={15} /></IconButton>
-      {newConversation}
     </div>
     <nav className="conversation-sidebar-nav" aria-label={t("Navigation")}>
-      {NAV_ITEMS.map(id => <button key={id} type="button" className="conversation-sidebar-nav-item" aria-current={mainView === id ? "page" : undefined} onClick={() => store().setMainView(id)}>
-        <RailGlyph id={id} active={mainView === id} size={14} />
-        <span>{id === "pulls" ? t("sidebarList.pulls") : t(RAIL_LABELS[id])}</span>
-        {dots[id] ? <span className="conversation-sidebar-nav-dot" aria-hidden="true" /> : null}
-      </button>)}
+      <button type="button" className="conversation-sidebar-nav-item" aria-current={mainView === "pulls" ? "page" : undefined} onClick={() => store().setMainView("pulls")}>
+        <RailGlyph id="pulls" active={mainView === "pulls"} size={15} />
+        <span>{t("Pull requests")}</span>
+        {pullsDot ? <span className="conversation-sidebar-nav-dot" aria-hidden="true" /> : null}
+      </button>
     </nav>
+    <div className="conversation-sidebar-divider" role="separator" />
+    <div className="conversation-sidebar-section">
+      <span className="conversation-sidebar-section-title">{t("sidebarList.projects")}</span>
+      {/* The New project dialog offers opening a folder, creating one and cloning. */}
+      <IconButton label={t("New project")} onClick={() => store().setCreateProjectOpen(true)} className="conversation-sidebar-tool size-[22px] min-h-0 rounded-[6px] p-0 text-text-muted"><Plus size={14} /></IconButton>
+      <OrderMenu />
+    </div>
     {hidden ? <div className="flex-1" /> : <ConversationList />}
     {/* The quota rings stay on the 52 px rail; here the Usage page sits beside Settings. */}
     <div className="conversation-sidebar-foot">
@@ -128,7 +124,7 @@ function OrderMenu() {
   const attentionFirst = useAppStore(state => state.settings.sidebarAttentionFirst);
   const mark = (on: boolean, label: string) => <span className="flex min-w-[140px] items-center gap-2"><span className="flex-1">{label}</span>{on ? <Check size={13} aria-hidden="true" /> : null}</span>;
   return <Dropdown>
-    <DropdownTrigger asChild><button type="button" className="conversation-sidebar-tool conversation-sidebar-order" aria-label={t("sidebarList.order")} title={t("sidebarList.order")}><ArrowUpDown size={15} aria-hidden="true" /></button></DropdownTrigger>
+    <DropdownTrigger asChild><button type="button" className="conversation-sidebar-order" aria-label={t("sidebarList.order")} title={t("sidebarList.order")}><ArrowUpDown size={14} aria-hidden="true" /></button></DropdownTrigger>
     <DropdownContent align="start" className="min-w-[200px]">
       {([["recent", "sidebarList.recent", <Clock3 key="icon" size={15} />], ["project", "sidebarList.byProject", <Folder key="icon" size={15} />]] as const).map(([value, label, icon]) =>
         <DropdownItem key={value} icon={icon} onSelect={() => { if (order !== value) saveSettings({ sidebarListOrder: value }); }}>{mark(order === value, t(label))}</DropdownItem>)}
@@ -255,7 +251,7 @@ function ConversationList() {
   const [action, setAction] = useState<{ session: Session; kind: "rename" | "delete" } | null>(null);
   const [snoozing, setSnoozing] = useState<{ session: Session; anchor: HTMLElement } | null>(null);
   const moveItems = useMoveMenu();
-  const { items: projectItems, dialogs: projectDialogs } = useProjectMenu();
+  const { items: projectItems, dialogs: projectDialogs, openAppearance } = useProjectMenu();
   const menuSession = menuTarget?.kind === "session" ? sessions.find(session => session.id === menuTarget.id) ?? null : null;
   const menuProject = menuTarget?.kind === "project" ? projects.find(project => project.id === menuTarget.id) ?? null : null;
   const menuItems = useMemo<ContextMenuItem[]>(() => {
@@ -278,6 +274,12 @@ function ConversationList() {
     ];
   }, [menuSession, menuProject, moveItems, projectItems, t]);
 
+  // When each project last had activity, for the meta at the end of its row.
+  const lastActivity = useMemo(() => {
+    const latest = new Map<string, string>();
+    for (const session of sessions) { const seen = latest.get(session.projectId); if (!seen || session.lastActivityAt > seen) latest.set(session.projectId, session.lastActivityAt); }
+    return latest;
+  }, [sessions]);
   // Position under its folder, for the open stagger.
   let depth = 0;
   return <div ref={viewport} className="conversation-sidebar-list scroll-thin" aria-label={t("sidebarList.label")} data-order={order}
@@ -295,7 +297,7 @@ function ConversationList() {
         }}>
         {items.slice(start, end).map(item => {
           if (item.kind === "folder") depth = 0;
-          if (item.kind === "folder") return <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} open={item.open && folderMotion?.kind !== "close"} onToggle={toggleFolder} />;
+          if (item.kind === "folder") return <FolderRow key={item.key} project={item.project} count={item.count} status={item.status} age={lastActivity.has(item.project.id) ? relativeTime(lastActivity.get(item.project.id)!, now) : ""} open={item.open && folderMotion?.kind !== "close"} onToggle={toggleFolder} onAppearance={openAppearance} />;
           // Rows of the folder opening or closing animate, staggered from the folder down.
           const projectId = item.kind === "more" ? item.projectId : item.project.id;
           const motion = folderMotion?.projectId === projectId ? folderMotion.kind : undefined;
@@ -319,19 +321,22 @@ function statusDotOf(status: TabStatus, active: boolean): "running" | "waiting" 
 }
 
 /** By project: one folder per project (the row opens and closes it; closed, its status dot at the end); open, its conversations follow it, indented. */
-const FolderRow = memo(function FolderRow({ project, count, status, open, onToggle }: { project: Project; count: number; status: TabStatus; open: boolean; onToggle: (projectId: string) => void }) {
+const FolderRow = memo(function FolderRow({ project, count, status, age, open, onToggle, onAppearance }: { project: Project; count: number; status: TabStatus; age: string; open: boolean; onToggle: (projectId: string) => void; onAppearance: (project: Project) => void }) {
   const t = useTranslation();
   const dot = statusDotOf(status, false);
   // The project's uncommitted lines, as the header switcher shows them.
   const diff = useAppStore(state => state.projectDiffs[project.id]);
   const label = [t("sidebarList.projectCount", { project: project.name, count }), diff && (diff.additions || diff.deletions) ? t("project.diff", { additions: diff.additions, deletions: diff.deletions }) : null, dot ? t(dot === "unread" ? "sidebarList.unread" : `tabs.status.${dot}`) : null].filter(Boolean).join(" · ");
   return <div className="conversation-folder" data-list-kind="folder" data-project-folder={project.id} data-open={open || undefined}>
+    {/* Outside the toggle (a button cannot hold a button): the avatar opens its Appearance popover. */}
+    <button type="button" className="project-avatar-button conversation-folder-avatar" data-project-avatar={project.id} aria-label={t("avatar.open", { project: project.name })} title={t("avatar.title")} onClick={() => onAppearance(project)}>
+      <ProjectIcon project={project} size={24} />
+    </button>
     <button type="button" className="conversation-folder-toggle" aria-expanded={open} aria-label={label} onClick={() => onToggle(project.id)}>
-      <ProjectGlyph project={project} expanded={open} size={14} />
       <span className="conversation-folder-name">{project.name}</span>
       {diff && (diff.additions || diff.deletions) ? <span className="header-switcher-diff conversation-folder-diff" aria-hidden="true">
         <span data-kind="added">+{diff.additions}</span><span data-kind="removed">-{diff.deletions}</span>
-      </span> : null}
+      </span> : age ? <span className="conversation-folder-age" aria-hidden="true">{age === "now" ? t("Now") : age}</span> : null}
       {/* Closed, the most urgent state takes the chevron's place; open, the rows show their own. */}
       {/* No chevron: the whole row opens and closes the folder. Closed, its most urgent state shows at the end. */}
       {dot && !open ? <span className="conversation-folder-end"><span className="header-tab-status conversation-folder-dot" data-status={dot} aria-hidden="true" /></span> : null}
@@ -374,7 +379,7 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
       onPointerDown={event => beginSplitDrag(event, session.id, session.title)}
       onClick={() => void useAppStore.getState().selectSession(session.id)}>
       {variant === "full" ? <span className="conversation-row-meta">
-        <ProjectGlyph project={project} size={13} />
+        <ProjectIcon project={project} size={13} />
         <span className="conversation-row-project">{project.name}</span>
         {ageText}
         {dotMark}

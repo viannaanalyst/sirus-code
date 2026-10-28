@@ -240,10 +240,6 @@ export class SirusClient {
     return this.transport.invoke<string | null>("pick_look_image");
   }
 
-  projectLookAction(action: import("./types").ProjectLookAction) {
-    return this.transport.invoke<Project | null>("project_look_action", { action });
-  }
-
   projectScriptsAction(action: import("./types").ProjectScriptsAction) {
     return this.transport.invoke<Project | null>("project_scripts_action", { action });
   }
@@ -254,6 +250,11 @@ export class SirusClient {
 
   cleanLeftoverWorktrees() {
     return this.transport.invoke<import("./types").WorktreeCleanupResult>("worktree_cleanup_action", { action: { type: "clean", confirm: true } });
+  }
+
+  /** Saves a project's avatar choices, or clears them with `null` (ADR-175). */
+  setProjectAppearance(projectId: string, appearance: import("./types").ProjectAppearance | null) {
+    return this.transport.invoke<Project>("set_project_appearance", { projectId, appearance });
   }
 
   renameProject(projectId: string, name: string) {
@@ -454,11 +455,6 @@ export class SirusClient {
 
   createWorkspaceEntry(sessionId: string, kind: import("./types").WorkspaceEntryKind, name: string, parentPath?: string): Promise<FileEntry> {
     return this.transport.invoke<FileEntry>("create_workspace_entry", { sessionId, kind, name, parentPath });
-  }
-
-  /** The project's own favicon or logo when Settings → Automatic project icons is on (ADR-072). */
-  projectAutoIcon(projectId: string) {
-    return this.transport.invoke<string | null>("project_auto_icon", { projectId });
   }
 
   /** Registers agent-written HTML for the transcript; returns the id served on `sirus-preview://localhost/<id>` (ADR-072). */

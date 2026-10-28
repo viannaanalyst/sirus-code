@@ -13,6 +13,7 @@ import { holdSessionOrder, moveSidebarProject, sessionOrderSignature, sessionSor
 import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProjectFolderDialog } from "@/components/ProjectFolderDialog";
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
@@ -202,7 +203,7 @@ export function ProjectSwitcher() {
         onPointerEnter={hoverIn} onPointerLeave={hoverOut}
         // A click right after the hover opened it keeps it open instead of toggling it shut.
         onClick={event => { if (open && hover.current.opened && Date.now() - hover.current.at < 600) { event.preventDefault(); used(); } else if (open) hover.current.opened = false; else { hover.current.opened = false; window.clearTimeout(hover.current.timer); } }}>
-        {project ? <ProjectGlyph project={project} size={14} /> : null}
+        {project ? <ProjectIcon project={project} size={14} /> : null}
         <span className="truncate">{project?.name ?? "Sirus Code"}</span>
         {/* The open project's uncommitted lines sit in its title, not in every switcher row. */}
         {currentDiff && (currentDiff.additions || currentDiff.deletions) ? <span className="header-switcher-diff header-project-diff" aria-label={t("project.diff", { additions: currentDiff.additions, deletions: currentDiff.deletions })}>
@@ -235,7 +236,7 @@ export function ProjectSwitcher() {
                   tabIndex={shown ? undefined : -1}
                   {...(needle || rows.length < 2 || !shown ? {} : reorder.bind(row.id))}
                   className="header-switcher-row" onMouseEnter={() => { setCursor(index); setFocus(row.id); setRemoteFocus(null); }} onFocus={() => { setFocus(row.id); setRemoteFocus(null); }} onClick={() => choose(row.id)}>
-                  <ProjectGlyph project={row} size={15} />
+                  <ProjectIcon project={row} size={15} />
                   <span className="header-tab-title" onMouseEnter={measureMarquee}><span>{row.name}</span></span>
                   <ComputerBadge members={merged.alsoOn[row.id]} />
                   <StatusDot status={status} label={t(`tabs.status.${status}`)} />

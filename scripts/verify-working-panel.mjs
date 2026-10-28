@@ -8,7 +8,7 @@ try {
   const { TooltipProvider } = await server.ssrLoadModule("/src/primitives/Tooltip.tsx");
   const { useAppStore } = await server.ssrLoadModule("/src/store/app-store.ts");
   const snapshot = useAppStore.getInitialState();
-  snapshot.projects = [{ id: "p", name: "dp-inchurch", path: "/fixture", addedAt: "time", lastOpenedAt: "time", look: { emoji: "🚀" } }];
+  snapshot.projects = [{ id: "p", name: "dp-inchurch", path: "/fixture", addedAt: "time", lastOpenedAt: "time" }];
   const session = (id, status, agent, at) => ({ id, title: `Session ${id}`, projectId: "p", agent, model: null, status, createdAt: at, lastActivityAt: at, worktree: { path: "/fixture", branch: "main", isolated: false },
     messages: [{ id: `${id}-m`, sessionId: id, role: "agent", content: "", createdAt: at, streaming: true, activity: { provider: agent, model: null, startedAt: Date.parse(at), endedAt: null, waitingSince: null, pausedMs: 0, status, items: [], truncated: false } }], lastError: null });
   const render = () => renderToString(createElement(TooltipProvider, null, createElement(WorkingPanel, { now: Date.parse("2026-10-08T00:01:00Z") })));
@@ -21,7 +21,7 @@ try {
     assert.ok(html.includes("data-working-panel"), "two in flight show the panel");
     assert.equal((html.match(/working-panel-row/g) ?? []).length, 2, "idle sessions are left out");
     assert.ok(html.indexOf("Session b") < html.indexOf("Session a"), "waiting sessions come first");
-    assert.ok(html.includes("🚀") && html.includes("dp-inchurch"), "project icon and name");
+    assert.ok(html.includes("project-avatar") && html.includes("dp-inchurch"), "project avatar and name");
     assert.ok(html.includes(locale === "pt-BR" ? "Trabalhando" : "Working"));
     snapshot.sessions = ["a", "b", "c", "d", "e", "f"].map((id, index) => session(id, "running", "claude", `2026-10-08T00:00:0${index}Z`));
     const many = render();

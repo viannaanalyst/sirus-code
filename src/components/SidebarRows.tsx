@@ -6,7 +6,7 @@ import type { Project, Session } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ProjectActions } from "@/components/ProjectActions";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProjectIdentityField } from "@/components/ProjectIdentityField";
 import { ProjectScriptsFields, type ProjectScriptsDraft } from "@/components/ProjectScriptsFields";
 import { isPreviewUrlValid } from "@/lib/preview-url";
@@ -50,11 +50,11 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
     void sidebarProjectAction(project.id, kind).finally(() => setActionBusy(false));
   };
   const openEditor = () => setEditing(true);
-  const folder = <ProjectGlyph project={project} expanded={expanded} />;
+  const folder = <ProjectIcon project={project} size={24} />;
   const pinLabel = t(pinned ? "Unpin project" : "Pin project");
   return <>
     <SidebarHoverCard label={project.name} content={<>
-      <div className="sidebar-card-line sidebar-card-title ui-control"><ProjectGlyph project={project} expanded /><strong>{project.name}</strong><RowAction label={pinLabel} pressed={pinned} onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction></div>
+      <div className="sidebar-card-line sidebar-card-title ui-control"><ProjectIcon project={project} size={24} /><strong>{project.name}</strong><RowAction label={pinLabel} pressed={pinned} onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction></div>
       <div className="sidebar-card-line ui-control"><MessageCircle /><span>{t("{count} sessions", { count: sessionCount })}</span></div>
       <div className="sidebar-card-separator" />
       <div className="sidebar-card-line ui-caption"><SidebarFolder /><span className="sidebar-card-path" title={project.path}>{project.path}</span></div>

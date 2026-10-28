@@ -22,9 +22,14 @@ export interface Project {
   lastOpenedAt: string;
   /** Display-only folder colour, emoji or logo (ADR-059). */
   look?: ProjectLook;
+  /** The pixel avatar the owner customised (ADR-175); absent means the defaults taken from the name. */
+  appearance?: ProjectAppearance;
   /** Owner-saved Setup and On finish shell scripts (ADR-078). */
   scripts?: ProjectScripts;
 }
+
+/** Avatar choices (ADR-175): `#rrggbb` colour, eye and mouth style names, cheeks on or off. Validated in Rust (`sidebar.rs`). */
+export interface ProjectAppearance { color: string; eyes: "dot" | "round" | "wide" | "sleepy"; mouth: "smile" | "o" | "flat"; cheeks: boolean }
 
 /** `previewUrl` is a loopback page a script serves; `openPreview` opens it in the browser once it answers (ADR-151). */
 export interface ProjectScripts { setup?: string | null; onFinish?: string | null; previewUrl?: string | null; openPreview?: boolean }
@@ -48,14 +53,6 @@ export interface ProjectLook { color?: string | null; emoji?: string | null; log
 export interface ProjectAstroIcon { icon: AstroIconId; style: AstroStyle }
 export type AstroIconId = "orbita" | "saturno" | "lua" | "sol" | "galaxia" | "nebulosa" | "cometa" | "buraco" | "estrela" | "pulsar" | "constelacao" | "satelite" | "foguete" | "planeta" | "asteroide" | "eclipse";
 export type AstroStyle = "metal" | "neon";
-export type ProjectLookAction =
-  | { type: "setColor"; projectId: string; color: string | null }
-  | { type: "setEmoji"; projectId: string; emoji: string | null }
-  | { type: "pickLogo"; projectId: string }
-  | { type: "setAstro"; projectId: string; astro: ProjectAstroIcon | null }
-  | { type: "clearLogo"; projectId: string }
-  | { type: "setIcon"; projectId: string; icon: string | null };
-
 export interface Worktree {
   path: string;
   branch: string;

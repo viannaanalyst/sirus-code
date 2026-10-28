@@ -96,12 +96,27 @@ pub struct Project {
     /// Display-only folder colour, emoji or logo (ADR-059); empty means the plain folder.
     #[serde(default, skip_serializing_if = "ProjectLook::is_empty")]
     pub look: ProjectLook,
+    /// The pixel speech-bubble avatar the owner customised (ADR-175); absent means the
+    /// defaults derived from the project name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<ProjectAppearance>,
     /// Owner-saved Setup and On finish shell scripts (ADR-078); omitted when empty.
     #[serde(
         default,
         skip_serializing_if = "crate::project_scripts::ProjectScripts::is_empty"
     )]
     pub scripts: crate::project_scripts::ProjectScripts,
+}
+
+/// A project's avatar choices (ADR-175). Colour is `#rrggbb`; `eyes` and `mouth` are names from
+/// `sidebar::EYES` and `sidebar::MOUTHS`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProjectAppearance {
+    pub color: String,
+    pub eyes: String,
+    pub mouth: String,
+    pub cheeks: bool,
 }
 
 /// A folder in the project switcher that groups projects (2026-10-09). Display only:

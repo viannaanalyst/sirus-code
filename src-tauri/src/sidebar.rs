@@ -1,7 +1,47 @@
 use std::collections::HashSet;
 
 use crate::error::{Error, Result};
-use crate::models::{AppData, AppSettings, Project, Session};
+use crate::models::{AppData, AppSettings, Project, ProjectAppearance, Session};
+
+/// Eye and mouth styles the avatar draws (ADR-175); anything else is refused.
+pub const EYES: [&str; 4] = ["dot", "round", "wide", "sleepy"];
+pub const MOUTHS: [&str; 3] = ["smile", "o", "flat"];
+
+/// Checks an avatar choice: `#rrggbb` colour and known eyes and mouth.
+pub fn validate_appearance(appearance: &ProjectAppearance) -> Result<()> {
+    let hex = appearance.color.strip_prefix('#').unwrap_or("");
+    if hex.len() != 6
+        || !hex.chars().all(|c| c.is_ascii_hexdigit())
+        || !EYES.contains(&appearance.eyes.as_str())
+        || !MOUTHS.contains(&appearance.mouth.as_str())
+    {
+        return Err(Error::new("invalid", "invalid project appearance"));
+    }
+    Ok(())
+}
+
+/// Saves (or clears with `None`) a project's avatar; display metadata only.
+pub fn set_appearance(
+    data: &mut AppData,
+    project_id: &str,
+    appearance: Option<ProjectAppearance>,
+) -> Result<Project> {
+    let appearance = match appearance {
+        Some(mut value) => {
+            validate_appearance(&value)?;
+            value.color = value.color.to_ascii_lowercase();
+            Some(value)
+        }
+        None => None,
+    };
+    let project = data
+        .projects
+        .iter_mut()
+        .find(|row| row.id == project_id)
+        .ok_or_else(|| Error::not_found("project not found"))?;
+    project.appearance = appearance;
+    Ok(project.clone())
+}
 
 /// Most project folders the conversation list remembers as open (ADR-139, round 2).
 pub const SIDEBAR_OPEN_FOLDERS_LIMIT: usize = 100;
@@ -283,6 +323,57 @@ mod tests {
         assert!(validate(&data.settings).is_err());
         data.settings.sidebar_project_order = vec!["x".repeat(65)];
         assert!(validate(&data.settings).is_err());
+    }
+
+    #[test]
+    fn appearance_is_validated_saved_and_cleared() {
+        let mut data = fixture();
+        let good = || ProjectAppearance {
+            color: "#8B7CF6".into(),
+            eyes: "round".into(),
+            mouth: "o".into(),
+            cheeks: true,
+        };
+        assert!(set_appearance(&mut data, "foreign", Some(good())).is_err());
+        for bad in [
+            ProjectAppearance {
+                color: "red".into(),
+                ..good()
+            },
+            ProjectAppearance {
+                color: "#12345".into(),
+                ..good()
+            },
+            ProjectAppearance {
+                color: "#12345g".into(),
+                ..good()
+            },
+            ProjectAppearance {
+                eyes: "laser".into(),
+                ..good()
+            },
+            ProjectAppearance {
+                mouth: "".into(),
+                ..good()
+            },
+        ] {
+            assert!(set_appearance(&mut data, "p", Some(bad)).is_err());
+        }
+        assert!(data.projects[0].appearance.is_none());
+        let saved = set_appearance(&mut data, "p", Some(good())).unwrap();
+        assert_eq!(saved.appearance.unwrap().color, "#8b7cf6");
+        // It survives a JSON round trip (state.db keeps the project as JSON) and old data loads.
+        let restored: AppData =
+            serde_json::from_slice(&serde_json::to_vec(&data).unwrap()).unwrap();
+        assert_eq!(
+            restored.projects[0].appearance.as_ref().unwrap().eyes,
+            "round"
+        );
+        assert!(fixture().projects[0].appearance.is_none());
+        assert!(set_appearance(&mut data, "p", None)
+            .unwrap()
+            .appearance
+            .is_none());
     }
 
     #[test]

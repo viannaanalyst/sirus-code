@@ -1,6 +1,6 @@
 import { Fragment, useState, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { ArrowUpDown, Clock3, Copy, GitBranch, Moon, Pencil, Pin, PinOff, Trash2, Undo2 } from "@/components/icons/phosphor";
 import { SnoozeCountdown } from "@/components/SnoozePicker";
@@ -57,7 +57,7 @@ export function MobileSessionRow({ session, project, showProject = true, pinned 
       {details.length ? <span className="mobile-row-meta">
         {details.map((detail, index) => <Fragment key={detail.kind}>
           {index ? <span className="mobile-row-meta-dot" aria-hidden="true">·</span> : null}
-          {detail.kind === "project" && project ? <span className="mobile-row-meta-item"><ProjectGlyph project={project} size={12} /><span>{detail.text}</span></span>
+          {detail.kind === "project" && project ? <span className="mobile-row-meta-item"><ProjectIcon project={project} size={12} /><span>{detail.text}</span></span>
             : detail.kind === "branch" ? <span className="mobile-row-meta-item" title={detail.full}><GitBranch size={12} aria-hidden="true" /><span className="mobile-row-branch">{detail.text}</span></span>
             : detail.kind === "pullRequest" ? <span className="mobile-row-meta-item mobile-row-meta-fixed">{detail.text}</span>
             : detail.kind === "computer" ? marker : null}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Laptop, ListFilter, Moon, MoreHorizontal, Search, Server, SquarePen, X } from "@/components/icons/phosphor";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { useHostLabel, usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { homeSections, listedSessions, projectGroups } from "@/lib/mobile";
 import { motionTokens } from "@/lib/motion";
@@ -81,7 +81,7 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
         {filtering ? <motion.div key="filters" className="mobile-home-filters" role="group" aria-label={t("phoneHome.activeFilters")}
           initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: motionTokens.normal, ease: motionTokens.ease }}>
           {filteredProject ? <button type="button" className="mobile-home-chip" aria-label={t("phoneHome.clearFilter", { name: filteredProject.name })} onClick={() => setPref({ homeProject: undefined })}>
-            <ProjectGlyph project={filteredProject} size={13} /><span>{filteredProject.name}</span><span className="mobile-home-chip-x" aria-hidden="true"><X size={10} /></span>
+            <ProjectIcon project={filteredProject} size={13} /><span>{filteredProject.name}</span><span className="mobile-home-chip-x" aria-hidden="true"><X size={10} /></span>
           </button> : null}
           {filteredComputer ? <button type="button" className="mobile-home-chip" aria-label={t("phoneHome.clearFilter", { name: label(filteredComputer) })} onClick={() => setPref({ homeComputer: undefined })}>
             {filteredComputer.kind === "server" ? <Server size={13} aria-hidden="true" /> : <Laptop size={13} aria-hidden="true" />}<span>{label(filteredComputer)}</span><span className="mobile-home-chip-x" aria-hidden="true"><X size={10} /></span>

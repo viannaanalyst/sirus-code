@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { AgentProviderId, ApprovalMode } from "@/client/types";
 import { ArrowUp, FolderGit2, Folder, Link2, TriangleAlert, X } from "@/components/icons/phosphor";
 import { ModelIcon } from "@/components/ModelIcon";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { defaultApprovalFor } from "@/lib/composer-approval";
@@ -83,7 +83,7 @@ export function MobileNewSession({ projectId, link, navigation }: { projectId: s
       </section> : null}
       <section className="mobile-fields">
         <MobileSelect label={t("mobile.project")} value={project} onChange={setProject}
-          options={projects.map((item) => ({ value: item.id, label: item.name, icon: <ProjectGlyph project={item} size={16} /> }))} />
+          options={projects.map((item) => ({ value: item.id, label: item.name, icon: <ProjectIcon project={item} size={16} /> }))} />
         {installed.length ? <>
           <MobileSelect label={t("mobile.provider")} value={provider} onChange={(id) => setChoice({ provider: id, model: null })}
             options={installed.map((id) => ({ value: id, label: providerById(id).name, icon: <ProviderIcon id={id} size={18} /> }))} />

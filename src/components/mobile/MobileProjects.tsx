@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronLeft, FolderPlus, Plus } from "@/components/icons/phosphor";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { listedSessions, projectGroups, shortAgo } from "@/lib/mobile";
 import { usePhonePrefs } from "@/lib/phone-prefs";
@@ -58,7 +58,7 @@ export function MobileProjects({ navigation }: { navigation: MobileNavigation })
           const status = needsYou ? t("mobile.needsYou") : working ? t("mobile.working") : t("mobile.lastActivity", { time: shortAgo(lastActivityAt, locale) });
           return <div key={project.id} className="mobile-project" data-expanded={expanded || undefined}>
             <button type="button" className="mobile-project-head" aria-expanded={expanded} onClick={() => setOpenId(expanded ? null : project.id)}>
-              <span className="mobile-project-glyph"><ProjectGlyph project={project} size={20} /></span>
+              <span className="mobile-project-glyph"><ProjectIcon project={project} size={20} /></span>
               <span className="mobile-project-text">
                 <span className="mobile-project-name">{project.name}</span>
                 <span className="mobile-project-status" data-attention={needsYou ? "" : undefined}>{status}</span>

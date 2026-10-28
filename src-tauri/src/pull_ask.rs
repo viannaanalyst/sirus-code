@@ -502,6 +502,7 @@ mod tests {
                 added_at: "t".into(),
                 last_opened_at: "t".into(),
                 look: Default::default(),
+                appearance: None,
                 scripts: Default::default(),
             }],
             ..Default::default()

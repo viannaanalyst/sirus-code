@@ -151,8 +151,6 @@
   /* The right-click target around a project shortcut stays out of the rail's layout. */
   .sidebar-rail .sidebar-rail-menu-target { display: contents; }
   .sidebar-rail-divider { width: 20px; height: 1px; flex-shrink: 0; margin: 2px 0; background: var(--border-subtle); }
-  .sidebar-rail-avatar { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: var(--background-3); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
-  .sidebar-rail-shortcut[aria-current="page"] .sidebar-rail-avatar, .sidebar-rail-shortcut:hover .sidebar-rail-avatar { color: var(--text-primary); }
   .sidebar-rail-shortcut .project-glyph-emoji { width: 22px !important; height: 22px !important; }
   /* In lists an Astro glyph overhangs to the right to line up with its title; alone in a rail
      square that margin pushed it off the hover's centre. */

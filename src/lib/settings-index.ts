@@ -372,12 +372,6 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "general",
-  "title": "Automatic project icons",
-  "description": "Projects without a chosen icon show their own favicon or logo, found in the project folder.",
-  "group": "Startup"
- },
- {
-  "section": "general",
   "title": "Reopen newest session",
   "description": "Reopen the newest-created session in the last project. Other sessions remain in the sidebar; agents do not start automatically.",
   "group": "Startup"

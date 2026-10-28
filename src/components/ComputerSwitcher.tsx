@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Laptop, Server } from "@/components/icons/phosphor";
 import type { Project } from "@/client/types";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { mergeComputerProjects, type ComputerProject } from "@/lib/computers";
@@ -53,7 +53,7 @@ export function SwitcherElsewhereProjects({ members, needle, focused, onFocus, o
     return <button key={key} type="button" className="header-switcher-row switcher-elsewhere" data-offline={!usable(member) || undefined} aria-selected={focused === key} title={title}
       onMouseEnter={() => onFocus(key)} onFocus={() => onFocus(key)}
       onClick={() => { if (!usable(member)) return; onChoose(); void useComputers.getState().openProject(member.computerId, member.project.id); }}>
-      <ProjectGlyph project={member.project} size={15} />
+      <ProjectIcon project={member.project} size={15} />
       <span className="header-tab-title"><span>{member.project.name}</span></span>
       <span className="switcher-machine" aria-label={title}><ComputerIcon id={member.computerId} kind={member.kind} size={12} /></span>
     </button>;
