@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@/client/types";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ChevronRight } from "@/components/icons/phosphor";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useTranslation } from "@/i18n/use-translation";
@@ -92,7 +92,7 @@ export function WorkingPanel({ collapsed = false, onToggle }: { collapsed?: bool
             <span className="working-panel-body">
               <span className="working-panel-name">{session.title}</span>
               <span className="working-panel-meta">
-                {project ? <ProjectGlyph project={project} size={12} /> : null}
+                {project ? <ProjectIcon project={project} size={12} /> : null}
                 <span className="truncate">{project?.name}</span>
                 <span aria-hidden="true">·</span>
                 <span className="truncate">{doing(session)}</span>

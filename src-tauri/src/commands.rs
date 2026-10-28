@@ -451,6 +451,7 @@ fn add_project_native(
         added_at: now.clone(),
         last_opened_at: now,
         look: Default::default(),
+        appearance: None,
         scripts: Default::default(),
     };
     data.projects.insert(0, project.clone());
@@ -547,6 +548,24 @@ pub async fn rename_project(
         let mut data = state.data.lock();
         state.ensure_running()?;
         let project = crate::sidebar::rename_project(&mut data, &project_id, &name)?;
+        persist::save(&state.data_path, &data)?;
+        Ok(project)
+    })
+    .await
+}
+
+/// Saves a project's avatar choices, or clears them with `null` (ADR-175).
+#[cfg_attr(feature = "desktop", tauri::command)]
+pub async fn set_project_appearance(
+    state: State<'_, Arc<AppState>>,
+    project_id: String,
+    appearance: Option<crate::models::ProjectAppearance>,
+) -> Result<Project> {
+    let state = state.inner().clone();
+    native_task(move || {
+        let mut data = state.data.lock();
+        state.ensure_running()?;
+        let project = crate::sidebar::set_appearance(&mut data, &project_id, appearance)?;
         persist::save(&state.data_path, &data)?;
         Ok(project)
     })

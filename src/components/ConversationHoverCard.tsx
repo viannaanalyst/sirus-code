@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type PointerEvent a
 import { GitBranch } from "@/components/icons/phosphor";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/arc/popover/popover";
 import { ModelIcon } from "@/components/ModelIcon";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { useTranslation } from "@/i18n/use-translation";
 import { diffParts, hoverPill, HoverCardController, workspaceDiff } from "@/lib/conversation-hover";
 import { environmentLabel, HOME_ENVIRONMENT } from "@/lib/environments";
@@ -114,7 +114,7 @@ function HoverBody({ sessionId }: { sessionId: string }) {
     <p className="conversation-hover-title">{session.title}</p>
     {pill ? <span className="conversation-hover-pill" data-tone={pill}>{t(`sidebarList.hover.${pill}`)}</span> : null}
     <div className="conversation-hover-line">
-      {project ? <ProjectGlyph project={project} size={13} /> : null}
+      {project ? <ProjectIcon project={project} size={13} /> : null}
       <span className="conversation-hover-grow">{project?.name}</span>
       <span className="conversation-hover-age">{age === "now" ? t("Now") : age}</span>
     </div>

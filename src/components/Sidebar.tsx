@@ -1,5 +1,5 @@
 import { formatUnknownError } from "@/lib/format-error";
-import { ProjectGlyph, projectColor } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { useEffect, useMemo } from "react";
 import { Settings } from "@/components/icons/phosphor";
 import { SidebarUsageRings } from "@/components/SidebarUsageRings";
@@ -60,7 +60,7 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
         {shortcutProjects.map((project) => <ContextMenu key={project.id} activation="context-only" label={t("project.actions")} items={projectMenu.items(project)} className="sidebar-rail-menu-target">
           <button type="button" className="sidebar-rail-button sidebar-rail-shortcut" aria-label={project.name} title={project.name} aria-current={mainView === "session" && selectedProjectId === project.id ? "page" : undefined}
           onClick={() => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectProject(project.id).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) })); }}>
-          <ProjectGlyph project={project} size={20} fallback={<span aria-hidden="true" className="sidebar-rail-avatar" style={project.look?.color ? { color: projectColor(project.look) } : undefined}>{project.name.trim().charAt(0).toUpperCase() || "?"}</span>} />
+          <ProjectIcon project={project} size={24} />
         </button>
         </ContextMenu>)}
         <SidebarRailMore onOpen={() => undefined} />

@@ -278,8 +278,8 @@ interface AppStore {
   selectProject: (projectId: string) => Promise<void>;
   removeProject: (projectId: string) => Promise<void>;
   renameProject: (projectId: string, name: string) => Promise<boolean>;
+  setProjectAppearance: (projectId: string, appearance: import("@/client/types").ProjectAppearance | null) => Promise<boolean>;
   /** Folder colour, emoji or logo of a project (ADR-059); applied at once. */
-  updateProjectLook: (action: import("@/client/types").ProjectLookAction) => Promise<boolean>;
   createSession: (
     agent: AgentProviderId,
     isolatedWorktree: boolean,
@@ -1405,11 +1405,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     await get().refreshGitStatus();
   },
 
-  updateProjectLook: async (action) => {
+  setProjectAppearance: async (projectId, appearance) => {
     try {
-      const updated = await client.projectLookAction(action);
-      if (updated) set((state) => ({ error: null, projects: state.projects.map((project) => project.id === updated.id ? { ...project, look: updated.look } : project) }));
-      return Boolean(updated);
+      const updated = await client.setProjectAppearance(projectId, appearance);
+      set((state) => ({ projects: state.projects.map((project) => project.id === projectId ? { ...project, appearance: updated.appearance } : project) }));
+      return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
   renameProject: async (projectId, name) => {

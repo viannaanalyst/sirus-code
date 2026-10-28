@@ -41,15 +41,23 @@ try {
       assert.equal((html.match(/data-project-folder="/g) ?? []).length, order === "project" ? 2 : 0);
       // Rows in a folder leave the project line out.
       assert.equal(html.includes("conversation-row-project"), order === "recent");
-      assert.ok(html.includes("Project alpha") && html.includes("Sirus") && html.includes("Code"));
+      assert.ok(html.includes("Project alpha"));
       assert.ok(html.includes(order === "recent" ? "branch/beta-new" : "branch/alpha-working"));
       // Status: working pulse, unread dot (on the folder in By project), current row marked.
       assert.ok(html.includes('data-status="running"') && html.includes('data-status="unread"') && html.includes('aria-current="page"'));
       if (order === "recent") assert.ok(html.includes('data-unread="true"'), "the unread conversation reads stronger");
-      // Search, order, New project and New conversation (no separate Open project), nav row, Usage and Settings.
-      assert.ok(html.includes("conversation-sidebar-search") && (html.match(/conversation-sidebar-tool(?!s)/g) ?? []).length === 3);
+      // Search on its own line, Pull requests (no Inbox), the Projects title with New project and the order menu, then Usage and Settings (ADR-175).
+      assert.ok(html.includes("conversation-sidebar-search-row") && html.includes("conversation-sidebar-search"));
+      assert.equal((html.match(/conversation-sidebar-tool(?!s)/g) ?? []).length, 1, "New project is the section's only tool button");
+      assert.ok(html.includes("conversation-sidebar-order") && html.includes("conversation-sidebar-divider"));
+      assert.ok(html.includes(`conversation-sidebar-section-title">${locale === "en" ? "Projects" : "Projetos"}<`));
       assert.ok(!html.includes('aria-label="Open Project"') && !html.includes('aria-label="Abrir projeto"'));
-      assert.equal((html.match(/conversation-sidebar-nav-item/g) ?? []).length, 3);
+      assert.equal((html.match(/conversation-sidebar-nav-item/g) ?? []).length, 1, "Pull requests is the only nav row");
+      assert.ok(html.includes("Pull requests") && !/Inbox|Tasks|Tarefas|Archived|Arquivadas/.test(html));
+      assert.ok(!html.includes("conversation-sidebar-brand"), "no brand line");
+      // Each project row has an avatar button (Appearance) and a canvas.
+      assert.equal((html.match(/data-project-avatar="/g) ?? []).length, order === "project" ? 2 : 0);
+      assert.ok(html.includes("<canvas") && html.includes("project-avatar"));
       assert.ok(html.includes('data-section="settings"'), "Settings at the foot; the column has no resize handle");
       assert.ok(!html.includes("conversation-strip") && !html.includes("conversation-sidebar-project"));
       assert.ok(!/uppercase/.test(html), "labels are never forced into capitals");

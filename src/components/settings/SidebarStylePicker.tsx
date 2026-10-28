@@ -2,7 +2,7 @@ import { useId, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { ArrowUpDown, ChartBar, ChevronDown, FolderPlus, PanelLeft, Search, Settings, SquarePen } from "@/components/icons/phosphor";
 import { ModelIcon } from "@/components/ModelIcon";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { RailGlyph } from "@/components/SidebarRailMore";
 import { useTranslation } from "@/i18n/use-translation";
 import { conversationListItems, type ConversationListItem, type ConversationListSettings } from "@/lib/conversation-list";
@@ -21,9 +21,9 @@ export type SidebarStyleChoice = AppSettings["sidebarMode"];
 const SCENE_WIDTH = 1000;
 const NO_SET: ReadonlySet<string> = new Set();
 
-/** A project's icon without its favicon lookup, so the thumbnails make no native calls. */
+/** A still avatar, so the thumbnails never join the animation scheduler. */
 function Glyph({ project, size }: { project: Project; size: number }) {
-  return <ProjectGlyph project={{ look: project.look }} size={size} />;
+  return <ProjectIcon project={project} size={size} state="idle" animated={false} />;
 }
 
 interface Sample {

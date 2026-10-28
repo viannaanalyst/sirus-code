@@ -32,7 +32,6 @@ import { MobileGit } from "./MobileGit";
 import { MobileHome } from "./MobileHome";
 import { MobileLaunch } from "./MobileLaunch";
 import { MobileNewSession } from "./MobileNewSession";
-import { MobileProjectLook } from "./MobileProjectLook";
 import { MobileProjects } from "./MobileProjects";
 import { MobileReview } from "./MobileReview";
 import { MobileSettings } from "./MobileSettings";
@@ -228,7 +227,6 @@ export default function MobileApp() {
             {screen.kind === "snoozed" ? <MobileSnoozed navigation={navigation} /> : null}
             {screen.kind === "git" ? <MobileGit sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "files" ? <MobileFiles sessionId={screen.sessionId} open={screen.open} directory={screen.dir} navigation={navigation} /> : null}
-            {screen.kind === "project-look" ? <MobileProjectLook projectId={screen.projectId} navigation={navigation} /> : null}
             {screen.kind === "review" ? <MobileReview sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "terminal" ? <MobileTerminal sessionId={screen.sessionId} navigation={navigation} /> : null}
           </StackPage>)}

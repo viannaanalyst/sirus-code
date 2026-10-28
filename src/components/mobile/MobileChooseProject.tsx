@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, Plus, Search, X } from "@/components/icons/phosphor";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import { listedSessions, projectGroups } from "@/lib/mobile";
 import { searchProjects, shortProjectPath } from "@/lib/phone-home";
 import { usePhonePrefs } from "@/lib/phone-prefs";
@@ -51,7 +51,7 @@ export function MobileChooseProject({ navigation }: { navigation: MobileNavigati
         {merged.multiple ? <h2 className="mobile-env-group">{label(environments.find((item) => item.id === section.id))}</h2> : null}
         <div className="mobile-list">
         {section.projects.map((project) => <button key={project.id} type="button" className="mobile-choose-row" onClick={() => openOn(section.id, { kind: "new", projectId: project.id }, "replace")}>
-          <span className="mobile-choose-glyph"><ProjectGlyph project={project} size={20} /></span>
+          <span className="mobile-choose-glyph"><ProjectIcon project={project} size={20} /></span>
           <span className="mobile-choose-text">
             <span className="mobile-choose-name">{project.name}</span>
             <span className="mobile-choose-path" title={project.path}>{shortProjectPath(project.path)}</span>

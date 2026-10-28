@@ -431,6 +431,7 @@ pub fn run() {
             commands::remove_project,
             commands::open_project,
             commands::rename_project,
+            commands::set_project_appearance,
             commands::git_identity,
             commands::git_status,
             commands::project_diff_stats,

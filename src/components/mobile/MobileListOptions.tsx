@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { Project } from "@/client/types";
 import { Check, ChevronDown, ChevronRight, Folder, FolderOpen, Laptop, Monitor, Server } from "@/components/icons/phosphor";
-import { ProjectGlyph } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
 import type { Environment } from "@/lib/environments";
 import type { HomeFilter } from "@/lib/phone-home";
 import { motionTokens } from "@/lib/motion";
@@ -59,7 +59,7 @@ export function MobileListOptions({ open, anchor, projects, environments, enviro
   const computerIcon = (environment: Environment | undefined) => environment?.kind === "server" ? <Server size={17} /> : <Laptop size={17} />;
   const choices: Choice[] = nested === "project" ? [
     { id: null, title: t("phoneHome.allProjects"), subtitle: t("phoneHome.allProjectsHint"), icon: <FolderOpen size={17} /> },
-    ...projects.map((project) => ({ id: project.id, title: project.name, subtitle: multiple ? label(computerOf(project.id)) : undefined, icon: <ProjectGlyph project={project} size={17} /> })),
+    ...projects.map((project) => ({ id: project.id, title: project.name, subtitle: multiple ? label(computerOf(project.id)) : undefined, icon: <ProjectIcon project={project} size={17} /> })),
   ] : nested === "computer" ? [
     { id: null, title: t("phoneHome.allComputers"), subtitle: t("phoneHome.allComputersHint"), icon: <Monitor size={17} /> },
     ...environments.map((environment) => ({ id: environment.id, title: label(environment), icon: computerIcon(environment) })),

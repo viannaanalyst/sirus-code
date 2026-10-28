@@ -529,6 +529,7 @@ mod tests {
             added_at: opened.into(),
             last_opened_at: opened.into(),
             look: Default::default(),
+            appearance: None,
             scripts: Default::default(),
         }
     }

@@ -18,7 +18,6 @@ export type MobileScreen =
   | { kind: "snoozed" }
   | { kind: "git"; sessionId: string }
   | { kind: "files"; sessionId: string; /** A workspace path to open first (a file link in a reply). */ open?: string; dir?: boolean }
-  | { kind: "project-look"; projectId: string }
   | { kind: "review"; sessionId: string }
   | { kind: "terminal"; sessionId: string };
 
@@ -184,7 +183,7 @@ export function withTerminalModifier(data: string, modifier: TerminalModifier | 
 
 /** Pages that rise from the bottom as sheets instead of sliding in from the side. */
 export function isSheet(screen: MobileScreen): boolean {
-  return screen.kind === "new" || screen.kind === "choose-project" || screen.kind === "add-project" || screen.kind === "project-look" || screen.kind === "settings";
+  return screen.kind === "new" || screen.kind === "choose-project" || screen.kind === "add-project" || screen.kind === "settings";
 }
 
 /** Folders first, then files, each in natural order. */

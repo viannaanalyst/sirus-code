@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
-import type { AstroIconId, AstroStyle, Project, ProjectLook } from "@/client/types";
+import type { AstroIconId, AstroStyle, ProjectLook } from "@/client/types";
 import type { LookChange } from "@/lib/project-folders";
 import { ImagePlus, Search, Trash2 } from "@/components/icons/phosphor";
 import { AstroIcon } from "@/components/AstroIcon";
 import { COLOR_ORDER, EMOJIS } from "@/components/ProjectLookEditor";
-import { ProjectGlyph, PROJECT_COLORS, projectColor } from "@/components/ProjectGlyph";
+import { ProjectIcon } from "@/components/ProjectAvatar";
+import { PROJECT_COLORS, projectColor } from "@/components/ProjectGlyph";
 import { useTranslation } from "@/i18n/use-translation";
 import { ASTRO_DEFAULT_COLOR, ASTRO_ICONS, ASTRO_STYLES } from "@/lib/astro-art";
 import { cn } from "@/lib/cn";
@@ -16,37 +17,15 @@ type Tab = "emoji" | "icons" | "astros";
 
 export type LookPick = LookChange | { kind: "pickImage" };
 
-/**
- * The project's name with its icon beside it: the icon opens one picker
- * with Emoji, Icons and Astros (Metal or Neon) tabs, the colours, a search and a logo
- * image. Each icon change applies at once; the name saves with the dialog.
- */
+/** The project's name with its avatar beside it; the avatar's look is edited from the sidebar (ADR-175). Saves with the dialog. */
 export function ProjectIdentityField({ projectId, name, onName, disabled }: { projectId: string; name: string; onName: (name: string) => void; disabled?: boolean }) {
   const t = useTranslation();
   const project = useAppStore((state) => state.projects.find((row) => row.id === projectId));
-  const update = useAppStore((state) => state.updateProjectLook);
-  const [busy, setBusy] = useState(false);
   if (!project) return null;
-  const look = project.look ?? {};
-  const run = (action: Parameters<typeof update>[0]) => { setBusy(true); void update(action).finally(() => setBusy(false)); };
-  const pick = (change: LookPick) => {
-    switch (change.kind) {
-      case "color": return run({ type: "setColor", projectId, color: change.color });
-      case "emoji": return run({ type: "setEmoji", projectId, emoji: change.emoji });
-      case "icon": return run({ type: "setIcon", projectId, icon: change.icon });
-      case "astro": return run({ type: "setAstro", projectId, astro: change.astro ?? null });
-      case "pickImage": return run({ type: "pickLogo", projectId });
-      case "logo": case "clear":
-        if (look.logo) return run({ type: "clearLogo", projectId });
-        if (look.emoji) return run({ type: "setEmoji", projectId, emoji: null });
-        if (look.astro) return run({ type: "setAstro", projectId, astro: null });
-        if (look.icon) return run({ type: "setIcon", projectId, icon: null });
-    }
-  };
   return <div className="project-identity">
     <span className="project-identity-label ui-control">{t("Project name")}</span>
     <div className="project-identity-field">
-      <LookPicker look={look} glyph={<ProjectGlyph project={project as Project} size={18} />} busy={busy} disabled={disabled} onPick={pick} />
+      <span className="project-identity-icon" aria-hidden="true"><ProjectIcon project={project} size={24} animated={false} /></span>
       <input className="project-identity-input ui-control" autoFocus required maxLength={200} value={name} disabled={disabled} aria-label={t("Project name")} onChange={(event) => onName(event.target.value)} />
     </div>
   </div>;

@@ -5,16 +5,16 @@ import type { ProjectFolder } from "@/client/types";
  * switcher and the conversation list's folders; ADR-139).
  */
 export type ProjectMenuEntry =
-  | { kind: "new" | "edit" | "new-folder" | "reveal" | "copy-path" | "remove" }
+  | { kind: "new" | "edit" | "appearance" | "new-folder" | "reveal" | "copy-path" | "remove" }
   | { kind: "move" | "out"; folder: ProjectFolder };
 
 /** Rows sharing a group sit together; a rule separates the groups. */
 export const PROJECT_MENU_GROUP: Record<ProjectMenuEntry["kind"], string> = {
-  new: "new", edit: "edit", move: "folders", out: "folders", "new-folder": "folders", reveal: "path", "copy-path": "path", remove: "danger",
+  new: "new", edit: "edit", appearance: "edit", move: "folders", out: "folders", "new-folder": "folders", reveal: "path", "copy-path": "path", remove: "danger",
 };
 
 /**
- * New conversation; Edit project; Move to each other folder, out of its own, or a new folder
+ * New conversation; Edit project; Appearance; Move to each other folder, out of its own, or a new folder
  * with it; Open in Finder and Copy path; Remove from list last.
  */
 export function projectMenuEntries(projectId: string, folders: readonly ProjectFolder[]): ProjectMenuEntry[] {
@@ -22,6 +22,7 @@ export function projectMenuEntries(projectId: string, folders: readonly ProjectF
   return [
     { kind: "new" },
     { kind: "edit" },
+    { kind: "appearance" },
     ...folders.filter(folder => folder !== current).map(folder => ({ kind: "move" as const, folder })),
     ...(current ? [{ kind: "out" as const, folder: current }] : []),
     { kind: "new-folder" },

@@ -819,6 +819,7 @@ mod tests {
             added_at: "time".into(),
             last_opened_at: "time".into(),
             look: Default::default(),
+            appearance: None,
             scripts: Default::default(),
         };
         let data = crate::models::AppData {
