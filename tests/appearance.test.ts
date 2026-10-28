@@ -31,7 +31,7 @@ test("partial/legacy Appearance uses closed modes and independent, bounded prefe
     for (const valid of [min, max]) assert.equal(mergeSettings({ [key]: valid })[key], valid);
   }
   const invalid = mergeSettings({ theme: "invalid", uiFont: "path", codeFont: "url", terminalFont: "css", dockIcon: "silver", systemUiFont: null, fontSmoothing: 1 } as never);
-  assert.equal(invalid.theme, "dark"); assert.equal(invalid.uiFont, "inter"); assert.equal(invalid.codeFont, "plexMono"); assert.equal(invalid.terminalFont, "plexMono"); assert.equal(invalid.dockIcon, "default"); assert.ok(invalid.systemUiFont && invalid.fontSmoothing);
+  assert.equal(invalid.theme, "dark"); assert.equal(invalid.uiFont, "inter"); assert.equal(invalid.codeFont, "sfMono"); assert.equal(invalid.terminalFont, "sfMono"); assert.equal(invalid.dockIcon, "default"); assert.ok(invalid.systemUiFont && invalid.fontSmoothing);
 });
 
 test("Appearance reset preserves execution, terminal behavior and owned metadata", () => {

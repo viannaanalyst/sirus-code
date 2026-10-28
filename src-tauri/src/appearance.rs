@@ -385,9 +385,9 @@ mod tests {
         assert_eq!(defaults["systemUiFont"], true);
         assert_eq!(defaults["uiFont"], "inter");
         assert_eq!(defaults["uiFontSize"], 13);
-        assert_eq!(defaults["codeFont"], "plexMono");
+        assert_eq!(defaults["codeFont"], "sfMono");
         assert_eq!(defaults["codeFontSize"], 13);
-        assert_eq!(defaults["terminalFont"], "plexMono");
+        assert_eq!(defaults["terminalFont"], "sfMono");
         assert_eq!(defaults["terminalFontSize"], 13);
         assert_eq!(defaults["fontSmoothing"], true);
         assert_eq!(defaults["dockIcon"], "default");

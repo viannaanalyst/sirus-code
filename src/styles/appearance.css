@@ -17,8 +17,8 @@ html[data-sidebar-glass="on"] body { background: transparent; }
 html[data-sidebar-glass="on"] .sidebar-material {
   background: var(--sidebar-material);
 }
-html[data-theme="dark"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in srgb, #111111 var(--sidebar-opacity), transparent); }
-html[data-theme="light"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in srgb, #f6f6f8 var(--sidebar-opacity), transparent); }
+html[data-theme="dark"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in oklch, oklch(0.175 0.007 285) var(--sidebar-opacity), transparent); }
+html[data-theme="light"][data-sidebar-glass="on"][data-window-glass="off"] { --sidebar-material: color-mix(in oklch, oklch(0.97 0.004 285) var(--sidebar-opacity), transparent); }
 /* Window glass: the window coat is translucent; see below for the tinted surfaces inside it. */
 html[data-window-glass="on"] {
   --window-coat: color-mix(in srgb, var(--background-0) var(--window-opacity), transparent);
