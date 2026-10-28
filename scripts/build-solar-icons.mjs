@@ -50,7 +50,7 @@ export const ICON_MAP = {
   GitMerge: "branching-paths-up", GitPullRequest: "pull-request", GitPullRequestClosed: "pull-request",
   GitPullRequestDraft: "pull-request-draft", Globe: "globe", Hammer: "sledgehammer", Hand: "hand-shake",
   Hash: "hashtag", Heading1: "text-field", Heading2: "text-field", Heading3: "text-field",
-  ImagePlus: "gallery-add", Info: "info-circle", Italic: "text-italic", Keyboard: "keyboard", Laptop: "laptop",
+  ImagePlus: "gallery-add", Info: "info-circle", Italic: "text-italic", Keyboard: "keyboard", KeyRound: "key-minimalistic", Laptop: "laptop",
   Server: "server-square", WifiOff: "wifi-off", Lightbulb: "lightbulb", Link: "link", Link2: "link-minimalistic",
   List: "list", ListFilter: "filter", ListOrdered: "list-ordered", ListPlus: "list-plus", LoaderCircle: "loader",
   Lock: "lock", LogIn: "login-2", LogOut: "logout-2", Maximize2: "maximize", MessageCircle: "chat-round-line",

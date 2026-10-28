@@ -43,6 +43,7 @@ import type {
   BrowserBounds,
   BrowserSessionState,
   ComputerAction,
+  LoginPrompts,
   SecretAction,
   SecretSnapshot,
   ComputerSnapshot,
@@ -303,6 +304,8 @@ interface AppStore {
   /** Private secret cards waiting for the person (ADR-077); values never enter the store. */
   secrets: SecretSnapshot | null;
   secretAction: (action: SecretAction) => Promise<boolean>;
+  /** Save offers and agent sign-in approvals of the browser login vault (ADR-186); no passwords. */
+  loginPrompts: LoginPrompts | null;
   loadBrowser: (sessionId: string) => Promise<void>;
   openBrowser: (sessionId: string) => Promise<boolean>;
   closeBrowser: (sessionId: string) => Promise<boolean>;
@@ -1167,6 +1170,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return false;
     }
   },
+  loginPrompts: null,
   computer: null,
   computerAction: async (action) => {
     try {
@@ -2844,7 +2848,7 @@ export function resetComputerScope() {
     terminalWorkspacesBySession: {}, runningTerminals: {}, splitLayout: initialSplit(),
     openTabsByProject: {}, lastActiveTabByProject: {}, draftTabByProject: {}, unseenSessionIds: [],
     closedItems: [], navHistory: [], navIndex: -1, messageJump: null, transcriptSearch: null,
-    githubInbox: {}, prWatches: [], ciAutoFix: [], secrets: null,
+    githubInbox: {}, prWatches: [], ciAutoFix: [], secrets: null, loginPrompts: null,
   });
   // Read once by `bindRealtime`; the transport already talks to the next computer.
   void useAppStore.getState().ciAutofixAction({ type: "status" });
@@ -2972,6 +2976,7 @@ export async function bindRealtime() {
     }));
     unlisteners.push(await client.onComputerState((computer) => useAppStore.setState({ computer })));
     unlisteners.push(await client.onSecretState((secrets) => useAppStore.setState({ secrets })));
+    unlisteners.push(await client.onLoginVaultState((loginPrompts) => useAppStore.setState({ loginPrompts })));
     // Pages an agent opens float over the conversation; a project script's preview opens in the browser (ADR-151).
     unlisteners.push(await client.onBrowserAgentPage((event) => useAppStore.getState().showAgentPage(event.sessionId, event.url)));
     unlisteners.push(await client.onProjectPreview((event) => void useAppStore.getState().openProjectPreview(event.sessionId, event.url)));

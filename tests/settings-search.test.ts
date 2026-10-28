@@ -17,7 +17,7 @@ test("settings search finds rows in Portuguese and English, accents ignored", ()
 test("the settings index is current", async () => {
   const { readFileSync } = await import("node:fs");
   for (const entry of SETTINGS_INDEX) {
-    const files = ["AppearanceSettings", "BrowserProfilesSettings", "ChatBehaviorSettings", "ComputerSettings", "ConnectionsSettings", "GeneralSettings", "NotificationSettings", "McpSettings", "SkillsSettings", "KeybindingsSettings", "SettingsPanels"]
+    const files = ["AppearanceSettings", "BrowserProfilesSettings", "SavedLoginsSettings", "ChatBehaviorSettings", "ComputerSettings", "ConnectionsSettings", "GeneralSettings", "NotificationSettings", "McpSettings", "SkillsSettings", "KeybindingsSettings", "SettingsPanels"]
       .map((name) => readFileSync(new URL(`../src/components/settings/${name}.tsx`, import.meta.url), "utf8")).join("\n");
     assert.ok(files.includes(`"${entry.title}"`), `${entry.title} is still a settings row (run node scripts/build-settings-index.mjs)`);
   }

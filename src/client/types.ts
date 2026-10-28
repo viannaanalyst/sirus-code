@@ -1379,3 +1379,13 @@ export interface ResourceSnapshot {
   memoryPressure: MemoryPressure | null;
 }
 export type ResourceAction = { type: "stopProcess"; sessionId: string; pid: number; started: number };
+
+/** A saved browser login as the renderer sees it (ADR-186): never the password or the authenticator secret. */
+export interface LoginSummary { id: string; origin: string; username: string; passwordMask: string; hasTotp: boolean; agentUse: boolean; updatedAt: number }
+/** The Settings form. On an edit, an empty `password` keeps the saved one; `totp: ""` clears the seed and `null` keeps it. */
+export interface LoginInput { id?: string | null; origin: string; username: string; password?: string | null; totp?: string | null; agentUse: boolean }
+/** "Save login for this site?" shown in the browser pane after a sign-in. */
+export interface LoginOffer { id: string; sessionId: string; origin: string; username: string; update: boolean }
+/** "Let the agent sign in to this site?" shown in the conversation. */
+export interface LoginApproval { id: string; sessionId: string; origin: string; username: string }
+export interface LoginPrompts { offers: LoginOffer[]; approvals: LoginApproval[] }

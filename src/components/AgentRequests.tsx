@@ -2,8 +2,11 @@ import { memo, useState, type FormEvent } from "react";
 import type { AgentResponse, PendingRequest, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
-import { Eye, EyeOff, Lock, MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons";
-import type { ComputerRequest, SecretRequest } from "@/client/types";
+import { Eye, EyeOff, KeyRound, Lock, MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons";
+import type { ComputerRequest, LoginApproval, SecretRequest } from "@/client/types";
+import { client } from "@/client";
+import { siteLabel } from "@/lib/login-vault";
+import { formatUnknownError } from "@/lib/format-error";
 import { maskInput, maskSecrets } from "@/lib/redact";
 import "@/styles/computer.css";
 import { providerById } from "@/lib/provider-registry";
@@ -135,13 +138,39 @@ function SecretRequestCard({ provider, request }: { provider: string; request: S
   </form>;
 }
 
+/** An agent asks to sign in with a saved login (ADR-186): once per site in this conversation; no password is shown or sent. */
+function LoginApprovalCard({ provider, approval }: { provider: string; approval: LoginApproval }) {
+  const t = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const title = t("approval.title", { provider, site: siteLabel(approval.origin), name: approval.username });
+  const answer = async (allow: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try { await client.loginVaultAnswerApproval(approval.id, allow); } catch (error) { useAppStore.setState({ error: formatUnknownError(error) }); setBusy(false); }
+  };
+  return <div className="computer-request" role="group" aria-label={title}>
+    <span className="computer-request-icon" aria-hidden="true"><KeyRound size={16} /></span>
+    <div className="min-w-0 flex-1">
+      <p className="ui-control font-medium text-text-primary">{title}</p>
+      <p className="mt-0.5 ui-description text-text-muted">{t("approval.body")}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <InteractiveButton variant="primary" disabled={busy} onClick={() => void answer(true)}>{t("approval.allow")}</InteractiveButton>
+        <InteractiveButton variant="secondary" glow={false} disabled={busy} onClick={() => void answer(false)}>{t("approval.deny")}</InteractiveButton>
+      </div>
+    </div>
+  </div>;
+}
+
 function AgentRequestsView({ session }: { session: Session }) {
   const computer = useAppStore((state) => state.computer?.requests);
   const secrets = useAppStore((state) => state.secrets?.requests);
   const computerRequests = computer?.filter((request) => request.sessionId === session.id) ?? [];
   const secretRequests = secrets?.filter((request) => request.sessionId === session.id) ?? [];
-  return session.pendingRequests?.length || computerRequests.length || secretRequests.length ? <div className="scroll-thin max-h-[40vh] overflow-y-auto px-6 py-3" aria-live="polite">
+  const loginApprovals = useAppStore((state) => state.loginPrompts?.approvals);
+  const loginRequests = loginApprovals?.filter((approval) => approval.sessionId === session.id) ?? [];
+  return session.pendingRequests?.length || computerRequests.length || secretRequests.length || loginRequests.length ? <div className="scroll-thin max-h-[40vh] overflow-y-auto px-6 py-3" aria-live="polite">
     {secretRequests.map((request) => <SecretRequestCard key={request.id} provider={providerById(session.agent).name} request={request} />)}
+    {loginRequests.map((approval) => <LoginApprovalCard key={approval.id} provider={providerById(session.agent).name} approval={approval} />)}
     {computerRequests.map((request) => <ComputerRequestCard key={request.id} request={request} />)}
     {session.pendingRequests?.map((request) => <RequestCard key={`${session.id}:${request.generation}:${request.requestId}`} sessionId={session.id} provider={providerById(session.agent).name} request={request} />)}
   </div> : null;

@@ -142,6 +142,7 @@ export const ImagePlus = make("ImagePlus");
 export const Info = make("Info");
 export const Italic = make("Italic");
 export const Keyboard = make("Keyboard");
+export const KeyRound = make("KeyRound");
 export const Laptop = make("Laptop");
 export const Server = make("Server");
 export const WifiOff = make("WifiOff");

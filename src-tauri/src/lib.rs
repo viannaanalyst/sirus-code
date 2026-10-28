@@ -28,6 +28,8 @@ mod browser;
 #[cfg(feature = "desktop")]
 mod browser_agent;
 mod browser_cookies;
+#[cfg(feature = "desktop")]
+mod browser_login;
 mod browser_mcp;
 mod browser_profiles;
 #[cfg(feature = "desktop")]
@@ -68,6 +70,7 @@ mod idle_compaction;
 mod keep_awake;
 mod launch;
 mod local_servers;
+mod login_vault;
 mod mcp_config;
 mod mcp_stdio;
 mod media_preview;
@@ -363,6 +366,15 @@ pub fn run() {
             notifications::notification_action,
             computer_mcp::computer_action,
             secrets::secret_action,
+            login_vault::login_vault_list,
+            login_vault::login_vault_save,
+            login_vault::login_vault_delete,
+            login_vault::login_vault_set_agent_use,
+            login_vault::login_vault_matches,
+            login_vault::login_vault_prompts,
+            login_vault::login_vault_answer_offer,
+            login_vault::login_vault_answer_approval,
+            browser_login::login_vault_autofill,
             remote::remote_action,
             remote::remote_pair,
             remote::share_push_identity,
@@ -554,6 +566,7 @@ pub fn run() {
             if matches!(event, tauri::RunEvent::Exit) {
                 attachment_platform::remove_paste_listener();
                 secrets::clear_all();
+                login_vault::clear_all();
                 remote::shutdown();
                 devices::shutdown();
                 let state = app.state::<Arc<AppState>>();

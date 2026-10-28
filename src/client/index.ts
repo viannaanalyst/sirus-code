@@ -996,6 +996,47 @@ export class SirusClient {
     return this.transport.invoke<import("./types").SecretSnapshot>("secret_action", { action });
   }
 
+  // Browser login vault (ADR-186). Passwords go in with `loginVaultSave` and never come back.
+  loginVaultList() {
+    return this.transport.invoke<import("./types").LoginSummary[]>("login_vault_list", {});
+  }
+
+  loginVaultSave(input: import("./types").LoginInput) {
+    return this.transport.invoke<import("./types").LoginSummary>("login_vault_save", { input });
+  }
+
+  loginVaultDelete(id: string) {
+    return this.transport.invoke<void>("login_vault_delete", { id });
+  }
+
+  loginVaultSetAgentUse(id: string, enabled: boolean) {
+    return this.transport.invoke<import("./types").LoginSummary>("login_vault_set_agent_use", { id, enabled });
+  }
+
+  loginVaultMatches(url: string) {
+    return this.transport.invoke<import("./types").LoginSummary[]>("login_vault_matches", { url });
+  }
+
+  loginVaultPrompts() {
+    return this.transport.invoke<import("./types").LoginPrompts>("login_vault_prompts", {});
+  }
+
+  loginVaultAnswerOffer(id: string, save: boolean, agentUse: boolean) {
+    return this.transport.invoke<void>("login_vault_answer_offer", { id, save, agentUse });
+  }
+
+  loginVaultAnswerApproval(id: string, allow: boolean) {
+    return this.transport.invoke<void>("login_vault_answer_approval", { id, allow });
+  }
+
+  loginVaultAutofill(sessionId: string, loginId: string, part?: "login" | "totp") {
+    return this.transport.invoke<void>("login_vault_autofill", { sessionId, loginId, part });
+  }
+
+  onLoginVaultState(handler: (state: import("./types").LoginPrompts) => void) {
+    return this.transport.listen<import("./types").LoginPrompts>("login-vault-state", handler);
+  }
+
   onSecretState(handler: (state: import("./types").SecretSnapshot) => void) {
     return this.transport.listen<import("./types").SecretSnapshot>("secret-state", handler);
   }

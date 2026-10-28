@@ -269,6 +269,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "group": "browser.profiles"
  },
  {
+  "section": "chat",
+  "title": "vault.add",
+  "description": null,
+  "group": "vault.title"
+ },
+ {
   "section": "computer",
   "title": "windowSnap.enable",
   "description": "windowSnap.enableHelp",

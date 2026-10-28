@@ -604,9 +604,9 @@ pub(crate) mod platform {
     };
     use objc2_web_kit::{
         WKContentWorld, WKFrameInfo, WKNavigation, WKNavigationAction, WKNavigationActionPolicy,
-        WKNavigationDelegate, WKSnapshotConfiguration, WKUIDelegate, WKUserScript,
-        WKUserScriptInjectionTime, WKWebView, WKWebViewConfiguration, WKWebsiteDataStore,
-        WKWindowFeatures,
+        WKNavigationDelegate, WKScriptMessage, WKScriptMessageHandler, WKSnapshotConfiguration,
+        WKUIDelegate, WKUserContentController, WKUserScript, WKUserScriptInjectionTime, WKWebView,
+        WKWebViewConfiguration, WKWebsiteDataStore, WKWindowFeatures,
     };
     use tauri::{AppHandle, Emitter, Manager};
 
@@ -951,7 +951,18 @@ pub(crate) mod platform {
                 );
                 config.userContentController().addUserScript(&bridge);
                 crate::browser_agent::platform::install_scripts(&config, mtm);
+                crate::browser_login::install_capture(&config, mtm);
                 let delegate = BrowserNavigationDelegate::new(app, session_id, &tab_id, mtm);
+                // Submitted sign-ins reach the app through a handler only the capture
+                // script's own (client) content world can call; the page cannot (ADR-186).
+                webview
+                    .configuration()
+                    .userContentController()
+                    .addScriptMessageHandler_contentWorld_name(
+                        ProtocolObject::from_ref(&*delegate),
+                        &WKContentWorld::defaultClientWorld(mtm),
+                        &NSString::from_str("sirusLogin"),
+                    );
                 webview.setNavigationDelegate(Some(ProtocolObject::from_ref(&*delegate)));
                 webview.setUIDelegate(Some(ProtocolObject::from_ref(&*delegate)));
                 (webview, delegate)
@@ -1968,6 +1979,54 @@ return result;
                         }
                     });
                 });
+            }
+        }
+
+        unsafe impl WKScriptMessageHandler for BrowserNavigationDelegate {
+            /// A password form the person submitted (ADR-186). The site is the address the
+            /// webview loaded for that frame, not anything the page says.
+            #[unsafe(method(userContentController:didReceiveScriptMessage:))]
+            fn did_receive_script_message(
+                &self,
+                _controller: &WKUserContentController,
+                message: &WKScriptMessage,
+            ) {
+                let ivars = self.ivars();
+                let (body, frame_url, main_frame) = unsafe {
+                    let frame = message.frameInfo();
+                    (
+                        message
+                            .body()
+                            .downcast_ref::<NSString>()
+                            .map(|text| text.to_string()),
+                        frame
+                            .request()
+                            .URL()
+                            .and_then(|url| url.absoluteString())
+                            .map(|url| url.to_string()),
+                        frame.isMainFrame(),
+                    )
+                };
+                let (Some(body), Some(frame_url), true) = (body, frame_url, main_frame) else {
+                    return;
+                };
+                if body.len() > 4096 {
+                    return;
+                }
+                // No offers in a private tab; if the profile cannot be read, no offer either.
+                let private = with_manager(|manager| {
+                    manager.tab_profile(&ivars.session_id, &ivars.tab_id)
+                        == crate::browser_profiles::PRIVATE_PROFILE
+                })
+                .unwrap_or(true);
+                if !private {
+                    crate::login_vault::note_submission(
+                        &ivars.app,
+                        &ivars.session_id,
+                        &frame_url,
+                        &body,
+                    );
+                }
             }
         }
 

@@ -26,6 +26,7 @@ import {
   SquareDashedMousePointer,
   X,
 } from "@/components/icons";
+import { LoginKeyButton, LoginOfferBar } from "@/components/BrowserLogins";
 import { BrowserDeviceToolbar, BrowserViewport } from "@/components/BrowserDevice";
 import { presetViewport, type DeviceViewport } from "@/lib/browser-device";
 import { startRecording, stopRecording, useBrowserRecording } from "@/lib/browser-recordings";
@@ -274,6 +275,7 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
           </button>)}
         </div> : null}
       </div>
+      <LoginKeyButton sessionId={sessionId} url={active && !blank ? active.url : null} className={controlClass} />
       <button type="button" title={t("Copy link")} aria-label={t("Copy link")} disabled={!active || blank} onClick={() => void copyLink()} className={controlClass}>
         <Link2 size={13} aria-hidden="true" />
       </button>
@@ -320,6 +322,7 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
         </DropdownContent>
       </Dropdown>
     </div>
+    <LoginOfferBar sessionId={sessionId} />
     {device.kind === "device" && !floating ? <BrowserDeviceToolbar device={device} onChange={setDevice} /> : null}
     {browser && browser.tabs.length > 0 ? <div role="tablist" aria-label={t("Browser")} className="scroll-thin mt-1.5 flex items-center gap-1 overflow-x-auto px-2 pb-0.5">
       {browser.tabs.map((tab) => {

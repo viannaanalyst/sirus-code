@@ -16,6 +16,7 @@ import { mcpEnglish, mcpPortuguese } from "./mcp-strings";
 import { secretEnglish, secretPortuguese } from "./secret-strings";
 import { browserProfileEnglish, browserProfilePortuguese } from "./browser-profile-strings";
 import { cookieImportEnglish, cookieImportPortuguese } from "./cookie-import-strings";
+import { loginVaultEnglish, loginVaultPortuguese } from "./login-vault-strings";
 import { tabsEnglish, tabsPortuguese } from "./tabs-strings";
 import { snoozeEnglish, snoozePortuguese } from "./snooze-strings";
 import { timelineEnglish, timelinePortuguese } from "./timeline-strings";
@@ -72,6 +73,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...secretPortuguese,
     ...browserProfilePortuguese,
     ...cookieImportPortuguese,
+    ...loginVaultPortuguese,
     ...tabsPortuguese,
     ...snoozePortuguese,
     ...timelinePortuguese,
@@ -168,6 +170,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...secretEnglish,
     ...browserProfileEnglish,
     ...cookieImportEnglish,
+    ...loginVaultEnglish,
     ...tabsEnglish,
     ...snoozeEnglish,
     ...timelineEnglish,
