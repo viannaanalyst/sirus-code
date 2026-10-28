@@ -31,7 +31,7 @@ test("focused controls keep Space and letters", () => {
     element({ tag: "input" }), element({ tag: "textarea" }), element({ tag: "select" }), element({ tag: "div", editable: true }),
     ...["switch", "checkbox", "tab", "menuitem", "option", "treeitem", "slider", "radio", "dialog", "listbox"].map((role) => element({ tag: "div", role })),
     element({ tag: "span" }, { tag: "div", role: "treeitem" }, { tag: "div", role: "tree" }),
-    element({ tag: "textarea" }, { tag: "div", className: "xterm" }),
+    element({ tag: "textarea" }, { tag: "div", className: "terminal-canvas" }),
   ]) {
     assert.equal(typingGoesToComposer(key(" "), focused), false);
     assert.equal(typingGoesToComposer(key("f"), focused), false);

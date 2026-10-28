@@ -15,6 +15,14 @@ Copyright (c) 2026 Emanuele Di Pietro
 
 Copyright (c) 2026 Nick
 
+## Ghostty (`libghostty-vt`, compiled to WebAssembly for the terminal)
+
+Copyright (c) 2024 Mitchell Hashimoto, Ghostty contributors
+
+## Nerd Fonts (Symbols Nerd Font Mono, the terminal's icon glyphs)
+
+Copyright (c) 2014 Ryan L McIntyre
+
 ## Visual Studio Code
 
 Copyright (c) Microsoft Corporation.

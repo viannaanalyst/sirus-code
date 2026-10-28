@@ -13,10 +13,10 @@ export function resolveAppearanceMaterial(settings: AppSettings, support?: Appea
   return { palette, windowGlass, sidebarGlass, windowOpacity: palette === "light" ? settings.lightWindowOpacity : settings.darkWindowOpacity, sidebarOpacity: palette === "light" ? settings.lightSidebarOpacity : settings.darkSidebarOpacity };
 }
 /**
- * xterm accepts concrete colors rather than CSS color-mix()/color() values. On window glass
- * the background is the theme's own color at zero alpha: xterm paints reverse video
- * (selections, vim/less/fzf highlights) with the opaque form, which must stay the theme
- * color rather than black (ADR-102).
+ * The terminal takes concrete colors rather than CSS color-mix()/color() values. On window glass
+ * the background is the theme's own color at zero alpha: reverse video (selections,
+ * vim/less/fzf highlights) paints with the opaque form, which must stay the theme
+ * color rather than black (ADR-102). `ghosttyTheme` maps this to Ghostty (ADR-170).
  */
 export function terminalAppearance(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
   const material = resolveAppearanceMaterial(settings, support, systemPalette);
@@ -41,7 +41,7 @@ const TERMINAL_ANSI_LIGHT = {
   black: "#27272a", red: "#c4352a", green: "#2f8a3e", yellow: "#a87a12", blue: "#4a5bd6", magenta: "#8b4fd1", cyan: "#1f8a8a", white: "#a1a1aa",
   brightBlack: "#71717a", brightRed: "#d9493c", brightGreen: "#3c9c4c", brightYellow: "#b98a1e", brightBlue: "#5d6de2", brightMagenta: "#9c63dc", brightCyan: "#2a9b9b", brightWhite: "#3f3f46",
 };
-/** xterm composes transparent backgrounds only when asked; that is only needed on window glass. */
+/** Default-background cells are left unpainted only on window glass. */
 export function terminalTransparent(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
   return resolveAppearanceMaterial(settings, support, systemPalette).windowGlass;
 }

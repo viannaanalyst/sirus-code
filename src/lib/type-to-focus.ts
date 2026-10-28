@@ -7,7 +7,7 @@ export const TYPING_OWNER_SELECTOR = [
   "input", "textarea", "select", "button", "a", "summary", "details", "[contenteditable]",
   "[role=dialog]", "[role=menu]", "[role=listbox]", "[role=tree]", "[role=grid]", "[role=combobox]", "[role=textbox]", "[role=searchbox]",
   "[role=button]", "[role=link]", "[role=switch]", "[role=checkbox]", "[role=tab]", "[role=menuitem]", "[role=menuitemcheckbox]", "[role=menuitemradio]",
-  "[role=option]", "[role=treeitem]", "[role=slider]", "[role=spinbutton]", "[role=radio]", ".xterm",
+  "[role=option]", "[role=treeitem]", "[role=slider]", "[role=spinbutton]", "[role=radio]", ".terminal-canvas",
 ].join(", ");
 
 export interface TypingKey { key: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; isComposing?: boolean; defaultPrevented?: boolean }
