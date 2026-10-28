@@ -6,6 +6,7 @@ import { codeChunks, shouldHighlight } from "@/lib/code-chunks";
 import { normaliseLanguage, tokenKind, tokenPattern } from "@/lib/code-tokens";
 import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cachedHighlight, highlightCode, pierreLanguage, type CodeAppearance, type HighlightedLines } from "@/lib/code-highlight";
+import { codeThemeKey, subscribeCodeTheme } from "@/lib/code-theme-state";
 import { ChevronDown, FileCode2 } from "@/components/icons";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
@@ -60,7 +61,9 @@ function Highlighted({ code, language }: { code: string; language: string }) {
 function subscribeAppearance(listener: () => void) {
   const observer = new MutationObserver(listener);
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  return () => observer.disconnect();
+  // An imported VS Code theme (ADR-185) recolours code without a light or dark switch.
+  const stopCodeTheme = subscribeCodeTheme(listener);
+  return () => { observer.disconnect(); stopCodeTheme(); };
 }
 /** The app's resolved theme (`data-theme` on the root, absent meaning dark). */
 const readAppearance = (): CodeAppearance => document.documentElement.dataset.theme === "light" ? "light" : "dark";
@@ -72,8 +75,9 @@ const readAppearance = (): CodeAppearance => document.documentElement.dataset.th
  */
 function usePierreLines(code: string, language: string, enabled: boolean): HighlightedLines | null {
   const appearance = useSyncExternalStore(subscribeAppearance, readAppearance, () => "dark" as CodeAppearance);
+  const themeKey = useSyncExternalStore(subscribeAppearance, () => codeThemeKey(readAppearance()), () => "default");
   const lang = enabled && shouldHighlight(code) ? pierreLanguage(language) : null;
-  const key = `${appearance}\0${lang}\0${code}`;
+  const key = `${appearance}\0${themeKey}\0${lang}\0${code}`;
   const [loaded, setLoaded] = useState<{ key: string; lines: HighlightedLines } | null>(null);
   const asked = useRef(false);
   const cached = lang ? cachedHighlight(code, lang, appearance) : undefined;

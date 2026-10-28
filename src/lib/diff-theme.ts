@@ -3,10 +3,22 @@
 // reads on the tinted added and removed rows of a light surface. Themes resolve on the main
 // thread and reach the diff workers already resolved.
 import { getResolvedOrResolveTheme, registerCustomTheme, type DiffsTheme } from "@pierre/diffs";
+import { importedSyntax } from "./code-theme-state";
 
 export const DIFF_THEME_NAMES = { light: "sirus-light", dark: "pierre-dark" } as const;
 export type DiffAppearance = keyof typeof DIFF_THEME_NAMES;
-export function diffThemeName(appearance: DiffAppearance): string { return DIFF_THEME_NAMES[appearance]; }
+
+const registeredImports = new Set<string>();
+/** The syntax theme for an appearance: the imported VS Code theme in use (ADR-185), registered on first ask, or Sirus's own. */
+export function diffThemeName(appearance: DiffAppearance): string {
+  const imported = importedSyntax(appearance);
+  if (!imported) return DIFF_THEME_NAMES[appearance];
+  if (!registeredImports.has(imported.name)) {
+    registeredImports.add(imported.name);
+    registerCustomTheme(imported.name, async () => imported.zed as unknown as NonNullable<DiffsTheme["zed"]>, "zed");
+  }
+  return imported.name;
+}
 
 const MIN_CONTRAST = 4.5;
 /** Luminance of the darkest light row: a removed line's tint over a near-white surface, rounded down. */

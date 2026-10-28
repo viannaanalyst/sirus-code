@@ -83,6 +83,7 @@ const DENIED: &[&str] = &[
     "take_prompt_link",
     "window_ready",
     "chat_background_action",
+    "vscode_themes_import_local",
     "share_push_identity",
     // Updating replaces and restarts this Mac's app (ADR-140).
     "app_update_action",

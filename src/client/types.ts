@@ -426,6 +426,30 @@ export interface TeamActionResponse { sessions: Session[]; removed: string[]; }
 
 
 export type MonoFontId = "plexMono" | "jetbrains" | "fira" | "geistMono" | "source" | "roboto" | "ubuntu" | "sfMono" | "menlo" | "cascadia" | "hack" | "consolas";
+/** One TextMate rule reduced to what the code highlighter shows; an empty `scope` is the default text rule. */
+export interface VsCodeTokenRule { scope: string[]; foreground?: string; fontStyle?: string }
+/** An installed or importable VS Code colour theme (ADR-185): only the colours Sirus maps, as `#rrggbb[aa]`. */
+export interface VsCodeTheme {
+  id: string;
+  name: string;
+  kind: "light" | "dark";
+  /** `open-vsx:<namespace>.<name>` or `local:<file name>`. */
+  source: string;
+  colors: Record<string, string>;
+  tokenColors: VsCodeTokenRule[];
+}
+/** An Open VSX search result. */
+export interface VsCodeThemeExtension {
+  namespace: string;
+  name: string;
+  displayName: string;
+  description: string;
+  downloadCount: number;
+  version: string;
+  license: string;
+  iconUrl: string | null;
+  sourceUrl: string | null;
+}
 export interface AppearanceSupport { translucency: boolean; dockIcon: boolean; }
 
 export type NotificationSound = "glass" | "ping" | "pop" | "submarine" | "tink" | "hero";
@@ -571,6 +595,10 @@ export interface AppSettings {
   terminalFont: MonoFontId;
   fontSmoothing: boolean;
   dockIcon: "default" | "smokedGlass" | "white";
+  /** Imported VS Code colour themes (ADR-185), at most 48; the two ids are in use for the light and dark palettes (null is Default (Sirus)). */
+  vscodeThemes: VsCodeTheme[];
+  lightVscodeTheme: string | null;
+  darkVscodeTheme: string | null;
   density: "compact" | "default" | "comfortable";
   animations: boolean;
   composerLineSpeed: "slow" | "smooth" | "fast";

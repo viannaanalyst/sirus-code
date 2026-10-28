@@ -24,6 +24,8 @@ import type {
   PtyOutputEvent,
   SendPromptRequest,
   Session,
+  VsCodeTheme,
+  VsCodeThemeExtension,
 } from "./types";
 
 type SharedListener = { handlers: Set<(payload: unknown) => void>; ready: Promise<() => void> };
@@ -602,6 +604,21 @@ export class SirusClient {
   /** Picks or clears the chat background image (ADR-089); returns the saved file name. */
   chatBackgroundAction(type: "pick" | "clear") {
     return this.transport.invoke<string | null>("chat_background_action", { action: { type } });
+  }
+
+  /** Searches Open VSX for colour themes (ADR-185); the back end alone talks to the network. */
+  searchVsCodeThemes(query: string, sort: "downloadCount" | "rating" | "timestamp" | "relevance" = "downloadCount") {
+    return this.transport.invoke<VsCodeThemeExtension[]>("vscode_themes_search", { query, sort });
+  }
+
+  /** Downloads, verifies and reads the themes of one Open VSX extension. */
+  fetchVsCodeThemes(namespace: string, name: string) {
+    return this.transport.invoke<VsCodeTheme[]>("vscode_themes_fetch", { namespace, name });
+  }
+
+  /** Picks a `.vsix` or `.json` theme on this Mac; null when cancelled. */
+  importVsCodeThemeFile() {
+    return this.transport.invoke<VsCodeTheme[] | null>("vscode_themes_import_local");
   }
 
   chatBackgroundImage(name: string) {

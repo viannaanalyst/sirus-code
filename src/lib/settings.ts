@@ -9,6 +9,8 @@ import { RAIL_ITEMS } from "./rail";
 import { normalizeConnectors } from "./connectors";
 import { normalizeGithubSeen, normalizeGithubSeenFloor } from "./github-seen";
 import { normalizeGithubNotified } from "./github-notify";
+import { activeVsCodeTheme, applyThemeTokens, mapVsCodeTheme, normalizeActiveTheme, normalizeVsCodeThemes } from "./vscode-theme";
+import { importedSyntaxFor, setImportedSyntax } from "./code-theme-state";
 
 export const defaultSettings: AppSettings = {
   notifications: defaultNotifications,
@@ -75,6 +77,9 @@ export const defaultSettings: AppSettings = {
   terminalFont: "sfMono",
   fontSmoothing: true,
   dockIcon: "default",
+  vscodeThemes: [],
+  lightVscodeTheme: null,
+  darkVscodeTheme: null,
   density: "default",
   animations: true,
   composerLineSpeed: "slow",
@@ -252,6 +257,9 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     terminalScrollback: boundedInteger(value?.terminalScrollback, 1000, 10_000, 2000),
     fontSmoothing: booleanPreference(value?.fontSmoothing, true),
     dockIcon: value?.dockIcon === "smokedGlass" || value?.dockIcon === "white" ? value.dockIcon : "default",
+    vscodeThemes: normalizeVsCodeThemes(value?.vscodeThemes),
+    lightVscodeTheme: normalizeActiveTheme(value?.lightVscodeTheme, normalizeVsCodeThemes(value?.vscodeThemes), "light"),
+    darkVscodeTheme: normalizeActiveTheme(value?.darkVscodeTheme, normalizeVsCodeThemes(value?.vscodeThemes), "dark"),
     locale: value?.locale === "en" ? "en" : "pt-BR",
     customShortcuts: sanitizeShortcuts(value?.customShortcuts),
     defaultApproval: value?.defaultApproval === "ask" || value?.defaultApproval === "auto" ? value.defaultApproval : "full",
@@ -352,6 +360,10 @@ export function applyAppearance(settings: AppSettings, support?: import("@/clien
   const material = resolveAppearanceMaterial(normalized, support, systemPalette);
   root.dataset.theme = material.palette;
   root.dataset.appearance = normalized.theme;
+  // An imported VS Code theme (ADR-185) sets the palette tokens for the palette in use, and the code colours for both.
+  applyThemeTokens(root, activeVsCodeTheme(normalized, material.palette));
+  const syntaxOf = (palette: "light" | "dark") => { const theme = activeVsCodeTheme(normalized, palette); return theme ? importedSyntaxFor(mapVsCodeTheme(theme)) : undefined; };
+  setImportedSyntax({ light: syntaxOf("light"), dark: syntaxOf("dark") });
   // The chat background's strength and placement (ADR-089); the image comes from useChatBackground.
   root.style.setProperty("--chat-background-empty-opacity", String(normalized.chatBackgroundEmptyVisibility / 100));
   root.style.setProperty("--chat-background-session-opacity", String(normalized.chatBackgroundSessionVisibility / 100));
@@ -407,7 +419,7 @@ function booleanPreference(value: unknown, fallback: boolean): boolean { return 
 export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess"] as const satisfies readonly (keyof AppSettings)[];
 export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "compactIdleBeforeCacheExpiry", "rotateAtContextLimit", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
-export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
+export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "lightVscodeTheme", "darkVscodeTheme", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {
   const restored = { ...settings };
   for (const key of APPEARANCE_SETTING_KEYS) Object.assign(restored, { [key]: defaultSettings[key] });

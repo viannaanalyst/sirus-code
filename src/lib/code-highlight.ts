@@ -4,6 +4,7 @@
 // source, language and appearance, so a remount or a re-render never tokenizes again.
 // Anything Pierre cannot colour (unknown language, too long, failure) returns null and the
 // caller keeps the lightweight regex colours.
+import { codeThemeKey } from "./code-theme-state";
 export interface HighlightedToken { content: string; color?: string; fontStyle?: number }
 export type HighlightedLines = HighlightedToken[][];
 export type CodeAppearance = "light" | "dark";
@@ -16,7 +17,7 @@ const cache = new Map<string, HighlightedLines>();
 const unsupported = new Set<string>();
 const pending = new Map<string, Promise<HighlightedLines | null>>();
 
-const keyOf = (code: string, language: string, appearance: CodeAppearance) => `${appearance}\0${language}\0${code}`;
+const keyOf = (code: string, language: string, appearance: CodeAppearance) => `${appearance}\0${codeThemeKey(appearance)}\0${language}\0${code}`;
 
 /** Languages Pierre has no grammar for and plain text are not coloured by it. */
 export function pierreLanguage(language: string): string | null {
@@ -29,12 +30,12 @@ export function cachedHighlight(code: string, language: string, appearance: Code
 }
 
 type Highlighter = Awaited<ReturnType<(typeof import("@pierre/diffs"))["getSharedHighlighter"]>>;
-let highlighter: Promise<{ shared: typeof import("@pierre/diffs"); names: { light: string; dark: string } }> | null = null;
+let highlighter: Promise<{ shared: typeof import("@pierre/diffs"); themes: typeof import("./diff-theme") }> | null = null;
 
 function load() {
   highlighter ??= Promise.all([import("@pierre/diffs"), import("./diff-theme")]).then(([shared, themes]) => {
     themes.registerDiffThemes();
-    return { shared, names: themes.DIFF_THEME_NAMES };
+    return { shared, themes };
   });
   return highlighter;
 }
@@ -48,7 +49,8 @@ export function highlightCode(code: string, language: string, appearance: CodeAp
   if (known) return Promise.resolve(known);
   const running = pending.get(key);
   if (running) return running;
-  const job = load().then(async ({ shared, names }) => {
+  const job = load().then(async ({ shared, themes }) => {
+    const names = { light: themes.diffThemeName("light"), dark: themes.diffThemeName("dark") };
     const highlight: Highlighter = await shared.getSharedHighlighter({ themes: [names.light, names.dark], langs: [lang], preferredHighlighter: "highlights" });
     const result = highlight.codeToTokens(code, { lang, theme: names[appearance] });
     const lines = result.tokens as HighlightedLines;
