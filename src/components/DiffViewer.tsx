@@ -1,6 +1,6 @@
-import { Fragment, memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronDown, ChevronRight, ChevronUp, FileDiff, MessageSquarePlus, Search, X } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronUp, FileDiff, MessageSquarePlus, Search, X } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import type { FileChange } from "@/client/types";
 import { nextDiffRange, type DiffComment } from "@/lib/diff-comment";
@@ -11,68 +11,25 @@ import { changeRowLabel } from "@/lib/change-row-label";
 import { useAppStore } from "@/store/app-store";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { EmptyState } from "@/components/arc/empty-state/empty-state";
-import tokenStyles from "@/components/arc/code-block/code-block.module.css";
 import { cachedDiffLines } from "@/lib/diff-cache";
-import { buildDiffDocument, fileIndex, FILE_ROW, NOTICE_ROW, rowOfLine, searchableRows, type DiffDocument, type DiffDocumentFile } from "@/lib/diff-document";
-import { DIFF_DEFAULT_VIEWPORT, DIFF_FILE_ROW_HEIGHT, DIFF_NOTICE_ROW_HEIGHT, DIFF_ROW_HEIGHT, RowLayout, scrollToReveal, windowRows, wrappedLines } from "@/lib/diff-window";
-import { diffHighlighter, splitByTokens } from "@/lib/diff-highlight";
+import { fileDiffFor, nextCodeRow, rowsOfSelection } from "@/lib/diff-pierre";
 import { diffViewState, rememberDiffView } from "@/lib/diff-view-state";
-import { languageForPath } from "@/lib/code-tokens";
-import { findDiffMatches, splitByRanges, stepDiffMatch, type DiffMatchRange } from "@/lib/diff-find";
+import { findDiffMatches, locateRow, searchRows, stepDiffMatch } from "@/lib/diff-find";
+import type { SelectedLineRange } from "@pierre/diffs";
+import type { DiffCodeHandle,DiffCodeMatch, DiffEntry } from "@/components/diff/DiffCode";
 import { effectiveShortcut } from "@/lib/keybindings";
 import { shortcutMatches } from "@/lib/shortcuts";
 import { usePhoneSetting } from "@/lib/phone-prefs";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
-import type { DiffLine } from "@/lib/transcript";
 import "@/styles/find-bar.css";
 import "@/styles/diff.css";
 
-type Translate = ReturnType<typeof useTranslation>;
+/** Pierre's viewer and its highlighter load the first time a diff is shown (ADR-169). */
+const DiffCode = lazy(() => import("@/components/diff/DiffCode"));
 /** Chosen rows for a comment, as line indexes within one file's diff. */
 type Range = { path: string; diff: string; anchor: number; from: number; to: number };
 /** A touch screen, where rows are tapped rather than Shift-clicked. */
 const coarsePointer = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse)").matches;
-/** Space above and below the rows of a single-file diff. */
-const SINGLE_PAD = 8;
-/** Line-number gutter and row padding, in pixels, added to the widest line for the scroll width. */
-const GUTTER = 112;
-
-/**
- * One diff row. Props are primitives or stable references, so typing in the comment box or
- * the find bar re-renders only the rows whose selection or matches changed (ADR-102), and a
- * highlighted segment arriving re-renders only its rows (ADR-145).
- */
-const DiffRow = memo(function DiffRow({ line, index, selected, focused, commentable, wrap, code, tokens, ranges, current, onChoose, t }: {
-  line: DiffLine; index: number; selected: boolean; focused: boolean; commentable: boolean; wrap: boolean; code: boolean;
-  tokens: Uint32Array | undefined; ranges: readonly DiffMatchRange[] | undefined; current: number | null; onChoose: (index: number, extend: boolean) => void; t: Translate;
-}) {
-  const marked = line.kind === "addition" ? "text-success" : line.kind === "deletion" ? "text-danger" : "";
-  const tone = line.kind === "header" ? "text-text-muted" : code ? (line.kind === "context" ? "text-text-secondary" : "text-text-primary") : marked || "text-text-secondary";
-  return <div data-diff-index={index} data-guide-focus={focused || undefined} className={cn("flex pr-3", focused && "diff-guide-focus", selected ? "bg-accent/20" : line.kind === "addition" ? "bg-success/10" : line.kind === "deletion" ? "bg-danger/10" : line.kind === "header" ? "bg-background-2" : "", tone)}>
-    {commentable && line.kind !== "header" ? <button type="button" data-diff-focus="" aria-label={t("review.selectLine", { old: line.oldLine ?? "—", new: line.newLine ?? "—" })} aria-pressed={selected} onClick={event => onChoose(index, event.shiftKey)} className="mr-2 flex w-[72px] shrink-0 select-none border-r border-border-subtle text-text-muted hover:bg-accent/20 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"><span className="w-9 pr-1 text-right">{line.oldLine ?? ""}</span><span className="w-9 pr-2 text-right">{line.newLine ?? ""}</span></button> : <><span aria-hidden="true" className="w-9 shrink-0 select-none pr-1 text-right text-text-muted">{line.oldLine ?? ""}</span><span aria-hidden="true" className="mr-2 w-9 shrink-0 select-none border-r border-border-subtle pr-2 text-right text-text-muted">{line.newLine ?? ""}</span></>}
-    <span className={wrap ? "min-w-0 whitespace-pre-wrap break-all" : "whitespace-pre"}>{ranges ? splitByRanges(line.content, ranges, current).map((part, at) => part.match
-      ? <mark key={at} data-diff-match="" data-current={part.current || undefined} className={cn("rounded-sm text-text-primary", part.current ? "bg-accent/60" : "bg-accent/25")}>{part.text}</mark>
-      : <Fragment key={at}>{part.text}</Fragment>)
-      : tokens && line.kind !== "header" ? <><span className={marked}>{line.content.slice(0, 1)}</span>{splitByTokens(line.content.slice(1), tokens, 0).map((part, at) => part.kind ? <span key={at} className={tokenStyles[part.kind]}>{part.text}</span> : <Fragment key={at}>{part.text}</Fragment>)}</>
-        : line.content}</span>
-  </div>;
-});
-
-/** A file's header in a review: the collapse toggle, its kind and counts, and Copy. */
-const FileHeader = memo(function FileHeader({ file, path, change, collapsed, diff, overlay, onToggle, t }: {
-  file: number; path: string; change: FileChange | undefined; collapsed: boolean; diff: string | null; overlay: boolean; onToggle: (file: number) => void; t: Translate;
-}) {
-  return <div className="diff-file-head" data-diff-file={overlay ? undefined : file}>
-    <button type="button" data-diff-focus="" tabIndex={overlay ? -1 : undefined} className="diff-file-toggle" aria-expanded={!collapsed} aria-label={t(collapsed ? "diff.expandFile" : "diff.collapseFile", { path })} title={path} onClick={() => onToggle(file)}>
-      <ChevronRight size={13} aria-hidden="true" className="diff-file-chevron" />
-      <span className="min-w-0 truncate font-mono ui-caption text-text-primary">{path}</span>
-      {change ? <span className="shrink-0 ui-micro text-text-muted">{t(`change.${change.kind}`)}</span> : null}
-    </button>
-    {change && (change.additions || change.deletions) ? <span className="shrink-0 font-mono ui-micro"><span className="text-success">+{change.additions}</span>{" "}<span className="text-danger">−{change.deletions}</span></span> : null}
-    {!overlay && diff ? <CopyButton value={diff} label={t("Copy diff")} iconOnly variant="plain" /> : null}
-  </div>;
-});
-
 /** The comment draft lives here, so typing in it never re-renders the diff rows. */
 function CommentForm({ range, onComment, onClear }: { range: Range; onComment: (selection: DiffComment) => boolean; onClear: () => void }) {
   const t = useTranslation();
@@ -160,8 +117,8 @@ interface BodyProps {
   onCurrent?: (path: string) => void;
 }
 
-/** The scrolling rows, the find bar and the comment form of one document. */
-function DiffBody({ root, files, singlePath, singleDiff, changes, selectedPath, emptyDiffMessage, onComment, focus, viewKey, viewOrigin, jump, onCurrent }: BodyProps) {
+/** Pierre's drawn files, the find bar and the comment form of one document (ADR-169). */
+function DiffBody({ root, files, singlePath, singleDiff, selectedPath, emptyDiffMessage, onComment, focus, viewKey, viewOrigin, jump, onCurrent }: BodyProps) {
   const t = useTranslation();
   const reduced = useMotionPreferences();
   // Chat behavior: wrap long lines instead of scrolling sideways.
@@ -171,148 +128,31 @@ function DiffBody({ root, files, singlePath, singleDiff, changes, selectedPath, 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set(saved?.collapsed ?? []));
   const multi = singlePath === undefined;
   const fallbackMessage = emptyDiffMessage ?? t("No textual diff available.");
-  const texts = useMemo(() => !multi ? [singleDiff ?? ""] : (files ?? []).map((file) => file.diff ?? ""), [multi, singleDiff, files]);
-  const sources = useMemo<DiffDocumentFile[]>(() => !multi
-    ? [{ path: singlePath, lines: cachedDiffLines(singleDiff ?? ""), message: null }]
-    : (files ?? []).map((file) => ({ path: file.path, lines: cachedDiffLines(file.diff ?? ""), message: file.diff ? null : file.message ?? fallbackMessage })), [multi, singlePath, singleDiff, files, fallbackMessage]);
-  const doc = useMemo(() => buildDiffDocument(sources, collapsed, multi), [sources, collapsed, multi]);
-  const languages = useMemo(() => sources.map((file) => languageForPath(file.path)), [sources]);
-  const changeOf = useMemo(() => new Map(changes.map((change) => [change.path, change])), [changes]);
-  const pad = multi ? 0 : SINGLE_PAD;
-
-  // Geometry: the line height and character width come from the rendered rows (the phone uses
-  // taller rows), the width from the scroller; wrapped rows are measured once mounted.
-  const scroller = useRef<HTMLDivElement>(null);
-  const content = useRef<HTMLDivElement>(null);
-  const sticky = useRef<HTMLDivElement>(null);
-  const probe = useRef<HTMLSpanElement>(null);
-  const [metrics, setMetrics] = useState({ line: DIFF_ROW_HEIGHT, char: 7.2, width: 0 });
-  const columns = Math.max(20, Math.floor((metrics.width - GUTTER) / metrics.char));
-  const layout = useMemo(() => new RowLayout(doc.length, (row) => {
-    const line = doc.rowLine[row];
-    if (line === FILE_ROW) return DIFF_FILE_ROW_HEIGHT;
-    if (line === NOTICE_ROW) return DIFF_NOTICE_ROW_HEIGHT;
-    return wrap && metrics.width ? metrics.line * wrappedLines(doc.files[doc.rowFile[row]].lines[line].content.length, columns) : metrics.line;
-  }), [doc, wrap, metrics.line, metrics.width, columns]);
-  const [, setMeasured] = useState(0);
-
-  // The viewport drives the window of mounted rows; a scroll re-renders only when the window
-  // or the file in view changes (diff-window.ts).
-  const [viewport, setViewport] = useState({ top: saved?.scrollTop ?? 0, height: DIFF_DEFAULT_VIEWPORT, synced: false });
-  const span = useMemo(() => windowRows(layout, viewport.top - pad, viewport.top - pad + viewport.height), [layout, viewport, pad]);
-  const fileAtTop = doc.length ? doc.rowFile[layout.rowAt(viewport.top - pad)] : -1;
-  const latest = useRef({ doc, layout, span, fileAtTop, pad });
-  useLayoutEffect(() => { latest.current = { doc, layout, span, fileAtTop, pad }; });
-
-  const placeSticky = useCallback((top: number) => {
-    const node = sticky.current;
-    const { doc: rows, layout: places } = latest.current;
-    if (!node || !rows.headers || !rows.length) return;
-    const file = rows.rowFile[places.rowAt(top)];
-    const headerTop = places.offsetOf(rows.fileRow[file]);
-    const nextTop = file + 1 < rows.files.length ? places.offsetOf(rows.fileRow[file + 1]) : Number.POSITIVE_INFINITY;
-    node.style.visibility = top > headerTop + 0.5 ? "" : "hidden";
-    node.style.transform = `translateY(${Math.min(0, nextTop - top - DIFF_FILE_ROW_HEIGHT)}px)`;
-  }, []);
-  const sync = useCallback(() => {
-    const box = scroller.current;
-    if (!box) return;
-    const top = box.scrollTop, height = box.clientHeight || DIFF_DEFAULT_VIEWPORT;
-    const { doc: rows, layout: places, span: shown, fileAtTop: shownFile, pad: offset } = latest.current;
-    const next = windowRows(places, top - offset, top - offset + height);
-    const file = rows.length ? rows.rowFile[places.rowAt(top - offset)] : -1;
-    placeSticky(top);
-    rememberDiffView(viewKey, { scrollTop: top, scrollLeft: box.scrollLeft, origin: viewOrigin ?? null });
-    setViewport((value) => next.start !== shown.start || next.end !== shown.end || file !== shownFile || Math.abs(value.height - height) > 1 || !value.synced ? { top, height, synced: true } : value);
-  }, [placeSticky, viewKey, viewOrigin]);
-  const frame = useRef(0);
-  const onScroll = useCallback(() => {
-    if (frame.current) return;
-    frame.current = requestAnimationFrame(() => { frame.current = 0; sync(); });
-  }, [sync]);
-  useEffect(() => () => cancelAnimationFrame(frame.current), []);
-  const scrollBox = useCallback((top: number, smooth = false) => {
-    const box = scroller.current;
-    if (!box) return;
-    if (smooth && box.scrollTo) box.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-    else box.scrollTop = Math.max(0, top);
-    sync();
-  }, [sync]);
-
-  // The scroller's size: a height change moves the window, a width change re-estimates wrapped rows.
-  useLayoutEffect(() => {
-    const box = scroller.current;
-    if (!box) return;
-    const read = () => setMetrics((value) => value.width === box.clientWidth ? value : { ...value, width: box.clientWidth });
-    read();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(() => { read(); sync(); });
-    observer.observe(box);
-    return () => observer.disconnect();
-  }, [sync]);
-
-  // After each render: sample the row height and character width, measure wrapped rows, and
-  // keep the first visible row in place when rows above it changed height.
-  useLayoutEffect(() => {
-    const box = scroller.current, body = content.current;
-    if (!box || !body) return;
-    // The probe is one unwrapped line of ten characters in the rows' font.
-    const size = probe.current?.getBoundingClientRect();
-    const lineHeight = size?.height ?? 0, charWidth = size ? size.width / 10 : 0;
-    if ((lineHeight > 0 && Math.abs(lineHeight - metrics.line) > 0.5) || (charWidth > 0 && Math.abs(charWidth - metrics.char) > 0.05)) {
-      setMetrics((value) => ({ ...value, line: lineHeight > 0 ? lineHeight : value.line, char: charWidth > 0 ? charWidth : value.char }));
-      return;
-    }
-    if (!wrap) return;
-    const anchor = layout.rowAt(box.scrollTop - pad), before = layout.offsetOf(anchor);
-    let changed = false;
-    for (const node of body.querySelectorAll<HTMLElement>("[data-diff-index]")) changed = layout.measure(Number(node.dataset.diffIndex), node.offsetHeight) || changed;
-    if (!changed) return;
-    const moved = layout.offsetOf(anchor) - before;
-    if (moved && box.scrollTop > 0) box.scrollTop += moved;
-    setMeasured((value) => value + 1);
-  }, [metrics.line, metrics.char, wrap, layout, pad, span.start, span.end]);
-
-  // Coming back: the place this tab was left at, or the file it was opened on.
-  useLayoutEffect(() => {
-    const box = scroller.current;
-    if (!box) return;
-    if (saved) { box.scrollTop = saved.scrollTop; box.scrollLeft = saved.scrollLeft; }
-    else if (multi && selectedPath) {
-      const file = fileIndex(doc, selectedPath);
-      if (file > 0) box.scrollTop = layout.offsetOf(doc.fileRow[file]);
-    }
-    sync();
-    // Only when the document first mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const entries = useMemo<DiffEntry[]>(() => !multi
+    ? [{ path: singlePath, diff: singleDiff ?? "", lines: cachedDiffLines(singleDiff ?? ""), fileDiff: fileDiffFor(singlePath, singleDiff ?? ""), message: null }]
+    : (files ?? []).map((file) => {
+      const diff = file.diff ?? "", fileDiff = fileDiffFor(file.path, diff);
+      return { path: file.path, diff, lines: cachedDiffLines(diff), fileDiff, message: fileDiff ? null : file.message ?? fallbackMessage };
+    }), [multi, singlePath, singleDiff, files, fallbackMessage]);
+  const handle = useRef<DiffCodeHandle | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const focusDiff = () => frame.current?.querySelector<HTMLElement>(".diff-pierre")?.focus({ preventScroll: true });
 
   // The file in view is the selected one (the list follows the scroll).
   const reported = useRef<string | null>(null);
-  const topPath = fileAtTop >= 0 ? doc.files[fileAtTop]?.path ?? null : null;
-  useEffect(() => {
-    if (!multi || !viewport.synced || !topPath || reported.current === topPath) return;
-    reported.current = topPath;
-    rememberDiffView(viewKey, { selected: topPath, origin: viewOrigin ?? null });
-    onCurrent?.(topPath);
-  }, [multi, viewport.synced, topPath, viewKey, viewOrigin, onCurrent]);
-  const scrollToFile = useCallback((path: string) => {
-    const { doc: rows, layout: places } = latest.current;
-    const file = fileIndex(rows, path);
-    if (file < 0) return;
+  const onScroll = useCallback((scrollTop: number, path: string | null) => {
+    rememberDiffView(viewKey, { scrollTop, origin: viewOrigin ?? null });
+    if (!multi || !path || reported.current === path) return;
     reported.current = path;
-    scrollBox(places.offsetOf(rows.fileRow[file]));
-  }, [scrollBox]);
-  useLayoutEffect(() => { jump.current = multi ? scrollToFile : null; return () => { jump.current = null; }; }, [jump, multi, scrollToFile]);
+    rememberDiffView(viewKey, { selected: path, origin: viewOrigin ?? null });
+    onCurrent?.(path);
+  }, [multi, viewKey, viewOrigin, onCurrent]);
+  useLayoutEffect(() => {
+    jump.current = multi ? (path) => { reported.current = path; handle.current?.jumpToFile(path); } : null;
+    return () => { jump.current = null; };
+  }, [jump, multi]);
 
-  // Collapsing the file whose header is pinned keeps that header at the top.
-  const pinTo = useRef<number | null>(null);
-  const toggleFile = useCallback((file: number) => {
-    const { doc: rows, layout: places } = latest.current;
-    const path = rows.files[file]?.path;
-    const box = scroller.current;
-    if (!path) return;
-    if (box && box.scrollTop > places.offsetOf(rows.fileRow[file])) pinTo.current = file;
+  const toggleFile = useCallback((path: string) => {
     setCollapsed((value) => {
       const next = new Set(value);
       if (!next.delete(path)) next.add(path);
@@ -320,79 +160,69 @@ function DiffBody({ root, files, singlePath, singleDiff, changes, selectedPath, 
       return next;
     });
   }, [viewKey, viewOrigin]);
-  useLayoutEffect(() => {
-    if (pinTo.current === null) return;
-    const file = pinTo.current;
-    pinTo.current = null;
-    scrollBox(layout.offsetOf(doc.fileRow[file]));
-  }, [doc, layout, scrollBox]);
 
   // Comments on rows of one file at a time.
   const [range, setRange] = useState<Range | null>(null);
-  const rangeFile = range ? fileIndex(doc, range.path) : -1;
-  const activeRange = range && rangeFile >= 0 && texts[rangeFile] === range.diff ? range : null;
-  const commentable = (file: number) => !!onComment && !!texts[file] && doc.files[file].lines.length > 0;
-  const choices = useRef({ doc, texts, activeRange, onComment });
-  useLayoutEffect(() => { choices.current = { doc, texts, activeRange, onComment }; });
-  const locate = (rows: DiffDocument, row: number) => rows.rowLine[row] >= 0 ? { file: rows.rowFile[row], line: rows.rowLine[row] } : null;
-  const choose = useCallback((fromRow: number, toRow: number) => {
-    const { doc: rows, texts: diffs, onComment: comment } = choices.current;
-    const start = locate(rows, fromRow), end = locate(rows, toRow);
-    if (!comment || !start || !end || start.file !== end.file || !diffs[start.file]) return;
-    setRange({ path: rows.files[start.file].path, diff: diffs[start.file], anchor: start.line, from: Math.min(start.line, end.line), to: Math.max(start.line, end.line) });
-  }, []);
-  // On a touch screen there is no Shift: a second tap extends the line into a range (ADR-124).
-  const chooseRow = useCallback((row: number, extend: boolean) => {
-    const { doc: rows, texts: diffs, activeRange: current, onComment: comment } = choices.current;
-    const at = locate(rows, row);
-    if (!comment || !at || !diffs[at.file]) return;
-    const path = rows.files[at.file].path;
-    const next = nextDiffRange(current?.path === path ? current : null, at.line, extend, coarsePointer());
-    setRange(next ? { path, diff: diffs[at.file], ...next } : null);
+  const rangeFile = range ? entries.findIndex((entry) => entry.path === range.path) : -1;
+  const activeRange = range && rangeFile >= 0 && entries[rangeFile].diff === range.diff ? range : null;
+  const choices = useRef({ entries, activeRange, onComment });
+  useLayoutEffect(() => { choices.current = { entries, activeRange, onComment }; });
+  const select = useCallback((selection: { path: string; range: SelectedLineRange } | null) => {
+    const { entries: files, activeRange: current, onComment: comment } = choices.current;
+    if (!comment) return;
+    const entry = selection ? files.find((candidate) => candidate.path === selection.path) : undefined;
+    const rows = selection && entry ? rowsOfSelection(entry.lines, selection.range) : null;
+    if (!selection || !entry || !rows || !entry.diff) { setRange(null); return; }
+    // On a touch screen there is no Shift: a second tap extends the line into a range (ADR-124).
+    const next = rows.from === rows.to && coarsePointer()
+      ? nextDiffRange(current?.path === entry.path ? current : null, rows.from, false, true)
+      : { anchor: rows.from, from: rows.from, to: rows.to };
+    setRange(next ? { path: entry.path, diff: entry.diff, ...next } : null);
   }, []);
   const clearRange = useCallback(() => setRange(null), []);
 
-  // Find in diff (⌘F with focus or the pointer inside): matches cover every row, mounted or not.
+  // A guide's anchored rows (single file) are drawn as the selection until a line is chosen.
+  const lineCount = entries[0]?.lines.length ?? 0;
+  const focusRows = focus && !multi && focus.from >= 0 && focus.from <= focus.to && focus.to < lineCount ? focus : null;
+  const focusKey = focusRows ? `${focusRows.key}:${focusRows.from}:${focusRows.to}` : null;
+  const selection = activeRange ? { path: activeRange.path, from: activeRange.from, to: activeRange.to }
+    : focusRows && entries[0] ? { path: entries[0].path, from: focusRows.from, to: focusRows.to } : null;
+  useEffect(() => {
+    if (!focusKey || !focusRows || !entries[0]) return;
+    handle.current?.revealRow(entries[0].path, focusRows.from, { center: true, smooth: !reduced });
+    // Only when the anchor changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKey]);
+
+  // Find in diff (⌘F with focus or the pointer inside): matches cover every open file, drawn or not.
   const [find, setFind] = useState<{ open: boolean; query: string; revision: number }>({ open: false, query: "", revision: 0 });
   const findInput = useRef<HTMLInputElement>(null);
   const findQuery = useDeferredValue(find.open ? find.query : "");
-  const targets = useMemo(() => findQuery.trim() ? searchableRows(doc) : [], [doc, findQuery]);
-  const found = useMemo(() => findDiffMatches(targets, findQuery), [targets, findQuery]);
-  const [step, setStep] = useState<{ query: string; doc: DiffDocument; index: number } | null>(null);
-  const currentIndex = step && step.query === findQuery && step.doc === doc ? Math.min(step.index, found.matches.length - 1) : found.matches.length ? 0 : -1;
-  const currentMatch = currentIndex >= 0 ? found.matches[currentIndex] : undefined;
+  const index = useMemo(() => findQuery.trim() ? searchRows(entries.map((entry) => ({ lines: entry.lines, collapsed: multi && collapsed.has(entry.path) }))) : null, [entries, collapsed, multi, findQuery]);
+  const found = useMemo(() => index ? findDiffMatches(index.rows, findQuery) : findDiffMatches([], ""), [index, findQuery]);
+  const [step, setStep] = useState<{ query: string; entries: readonly DiffEntry[]; index: number } | null>(null);
+  const currentIndex = step && step.query === findQuery && step.entries === entries ? Math.min(step.index, found.matches.length - 1) : found.matches.length ? 0 : -1;
+  const placed = useMemo<DiffCodeMatch[]>(() => !index ? [] : found.matches.map((match, at) => {
+    const where = locateRow(index, match);
+    return { path: entries[where.file].path, row: where.line, match, current: at === currentIndex };
+  }), [index, found, entries, currentIndex]);
+  const current = currentIndex >= 0 ? placed[currentIndex] : undefined;
   const openFind = useCallback(() => setFind(value => ({ open: true, query: value.query, revision: value.revision + 1 })), []);
   const closeFind = () => {
     setFind(value => ({ ...value, open: false }));
-    scroller.current?.focus({ preventScroll: true });
+    focusDiff();
   };
   const move = (direction: 1 | -1) => {
     if (!found.matches.length) return;
-    setStep({ query: findQuery, doc, index: stepDiffMatch(currentIndex, found.matches.length, direction) });
+    setStep({ query: findQuery, entries, index: stepDiffMatch(currentIndex, found.matches.length, direction) });
   };
   useLayoutEffect(() => { if (find.open) { findInput.current?.focus(); findInput.current?.select(); } }, [find.open, find.revision]);
   // Bring the current match into view (centred when it was off screen).
-  const matchRow = currentMatch?.line ?? -1;
-  useLayoutEffect(() => {
-    const box = scroller.current;
-    if (!box || matchRow < 0) return;
-    const { layout: places, pad: offset } = latest.current;
-    const height = box.clientHeight || DIFF_DEFAULT_VIEWPORT;
-    const kept = scrollToReveal(places, matchRow, matchRow, box.scrollTop - offset, height, { margin: multi ? DIFF_FILE_ROW_HEIGHT : 0 });
-    if (kept !== box.scrollTop - offset) scrollBox(scrollToReveal(places, matchRow, matchRow, box.scrollTop - offset, height, { center: true }) + offset);
-  }, [matchRow, currentMatch, multi, scrollBox]);
-
-  // A guide's anchored rows (single file) scroll into the upper part of the diff.
-  const focusRows = focus && !multi && focus.from >= 0 && focus.from <= focus.to && focus.to < (doc.files[0]?.lines.length ?? 0) ? focus : null;
-  const focusKey = focusRows ? `${focusRows.key}:${focusRows.from}:${focusRows.to}` : null;
-  const focusFrom = focusRows ? rowOfLine(doc, 0, focusRows.from) : -1;
-  useLayoutEffect(() => {
-    const box = scroller.current;
-    if (!box || !focusKey || focusFrom < 0) return;
-    scrollBox(pad + layout.offsetOf(focusFrom) - Math.min(box.clientHeight / 4, 96), !reduced);
-    // Only when the anchor changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusKey, focusFrom]);
+  const matchPath = current?.path, matchRow = current?.row, matchStart = current?.match.start;
+  useEffect(() => {
+    if (matchPath === undefined || matchRow === undefined) return;
+    handle.current?.revealRow(matchPath, matchRow, { center: true });
+  }, [matchPath, matchRow, matchStart, currentIndex]);
 
   // ⌘F (the find-in-conversation binding) belongs to the diff while focus is inside it, or
   // while the pointer is over it and no text field has focus; elsewhere the transcript keeps it.
@@ -413,101 +243,44 @@ function DiffBody({ root, files, singlePath, singleDiff, changes, selectedPath, 
     return () => window.removeEventListener("keydown", onKey, true);
   }, [root, openFind]);
 
-  // Colours: ask the worker for the rows in the window, the file at the top first.
-  const highlighter = diffHighlighter();
-  const [, setPainted] = useState(0);
-  useEffect(() => highlighter.subscribe(() => setPainted((value) => value + 1)), [highlighter]);
-  useEffect(() => {
-    if (!highlighter.available || span.end <= span.start) return;
-    const ranges: { lines: readonly DiffLine[]; language: string; from: number; to: number }[] = [];
-    for (let row = span.start; row < span.end;) {
-      const file = doc.rowFile[row];
-      let end = row;
-      while (end < span.end && doc.rowFile[end] === file) end++;
-      const lines = doc.files[file].lines, language = languages[file];
-      let from = -1, to = -1;
-      for (let at = row; at < end; at++) { const line = doc.rowLine[at]; if (line >= 0) { if (from < 0) from = line; to = line + 1; } }
-      if (language && from >= 0) ranges.push({ lines, language, from, to });
-      row = end;
-    }
-    const top = ranges.findIndex((entry) => entry.lines === doc.files[fileAtTop]?.lines);
-    if (top > 0) ranges.unshift(...ranges.splice(top, 1));
-    highlighter.want(ranges);
-  }, [highlighter, doc, languages, span.start, span.end, fileAtTop]);
-
-  // Keyboard: ↑/↓ move between the focusable rows (line buttons, file headers), Shift extends
-  // the comment range, Alt+↑/↓ jump between files. The target row is mounted, then focused.
-  const focusRow = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    const row = focusRow.current;
-    if (row === null) return;
-    const selector = doc.rowLine[row] === FILE_ROW ? `[data-diff-file="${doc.rowFile[row]}"] [data-diff-focus]` : `[data-diff-index="${row}"] [data-diff-focus]`;
-    const target = content.current?.querySelector<HTMLElement>(selector);
-    if (target) { focusRow.current = null; target.focus({ preventScroll: true }); }
-  });
-  const reveal = (row: number) => {
-    const box = scroller.current;
-    if (!box) return;
-    const height = box.clientHeight || DIFF_DEFAULT_VIEWPORT;
-    const top = scrollToReveal(layout, row, row, box.scrollTop - pad, height, { margin: multi && doc.rowLine[row] !== FILE_ROW ? DIFF_FILE_ROW_HEIGHT : 0 });
-    if (top !== box.scrollTop - pad) scrollBox(top + pad);
-  };
-  const focusable = (row: number) => {
-    const line = doc.rowLine[row];
-    if (line === FILE_ROW) return true;
-    return line >= 0 && commentable(doc.rowFile[row]) && doc.files[doc.rowFile[row]].lines[line].kind !== "header";
-  };
+  // Keyboard: with rows chosen, ↑/↓ move the choice (Shift extends it) and Esc lets it go;
+  // Alt+↑/↓ jump between files.
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing || event.metaKey || event.ctrlKey) return;
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const direction = event.key === "ArrowDown" ? 1 : -1;
-    const element = event.target as HTMLElement;
-    const holder = element.closest<HTMLElement>("[data-diff-index], [data-diff-file]");
-    const from = holder?.dataset.diffIndex !== undefined ? Number(holder.dataset.diffIndex) : holder?.dataset.diffFile !== undefined ? doc.fileRow[Number(holder.dataset.diffFile)] : -1;
-    if (event.altKey && doc.headers) {
-      const file = from >= 0 ? doc.rowFile[from] : fileAtTop;
-      const target = Math.min(doc.files.length - 1, Math.max(0, file + direction));
+    const arrow = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+    if (event.altKey && arrow && multi) {
+      const at = entries.findIndex((entry) => entry.path === (handle.current?.position().path ?? entries[0]?.path));
+      const target = entries[Math.min(entries.length - 1, Math.max(0, at + arrow))];
+      if (!target) return;
       event.preventDefault();
-      scrollBox(layout.offsetOf(doc.fileRow[target]));
-      if (from >= 0) focusRow.current = doc.fileRow[target];
+      reported.current = target.path;
+      handle.current?.jumpToFile(target.path);
       return;
     }
-    if (from < 0 || element.tagName !== "BUTTON") return;
-    let next = from + direction;
-    while (next >= 0 && next < doc.length && !focusable(next)) next += direction;
-    if (next < 0 || next >= doc.length) return;
+    if (!activeRange || !onComment) return;
+    if (event.key === "Escape") { event.preventDefault(); clearRange(); return; }
+    if (!arrow) return;
+    const lines = entries[rangeFile].lines;
+    const moving = activeRange.anchor === activeRange.from ? activeRange.to : activeRange.from;
+    const next = nextCodeRow(lines, event.shiftKey ? moving : arrow > 0 ? activeRange.to : activeRange.from, arrow);
+    if (next < 0) return;
     event.preventDefault();
-    if (event.shiftKey && doc.rowLine[next] >= 0 && doc.rowLine[from] >= 0 && doc.rowFile[next] === doc.rowFile[from]) chooseRow(next, true);
-    focusRow.current = next;
-    reveal(next);
+    const anchor = event.shiftKey ? activeRange.anchor : next;
+    setRange({ ...activeRange, anchor, from: Math.min(anchor, next), to: Math.max(anchor, next) });
+    handle.current?.revealRow(activeRange.path, next);
   };
 
-  const hasRows = doc.length > 0;
-  const width = metrics.width ? `${metrics.width}px` : "100%";
-  const rows: ReactNode[] = [];
-  for (let row = span.start; row < span.end; row++) {
-    const file = doc.rowFile[row], line = doc.rowLine[row], entry = doc.files[file];
-    if (line === FILE_ROW) {
-      rows.push(<div key={`head:${file}`} style={{ width }} className="diff-file-row"><FileHeader file={file} path={entry.path} change={changeOf.get(entry.path)} collapsed={collapsed.has(entry.path)} diff={texts[file] || null} overlay={false} onToggle={toggleFile} t={t} /></div>);
-    } else if (line === NOTICE_ROW) {
-      rows.push(<p key={`notice:${file}`} data-diff-index={row} style={{ width }} className="diff-notice ui-control text-text-muted">{entry.message}</p>);
-    } else {
-      const value = entry.lines[line];
-      const language = languages[file];
-      rows.push(<DiffRow key={`${file}:${line}`} line={value} index={row} t={t} wrap={wrap} commentable={commentable(file)} onChoose={chooseRow} code={!!language}
-        tokens={language ? highlighter.tokensFor(entry.lines, line) : undefined}
-        selected={!!activeRange && rangeFile === file && line >= activeRange.from && line <= activeRange.to}
-        focused={!!focusRows && line >= focusRows.from && line <= focusRows.to}
-        ranges={found.byLine.get(row)} current={currentMatch?.line === row ? currentMatch.start : null} />);
-    }
-  }
-  const stickyFile = doc.headers && fileAtTop >= 0 ? fileAtTop : -1;
-  const stickyEntry = stickyFile >= 0 ? doc.files[stickyFile] : null;
-  useLayoutEffect(() => { if (scroller.current) placeSticky(scroller.current.scrollTop); });
+  const hasRows = entries.some((entry) => entry.fileDiff);
+  const labels = useMemo(() => ({
+    expand: (path: string) => t("diff.expandFile", { path }), collapse: (path: string) => t("diff.collapseFile", { path }), copy: t("Copy diff"),
+    region: singlePath !== undefined ? t("diff.label", { path: singlePath }) : t("Changes"), loading: t("Loading diff…"),
+  }), [t, singlePath]);
+  const initialTop = saved?.scrollTop ?? null;
+  const initialPath = saved ? null : multi ? selectedPath : null;
 
   return <>
     {onComment && hasRows ? <p className="shrink-0 px-3 py-1 ui-micro text-text-muted">{t(coarsePointer() ? "review.commentHintTouch" : "review.commentHint")}</p> : null}
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    <div ref={frame} className="relative flex min-h-0 flex-1 flex-col">
       <AnimatePresence>{find.open && hasRows ? <motion.div key="diff-find" role="search" aria-label={t("diff.find")} className="find-bar" data-diff-find=""
         onKeyDown={event => {
           if (event.nativeEvent.isComposing) return;
@@ -524,23 +297,12 @@ function DiffBody({ root, files, singlePath, singleDiff, changes, selectedPath, 
         <IconButton label={t("diff.findNext")} disabled={!found.matches.length} onClick={() => move(1)}><ChevronDown size={14} /></IconButton>
         <IconButton label={t("diff.findClose")} onClick={closeFind}><X size={14} /></IconButton>
       </motion.div> : null}</AnimatePresence>
-      <div ref={scroller} className="diff-scroller selectable scroll-thin min-h-0 flex-1 overflow-auto" tabIndex={0} role="region" aria-label={singlePath !== undefined ? t("diff.label", { path: singlePath }) : t("Changes")} onScroll={onScroll} onKeyDown={onKeyDown}
-        onPointerUp={event => {
-          if (!onComment || (event.target as Element).closest("button")) return;
-          const selection = window.getSelection();
-          if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
-          const picked = selection.getRangeAt(0);
-          const row = (node: Node) => (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>("[data-diff-index]");
-          const start = row(picked.startContainer), end = row(picked.endContainer);
-          if (start && end && event.currentTarget.contains(start) && event.currentTarget.contains(end)) choose(Number(start.dataset.diffIndex), Number(end.dataset.diffIndex));
-        }}>
-        <div ref={content} className="diff-code relative leading-5" style={{ height: layout.total + 2 * pad, minWidth: wrap ? undefined : `calc(${doc.columns + 2}ch + ${GUTTER}px)` } as CSSProperties}>
-          <span ref={probe} aria-hidden="true" className="diff-probe">0000000000</span>
-          {stickyEntry ? <div ref={sticky} aria-hidden="true" className="diff-file-sticky" style={{ width, visibility: "hidden" }}>
-            <FileHeader file={stickyFile} path={stickyEntry.path} change={changeOf.get(stickyEntry.path)} collapsed={collapsed.has(stickyEntry.path)} diff={null} overlay onToggle={toggleFile} t={t} />
-          </div> : null}
-          <div style={{ transform: `translateY(${pad + layout.offsetOf(span.start)}px)` }}>{rows}</div>
-        </div>
+      <div className="min-h-0 flex-1">
+        {!multi && !hasRows ? <p className="p-3 ui-control text-text-muted">{fallbackMessage}</p>
+          : <Suspense fallback={<p role="status" className="p-3 ui-control text-text-muted">{labels.loading}</p>}>
+            <DiffCode entries={entries} headers={multi} collapsed={collapsed} wrap={wrap} selectable={!!onComment} selection={selection} matches={placed}
+              initialTop={initialTop} initialPath={initialPath} handle={handle} labels={labels} onToggle={toggleFile} onSelect={select} onScroll={onScroll} onKeyDown={onKeyDown} />
+          </Suspense>}
       </div>
     </div>
     {activeRange && onComment ? <CommentForm range={activeRange} onComment={onComment} onClear={clearRange} /> : null}

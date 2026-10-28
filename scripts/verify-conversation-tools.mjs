@@ -23,13 +23,14 @@ try {
     assert.ok(html.includes('data-search-start="0"') && html.includes('data-search-start="14"'), "prose and code matches have the same offsets as search navigation");
     assert.ok(html.includes("&lt;script&gt;") && !html.includes("<script>login</script>"));
     const historical = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m" }));
-    assert.ok(historical.includes(locale === "pt-BR" ? 'aria-label="Selecionar linha antiga 1, nova —"' : 'aria-label="Select old line 1, new line —"'), historical);
+    // Rows are drawn by Pierre in the browser (ADR-169); the server renders the shell with the comment hint for a retained diff.
+    assert.ok(historical.includes("src/login.ts") && historical.includes(locale === "pt-BR" ? "Shift+clique" : "Shift+click"), historical);
     review.expired = true;
     const expired = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m" }));
-    assert.ok(!expired.includes(locale === "pt-BR" ? 'aria-label="Selecionar linha' : 'aria-label="Select old line'), "expired reviews never expose comment actions");
+    assert.ok(!expired.includes(locale === "pt-BR" ? "Shift+clique" : "Shift+click"), "expired reviews never expose comment actions");
     review.expired = false;
   }
-  console.log("Conversation tools: localized search, matching prose/code offsets, escaped content and retained-only diff selection verified.");
+  console.log("Conversation tools: localized search, matching prose/code offsets, escaped content and retained-only diff comment hint verified.");
 } finally {
   if (originalDocument === undefined) delete globalThis.document;
   else globalThis.document = originalDocument;

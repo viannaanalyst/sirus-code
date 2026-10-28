@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DIFF_FIND_LIMIT, findDiffMatches, firstMatchFrom, splitByRanges, stepDiffMatch } from "../src/lib/diff-find.ts";
+import { DIFF_FIND_LIMIT, findDiffMatches, locateRow, searchRows, stepDiffMatch } from "../src/lib/diff-find.ts";
+import { reviewDiffLines } from "../src/lib/diff-comment.ts";
 
 const lines = (...content: string[]) => content.map((text) => ({ content: text }));
 
@@ -22,15 +23,29 @@ test("↑/↓/Enter wrap around the matches", () => {
   assert.equal(stepDiffMatch(2, 3, 1), 0);
   assert.equal(stepDiffMatch(0, 3, -1), 2);
   assert.equal(stepDiffMatch(0, 0, 1), -1);
-  const found = findDiffMatches(lines("x", "y", "x"), "x").matches;
-  assert.equal(firstMatchFrom(found, 1), 1);
-  assert.equal(firstMatchFrom(found, 5), 0);
 });
 
-test("rows split their text around the matches and mark the current one", () => {
-  assert.deepEqual(splitByRanges("a foo b", [[2, 5]], 2), [
-    { text: "a ", match: false, current: false }, { text: "foo", match: true, current: true }, { text: " b", match: false, current: false },
-  ]);
-  assert.deepEqual(splitByRanges("abc", undefined, null), [{ text: "abc", match: false, current: false }]);
-  assert.deepEqual(splitByRanges("", [], null), [{ text: "", match: false, current: false }]);
+const diff = (name: string, ...added: string[]) => `--- a/${name}\n+++ b/${name}\n@@ -1,1 +1,${added.length} @@\n${added.map((text) => `+${text}`).join("\n")}\n`;
+
+test("search rows hold the code as Pierre draws it, never headers or the +/- marker", () => {
+  const files = [{ lines: reviewDiffLines(diff("a.ts", "const a = 1;", "const b = 2;")) }, { lines: reviewDiffLines(diff("b.ts", "let a;")) }];
+  const index = searchRows(files);
+  assert.equal(index.rows.length, 3 + 2 + 3 + 1);
+  // Matching the marker or the file headers finds nothing.
+  assert.equal(findDiffMatches(index.rows, "+").matches.length, 0);
+  assert.equal(findDiffMatches(index.rows, "a.ts").matches.length, 0);
+  const found = findDiffMatches(index.rows, "a");
+  // "const a" (offset 6), "let a" (offset 4): offsets are within the code, after the marker.
+  const first = found.matches.find((match) => index.rows[match.line].content === "const a = 1;");
+  assert.deepEqual(first && { start: first.start, end: first.end }, { start: 6, end: 7 });
+  const last = found.matches.at(-1)!;
+  assert.deepEqual(locateRow(index, last), { file: 1, line: 3 });
+});
+
+test("collapsed files are not searched", () => {
+  const files = [{ lines: reviewDiffLines(diff("a.ts", "needle")), collapsed: true }, { lines: reviewDiffLines(diff("b.ts", "needle")) }];
+  const index = searchRows(files);
+  const found = findDiffMatches(index.rows, "needle");
+  assert.equal(found.matches.length, 1);
+  assert.equal(locateRow(index, found.matches[0]).file, 1);
 });

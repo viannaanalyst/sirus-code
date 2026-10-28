@@ -36,7 +36,6 @@
   .guide-tour-foot { display: flex; align-items: center; gap: 8px; }
 
   /* Anchored diff rows: a bar and a tint drawn over the row's own addition/deletion color. */
-  .diff-guide-focus { background-image: linear-gradient(color-mix(in srgb, var(--info) 14%, transparent), color-mix(in srgb, var(--info) 14%, transparent)); box-shadow: inset 3px 0 0 var(--info); }
 
   .guide-pane { display: flex; flex-direction: column; gap: 12px; }
   .guide-diff { display: flex; height: min(64vh, 620px); min-height: 320px; flex-direction: column; overflow: hidden; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--background-1); }

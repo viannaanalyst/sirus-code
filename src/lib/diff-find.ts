@@ -1,5 +1,6 @@
-// Find in a diff (⌘F inside the diff viewer, ADR-102). Matching runs over every row of the
-// review, mounted or not; navigating scrolls the match into the mounted window (ADR-145).
+// Find in a diff (⌘F inside the diff viewer, ADR-102). Matching runs over our parsed rows of
+// every open file, drawn or not; the viewer scrolls to a match and paints it in Pierre's
+// shadow DOM (diff-find-dom.ts, ADR-169).
 
 /** Bounded so a one-letter query in a huge diff stays cheap to paint. */
 export const DIFF_FIND_LIMIT = 2000;
@@ -8,7 +9,7 @@ export interface DiffMatch { line: number; start: number; end: number }
 export type DiffMatchRange = readonly [start: number, end: number];
 export interface DiffFindResult {
   matches: DiffMatch[];
-  /** Ranges per line, for the rows to highlight; arrays are shared, so memoized rows stay put. */
+  /** Ranges per line, in the order of `matches`. */
   byLine: Map<number, DiffMatchRange[]>;
   truncated: boolean;
 }
@@ -42,23 +43,34 @@ export function stepDiffMatch(current: number, count: number, direction: 1 | -1)
   return (current + direction + count) % count;
 }
 
-/** The first match at or after the line already in view, so typing does not jump backwards. */
-export function firstMatchFrom(matches: readonly DiffMatch[], line: number): number {
-  if (!matches.length) return -1;
-  const index = matches.findIndex((match) => match.line >= line);
-  return index === -1 ? 0 : index;
+/** One searchable file: its parsed rows, unless it is collapsed (matches there would be hidden). */
+export interface DiffSearchFile { lines: readonly { content: string; kind: string }[]; collapsed?: boolean }
+export interface DiffSearchRows {
+  /** Code of every row without its +/-/space marker, as Pierre draws it; header rows are blank and never match. */
+  rows: { content: string }[];
+  /** File and row-within-file of each entry in `rows`. */
+  file: Int32Array;
+  line: Int32Array;
 }
 
-/** Text split around the ranges, for rendering marks; `current` marks the active match. */
-export function splitByRanges(text: string, ranges: readonly DiffMatchRange[] | undefined, current: number | null) {
-  const parts: { text: string; match: boolean; current: boolean }[] = [];
+const BLANK = { content: "" };
+/** All rows of all open files as one list for `findDiffMatches`; `locateRow` maps a match back. */
+export function searchRows(files: readonly DiffSearchFile[]): DiffSearchRows {
+  let total = 0;
+  for (const file of files) if (!file.collapsed) total += file.lines.length;
+  const rows = new Array<{ content: string }>(total), fileOf = new Int32Array(total), lineOf = new Int32Array(total);
   let at = 0;
-  for (const [start, end] of ranges ?? []) {
-    if (start < at || end > text.length) continue;
-    if (start > at) parts.push({ text: text.slice(at, start), match: false, current: false });
-    parts.push({ text: text.slice(start, end), match: true, current: start === current });
-    at = end;
-  }
-  if (at < text.length || !parts.length) parts.push({ text: text.slice(at), match: false, current: false });
-  return parts;
+  files.forEach((file, index) => {
+    if (file.collapsed) return;
+    file.lines.forEach((line, row) => {
+      rows[at] = line.kind === "header" ? BLANK : { content: line.content.slice(1) };
+      fileOf[at] = index; lineOf[at] = row; at++;
+    });
+  });
+  return { rows, file: fileOf, line: lineOf };
+}
+
+/** The file and row of a match found in `searchRows`' list. */
+export function locateRow(index: DiffSearchRows, match: DiffMatch): { file: number; line: number } {
+  return { file: index.file[match.line], line: index.line[match.line] };
 }
