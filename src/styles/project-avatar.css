@@ -17,7 +17,7 @@
   .project-appearance-swatches > button.is-on { outline: 2px solid var(--text-primary); outline-offset: 2px; }
   .project-appearance-swatches > input[type="color"] { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; background: none; cursor: pointer; }
   .project-appearance-swatches > input[type="color"][data-custom] { outline: 2px solid var(--text-primary); outline-offset: 2px; }
-  .project-appearance-options { display: flex; gap: 6px; }
+  .project-appearance-options { display: flex; flex-wrap: wrap; gap: 6px; }
   .project-appearance-options > button { padding: 3px; border-radius: 7px; background: oklch(1 0 0 / 0.04); box-shadow: inset 0 0 0 1px oklch(1 0 0 / 0.06); cursor: pointer; }
   .project-appearance-options > button.is-on { background: var(--accent-muted); box-shadow: inset 0 0 0 1.5px var(--accent); }
   .project-appearance-options > button:focus-visible, .project-appearance-swatches > :focus-visible, .project-appearance-actions > button:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: 1px; }

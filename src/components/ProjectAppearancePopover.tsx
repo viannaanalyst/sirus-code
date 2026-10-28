@@ -3,7 +3,7 @@ import type { Project } from "@/client/types";
 import { ProjectAvatar } from "@/components/ProjectAvatar";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
-import { AVATAR_EYES, AVATAR_MOUTHS, AVATAR_SWATCHES, resolveLook, shuffleLook, type AvatarLook } from "@/lib/project-avatar";
+import { AVATAR_ACCESSORIES, AVATAR_EYES, AVATAR_SWATCHES, resolveLook, shuffleLook, type AvatarLook } from "@/lib/project-avatar";
 import { Popover, PopoverAnchor, PopoverContent } from "@/primitives/Popover";
 import { useAppStore } from "@/store/app-store";
 
@@ -19,7 +19,7 @@ export function avatarAnchor(projectId: string): { getBoundingClientRect: () => 
 }
 
 /**
- * The "Appearance" popover (ADR-175): colour (12 swatches and a free picker), eyes, mouth, cheeks,
+ * The "Appearance" popover (ADR-175): colour (12 swatches and a free picker), accessory, eyes,
  * Shuffle and Reset to default. Changes show at once and are saved to the project a moment later.
  * It stays mounted while it fades out, so `project` must outlive `open`.
  */
@@ -58,25 +58,24 @@ export function ProjectAppearancePopover({ project, open, onOpenChange }: { proj
   return <Popover open={open} onOpenChange={onOpenChange}>
     <PopoverAnchor virtualRef={anchor} />
     <PopoverContent side="bottom" align="start" sideOffset={6} className="project-appearance" aria-label={t("avatar.title")} onOpenAutoFocus={(event) => event.preventDefault()}>
-      <h4 className="project-appearance-head"><ProjectAvatar name={project.name} look={look} animated={false} scale={2} /><span>{project.name}</span></h4>
+      <h4 className="project-appearance-head"><ProjectAvatar name={project.name} look={look} animated={false} size={24} /><span>{project.name}</span></h4>
       <div className="project-appearance-label">{t("avatar.color")}</div>
       <div className="project-appearance-swatches" role="radiogroup" aria-label={t("avatar.color")}>
         {AVATAR_SWATCHES.map((value) => <button key={value} type="button" role="radio" aria-checked={look.color === value} aria-label={value} className={cn(look.color === value && "is-on")} style={{ background: value }} onClick={() => change({ color: value })} />)}
         <input type="color" value={look.color} aria-label={t("avatar.customColor")} title={t("avatar.customColor")} data-custom={swatch ? undefined : ""} onChange={(event) => change({ color: event.target.value.toLowerCase() }, false)} />
       </div>
+      <div className="project-appearance-label">{t("avatar.accessory")}</div>
+      <div className="project-appearance-options" role="radiogroup" aria-label={t("avatar.accessory")}>
+        {AVATAR_ACCESSORIES.map((value) => <button key={value} type="button" role="radio" aria-checked={look.accessory === value} aria-label={t(`avatar.accessory.${value}`)} title={t(`avatar.accessory.${value}`)} className={cn(look.accessory === value && "is-on")} onClick={() => change({ accessory: value })}>
+          <ProjectAvatar name={project.name} look={{ ...look, accessory: value }} animated={false} size={16} />
+        </button>)}
+      </div>
       <div className="project-appearance-label">{t("avatar.eyes")}</div>
       <div className="project-appearance-options" role="radiogroup" aria-label={t("avatar.eyes")}>
         {AVATAR_EYES.map((value) => <button key={value} type="button" role="radio" aria-checked={look.eyes === value} aria-label={t(`avatar.eyes.${value}`)} title={t(`avatar.eyes.${value}`)} className={cn(look.eyes === value && "is-on")} onClick={() => change({ eyes: value })}>
-          <ProjectAvatar name={project.name} look={{ ...look, eyes: value }} animated={false} scale={2} />
+          <ProjectAvatar name={project.name} look={{ ...look, eyes: value }} animated={false} size={16} />
         </button>)}
       </div>
-      <div className="project-appearance-label">{t("avatar.mouth")}</div>
-      <div className="project-appearance-options" role="radiogroup" aria-label={t("avatar.mouth")}>
-        {AVATAR_MOUTHS.map((value) => <button key={value} type="button" role="radio" aria-checked={look.mouth === value} aria-label={t(`avatar.mouth.${value}`)} title={t(`avatar.mouth.${value}`)} className={cn(look.mouth === value && "is-on")} onClick={() => change({ mouth: value })}>
-          <ProjectAvatar name={project.name} look={{ ...look, mouth: value }} animated={false} scale={2} />
-        </button>)}
-      </div>
-      <label className="project-appearance-check"><input type="checkbox" checked={look.cheeks} onChange={(event) => change({ cheeks: event.target.checked })} /><span>{t("avatar.cheeks")}</span></label>
       <div className="project-appearance-actions">
         <button type="button" onClick={() => { const next = shuffleLook(); setLook(next); save(next, true); }}>{t("avatar.shuffle")}</button>
         <button type="button" onClick={() => { setLook(resolveLook(project.name, null)); save(null, true); }}>{t("avatar.reset")}</button>

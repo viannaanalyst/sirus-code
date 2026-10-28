@@ -107,12 +107,43 @@ layout simply does not have them.
   the `projectAutoIcons` setting are removed. `Project.look` is still stored and ignored, and folder
   icons keep `pick_look_image` and `validate_look`.
 
+## v2: 16x16 avatars with accessories
+
+The owner approved a second look (mockup "Balões v2"). It replaces the 12x12 sprite; the scheduler,
+states and performance rules above are unchanged.
+
+- **Sprite.** 16x16 plus the spare bob row (`AVATAR_SIZE = 16`, `AVATAR_ROWS = 17`). A rounded
+  block body (`MASK`) with the speech-bubble tail at the bottom left, an outline in the ramp's
+  `edge`, an "extruded" darker `side` (2 px on the right, 1 px at the bottom), a lit top-left
+  corner that fades through a checker into the `base`, and a three-pixel catch-light. Ramp roles are
+  now `edge | side | base | light | shine | eye | eyeShade` (plus the violet notch pair).
+- **Eyes.** `bars` (default: tall white bars with a shade pixel below), `dots`, `sleepy`, `happy`.
+  No mouth and no cheeks. Blinks close the eyes, the working look-around shifts them by the gaze,
+  and waiting shows the happy eyes and the violet corner notch.
+- **Accessories.** `none | tophat | crown | antenna | bow | flower | beanie | headset | scarf`,
+  drawn over the body as coloured rectangles. No pure black: dark parts are graphite with a lit top
+  edge so they read on the dark sidebar. Defaults come from the name hash (colour from
+  `hash % 12`, accessory from `(hash >>> 5) % 9`; eyes default to `bars`).
+- **Sizes.** The canvas backing store is `16k` by `17k` device pixels with an integer `k` and its
+  CSS size is exactly `16k / dpr` by `17k / dpr`, so each sprite pixel is `k` whole device pixels.
+  `ProjectIcon` snaps a glyph box to 16, 24 or 32 CSS px (up to 18 px, up to 28 px, larger), which
+  is `k = 2, 3, 4` at 2x (24 px is 48 device px, 3 per sprite pixel). At 1x the same boxes give
+  `k = 1, 1, 2`. Slots of 12 to 17 px (hover card, tabs, phone rows) now show the 16 px sprite.
+- **Appearance popover.** Colour swatches and the free picker, an accessory row and an eyes row
+  (small avatars of the current look with that option), Shuffle and Reset to default.
+- **Persistence.** `Project.appearance?: { color, eyes, accessory? }`. `accessory` is optional: when
+  absent the name default applies. Rows saved before v2 keep loading: Rust maps the old eyes on
+  deserialize (`dot`, `round` to `dots`; `wide` to `bars`; `sleepy` unchanged) and skips the old
+  `mouth` and `cheeks` (`deny_unknown_fields` was dropped for this). The UI maps the same names
+  (`LEGACY_EYES`), so an unmigrated value never breaks a render. `sidebar::set_appearance` still
+  refuses unknown eyes and accessories, and rewrites the row in the v2 shape on the next save.
+
 ## Consequences
 
 - Every project is recognisable at a glance with no setup, and the sidebar top is quieter.
 - Avatars cost nothing at rest: no timers, no listeners. Working projects cost one 5 fps timer in
   total, however many are listed.
-- The avatar scale is a whole number, so glyph boxes snap to 12, 24 or 36 px; 13 to 17 px slots
+- (v1, superseded by v2) The avatar scale is a whole number, so glyph boxes snap to 12, 24 or 36 px; 13 to 17 px slots
   (hover card, tabs, phone rows) show the 12 px sprite.
 - A project's icon can no longer be a logo or an emoji. This is the owner's choice.
 - Old `look` data lingers unused until the follow-up prune.

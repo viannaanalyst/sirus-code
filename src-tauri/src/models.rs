@@ -108,15 +108,18 @@ pub struct Project {
     pub scripts: crate::project_scripts::ProjectScripts,
 }
 
-/// A project's avatar choices (ADR-175). Colour is `#rrggbb`; `eyes` and `mouth` are names from
-/// `sidebar::EYES` and `sidebar::MOUTHS`.
+/// A project's avatar choices (ADR-175, v2). Colour is `#rrggbb`; `eyes` and `accessory` are names
+/// from `sidebar::EYES` and `sidebar::ACCESSORIES`. Rows saved before v2 still load: old eye names
+/// become their v2 equivalent, `mouth` and `cheeks` are ignored (unknown fields are skipped), and a
+/// missing `accessory` means the default taken from the project's name.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
 pub struct ProjectAppearance {
     pub color: String,
+    #[serde(deserialize_with = "crate::sidebar::deserialize_eyes")]
     pub eyes: String,
-    pub mouth: String,
-    pub cheeks: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accessory: Option<String>,
 }
 
 /// A folder in the project switcher that groups projects (2026-10-09). Display only:

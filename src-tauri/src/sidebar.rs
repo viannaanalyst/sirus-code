@@ -3,17 +3,40 @@ use std::collections::HashSet;
 use crate::error::{Error, Result};
 use crate::models::{AppData, AppSettings, Project, ProjectAppearance, Session};
 
-/// Eye and mouth styles the avatar draws (ADR-175); anything else is refused.
-pub const EYES: [&str; 4] = ["dot", "round", "wide", "sleepy"];
-pub const MOUTHS: [&str; 3] = ["smile", "o", "flat"];
+/// Eye styles and accessories the avatar draws (ADR-175, v2); anything else is refused.
+pub const EYES: [&str; 4] = ["bars", "dots", "sleepy", "happy"];
+pub const ACCESSORIES: [&str; 9] = [
+    "none", "tophat", "crown", "antenna", "bow", "flower", "beanie", "headset", "scarf",
+];
 
-/// Checks an avatar choice: `#rrggbb` colour and known eyes and mouth.
+/// The v2 eyes for a name saved before v2 (`dot` and `round` became `dots`, `wide` became `bars`).
+fn current_eyes(name: &str) -> &str {
+    match name {
+        "dot" | "round" => "dots",
+        "wide" => "bars",
+        other => other,
+    }
+}
+
+/// Reads `eyes`, mapping old names so appearances saved before v2 keep loading.
+pub fn deserialize_eyes<'de, D>(deserializer: D) -> std::result::Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let name = <String as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(current_eyes(&name).to_string())
+}
+
+/// Checks an avatar choice: `#rrggbb` colour, known eyes and, when given, a known accessory.
 pub fn validate_appearance(appearance: &ProjectAppearance) -> Result<()> {
     let hex = appearance.color.strip_prefix('#').unwrap_or("");
     if hex.len() != 6
         || !hex.chars().all(|c| c.is_ascii_hexdigit())
         || !EYES.contains(&appearance.eyes.as_str())
-        || !MOUTHS.contains(&appearance.mouth.as_str())
+        || appearance
+            .accessory
+            .as_deref()
+            .is_some_and(|name| !ACCESSORIES.contains(&name))
     {
         return Err(Error::new("invalid", "invalid project appearance"));
     }
@@ -331,9 +354,8 @@ mod tests {
         let mut data = fixture();
         let good = || ProjectAppearance {
             color: "#8B7CF6".into(),
-            eyes: "round".into(),
-            mouth: "o".into(),
-            cheeks: true,
+            eyes: "dots".into(),
+            accessory: Some("crown".into()),
         };
         assert!(set_appearance(&mut data, "foreign", Some(good())).is_err());
         for bad in [
@@ -354,7 +376,11 @@ mod tests {
                 ..good()
             },
             ProjectAppearance {
-                mouth: "".into(),
+                eyes: "".into(),
+                ..good()
+            },
+            ProjectAppearance {
+                accessory: Some("cape".into()),
                 ..good()
             },
         ] {
@@ -366,15 +392,62 @@ mod tests {
         // It survives a JSON round trip (state.db keeps the project as JSON) and old data loads.
         let restored: AppData =
             serde_json::from_slice(&serde_json::to_vec(&data).unwrap()).unwrap();
-        assert_eq!(
-            restored.projects[0].appearance.as_ref().unwrap().eyes,
-            "round"
-        );
+        let kept = restored.projects[0].appearance.as_ref().unwrap();
+        assert_eq!(kept.eyes, "dots");
+        assert_eq!(kept.accessory.as_deref(), Some("crown"));
         assert!(fixture().projects[0].appearance.is_none());
+        // No accessory is valid (the name's default applies) and is not written out.
+        let plain = ProjectAppearance {
+            accessory: None,
+            ..good()
+        };
+        assert!(set_appearance(&mut data, "p", Some(plain.clone())).is_ok());
+        assert!(!serde_json::to_string(&plain).unwrap().contains("accessory"));
+        for accessory in ACCESSORIES {
+            let named = ProjectAppearance {
+                accessory: Some(accessory.into()),
+                ..good()
+            };
+            assert!(validate_appearance(&named).is_ok(), "{accessory}");
+        }
+        for eyes in EYES {
+            let named = ProjectAppearance {
+                eyes: eyes.into(),
+                ..good()
+            };
+            assert!(validate_appearance(&named).is_ok(), "{eyes}");
+        }
         assert!(set_appearance(&mut data, "p", None)
             .unwrap()
             .appearance
             .is_none());
+    }
+
+    #[test]
+    fn appearance_saved_before_v2_still_loads() {
+        // The v1 shape: old eye names plus `mouth` and `cheeks`, no accessory.
+        let load = |json: &str| -> ProjectAppearance { serde_json::from_str(json).unwrap() };
+        for (old, now) in [
+            ("dot", "dots"),
+            ("round", "dots"),
+            ("wide", "bars"),
+            ("sleepy", "sleepy"),
+        ] {
+            let appearance = load(&format!(
+                r##"{{"color":"#5b8def","eyes":"{old}","mouth":"smile","cheeks":true}}"##
+            ));
+            assert_eq!(appearance.eyes, now, "{old}");
+            assert_eq!(appearance.accessory, None);
+            assert!(validate_appearance(&appearance).is_ok());
+            let written = serde_json::to_string(&appearance).unwrap();
+            assert!(!written.contains("mouth") && !written.contains("cheeks"));
+        }
+        // The new fields round trip.
+        let appearance = load(r##"{"color":"#fff000","eyes":"happy","accessory":"scarf"}"##);
+        assert_eq!(appearance.eyes, "happy");
+        assert_eq!(appearance.accessory.as_deref(), Some("scarf"));
+        // An unknown eye name is kept as is, so validation (on save) refuses it.
+        assert!(validate_appearance(&load(r##"{"color":"#fff000","eyes":"laser"}"##)).is_err());
     }
 
     #[test]

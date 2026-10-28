@@ -149,7 +149,7 @@ test("with animations off every avatar settles on one static frame and nothing r
   assert.equal(clock.pointerListening, false);
   clock.advance(10_000);
   clock.move(500, 500);
-  assert.deepEqual(worker.poses.at(-1), { state: "working", blink: false, gaze: 0, bob: false, talk: false });
+  assert.deepEqual(worker.poses.at(-1), { state: "working", blink: false, gaze: 0, bob: false });
   assert.equal(idler.poses.at(-1)?.blink, false);
   assert.equal(waiter.poses.at(-1)?.state, "waiting");
 });
