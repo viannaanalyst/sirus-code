@@ -3,6 +3,7 @@ import type { AgentProviderId, ApprovalMode, ScheduledTask, ScheduledTaskInput, 
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Check, Clock3, Copy, ExternalLink, Link, MoreHorizontal, Pencil, Play, Plus, RefreshCw, Trash2, X } from "@/components/icons/phosphor";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
+import { IconSwap } from "@/components/icons/IconSwap";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";
 import { PROVIDERS, providerById } from "@/lib/provider-registry";
@@ -233,7 +234,7 @@ function WebhookFields({ form, patch, taskId, wasWebhook, shown }: { form: Sched
         {shown.urls.map((url, index) => <div key={url} className="scheduled-webhook-url">
           <span className="scheduled-chip">{t(index === 0 && shown.public ? "scheduled.webhookPublic" : "scheduled.webhookLocal")}</span>
           <code className="min-w-0 flex-1 truncate font-mono ui-caption" title={url}>{url}</code>
-          <InteractiveButton variant="toolbar" onClick={() => copy(url)} aria-label={`${t("scheduled.webhookCopy")} · ${url}`}>{copied === url ? <Check size={13} /> : <Copy size={13} />}{t(copied === url ? "scheduled.webhookCopied" : "scheduled.webhookCopy")}</InteractiveButton>
+          <InteractiveButton variant="toolbar" onClick={() => copy(url)} aria-label={`${t("scheduled.webhookCopy")} · ${url}`}><IconSwap id={copied === url ? "copied" : "copy"}>{copied === url ? <Check size={13} /> : <Copy size={13} />}</IconSwap>{t(copied === url ? "scheduled.webhookCopied" : "scheduled.webhookCopy")}</InteractiveButton>
         </div>)}
         <p className="ui-caption text-text-muted">{t("scheduled.webhookUrlOnce")}</p>
         {!shown.public ? <p className="ui-caption text-text-muted">{t("scheduled.webhookNoPublic")}</p> : null}

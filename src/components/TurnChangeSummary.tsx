@@ -3,6 +3,7 @@ import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, FileDiff, Folder, 
 import { buildDiffTree, diffTotals, type DiffTreeNode } from "@/lib/diff-tree";
 import type { TurnReview } from "@/client/types";
 import { FileGlyph } from "@/components/FileGlyph";
+import { IconSwap } from "@/components/icons/IconSwap";
 import { useTranslation } from "@/i18n/use-translation";
 import { useAppStore } from "@/store/app-store";
 import { UndoTurnButton } from "@/components/UndoTurnButton";
@@ -87,7 +88,7 @@ export function TurnChangeSummary({ sessionId, messageId, review: full, compact 
         </button> : null}
         {!review.expired ? <UndoTurnButton sessionId={sessionId} messageId={messageId} review={review} className="changed-files-action" /> : null}
         {hasFolders ? <button type="button" aria-label={t(folders.all ? "review.collapseFolders" : "review.expandFolders")} title={t(folders.all ? "review.collapseFolders" : "review.expandFolders")} onClick={() => saveFolders({ all: !folders.all, overrides: {} })} className="changed-files-action">
-          {folders.all ? <ChevronsDownUp size={13} aria-hidden="true" /> : <ChevronsUpDown size={13} aria-hidden="true" />}
+          <IconSwap id={folders.all ? "collapse" : "expand"}>{folders.all ? <ChevronsDownUp size={13} aria-hidden="true" /> : <ChevronsUpDown size={13} aria-hidden="true" />}</IconSwap>
         </button> : null}
         <button type="button" onClick={() => openReview(sessionId, messageId, review.files[0]?.path)} className="changed-files-action"><FileDiff size={13} aria-hidden="true" />{t("review.openDiff")}</button>
       </div>

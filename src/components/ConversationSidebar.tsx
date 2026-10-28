@@ -83,7 +83,7 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const toolButton = "conversation-sidebar-tool size-7 min-h-0 rounded-[7px] p-0 text-text-muted";
   const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={14} strokeWidth={1.7} /></IconButton>;
   const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={14} strokeWidth={1.7} /></IconButton>;
-  const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} /></IconButton>;
+  const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><PanelLeft size={14} strokeWidth={1.7} fill="currentColor" /></IconButton>;
   const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={toolButton}><SquarePen size={15} /></IconButton>;
 
   return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} style={{ width }}>

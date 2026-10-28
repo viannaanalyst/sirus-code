@@ -13,6 +13,7 @@ import { SIDEBAR_MIN_WIDTH, SIDEBAR_RAIL_WIDTH } from "@/lib/sidebar-panels";
 import { clampConversationListWidth } from "@/lib/conversation-list";
 import { closeTab as closeTabRule, finishedUnseen, moveTab as moveTabRule, openTab as openTabRule, TAB_LIMIT, visibleTabSessions } from "@/lib/header-tabs";
 import { retainActivityNotifications } from "@/lib/notifications";
+import { agentCueFor, isViewingNotice, playAgentCue } from "@/lib/agent-sounds";
 import { isSnoozed } from "@/lib/snooze";
 import { isAuxiliarySession, pullAskContext, pullAskKey } from "@/lib/pull-ask";
 import { moveItem } from "@/lib/queue-order";
@@ -2901,6 +2902,11 @@ export async function bindRealtime() {
   const unlisteners: (() => void)[] = [];
   try {
     unlisteners.push(await client.onActivityNotification((notice) => {
+      // Sounds (Settings → Notifications, off by default) play once per new notice, never for the conversation in view.
+      const before = useAppStore.getState();
+      const cue = agentCueFor(notice.kind);
+      if (cue && before.settings.agentSounds && before.sessions.some(session => session.id === notice.sessionId)
+        && !before.activityNotifications.some(item => item.id === notice.id) && !isViewingNotice(before, notice, document.hasFocus())) playAgentCue(cue);
       useAppStore.setState((state) => {
         const pull = notice.kind === "pullRequest";
         if ((!pull && !state.sessions.some(session => session.id === notice.sessionId)) || state.activityNotifications.some(item => item.id === notice.id)) return {};

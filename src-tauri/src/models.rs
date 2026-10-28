@@ -673,6 +673,10 @@ pub struct AppSettings {
     /// Chat behavior (beta, off by default): an idle Claude conversation with a large context
     /// compacts shortly before its prompt cache expires (ADR-157).
     pub compact_idle_before_cache_expiry: bool,
+    /// Sounds (off by default): a soft chime when an agent finishes a turn or needs approval or an answer.
+    /// The window plays it, and never for the conversation in view while the window is focused.
+    #[serde(default)]
+    pub agent_sounds: bool,
     /// Providers → Advanced: how many finished conversations keep their agent running for quick
     /// follow-ups (ADR-108). 16 means all of them (the default).
     #[serde(default = "default_keep_idle_agents")]
@@ -911,6 +915,7 @@ impl Default for AppSettings {
             show_session_tabs: true,
             continue_interrupted_sessions: true,
             compact_idle_before_cache_expiry: false,
+            agent_sounds: false,
             keep_idle_agents: 16,
             browser_recording_fps: 30,
             browser_recording_keys: true,

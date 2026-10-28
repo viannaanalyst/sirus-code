@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Clock3 as Clock, Copy, Globe, Laptop, RefreshCw, Smartphone } from "@/components/icons/phosphor";
+import { IconSwap } from "@/components/icons/IconSwap";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import type { RemoteDevice, RemotePairing } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
@@ -115,7 +116,7 @@ export function PairDeviceDialog({ open, onOpenChange, url, joined, clearJoined,
           </div>
         </div> : <div className="pair-card">
           <div className="pair-address"><small>{t("connections.address")}</small><code>{url}</code>
-            <InteractiveButton variant="toolbar" aria-label={t("connections.copy")} onClick={() => copy(url)}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</InteractiveButton></div>
+            <InteractiveButton variant="toolbar" aria-label={t("connections.copy")} onClick={() => copy(url)}><IconSwap id={copied ? "copied" : "copy"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</IconSwap></InteractiveButton></div>
           <div className="pair-bigcode" aria-label={t("connections.codeLabel", { code })}>{code.split("").map((digit, index) => <span key={index} data-gap={index === 3 || undefined}>{digit}</span>)}</div>
           <p className="pair-note">{t("connections.browserNote")}</p>
         </div>}
@@ -123,7 +124,7 @@ export function PairDeviceDialog({ open, onOpenChange, url, joined, clearJoined,
         <div className="pair-foot">
           <span className="pair-timer" aria-live="polite"><Clock size={13} aria-hidden="true" />{countdown ? t("connections.expiresIn", { time: countdown }) : busy ? t("connections.making") : ""}</span>
           <span className="pair-actions">
-            {way === "app" && pairing ? <InteractiveButton variant="secondary" glow={false} onClick={() => copy(appLink)}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{t("connections.copyLink")}</InteractiveButton> : null}
+            {way === "app" && pairing ? <InteractiveButton variant="secondary" glow={false} onClick={() => copy(appLink)}><IconSwap id={copied ? "copied" : "copy"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</IconSwap>{t("connections.copyLink")}</InteractiveButton> : null}
             <InteractiveButton variant="secondary" glow={false} disabled={busy} onClick={() => void fresh()}><RefreshCw size={14} aria-hidden="true" />{t("connections.newCode")}</InteractiveButton>
           </span>
         </div>

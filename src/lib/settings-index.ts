@@ -444,6 +444,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "notifications",
+  "title": "Sounds",
+  "description": null,
+  "group": "Activity alerts"
+ },
+ {
+  "section": "notifications",
   "title": "Pull requests",
   "description": "When someone else opens a pull request or asks for your review in a saved project's repository. Checked when Sirus Code opens and when you come back to it.",
   "group": "Events and sounds"

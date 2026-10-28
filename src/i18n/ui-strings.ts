@@ -72,6 +72,8 @@ const pairs: Record<string, string> = {
   "Notification sounds": "Sons de notificação",
   "Play the selected cue. Uses your system output volume.": "Toque o som escolhido. Usa o volume de saída do sistema.",
   "Notify while app is in focus": "Avisar com o app em foco",
+  "Sounds": "Sons",
+  "A soft chime when an agent finishes a turn or needs you. Not played for the conversation you are viewing.": "Um toque suave quando um agente termina um turno ou precisa de você. Não toca para a conversa que você está vendo.",
   "Also show system alerts and play sounds while Sirus Code is active.": "Mostre notificações e toque sons também enquanto o Sirus Code estiver ativo.",
   "Events and sounds": "Eventos e sons",
   "Permission requests": "Pedidos de permissão",

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, LoaderCircle, Pencil, QrCode, RefreshCw, ShieldCheck, Smartphone } from "@/components/icons/phosphor";
+import { IconSwap } from "@/components/icons/IconSwap";
 import { client as activeClient, localClient } from "@/client";
 
 /** Remote access is this Mac's own, whatever computer the window works on (ADR-133). */
@@ -81,7 +82,7 @@ export function ConnectionsSettings({ locale }: { locale: string }) {
           ? <SettingsRow title={t("connections.address")} description={t("connections.addressHelp")}>
             <code className="connections-address ui-caption">{url}</code>
             <InteractiveButton variant="toolbar" aria-label={t("connections.copy")} onClick={() => copy(url)}>
-              {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}{copied ? t("connections.copied") : null}
+              <IconSwap id={copied ? "copied" : "copy"}>{copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}</IconSwap>{copied ? t("connections.copied") : null}
             </InteractiveButton>
           </SettingsRow>
           : <SettingsRow title={t("connections.noTailscale")} description={t("connections.noTailscaleHelp")}>
