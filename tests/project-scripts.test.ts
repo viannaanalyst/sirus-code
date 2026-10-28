@@ -1,8 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatDiskSize, visibleScriptRun, worktreeReleaseText } from "../src/lib/project-scripts.ts";
-import { mergeSettings } from "../src/lib/settings.ts";
-import { projectScriptsEnglish, projectScriptsPortuguese } from "../src/i18n/project-scripts-strings.ts";
+import { formatDiskSize, visibleScriptRun } from "../src/lib/project-scripts.ts";
 import type { ScriptRun } from "../src/client/types.ts";
 
 const run = (id: string, status: ScriptRun["status"], startedAt: string): ScriptRun => ({ id, kind: id === "s" ? "setup" : "finish", status, startedAt, output: "" });
@@ -21,17 +19,3 @@ test("disk sizes use binary units", () => {
   assert.equal(formatDiskSize(3.2 * 1024 ** 3), "3.2 GB");
 });
 
-test("archive release outcomes map to localized reasons", () => {
-  assert.deepEqual(worktreeReleaseText({ outcome: "released", branch: "sirus/a" }), { title: "worktreeRelease.released", description: "worktreeRelease.releasedHelp", values: { branch: "sirus/a" } });
-  const kept = worktreeReleaseText({ outcome: "kept", reason: "unmerged", branch: "sirus/a" });
-  assert.equal(kept.description, "worktreeRelease.unmerged");
-  for (const reason of ["uncommitted", "unmerged", "unverified", "inUse", "running", "failed"]) {
-    assert.ok(projectScriptsEnglish[`worktreeRelease.${reason}`], reason);
-    assert.ok(projectScriptsPortuguese[`worktreeRelease.${reason}`], reason);
-  }
-});
-
-test("releasing worktrees on archive is opt-in", () => {
-  assert.equal(mergeSettings(null).releaseWorktreeOnArchive, false);
-  assert.equal(mergeSettings({ releaseWorktreeOnArchive: true }).releaseWorktreeOnArchive, true);
-});

@@ -19,14 +19,13 @@ export function InboxPage() {
   const t = useTranslation();
   const sessions = useAppStore(selectListedSessions);
   const unseen = useAppStore((state) => state.unseenSessionIds);
-  const archived = useAppStore((state) => state.settings.archivedSessionIds);
   const pulls = useAppStore((state) => state.githubInbox["pullRequest:open"]?.data);
   const projects = useAppStore((state) => state.projects);
   useEffect(() => {
     const store = useAppStore.getState();
     if (!store.githubInbox["pullRequest:open"]) void store.loadGithubInbox("pullRequest", "open");
   }, []);
-  const groups = useMemo(() => inboxGroups(sessions, unseen, archived, pulls), [sessions, unseen, archived, pulls]);
+  const groups = useMemo(() => inboxGroups(sessions, unseen, pulls), [sessions, unseen, pulls]);
   const empty = needsYouCount(groups) + groups.running.length + groups.review.length + groups.failed.length === 0;
   const open = (session: Session) => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); };
   const row = (session: Session) => {

@@ -1309,7 +1309,6 @@ pub(crate) fn create_session_locked(
         auto_continuations: 0,
         snoozed_until: None,
         snooze_reminder_at: None,
-        auto_archive_disabled: false,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,

@@ -11,7 +11,7 @@ import { sessionSortKeys, type SessionOrderOptions, type SessionSortKey } from "
 export type ConversationListOrder = AppSettings["sidebarListOrder"];
 
 /** The settings the list reads (so the sidebar can select just these fields). */
-export type ConversationListSettings = Pick<AppSettings, "archivedSessionIds" | "pinnedSessionIds" | "sidebarAttentionFirst" | "sidebarThreadSortOrder">;
+export type ConversationListSettings = Pick<AppSettings, "pinnedSessionIds" | "sidebarAttentionFirst" | "sidebarThreadSortOrder">;
 
 export type ConversationListItem =
   | { kind: "folder"; key: string; project: Project; count: number; status: TabStatus; open: boolean }
@@ -39,14 +39,13 @@ export function clampConversationListWidth(width: number): number {
 }
 
 /**
- * Conversations the list shows: those of a saved project that are not archived, snoozed,
+ * Conversations the list shows: those of a saved project that are not snoozed,
  * a side chat or an Ask conversation, and not a team worker whose coordinator is listed
  * (workers are reached from the coordinator's Team panel).
  */
-export function listedConversations(projects: readonly Project[], sessions: readonly Session[], settings: Pick<AppSettings, "archivedSessionIds">): Session[] {
+export function listedConversations(projects: readonly Project[], sessions: readonly Session[]): Session[] {
   const owned = new Set(projects.map(project => project.id));
-  const archived = new Set(settings.archivedSessionIds);
-  const shown = sessions.filter(session => owned.has(session.projectId) && !archived.has(session.id) && !isAuxiliarySession(session) && !isSnoozed(session));
+  const shown = sessions.filter(session => owned.has(session.projectId) && !isAuxiliarySession(session) && !isSnoozed(session));
   const ids = new Set(shown.map(session => session.id));
   return shown.filter(session => !session.teamWorker || !ids.has(session.teamWorker.coordinatorSessionId));
 }
@@ -79,7 +78,7 @@ export interface ConversationListOptions extends SessionOrderOptions {
  */
 export function conversationListItems(projects: readonly Project[], sessions: readonly Session[], settings: ConversationListSettings, order: ConversationListOrder, options: ConversationListOptions = {}): ConversationListItem[] {
   const byId = new Map(projects.map(project => [project.id, project]));
-  const listed = listedConversations(projects, sessions, settings);
+  const listed = listedConversations(projects, sessions);
   const live = conversationSortKeys(listed, settings, options);
   const keyOf = (id: string) => options.held?.get(id) ?? live.get(id) ?? { rank: 0, time: 0 };
   const pinOrder = new Map(settings.pinnedSessionIds.map((id, index) => [id, index]));

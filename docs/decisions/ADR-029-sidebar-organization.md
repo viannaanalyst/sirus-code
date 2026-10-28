@@ -1,7 +1,7 @@
 # ADR-029: Sidebar organization as owner-validated settings
 
 Date: 2026-10-01
-Status: Accepted
+Status: Accepted; the archiving it describes is superseded by [ADR-173](ADR-173-conversation-archive-removed.md).
 
 ## Context
 

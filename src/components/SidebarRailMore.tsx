@@ -15,7 +15,7 @@ import { useAppStore } from "@/store/app-store";
 export function RailGlyph({ id, active = false, size = 20 }: { id: RailItem; active?: boolean; size?: number }): ReactNode {
   const fill = active ? "currentColor" : "none";
   switch (id) {
-    case "home": case "archived": return <SidebarNavigationIcon section={id} filled={active} size={size} />;
+    case "home": return <SidebarNavigationIcon filled={active} size={size} />;
     case "inbox": return <Inbox size={size} fill={fill} />;
     case "tasks": return <ListTodo size={size} fill={fill} />;
     case "pulls": return <GitPullRequest size={size} fill={fill} />;

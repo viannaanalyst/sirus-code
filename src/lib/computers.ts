@@ -110,12 +110,11 @@ export function mergeComputerProjects(
     if (computer.id === activeId) continue;
     const summary = summaries[computer.id];
     if (!summary) continue;
-    const archived = new Set(summary.archivedSessionIds);
     const status = computerStatus(computer.id, activeId, connection[computer.id]);
     const projects = [...summary.projects].sort((a, b) => b.lastOpenedAt.localeCompare(a.lastOpenedAt));
     for (const project of projects) {
       const sessions = summary.sessions
-        .filter((session) => session.projectId === project.id && !archived.has(session.id) && !isAuxiliarySession(session) && !session.snoozedUntil)
+        .filter((session) => session.projectId === project.id && !isAuxiliarySession(session) && !session.snoozedUntil)
         .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
       const member = { computerId: computer.id, label: label(computer), kind: computer.kind, status, project, sessions };
       const match = here.get(key(project.name));

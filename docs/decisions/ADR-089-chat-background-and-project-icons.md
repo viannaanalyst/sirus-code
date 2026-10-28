@@ -1,6 +1,6 @@
 # ADR-089: Chat background, project icon picker and rail pages
 
-**Status:** Accepted
+**Status:** Accepted; the archiving it describes is superseded by [ADR-173](ADR-173-conversation-archive-removed.md).
 
 ## Context
 

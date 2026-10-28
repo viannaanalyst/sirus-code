@@ -36,10 +36,9 @@ export function moveTab(tabs: readonly string[], sessionId: string, targetId: st
   return next;
 }
 
-/** Only owned, unarchived sessions of the project are shown. */
-export function visibleTabSessions(tabs: readonly string[], sessions: readonly Session[], projectId: string, archived: readonly string[]): Session[] {
-  const hidden = new Set(archived);
-  return tabs.flatMap(id => sessions.find(session => session.id === id && session.projectId === projectId && !hidden.has(id)) ?? []);
+/** Only owned sessions of the project are shown. */
+export function visibleTabSessions(tabs: readonly string[], sessions: readonly Session[], projectId: string): Session[] {
+  return tabs.flatMap(id => sessions.find(session => session.id === id && session.projectId === projectId) ?? []);
 }
 
 export function tabStatus(session: Session, unseen: ReadonlySet<string>, computerWaiting: ReadonlySet<string> = new Set()): TabStatus {

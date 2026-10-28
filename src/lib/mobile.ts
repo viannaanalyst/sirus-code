@@ -15,7 +15,6 @@ export type MobileScreen =
   | { kind: "choose-project" }
   /** Clone from GitHub or type a folder path (ADR-131); `then: "new"` starts a conversation in it. */
   | { kind: "add-project"; then: "new" | "back" }
-  | { kind: "archived" }
   | { kind: "snoozed" }
   | { kind: "git"; sessionId: string }
   | { kind: "files"; sessionId: string; /** A workspace path to open first (a file link in a reply). */ open?: string; dir?: boolean }
@@ -26,10 +25,9 @@ export type MobileScreen =
 /** Phones get the phone app; a tablet or a wide window keeps the Mac layout. */
 export const MOBILE_QUERY = "(max-width: 820px)";
 
-/** Sessions the person sees in lists: no side chats, Astro chats or archived ones. */
-export function listedSessions(sessions: readonly Session[], archived: readonly string[]): Session[] {
-  const hidden = new Set(archived);
-  return sessions.filter((session) => !isAuxiliarySession(session) && !hidden.has(session.id));
+/** Sessions the person sees in lists: no side chats or Astro chats. */
+export function listedSessions(sessions: readonly Session[]): Session[] {
+  return sessions.filter((session) => !isAuxiliarySession(session));
 }
 
 /** Waiting on an approval, a question or the person's next message. */

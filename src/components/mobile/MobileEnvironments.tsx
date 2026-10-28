@@ -42,21 +42,20 @@ export interface MergedHomeData extends MergedHome {
 export function useMergedHome(): MergedHomeData {
   const sessions = useAppStore(selectSessionsMeta);
   const projects = useAppStore((state) => state.projects);
-  const archived = useAppStore((state) => state.settings.archivedSessionIds);
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds);
   const { environments, storeId, summaries, pending } = useEnvironments(useShallow((state) => ({ environments: state.environments, storeId: state.storeId, summaries: state.summaries, pending: state.pending })));
   return useMemo(() => {
     const paired = environments.filter((item) => item.token);
-    if (paired.length < 2) return { sessions, projects, archivedSessionIds: archived, pinnedSessionIds: pinned, environmentOf: new Map(), multiple: false, storeId };
+    if (paired.length < 2) return { sessions, projects, pinnedSessionIds: pinned, environmentOf: new Map(), multiple: false, storeId };
     const cached = summaries[storeId];
     const live = sessions.length || projects.length || !cached
-      ? { id: storeId, sessions, projects, archivedSessionIds: archived, pinnedSessionIds: pinned }
+      ? { id: storeId, sessions, projects, pinnedSessionIds: pinned }
       : { id: storeId, ...cached };
     // Changes waiting for a computer already show in its rows (ADR-132 addendum).
     const others = paired.filter((item) => item.id !== storeId && summaries[item.id])
       .map((item) => ({ id: item.id, ...summaryWithPending(summaries[item.id], pending.filter((action) => action.environmentId === item.id)) }));
     return { ...mergeEnvironments(live, others), multiple: true, storeId };
-  }, [sessions, projects, archived, pinned, environments, storeId, summaries, pending]);
+  }, [sessions, projects, pinned, environments, storeId, summaries, pending]);
 }
 
 /** Opens a conversation or a new one on whichever computer it belongs to, switching first. */
@@ -119,7 +118,7 @@ export function EnvironmentStatus() {
   </div>;
 }
 
-/** All / one chip per computer above Archived and Snoozed; nothing with one computer. */
+/** All / one chip per computer above Snoozed; nothing with one computer. */
 export function EnvironmentFilterBar({ value, onChange }: { value: EnvironmentFilter; onChange: (value: EnvironmentFilter) => void }) {
   const t = useTranslation();
   const label = useEnvironmentLabel();

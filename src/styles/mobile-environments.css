@@ -1,5 +1,5 @@
 /* One phone app, several computers (ADR-132): the row marker, Home's reconnecting line, pending
-   marks, the Archived and Snoozed filter and the Connections dialogs. Rows, dialogs and inputs come from mobile.css; tokens from index.css. */
+   marks, the Snoozed filter and the Connections dialogs. Rows, dialogs and inputs come from mobile.css; tokens from index.css. */
 @layer components {
   .mobile-env-marker { display: inline-flex; flex-shrink: 0; align-items: center; gap: 3px; max-width: 38%; color: var(--text-muted); font-size: 11px; white-space: nowrap; }
   .mobile-env-marker > span:not(.sr-only) { overflow: hidden; text-overflow: ellipsis; }
@@ -10,7 +10,7 @@
   .mobile-env-status-line > svg { flex-shrink: 0; }
   /* A change waiting for the row's computer: a quiet clock before the time. */
   .mobile-row-pending { display: inline-flex; flex-shrink: 0; align-items: center; color: var(--text-muted); }
-  /* Archived and Snoozed: which computer's conversations show. */
+  /* Snoozed: which computer's conversations show. */
   .mobile-env-filter { display: flex; gap: 6px; margin: 0 4px 12px; overflow-x: auto; scrollbar-width: none; }
   .mobile-env-filter button { flex-shrink: 0; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 13px; transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .mobile-env-filter button[aria-pressed="true"] { background: var(--background-3); color: var(--text-primary); border-color: var(--border-default); }

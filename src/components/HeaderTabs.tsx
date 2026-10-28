@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Archive, Check, ChevronDown, ChevronRight, Clock3, Folder, GitBranch, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
+import { Check, ChevronDown, ChevronRight, Clock3, Folder, GitBranch, FolderPlus, Moon, Pencil, Pin, PinOff, Search, SquarePen, SquareTerminal, Trash2, X, XCircle, ArrowRight, RotateCcw, Undo2 } from "@/components/icons/phosphor";
 import type { Project, ProjectFolder, Session } from "@/client/types";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ComputerBadge, SwitcherElsewhereProjects, SwitcherRemoteSessions, memberKey, useMergedComputers } from "@/components/ComputerSwitcher";
@@ -93,7 +93,7 @@ function useWaitingSets() {
 /**
  * Project title in the header (ADR-092). It opens the switcher that replaced the sidebar:
  * projects on the left with live status and changes, and on the right every session of
- * the project under the pointer (pinned first), with New session, pin and archive. The
+ * the project under the pointer (pinned first), with New session and pin. The
  * search matches project names and session titles; right-click a project for its actions.
  */
 export function ProjectSwitcher() {
@@ -172,8 +172,7 @@ export function ProjectSwitcher() {
   const pinned = new Set(settings.pinnedSessionIds);
   const shown = focused ? ordered.filter(session => session.projectId === focused.id && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
   // Snoozed conversations wait under their own group at the end of the column (ADR-103).
-  const archived = new Set(settings.archivedSessionIds);
-  const snoozedHere = focused ? snoozed.filter(session => session.projectId === focused.id && !archived.has(session.id) && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
+  const snoozedHere = focused ? snoozed.filter(session => session.projectId === focused.id && (!needle || focused.name.toLocaleLowerCase().includes(needle) || titleMatch(session))) : [];
   const snoozeFrom = (session: Session) => { const anchor = sessionAnchor(`[data-session-row="${session.id}"]`); if (anchor) setSnoozing({ session, anchor }); };
   // A waiting session in another project is never invisible.
   const elsewhere = projects.some(row => row.id !== project?.id && projectStatus(row.id, sessions, unseen, computer) === "waiting");
@@ -300,7 +299,6 @@ export function ProjectSwitcher() {
             return <ContextMenu key={session.id} activation="context-only" label={t("session.actions")} items={[
               { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, onSelect: () => { close(); setSessionAction({ session, kind: "rename" }); } },
               { id: "pin", label: t(isPinned ? "Unpin session" : "Pin session"), icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onSelect: () => togglePin(session.id) },
-              { id: "archive", label: t("Archive session"), icon: <Archive size={15} />, onSelect: () => { close(); useAppStore.getState().requestArchive(session.id); } },
               snoozeItem(t, session, () => snoozeFrom(session)),
               ...moveItems(session).map(item => ({ ...item, onSelect: () => { close(); item.onSelect(); } })),
               { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: active, onSelect: () => { close(); setSessionAction({ session, kind: "delete" }); } },
@@ -363,7 +361,6 @@ export function HeaderTabs() {
   const t = useTranslation();
   const project = useAppStore(selectCurrentProject);
   const sessions = useAppStore(selectListedSessions);
-  const archived = useAppStore(state => state.settings.archivedSessionIds);
   const tabIds = useAppStore(state => (project ? state.openTabsByProject[project.id] : undefined));
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   const mainView = useAppStore(state => state.mainView);
@@ -375,7 +372,7 @@ export function HeaderTabs() {
   const switcher = listSidebar ? null : <><ProjectSwitcher /><span className="header-tabs-separator" aria-hidden="true" /></>;
   const { unseen, computer } = useWaitingSets();
   const runningTerminals = useAppStore(state => state.runningTerminals);
-  const tabs = useMemo(() => (project ? visibleTabSessions(tabIds ?? [], sessions, project.id, archived) : []), [project, tabIds, sessions, archived]);
+  const tabs = useMemo(() => (project ? visibleTabSessions(tabIds ?? [], sessions, project.id) : []), [project, tabIds, sessions]);
   // Only the tabs that fit stay inline (the dock or a narrow window shrinks the
   // header); the active one always stays visible and the rest go to "+N".
   const list = useRef<HTMLDivElement>(null);

@@ -1,7 +1,7 @@
 import { REMOTE_TOKEN_KEY } from "@/client/remote-pairing";
 import type { RemoteConnection } from "@/client/remote-transport";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { archiveSidebarSession, toggleSidebarId } from "@/lib/sidebar-layout";
+import { toggleSidebarId } from "@/lib/sidebar-layout";
 import { isAuxiliarySession } from "@/lib/pull-ask";
 
 /**
@@ -33,7 +33,6 @@ export interface HostIdentity { id?: string; hostName?: string; kind?: string }
 export interface EnvironmentSummary {
   sessions: Session[];
   projects: Project[];
-  archivedSessionIds: string[];
   pinnedSessionIds: string[];
   updatedAt: number;
 }
@@ -155,7 +154,7 @@ export function chooseActive(environments: readonly Environment[], stored: strin
 }
 
 /** A computer's data, trimmed for the Home of another computer and the offline cache. */
-export function summarize(data: { sessions: readonly Session[]; projects: readonly Project[]; archivedSessionIds?: readonly string[]; pinnedSessionIds?: readonly string[] }, now = Date.now()): EnvironmentSummary {
+export function summarize(data: { sessions: readonly Session[]; projects: readonly Project[]; pinnedSessionIds?: readonly string[] }, now = Date.now()): EnvironmentSummary {
   const sessions = data.sessions
     .filter((session) => !isAuxiliarySession(session))
     .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt))
@@ -165,7 +164,6 @@ export function summarize(data: { sessions: readonly Session[]; projects: readon
   return {
     sessions,
     projects: [...data.projects],
-    archivedSessionIds: (data.archivedSessionIds ?? []).filter((id) => ids.has(id)),
     pinnedSessionIds: (data.pinnedSessionIds ?? []).filter((id) => ids.has(id)),
     updatedAt: now,
   };
@@ -186,7 +184,6 @@ export function applySessionUpdate(summary: EnvironmentSummary, session: Session
 export interface MergedHome {
   sessions: Session[];
   projects: Project[];
-  archivedSessionIds: string[];
   pinnedSessionIds: string[];
   /** Which computer each conversation and project belongs to. */
   environmentOf: Map<string, string>;
@@ -201,7 +198,6 @@ export function mergeEnvironments(active: { id: string } & Omit<EnvironmentSumma
   const environmentOf = new Map<string, string>();
   const sessions: Session[] = [];
   const projects: Project[] = [];
-  const archived: string[] = [];
   const pinned: string[] = [];
   for (const source of [active, ...others]) {
     for (const project of source.projects) {
@@ -214,10 +210,9 @@ export function mergeEnvironments(active: { id: string } & Omit<EnvironmentSumma
       environmentOf.set(session.id, source.id);
       sessions.push(session);
     }
-    archived.push(...source.archivedSessionIds);
     pinned.push(...source.pinnedSessionIds);
   }
-  return { sessions, projects, archivedSessionIds: archived, pinnedSessionIds: pinned, environmentOf };
+  return { sessions, projects, pinnedSessionIds: pinned, environmentOf };
 }
 
 export function readSummaries(storage: Pick<Storage, "getItem">): Record<string, EnvironmentSummary> {
@@ -230,7 +225,6 @@ export function readSummaries(storage: Pick<Storage, "getItem">): Record<string,
       result[id] = {
         sessions: item.sessions,
         projects: item.projects,
-        archivedSessionIds: Array.isArray(item.archivedSessionIds) ? item.archivedSessionIds : [],
         pinnedSessionIds: Array.isArray(item.pinnedSessionIds) ? item.pinnedSessionIds : [],
         updatedAt: typeof item.updatedAt === "number" ? item.updatedAt : 0,
       };
@@ -271,20 +265,18 @@ export function unreachableRowMenu<T extends { id: string; disabled?: boolean }>
 }
 
 /** The settings-backed row actions, applied to the settings of the computer the row lives on. */
-export type RowSettingsAction = "archive" | "unarchive" | "pin" | "unpin";
+export type RowSettingsAction = "pin" | "unpin";
 
 export function applyRowSettingsAction(settings: AppSettings, action: RowSettingsAction, sessionId: string): AppSettings {
   switch (action) {
-    case "archive": return settings.archivedSessionIds.includes(sessionId) ? settings : archiveSidebarSession(settings, sessionId);
-    case "unarchive": return { ...settings, archivedSessionIds: settings.archivedSessionIds.filter((id) => id !== sessionId) };
     case "pin": return settings.pinnedSessionIds.includes(sessionId) ? settings : { ...settings, pinnedSessionIds: toggleSidebarId(settings.pinnedSessionIds, sessionId) };
     case "unpin": return { ...settings, pinnedSessionIds: settings.pinnedSessionIds.filter((id) => id !== sessionId) };
   }
 }
 
-/** A summary after its computer's settings changed (archive and pin lists). */
-export function summaryWithSettings(summary: EnvironmentSummary, settings: Pick<AppSettings, "archivedSessionIds" | "pinnedSessionIds">, now = Date.now()): EnvironmentSummary {
-  return { ...summary, archivedSessionIds: [...(settings.archivedSessionIds ?? [])], pinnedSessionIds: [...(settings.pinnedSessionIds ?? [])], updatedAt: now };
+/** A summary after its computer's settings changed (pin list). */
+export function summaryWithSettings(summary: EnvironmentSummary, settings: Pick<AppSettings, "pinnedSessionIds">, now = Date.now()): EnvironmentSummary {
+  return { ...summary, pinnedSessionIds: [...(settings.pinnedSessionIds ?? [])], updatedAt: now };
 }
 
 /** A summary without a deleted conversation (and its side chats, which never are in it). */
@@ -292,18 +284,16 @@ export function summaryWithoutSession(summary: EnvironmentSummary, sessionId: st
   return {
     ...summary,
     sessions: summary.sessions.filter((session) => session.id !== sessionId),
-    archivedSessionIds: summary.archivedSessionIds.filter((id) => id !== sessionId),
     pinnedSessionIds: summary.pinnedSessionIds.filter((id) => id !== sessionId),
     updatedAt: now,
   };
 }
 
-/** A row action as any computer takes it (ADR-132): settings lists, snooze, rename, auto-archive, delete. */
+/** A row action as any computer takes it (ADR-132): settings lists, snooze, rename, delete. */
 export type RowAction =
   | { type: RowSettingsAction }
   | { type: "snooze"; until: string | null }
   | { type: "rename"; title: string }
-  | { type: "auto-archive"; enabled: boolean }
   | { type: "delete"; removeWorktree: boolean };
 
 /**
@@ -322,14 +312,13 @@ export const PENDING_ACTIONS_KEY = "sirus.environments.pending";
 /** Actions kept waiting at most; the oldest go first when there are more. */
 export const PENDING_LIMIT = 100;
 
-const ROW_ACTION_TYPES = new Set(["archive", "unarchive", "pin", "unpin", "snooze", "rename", "auto-archive", "delete"]);
+const ROW_ACTION_TYPES = new Set(["pin", "unpin", "snooze", "rename", "delete"]);
 
 function validRowAction(value: unknown): value is RowAction {
   const action = value as { type?: unknown; until?: unknown; title?: unknown; enabled?: unknown; removeWorktree?: unknown } | null;
   if (!action || typeof action.type !== "string" || !ROW_ACTION_TYPES.has(action.type)) return false;
   if (action.type === "snooze") return action.until === null || typeof action.until === "string";
   if (action.type === "rename") return typeof action.title === "string" && !!action.title.trim();
-  if (action.type === "auto-archive") return typeof action.enabled === "boolean";
   if (action.type === "delete") return typeof action.removeWorktree === "boolean";
   return true;
 }
@@ -352,7 +341,6 @@ export function writePendingActions(storage: Store, actions: readonly PendingRow
 /** Which earlier waiting action a new one replaces: the same kind of change to the same conversation. */
 function slot(action: RowAction): string {
   switch (action.type) {
-    case "archive": case "unarchive": return "archive";
     case "pin": case "unpin": return "pin";
     default: return action.type;
   }
@@ -360,7 +348,7 @@ function slot(action: RowAction): string {
 
 /**
  * Queues an action for a computer that cannot be reached. A later change of the same kind
- * replaces the earlier one (archive then restore leaves only the restore); a delete replaces
+ * replaces the earlier one (pin then unpin leaves only the unpin); a delete replaces
  * everything waiting for that conversation.
  */
 export function queueRowAction(actions: readonly PendingRowAction[], next: Omit<PendingRowAction, "id" | "createdAt">, now = Date.now()): PendingRowAction[] {
@@ -376,21 +364,20 @@ export function pendingSessions(actions: readonly PendingRowAction[], environmen
 }
 
 /**
- * How a waiting action shows in a summary until its computer takes it: archived, pinned,
+ * How a waiting action shows in a summary until its computer takes it: pinned,
  * snoozed, renamed or gone, so the lists already look as the person left them.
  */
 export function summaryWithPending(summary: EnvironmentSummary, actions: readonly PendingRowAction[]): EnvironmentSummary {
   let next = summary;
   for (const { action, sessionId } of actions) {
     switch (action.type) {
-      case "archive": case "unarchive": case "pin": case "unpin": {
-        const settings = applyRowSettingsAction({ archivedSessionIds: next.archivedSessionIds, pinnedSessionIds: next.pinnedSessionIds } as AppSettings, action.type, sessionId);
-        next = { ...next, archivedSessionIds: settings.archivedSessionIds, pinnedSessionIds: settings.pinnedSessionIds };
+      case "pin": case "unpin": {
+        const settings = applyRowSettingsAction({ pinnedSessionIds: next.pinnedSessionIds } as AppSettings, action.type, sessionId);
+        next = { ...next, pinnedSessionIds: settings.pinnedSessionIds };
         break;
       }
       case "snooze": next = { ...next, sessions: next.sessions.map((session) => session.id === sessionId ? { ...session, snoozedUntil: action.until } : session) }; break;
       case "rename": next = { ...next, sessions: next.sessions.map((session) => session.id === sessionId ? { ...session, title: action.title.trim() } : session) }; break;
-      case "auto-archive": next = { ...next, sessions: next.sessions.map((session) => session.id === sessionId ? { ...session, autoArchiveDisabled: !action.enabled } : session) }; break;
       case "delete": next = summaryWithoutSession(next, sessionId, next.updatedAt); break;
     }
   }
@@ -418,7 +405,7 @@ export function unreachableEnvironments(environments: readonly Environment[], co
     .map((environment) => ({ environment, connecting: connection[environment.id] === "connecting" }));
 }
 
-/** The Archived and Snoozed pages' computer filter: every computer, or one. */
+/** The Snoozed page's computer filter: every computer, or one. */
 export type EnvironmentFilter = "all" | string;
 
 export function filterByEnvironment<T extends { id: string }>(items: readonly T[], environmentOf: ReadonlyMap<string, string>, filter: EnvironmentFilter, storeId: string): T[] {

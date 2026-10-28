@@ -33,7 +33,6 @@ export const defaultSettings: AppSettings = {
   githubLinksInApp: true,
   linkOpenTarget: "app",
   diffWordWrap: false,
-  confirmArchive: false,
   confirmTerminalClose: true,
   windowSnapEnabled: false,
   windowSnapShortcut: "controlOptionCommandS",
@@ -53,7 +52,6 @@ export const defaultSettings: AppSettings = {
   chatBackgroundEmptyVisibility: 24,
   chatBackgroundSessionVisibility: 24,
   worktreeBasePath: null,
-  releaseWorktreeOnArchive: false,
   defaultSessionWorkspace: "ask",
   confirmCloseRunning: true,
   restorePreviousSessions: true,
@@ -113,7 +111,6 @@ export const defaultSettings: AppSettings = {
   pinnedProjectIds: [],
   projectFolders: [],
   pinnedSessionIds: [],
-  archivedSessionIds: [],
   connectors: [],
   environmentPanelDefaultOpen: false,
   showEnvironmentUsage: true,
@@ -132,8 +129,6 @@ export const defaultSettings: AppSettings = {
   locale: "pt-BR",
   customShortcuts: {},
   defaultApproval: "full",
-  autoArchiveMerged: false,
-  autoArchiveInactiveDays: null,
   gitAutoPull: false,
   worktreesFromOrigin: true,
   responseStreaming: "token",
@@ -163,15 +158,6 @@ export const WORKSPACE_CHOICES: readonly { mode: AppSettings["defaultSessionWork
   { mode: "worktree", label: "New worktree", help: "settings.workspace.worktreeHelp" },
 ];
 
-/** Longest inactivity Auto-archive accepts, in days; 3 when first turned on. */
-export const AUTO_ARCHIVE_MAX_DAYS = 90;
-export const AUTO_ARCHIVE_DEFAULT_DAYS = 3;
-
-/** A typed or stepped number of inactive days, kept within 1–90 (3 when not a number). */
-export function clampArchiveDays(value: number): number {
-  return Number.isFinite(value) ? Math.min(AUTO_ARCHIVE_MAX_DAYS, Math.max(1, Math.round(value))) : AUTO_ARCHIVE_DEFAULT_DAYS;
-}
-
 export function mergeSettings(value: Partial<AppSettings> | null | undefined): AppSettings {
   return {
     ...defaultSettings,
@@ -198,8 +184,6 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     githubLinksInApp: value?.githubLinksInApp !== false,
     linkOpenTarget: value?.linkOpenTarget === "system" ? "system" : "app",
     diffWordWrap: value?.diffWordWrap === true,
-    confirmArchive: value?.confirmArchive === true,
-    releaseWorktreeOnArchive: value?.releaseWorktreeOnArchive === true,
     confirmTerminalClose: value?.confirmTerminalClose !== false,
     windowSnapEnabled: value?.windowSnapEnabled === true,
     windowSnapShortcut: (["controlOptionCommandS", "optionShiftS", "controlShiftS"] as const).find((id) => id === value?.windowSnapShortcut) ?? "controlOptionCommandS",
@@ -242,7 +226,6 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     pinnedProjectIds: sidebarIds(value?.pinnedProjectIds),
     projectFolders: projectFolders(value?.projectFolders),
     pinnedSessionIds: sidebarIds(value?.pinnedSessionIds),
-    archivedSessionIds: sidebarIds(value?.archivedSessionIds),
     connectors: normalizeConnectors(value?.connectors),
     gitConfirmDestructive: true,
     composerLineSpeed: value?.composerLineSpeed === "smooth" || value?.composerLineSpeed === "fast" ? value.composerLineSpeed : "slow",
@@ -271,8 +254,6 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     locale: value?.locale === "en" ? "en" : "pt-BR",
     customShortcuts: sanitizeShortcuts(value?.customShortcuts),
     defaultApproval: value?.defaultApproval === "ask" || value?.defaultApproval === "auto" ? value.defaultApproval : "full",
-    autoArchiveMerged: value?.autoArchiveMerged === true,
-    autoArchiveInactiveDays: typeof value?.autoArchiveInactiveDays === "number" ? boundedInteger(value.autoArchiveInactiveDays, 1, AUTO_ARCHIVE_MAX_DAYS, AUTO_ARCHIVE_DEFAULT_DAYS) : null,
     gitAutoPull: value?.gitAutoPull === true,
     worktreesFromOrigin: value?.worktreesFromOrigin !== false,
     responseStreaming: value?.responseStreaming === "turn" || value?.responseStreaming === "paragraph" ? value.responseStreaming : "token",
@@ -421,9 +402,9 @@ function boundedInteger(value: unknown, min: number, max: number, fallback: numb
 }
 function booleanPreference(value: unknown, fallback: boolean): boolean { return typeof value === "boolean" ? value : fallback; }
 
-/** Chat behavior's Agent behavior and Auto-archive rows (ADR-130), restored with the page. */
-export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess", "autoArchiveMerged", "autoArchiveInactiveDays"] as const satisfies readonly (keyof AppSettings)[];
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "compactIdleBeforeCacheExpiry", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmArchive", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
+/** Chat behavior's Agent behavior rows, restored with the page. */
+export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "compactIdleBeforeCacheExpiry", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {

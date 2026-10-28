@@ -32,21 +32,16 @@ test("row actions run on the store for the active computer and through the other
 });
 
 test("an unreachable computer's row menu only copies the id and arranges the phone's list", () => {
-  const items = rowMenuItems({ place: "home", pinned: false, active: false, autoArchiveDisabled: false, order: "updated_at" });
+  const items = rowMenuItems({ place: "home", pinned: false, active: false, order: "updated_at" });
   const menu = unreachableRowMenu(items);
   assert.deepEqual(menu.map((item) => item.id), items.map((item) => item.id));
   assert.deepEqual(menu.filter((item) => !item.disabled).map((item) => item.id), ["copy-id", "arrange"]);
   // The submenus stay as they were (disabled items cannot open them).
-  assert.deepEqual(menu.find((item) => item.id === "auto-archive")?.submenu, items.find((item) => item.id === "auto-archive")?.submenu);
+  assert.deepEqual(menu.find((item) => item.id === "arrange")?.submenu, items.find((item) => item.id === "arrange")?.submenu);
 });
 
-test("archive and pin change the settings of the row's own computer", () => {
-  const theirs = { ...defaultSettings, archivedSessionIds: ["old"], pinnedSessionIds: ["s1", "s2"] };
-  const archived = applyRowSettingsAction(theirs, "archive", "s1");
-  assert.deepEqual(archived.archivedSessionIds, ["s1", "old"]);
-  assert.deepEqual(archived.pinnedSessionIds, ["s2"], "archiving unpins");
-  assert.equal(applyRowSettingsAction(archived, "archive", "s1"), archived, "archiving twice does not restore");
-  assert.deepEqual(applyRowSettingsAction(archived, "unarchive", "s1").archivedSessionIds, ["old"]);
+test("pin and unpin change the settings of the row's own computer", () => {
+  const theirs = { ...defaultSettings, pinnedSessionIds: ["s1", "s2"] };
   assert.deepEqual(applyRowSettingsAction(theirs, "pin", "s3").pinnedSessionIds, ["s3", "s1", "s2"]);
   assert.equal(applyRowSettingsAction(theirs, "pin", "s1"), theirs, "pinning twice does not unpin");
   assert.deepEqual(applyRowSettingsAction(theirs, "unpin", "s1").pinnedSessionIds, ["s2"]);
@@ -54,10 +49,10 @@ test("archive and pin change the settings of the row's own computer", () => {
 });
 
 test("a computer's summary follows its saved settings and deletions", () => {
-  const summary = summarize({ sessions: [session("s1"), session("s2")], projects: [], archivedSessionIds: [], pinnedSessionIds: ["s2"] }, 1);
-  const saved = summaryWithSettings(summary, { archivedSessionIds: ["s1"], pinnedSessionIds: [] }, 2);
-  assert.deepEqual([saved.archivedSessionIds, saved.pinnedSessionIds, saved.updatedAt], [["s1"], [], 2]);
-  const removed = summaryWithoutSession({ ...summary, archivedSessionIds: ["s2"] }, "s2", 3);
+  const summary = summarize({ sessions: [session("s1"), session("s2")], projects: [], pinnedSessionIds: ["s2"] }, 1);
+  const saved = summaryWithSettings(summary, { pinnedSessionIds: ["s1"] }, 2);
+  assert.deepEqual([saved.pinnedSessionIds, saved.updatedAt], [["s1"], 2]);
+  const removed = summaryWithoutSession(summary, "s2", 3);
   assert.deepEqual(removed.sessions.map((item) => item.id), ["s1"]);
-  assert.deepEqual([removed.archivedSessionIds, removed.pinnedSessionIds, removed.updatedAt], [[], [], 3]);
+  assert.deepEqual([removed.pinnedSessionIds, removed.updatedAt], [[], 3]);
 });

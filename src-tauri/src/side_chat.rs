@@ -75,7 +75,6 @@ fn open(state: &AppState, parent_id: &str) -> Result<serde_json::Value> {
         auto_continuations: 0,
         snoozed_until: None,
         snooze_reminder_at: None,
-        auto_archive_disabled: false,
         goal: None,
         pinned_message_ids: vec![],
         fork_origin: None,

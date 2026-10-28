@@ -13,7 +13,7 @@ try {
     messages: [{ id: `${id}-m`, sessionId: id, role: "agent", content: "", createdAt: at, streaming: true, activity: { provider: agent, model: null, startedAt: Date.parse(at), endedAt: null, waitingSince: null, pausedMs: 0, status, items: [], truncated: false } }], lastError: null });
   const render = () => renderToString(createElement(TooltipProvider, null, createElement(WorkingPanel, { now: Date.parse("2026-10-08T00:01:00Z") })));
   for (const locale of ["pt-BR", "en"]) {
-    snapshot.settings = { ...snapshot.settings, locale, showWorkingPanel: true, archivedSessionIds: [] };
+    snapshot.settings = { ...snapshot.settings, locale, showWorkingPanel: true };
     snapshot.sessions = [session("one", "running", "claude", "2026-10-08T00:00:00Z")];
     assert.equal(render(), "", "one session in flight shows nothing");
     snapshot.sessions = [session("a", "running", "claude", "2026-10-08T00:00:10Z"), session("b", "waiting", "codex", "2026-10-08T00:00:30Z"), session("c", "idle", "codex", "2026-10-08T00:00:00Z")];

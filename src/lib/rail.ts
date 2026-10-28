@@ -1,10 +1,10 @@
 /** Customizable rail items (ADR-052). Settings stays fixed at the bottom. */
-export const RAIL_ITEMS = ["home", "inbox", "tasks", "archived", "pulls"] as const;
+export const RAIL_ITEMS = ["home", "inbox", "tasks", "pulls"] as const;
 export type RailItem = (typeof RAIL_ITEMS)[number];
 /** Main views that are pages of their own (the rail highlights only that item). */
-export const PAGE_ITEMS = ["inbox", "tasks", "archived", "pulls"] as const;
+export const PAGE_ITEMS = ["inbox", "tasks", "pulls"] as const;
 export const RAIL_LABELS: Record<RailItem, string> = {
-  home: "Home", inbox: "inbox.title", tasks: "tasks.title", archived: "Archived sessions",
+  home: "Home", inbox: "inbox.title", tasks: "tasks.title",
   pulls: "pulls.title",
 };
 

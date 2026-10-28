@@ -51,16 +51,14 @@ test("Haptics are a no-op where vibrate is missing or refused", () => {
 
 test("The row menu follows its order and the row's place", () => {
   const ids = (input: Parameters<typeof rowMenuItems>[0]) => rowMenuItems(input).map((item) => item.id);
-  const home = { place: "home" as const, pinned: false, active: false, autoArchiveDisabled: false, order: "updated_at" as const };
-  assert.deepEqual(ids(home), ["copy-id", "archive", "arrange", "pin", "rename", "auto-archive", "delete"]);
-  assert.deepEqual(ids({ ...home, place: "archived" }), ["copy-id", "unarchive", "rename", "auto-archive", "delete"]);
-  assert.deepEqual(ids({ ...home, place: "snoozed", pinned: true }), ["copy-id", "return", "rename", "auto-archive", "delete"]);
-  assert.deepEqual(ids({ ...home, place: "list", pinned: true }), ["copy-id", "archive", "unpin", "rename", "auto-archive", "delete"]);
-  const active = rowMenuItems({ ...home, active: true, autoArchiveDisabled: true, order: "created_at" });
-  assert.equal(active.find((item) => item.id === "archive")?.disabled, true);
+  const home = { place: "home" as const, pinned: false, active: false, order: "updated_at" as const };
+  assert.deepEqual(ids(home), ["copy-id", "arrange", "pin", "rename", "delete"]);
+  assert.deepEqual(ids({ ...home, place: "snoozed", pinned: true }), ["copy-id", "return", "rename", "delete"]);
+  assert.deepEqual(ids({ ...home, place: "list", pinned: true }), ["copy-id", "unpin", "rename", "delete"]);
+  const active = rowMenuItems({ ...home, active: true, order: "created_at" });
+  assert.equal(active.find((item) => item.id === "delete")?.disabled, true);
   assert.equal(active.find((item) => item.id === "delete")?.destructive, true);
   assert.deepEqual(active.find((item) => item.id === "arrange")?.submenu, [{ id: "updated_at", checked: false }, { id: "created_at", checked: true }]);
-  assert.deepEqual(active.find((item) => item.id === "auto-archive")?.submenu, [{ id: "enabled", checked: false }, { id: "disabled", checked: true }]);
 });
 
 test("The menu opens under the row, flips above near the bottom, and stays on screen", () => {

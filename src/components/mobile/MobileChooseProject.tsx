@@ -24,7 +24,7 @@ export function MobileChooseProject({ navigation }: { navigation: MobileNavigati
   const label = useEnvironmentLabel();
   const order = usePhonePrefs((state) => state.prefs.projectOrder);
   const [query, setQuery] = useState("");
-  const ordered = useMemo(() => projectGroups(merged.projects, listedSessions(merged.sessions, merged.archivedSessionIds), order).map((group) => group.project), [merged, order]);
+  const ordered = useMemo(() => projectGroups(merged.projects, listedSessions(merged.sessions), order).map((group) => group.project), [merged, order]);
   const shown = useMemo(() => searchProjects(ordered, query), [ordered, query]);
   const sections = useMemo(() => {
     if (!merged.multiple) return [{ id: merged.storeId, projects: shown }];

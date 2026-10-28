@@ -2,42 +2,35 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Project, Session } from "../src/client/types.ts";
 import { mergeSettings } from "../src/lib/settings.ts";
-import { archiveSidebarSession, pruneSidebarSettings, sidebarGroups, moveSidebarProject, toggleSidebarId } from "../src/lib/sidebar-layout.ts";
+import { pruneSidebarSettings, sidebarGroups, moveSidebarProject, toggleSidebarId } from "../src/lib/sidebar-layout.ts";
 
 const projects: Project[] = ["a", "b"].map(id => ({ id, name: id, path: `/fixture/${id}`, addedAt: "time", lastOpenedAt: "time" }));
 const session = (id: string, projectId = "a"): Session => ({ id, title: id, projectId, agent: "codex", status: "running", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: "main", isolated: false }, messages: [], lastError: null });
 
-test("pins span projects exactly once and archives do not alter native execution", () => {
+test("pins span projects exactly once and do not alter native execution", () => {
   const sessions = [session("one"), session("two", "b"), session("three"), session("foreign", "missing")];
-  const settings = mergeSettings({ pinnedProjectIds: ["b"], pinnedSessionIds: ["two", "one", "three"], archivedSessionIds: ["three"] });
+  const settings = mergeSettings({ pinnedProjectIds: ["b"], pinnedSessionIds: ["two", "one", "three"] });
   const groups = sidebarGroups(projects, sessions, settings);
   assert.deepEqual(groups.projects.map(row => row.id), ["b", "a"]);
-  assert.deepEqual(groups.pinned.map(row => row.id), ["two", "one"]);
+  assert.deepEqual(groups.pinned.map(row => row.id), ["two", "one", "three"]);
   assert.deepEqual(groups.nested, []);
-  assert.deepEqual(groups.archived.map(row => row.id), ["three"]);
   assert.ok(sessions.every(row => row.status === "running"));
   assert.deepEqual(projects.map(row => row.id), ["a", "b"]);
 });
 
-test("unpin returns a session to its own project and archive restore is reversible", () => {
+test("unpin returns a session to its own project", () => {
   const sessions = [session("one"), session("two", "b")];
   const settings = mergeSettings({ pinnedSessionIds: ["one"] });
   const unpinned = { ...settings, pinnedSessionIds: toggleSidebarId(settings.pinnedSessionIds, "one") };
   assert.deepEqual(sidebarGroups(projects, sessions, unpinned).nested, sessions);
-  const archived = archiveSidebarSession(settings, "one");
-  assert.deepEqual(archived.pinnedSessionIds, []);
-  assert.deepEqual(sidebarGroups(projects, sessions, archived).archived, [sessions[0]]);
-  const restored = archiveSidebarSession(archived, "one");
-  assert.deepEqual(sidebarGroups(projects, sessions, restored).nested, sessions);
   assert.deepEqual(settings.pinnedSessionIds, ["one"]);
 });
 
 test("removed projects and sessions cannot retain sidebar references", () => {
-  const settings = mergeSettings({ pinnedProjectIds: ["a", "b"], pinnedSessionIds: ["one", "missing"], archivedSessionIds: ["two", "missing"] });
+  const settings = mergeSettings({ pinnedProjectIds: ["a", "b"], pinnedSessionIds: ["one", "two", "missing"] });
   const pruned = pruneSidebarSettings(settings, [projects[1]], [session("two", "b")]);
   assert.deepEqual(pruned.pinnedProjectIds, ["b"]);
-  assert.deepEqual(pruned.pinnedSessionIds, []);
-  assert.deepEqual(pruned.archivedSessionIds, ["two"]);
+  assert.deepEqual(pruned.pinnedSessionIds, ["two"]);
   assert.deepEqual(mergeSettings({}).pinnedSessionIds, []);
 });
 

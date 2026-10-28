@@ -57,11 +57,10 @@ export function orderSidebarProjects(projects: readonly Project[], settings: Pic
 }
 
 export function sidebarGroups(projects: readonly Project[], sessions: readonly Session[], settings: AppSettings, options: SessionOrderOptions = {}) {
-  const archivedIds = new Set(settings.archivedSessionIds);
   const pinnedIds = new Set(settings.pinnedSessionIds);
   const sessionOrder = new Map(settings.pinnedSessionIds.map((id, index) => [id, index]));
   const owned = new Set(projects.map((project) => project.id));
-  const visible = sessions.filter((session) => owned.has(session.projectId) && !archivedIds.has(session.id));
+  const visible = sessions.filter((session) => owned.has(session.projectId));
   const liveKeys = sessionSortKeys(sessions, settings, options);
   const keyOf = (id: string) => options.held?.get(id) ?? liveKeys.get(id) ?? { rank: 0, time: 0 };
   const originalSessionOrder = new Map(sessions.map((row, index) => [row.id, index]));
@@ -71,7 +70,6 @@ export function sidebarGroups(projects: readonly Project[], sessions: readonly S
     projects: orderSidebarProjects(projects, settings),
     pinned: visible.filter((session) => pinnedIds.has(session.id)).sort((a, b) => (sessionOrder.get(a.id) ?? 0) - (sessionOrder.get(b.id) ?? 0)),
     nested: visible.filter((session) => !pinnedIds.has(session.id)).sort(compareSessions),
-    archived: sessions.filter((session) => owned.has(session.projectId) && archivedIds.has(session.id)).sort(compareSessions),
   };
 }
 
@@ -84,14 +82,10 @@ export function toggleSidebarId(ids: readonly string[], id: string): string[] {
   return ids.includes(id) ? ids.filter((value) => value !== id) : [id, ...ids].slice(0, 4096);
 }
 
-export function archiveSidebarSession(settings: AppSettings, id: string): AppSettings {
-  return { ...settings, archivedSessionIds: toggleSidebarId(settings.archivedSessionIds, id), pinnedSessionIds: settings.pinnedSessionIds.filter((value) => value !== id) };
-}
-
 export function pruneSidebarSettings(settings: AppSettings, projects: readonly Project[], sessions: readonly Session[]): AppSettings {
   const projectIds = new Set(projects.map((row) => row.id));
   const sessionIds = new Set(sessions.filter((row) => projectIds.has(row.projectId)).map((row) => row.id));
-  return { ...settings, sidebarProjectOrder: settings.sidebarProjectOrder.filter((id) => projectIds.has(id)), pinnedProjectIds: settings.pinnedProjectIds.filter((id) => projectIds.has(id)), pinnedSessionIds: settings.pinnedSessionIds.filter((id) => sessionIds.has(id) && !settings.archivedSessionIds.includes(id)), archivedSessionIds: settings.archivedSessionIds.filter((id) => sessionIds.has(id)) };
+  return { ...settings, sidebarProjectOrder: settings.sidebarProjectOrder.filter((id) => projectIds.has(id)), pinnedProjectIds: settings.pinnedProjectIds.filter((id) => projectIds.has(id)), pinnedSessionIds: settings.pinnedSessionIds.filter((id) => sessionIds.has(id)) };
 }
 
 

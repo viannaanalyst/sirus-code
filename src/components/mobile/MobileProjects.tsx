@@ -24,7 +24,7 @@ export function MobileProjects({ navigation }: { navigation: MobileNavigation })
   const [openId, setOpenId] = useState<string | null>(null);
   const order = usePhonePrefs((state) => state.prefs.projectOrder);
   // Snoozed conversations wait on the Snoozed page until they wake, as on Home.
-  const groups = useMemo(() => projectGroups(merged.projects, listedSessions(merged.sessions, merged.archivedSessionIds).filter((session) => !isSnoozed(session)), order), [merged, order]);
+  const groups = useMemo(() => projectGroups(merged.projects, listedSessions(merged.sessions).filter((session) => !isSnoozed(session)), order), [merged, order]);
   const active = groups.filter((group) => group.needsYou || group.working);
   const shown = filter === "active" ? active : groups;
   const environmentOf = (id: string) => merged.environmentOf.get(id) ?? merged.storeId;

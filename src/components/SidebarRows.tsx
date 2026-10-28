@@ -1,7 +1,6 @@
-import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { useSidebarPanelHold } from "@/components/SidebarPanelHold";
 import { memo, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
-import { Archive, ArchiveRestore, GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons/phosphor";
+import { GitBranch, GitCompareArrows, MessageCircle, Pin, PinOff, Settings, SquarePen, Terminal, Zap } from "@/components/icons/phosphor";
 import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
 import type { Project, Session } from "@/client/types";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -20,7 +19,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { useTranslation } from "@/i18n/use-translation";
 import { beginSplitDrag } from "@/lib/split-drag";
 import { useAppStore } from "@/store/app-store";
-import { archiveSidebarSession, toggleSidebarId } from "@/lib/sidebar-layout";
+import { toggleSidebarId } from "@/lib/sidebar-layout";
 import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { modelDisplayName } from "@/lib/model-registry";
 import { relativeTime } from "@/lib/session-board";
@@ -107,12 +106,11 @@ export function ProjectEditDialog({ project, open, onOpenChange }: { project: Pr
 }
 
 /** Memoized: a reply streaming in one conversation re-renders only its own row. */
-export const SidebarSessionRow = memo(function SidebarSessionRow({ session, project, active, archived = false, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; archived?: boolean; showProject?: boolean; unseen?: boolean }) {
+export const SidebarSessionRow = memo(function SidebarSessionRow({ session, project, active, showProject = false, unseen = false }: { session: Session; project?: Project; active: boolean; showProject?: boolean; unseen?: boolean }) {
   const t = useTranslation();
   const temporary = useAppStore((state) => state.temporarySessionIds.includes(session.id));
   const pinned = useAppStore((state) => state.settings.pinnedSessionIds.includes(session.id));
   const togglePin = () => { const state = useAppStore.getState(); void state.saveSettings({ ...state.settings, pinnedSessionIds: toggleSidebarId(state.settings.pinnedSessionIds, session.id) }); };
-  const toggleArchive = () => { const state = useAppStore.getState(); if (archived) void state.saveSettings(archiveSidebarSession(state.settings, session.id)); else state.requestArchive(session.id); };
   return <SidebarHoverCard label={session.title} content={<SessionHoverContent session={session} project={project} />}>
     <SessionActions session={session}><div className={cn("sidebar-session-row", active && "sidebar-session-selected")}>
       <button type="button" className="sidebar-session-open ui-body" aria-current={active ? "page" : undefined} aria-label={`${session.title} · ${t(`status.${session.status}`)}`} onPointerDown={(event) => beginSplitDrag(event, session.id, session.title)} onClick={() => void useAppStore.getState().selectSession(session.id)}>
@@ -123,7 +121,7 @@ export const SidebarSessionRow = memo(function SidebarSessionRow({ session, proj
         {unseen && !active && <span className="sidebar-session-unseen" role="img" aria-label={t("activity.unread")} />}
         {["starting", "running", "waiting", "failed"].includes(session.status) && <span className="sidebar-session-meta"><StatusIndicator status={session.status} /></span>}
       </button>
-      <span className="sidebar-hover-actions sidebar-session-actions">{!archived && <RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={togglePin}>{pinned ? <PinOff /> : <Pin />}</RowAction>}<RowAction label={t(archived ? "Restore session" : "Archive session")} onClick={toggleArchive}>{archived ? <ArchiveRestore /> : <Archive />}</RowAction></span>
+      <span className="sidebar-hover-actions sidebar-session-actions"><RowAction label={t(pinned ? "Unpin session" : "Pin session")} pressed={pinned} onClick={togglePin}>{pinned ? <PinOff /> : <Pin />}</RowAction></span>
     </div></SessionActions>
   </SidebarHoverCard>;
 });
@@ -143,13 +141,4 @@ function SessionHoverContent({ session, project }: { session: Session; project?:
     <div className="sidebar-card-line sidebar-card-model ui-control"><ModelIcon modelId={session.model ?? ""} provider={session.agent} size={14} /><span>{modelLabel}</span>{session.execution?.fast && <Zap aria-label={t("composer.fast")} />}{session.execution?.effort && <span className="ui-caption text-text-muted">{t(`effort.${session.execution.effort}`)}</span>}</div>
     {["starting", "running", "waiting", "failed"].includes(session.status) && <div className="sidebar-card-line ui-caption"><StatusIndicator status={session.status} /><span>{t(`status.${session.status}`)}</span></div>}
   </>;
-}
-
-/** The Chat behavior archive confirmation, mounted once beside the sidebar. */
-export function ArchiveConfirm() {
-  const t = useTranslation();
-  const pending = useAppStore((state) => state.archivePrompt);
-  return <ConfirmDialog open={pending !== null} onOpenChange={(open) => { if (!open) useAppStore.setState({ archivePrompt: null }); }}
-    title={t("chatBehavior.archiveTitle")} description={t("chatBehavior.archiveBody")} confirmLabel={t("chatBehavior.archive")} cancelLabel={t("common.cancel")} destructive={false}
-    onConfirm={() => { if (pending) useAppStore.getState().requestArchive(pending, true); }} />;
 }

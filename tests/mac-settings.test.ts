@@ -2,28 +2,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { AppSettings } from "../src/client/types.ts";
 import { composerApproval, defaultApprovalFor } from "../src/lib/composer-approval.ts";
-import { clampArchiveDays, defaultSettings, mergeSettings } from "../src/lib/settings.ts";
+import { mergeSettings } from "../src/lib/settings.ts";
 import { finishedParagraphs, visibleReplyText } from "../src/lib/response-streaming.ts";
-import { archivedMatches } from "../src/lib/archived-search.ts";
 import { formatStorageSize, summarizeClientStorage } from "../src/lib/phone-storage.ts";
 
 test("Old saved settings load with the new Mac settings at their defaults", () => {
   const old = mergeSettings({ theme: "light" } as Partial<AppSettings>);
   assert.equal(old.defaultApproval, "full");
-  assert.equal(old.autoArchiveMerged, false);
-  assert.equal(old.autoArchiveInactiveDays, null);
   assert.equal(old.gitAutoPull, false);
   assert.equal(old.worktreesFromOrigin, true);
   assert.equal(old.responseStreaming, "token");
   assert.equal(old.agentBrowserAccess, true);
-  const odd = mergeSettings({ defaultApproval: "root", autoArchiveInactiveDays: 400, responseStreaming: "fast", worktreesFromOrigin: false } as unknown as Partial<AppSettings>);
+  const odd = mergeSettings({ defaultApproval: "root", responseStreaming: "fast", worktreesFromOrigin: false } as unknown as Partial<AppSettings>);
   assert.equal(odd.defaultApproval, "full");
-  assert.equal(odd.autoArchiveInactiveDays, 3);
   assert.equal(odd.responseStreaming, "token");
   assert.equal(odd.worktreesFromOrigin, false);
-  assert.equal(mergeSettings({ autoArchiveInactiveDays: 14 }).autoArchiveInactiveDays, 14);
-  assert.equal(defaultSettings.autoArchiveInactiveDays, null);
-  assert.deepEqual([clampArchiveDays(0), clampArchiveDays(2.6), clampArchiveDays(500), clampArchiveDays(Number.NaN)], [1, 3, 90, 3]);
 });
 
 test("New conversations start on the default mode, stepping down when the provider lacks it", () => {
@@ -51,15 +44,6 @@ test("Response streaming shows nothing, finished paragraphs, or every word while
   assert.equal(finishedParagraphs("Intro\n\n```ts\nconst a = 1;\n```\nAfter"), "Intro\n\n```ts\nconst a = 1;\n```\n");
   assert.equal(finishedParagraphs("~~~~\nx\n```\n~~~~\n"), "~~~~\nx\n```\n~~~~\n");
   assert.equal(finishedParagraphs("no break yet"), "");
-});
-
-test("Archived search matches every word in the title, project or branch", () => {
-  const session = { title: "Corrigir paginação", worktree: { branch: "sirus/fix-pages" } };
-  assert.equal(archivedMatches("", session), true);
-  assert.equal(archivedMatches("paginacao", session), true, "accents are ignored");
-  assert.equal(archivedMatches("FIX-pages", session), true);
-  assert.equal(archivedMatches("sirus web", session, "Sirus Web"), true);
-  assert.equal(archivedMatches("sirus mobile", session, "Sirus Web"), false);
 });
 
 test("Client storage counts what the phone keeps and never offers the pairing for clearing", () => {

@@ -529,7 +529,6 @@ pub fn publish(app: &AppHandle, state: &Arc<AppState>, snapshot: &Session) {
             .iter()
             .filter(|session| {
                 !session.is_auxiliary()
-                    && !data.settings.archived_session_ids.contains(&session.id)
                     && (session.status == SessionStatus::Waiting
                         || !session.pending_requests.is_empty())
             })

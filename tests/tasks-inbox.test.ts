@@ -26,9 +26,9 @@ test("tasks sort by priority, due date and age; overdue uses local today", () =>
   assert.equal(overdue(task("a", { dueDate: "2026-10-05" }), new Date(2026, 9, 5)), false);
 });
 
-test("the inbox groups sessions by what they need and skips side chats and archives", () => {
-  const sessions = [session("w", "waiting"), session("side", "waiting", { sideChat: { parentSessionId: "w" } }), session("r", "running"), session("c", "completed"), session("seen", "completed"), session("f", "failed"), session("arch", "waiting")];
-  const groups = inboxGroups(sessions, ["c", "f"], ["arch"], { viewer: "me", repositories: [], items: [{ kind: "pullRequest", repository: "a/b", number: 1, title: "t", url: "u", state: "open", isDraft: false, author: "x", createdAt: "t", updatedAt: "t", headRef: null, baseRef: null, additions: 0, deletions: 0, reviewDecision: null, mergeable: null, labels: [], commentCount: 0, assignees: [], reviewRequests: ["me"], checks: null }], failures: [], checkedAt: "t" });
+test("the inbox groups sessions by what they need and skips side chats", () => {
+  const sessions = [session("w", "waiting"), session("side", "waiting", { sideChat: { parentSessionId: "w" } }), session("r", "running"), session("c", "completed"), session("seen", "completed"), session("f", "failed")];
+  const groups = inboxGroups(sessions, ["c", "f"], { viewer: "me", repositories: [], items: [{ kind: "pullRequest", repository: "a/b", number: 1, title: "t", url: "u", state: "open", isDraft: false, author: "x", createdAt: "t", updatedAt: "t", headRef: null, baseRef: null, additions: 0, deletions: 0, reviewDecision: null, mergeable: null, labels: [], commentCount: 0, assignees: [], reviewRequests: ["me"], checks: null }], failures: [], checkedAt: "t" });
   assert.deepEqual(groups.needsYou.map((item) => item.id), ["w"]);
   assert.deepEqual(groups.running.map((item) => item.id), ["r"]);
   assert.deepEqual(groups.review.map((item) => item.id), ["c"]);

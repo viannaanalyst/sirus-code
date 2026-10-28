@@ -161,8 +161,8 @@
   .mobile-swipe-content { position: relative; background: var(--background-1); touch-action: pan-y; transition: transform 260ms cubic-bezier(.22, 1, .36, 1); }
   .mobile-swipe-content[data-dragging] { transition: none; }
   .mobile-row-pin { display: inline; margin-right: 5px; vertical-align: -1px; color: var(--text-muted); }
-  .mobile-archived-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 18px; padding: 12px; border-radius: 14px; color: var(--text-secondary); font-size: 14px; }
-  .mobile-archived-link:active { background: var(--accent-muted); }
+  .mobile-snoozed-link { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 18px; padding: 12px; border-radius: 14px; color: var(--text-secondary); font-size: 14px; }
+  .mobile-snoozed-link:active { background: var(--accent-muted); }
   .mobile-swipe-hint { margin-top: 10px; opacity: .7; }
   @media (prefers-reduced-motion: reduce) { .mobile-swipe-content { transition: none; } }
 
@@ -407,7 +407,7 @@
   .mobile-swipe-action[data-tone="snooze"] { background: #7a5cf0; }
   .mobile-row-snoozed { display: inline-flex; align-items: center; gap: 4px; color: #a99bff; }
   html[data-theme="light"] .mobile-row-snoozed { color: #6a4fe0; }
-  .mobile-archived-link + .mobile-archived-link { margin-top: 2px; }
+  .mobile-snoozed-link + .mobile-snoozed-link { margin-top: 2px; }
 
   /* "Working · 42s" over the bottom of the transcript; it takes the jump arrow's place. */
   .mobile-working-pill { position: absolute; bottom: 10px; left: 50%; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px 0 12px; translate: -50% 0; border-radius: 999px; color: var(--text-primary); font-size: 13px; font-weight: 500; white-space: nowrap; }

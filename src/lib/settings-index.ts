@@ -114,6 +114,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "appearance",
+  "title": "fonts.preview",
+  "description": null,
+  "group": "Code typography"
+ },
+ {
+  "section": "appearance",
   "title": "Terminal font",
   "description": null,
   "group": "Terminal typography"
@@ -168,15 +174,15 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "chat",
-  "title": "chatBehavior.wrap",
-  "description": "chatBehavior.wrapHelp",
-  "group": "chatBehavior.review"
+  "title": "chatBehavior.compactIdle",
+  "description": "chatBehavior.compactIdleHelp",
+  "group": "chatBehavior.conversation"
  },
  {
   "section": "chat",
-  "title": "chatBehavior.confirmArchive",
-  "description": "chatBehavior.confirmArchiveHelp",
-  "group": "chatBehavior.safety"
+  "title": "chatBehavior.wrap",
+  "description": "chatBehavior.wrapHelp",
+  "group": "chatBehavior.review"
  },
  {
   "section": "chat",
@@ -195,18 +201,6 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "title": "settings.browserAccess",
   "description": "settings.browserAccessHelp",
   "group": "settings.agentBehavior"
- },
- {
-  "section": "chat",
-  "title": "settings.autoArchiveMerged",
-  "description": "settings.autoArchiveMergedHelp",
-  "group": "settings.autoArchive"
- },
- {
-  "section": "chat",
-  "title": "settings.inactiveDays",
-  "description": "settings.inactiveDaysHelp",
-  "group": "settings.autoArchive"
  },
  {
   "section": "chat",
@@ -247,7 +241,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  {
   "section": "chat",
   "title": "browser.profileDefault",
-  "description": null,
+  "description": "cookies.importHelp",
   "group": "browser.profiles"
  },
  {
@@ -445,7 +439,7 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  {
   "section": "notifications",
   "title": "Sounds",
-  "description": null,
+  "description": "A soft chime when an agent finishes a turn or needs you. Not played for the conversation you are viewing.",
   "group": "Activity alerts"
  },
  {
@@ -590,12 +584,6 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
   "section": "worktrees",
   "title": "worktreeCleanup.leftovers",
   "description": "worktreeCleanup.leftoversHelp",
-  "group": "Cleanup"
- },
- {
-  "section": "worktrees",
-  "title": "worktreeCleanup.release",
-  "description": "worktreeCleanup.releaseHelp",
   "group": "Cleanup"
  },
  {

@@ -56,10 +56,9 @@ pub fn cut_mid_turn(session: &Session) -> bool {
 }
 
 /// The checks every automatic continuation shares: the person did not stop it, it is not
-/// archived or snoozed, and it has not been continued too many times in a row.
-pub fn may_continue(data: &AppData, session: &Session, now: DateTime<Utc>) -> bool {
+/// snoozed, and it has not been continued too many times in a row.
+pub fn may_continue(session: &Session, now: DateTime<Utc>) -> bool {
     session.stopped_by_user_at.is_none()
-        && !data.settings.archived_session_ids.contains(&session.id)
         && !session
             .snoozed_until
             .as_deref()
@@ -81,7 +80,7 @@ fn resumable(data: &AppData, interrupted: &[String], now: DateTime<Utc>) -> Vec<
                 && session.delegated_by.is_none()
                 && session.team_worker.is_none()
         })
-        .filter(|session| may_continue(data, session, now))
+        .filter(|session| may_continue(session, now))
         .map(|session| session.id.clone())
         .collect()
 }
@@ -274,10 +273,6 @@ mod tests {
             "stopped by the person"
         );
         data.sessions[0].stopped_by_user_at = None;
-
-        data.settings.archived_session_ids = a.clone();
-        assert!(resumable(&data, &a, now()).is_empty(), "archived");
-        data.settings.archived_session_ids.clear();
 
         data.sessions[0].snoozed_until = Some("2026-10-13T00:00:00Z".into());
         assert!(resumable(&data, &a, now()).is_empty(), "snoozed");

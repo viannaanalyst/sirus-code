@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { Archive, GitCompareArrows, Pin, PinOff, SquarePen, SquareTerminal } from "@/components/icons/phosphor";
+import { GitCompareArrows, Pin, PinOff, SquarePen, SquareTerminal } from "@/components/icons/phosphor";
 import { useTranslation } from "@/i18n/use-translation";
 import { sidebarProjectAction } from "@/lib/sidebar-actions";
 import { toggleSidebarId } from "@/lib/sidebar-layout";
@@ -8,7 +8,7 @@ import { useAppStore } from "@/store/app-store";
 /**
  * The buttons a project or a conversation shows while pointed at, the same in the header
  * project switcher and the conversation-list sidebar: a project offers Review changes, New
- * terminal session and New conversation; a conversation offers Pin and Archive.
+ * terminal session and New conversation; a conversation offers Pin.
  */
 const stop = (event: ReactPointerEvent) => event.stopPropagation();
 
@@ -35,7 +35,5 @@ export function SessionHoverActions({ sessionId, pinned, className }: { sessionI
   return <span className={className}>
     <button type="button" aria-label={t(pinned ? "Unpin session" : "Pin session")} title={t(pinned ? "Unpin session" : "Pin session")} onPointerDown={stop}
       onClick={event => { event.stopPropagation(); togglePin(); }}>{pinned ? <PinOff size={13} /> : <Pin size={13} />}</button>
-    <button type="button" aria-label={t("Archive session")} title={t("Archive session")} onPointerDown={stop}
-      onClick={event => { event.stopPropagation(); useAppStore.getState().requestArchive(sessionId); }}><Archive size={13} /></button>
   </span>;
 }

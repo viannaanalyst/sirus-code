@@ -7,10 +7,9 @@ import { isAuxiliarySession } from "@/lib/pull-ask";
  * badge and the floating "Working" pill. Pure; the clock and `navigator` are passed in.
  */
 
-/** Conversations waiting on the person (an approval, a question or their reply), archived ones aside. */
-export function needsYouCount(sessions: readonly Session[], archived: readonly string[]): number {
-  const hidden = new Set(archived);
-  return sessions.filter((session) => !isAuxiliarySession(session) && !hidden.has(session.id) && needsYou(session)).length;
+/** Conversations waiting on the person (an approval, a question or their reply). */
+export function needsYouCount(sessions: readonly Session[]): number {
+  return sessions.filter((session) => !isAuxiliarySession(session) && needsYou(session)).length;
 }
 
 type BadgeNavigator = { setAppBadge?: (count?: number) => Promise<void>; clearAppBadge?: () => Promise<void> };

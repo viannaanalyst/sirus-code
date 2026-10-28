@@ -106,7 +106,7 @@ export const useComputers = create<ComputersState>()((set, get) => {
   const snapshotStore = () => {
     const app = useAppStore.getState();
     if (!app.ready) return;
-    setSummary(get().activeId, () => summarize({ sessions: app.sessions, projects: app.projects, archivedSessionIds: app.settings.archivedSessionIds, pinnedSessionIds: app.settings.pinnedSessionIds }));
+    setSummary(get().activeId, () => summarize({ sessions: app.sessions, projects: app.projects, pinnedSessionIds: app.settings.pinnedSessionIds }));
   };
   const unwatch = (id: string) => { watchers.get(id)?.(); watchers.delete(id); };
   /** Keeps a summary of a computer that is not the active one, live while it answers. */
@@ -119,7 +119,7 @@ export const useComputers = create<ComputersState>()((set, get) => {
       try {
         const [data, info] = await Promise.all([other.loadState(), other.hostInfo().catch(() => null)]);
         if (stopped) return;
-        setSummary(id, () => summarize({ sessions: data.sessions, projects: data.projects, archivedSessionIds: data.settings.archivedSessionIds, pinnedSessionIds: data.settings.pinnedSessionIds }));
+        setSummary(id, () => summarize({ sessions: data.sessions, projects: data.projects, pinnedSessionIds: data.settings.pinnedSessionIds }));
         noteHost(id, info);
         // That computer can then alert the phone app installed from this Mac (ADR-132 addendum).
         const computer = get().computers.find((item) => item.id === id);
@@ -130,7 +130,7 @@ export const useComputers = create<ComputersState>()((set, get) => {
     };
     const unlisteners = [
       other.onSessionUpdated((session) => setSummary(id, (current) => current ? applySessionUpdate(current, session) : current)),
-      other.onSettingsChanged((settings) => setSummary(id, (current) => current ? { ...current, archivedSessionIds: settings.archivedSessionIds ?? [], pinnedSessionIds: settings.pinnedSessionIds ?? [] } : current)),
+      other.onSettingsChanged((settings) => setSummary(id, (current) => current ? { ...current, pinnedSessionIds: settings.pinnedSessionIds ?? [] } : current)),
     ];
     const stopConnection = onEnvironmentConnection((changed, state, previous) => {
       if (changed === id && state === "open" && previous !== "open") void load();

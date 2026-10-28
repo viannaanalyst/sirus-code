@@ -19,9 +19,9 @@ mod agent_resources;
 #[cfg(feature = "desktop")]
 mod app_update;
 mod appearance;
+mod archive_removal;
 mod attachment_platform;
 mod attachments;
-mod auto_archive;
 mod auto_pull;
 #[cfg(feature = "desktop")]
 mod browser;
@@ -289,13 +289,13 @@ pub fn run() {
                 data.settings.computer_use_enabled,
             );
             app.manage(Arc::new(AppState::new(data_path, worktree_root, data)));
+            archive_removal::delete_archived(app.state::<Arc<AppState>>().inner());
             appearance::schedule(app.handle(), app.state::<Arc<AppState>>().inner().clone());
             notifications::install(app.handle());
             memory::watch_pressure(app.handle());
             // Conversations and delegated tasks a crash cut mid-turn continue (ADR-114, ADR-118).
             crash_resume::resume_interrupted(app.handle());
             snooze::start(app.handle().clone());
-            auto_archive::start(app.handle().clone());
             idle_compaction::start(app.handle().clone());
             auto_pull::start(app.handle().clone());
             ci_autofix::start(app.handle().clone());
@@ -468,7 +468,6 @@ pub fn run() {
             commands::set_session_agent,
             commands::rename_session,
             snooze::snooze_session,
-            auto_archive::set_session_auto_archive,
             commands::delete_session,
             commands::send_prompt,
             commands::stop_agent,

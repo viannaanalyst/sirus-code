@@ -210,7 +210,6 @@ fn busy(state: &AppState, session: &Session) -> bool {
 
 fn candidates(state: &AppState) -> Vec<String> {
     let data = state.data.lock();
-    let archived = &data.settings.archived_session_ids;
     let cutoff = Utc::now() - chrono::Duration::hours(RECENT_HOURS);
     let tracked = |id: &str| {
         data.ci_auto_fix
@@ -220,7 +219,7 @@ fn candidates(state: &AppState) -> Vec<String> {
     let mut sessions: Vec<&Session> = data
         .sessions
         .iter()
-        .filter(|session| !session.is_auxiliary() && !archived.contains(&session.id))
+        .filter(|session| !session.is_auxiliary())
         .filter(|session| {
             tracked(&session.id)
                 || DateTime::parse_from_rfc3339(&session.last_activity_at)

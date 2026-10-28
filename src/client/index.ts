@@ -256,10 +256,6 @@ export class SirusClient {
     return this.transport.invoke<import("./types").WorktreeCleanupResult>("worktree_cleanup_action", { action: { type: "clean", confirm: true } });
   }
 
-  releaseArchivedWorktree(sessionId: string) {
-    return this.transport.invoke<import("./types").WorktreeRelease>("worktree_cleanup_action", { action: { type: "releaseArchived", sessionId } });
-  }
-
   renameProject(projectId: string, name: string) {
     return this.transport.invoke<Project>("rename_project", { projectId, name });
   }
@@ -506,9 +502,6 @@ export class SirusClient {
   snoozeSession(sessionId: string, until: string | null) {
     return this.transport.invoke<Session>("snooze_session", { sessionId, until });
   }
-  setSessionAutoArchive(sessionId: string, enabled: boolean) {
-    return this.transport.invoke<Session>("set_session_auto_archive", { sessionId, enabled });
-  }
 
   forkSession(sessionId: string, messageId: string) {
     return this.transport.invoke<Session>("fork_session", { sessionId, messageId });
@@ -677,7 +670,7 @@ export class SirusClient {
     return this.transport.listen<unknown>("pr-watch-changed", () => handler());
   }
 
-  /** Settings saved by another window or the phone, or changed by the Mac itself (auto-archive; ADR-130). */
+  /** Settings saved by another window or the phone. */
   onSettingsChanged(handler: (settings: AppSettings) => void) {
     return this.transport.listen<AppSettings>("settings-changed", handler);
   }

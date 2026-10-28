@@ -67,7 +67,7 @@ export function ConversationHoverCard({ controller }: { controller: HoverCardCon
   }, [controller, target]);
   // A virtual anchor at the column's right edge, as tall as the row, so the card never covers the list.
   const anchor = useMemo(() => {
-    // A row that left the list (archived, say) keeps the card where it was while it closes.
+    // A row that left the list (deleted, say) keeps the card where it was while it closes.
     let last: DOMRect | null = null;
     return {
       current: shown ? {

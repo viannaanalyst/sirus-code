@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { REMOTE_TOKEN_KEY, deviceName } from "@/client/remote-pairing";
 import { disablePush, enablePush, pushEnabled, pushSupport, sharePushWith, unsharePushWith } from "@/client/remote-push";
-import { Archive, Bell, Bot, Box, Bug, ChevronLeft, Code, FileText, Folder, Gauge, GitBranch, Info, Keyboard, MessageSquarePlus, MessagesSquare, Palette, Rows, Shield, Smartphone, TerminalSquare, Wrench, X } from "@/components/icons/phosphor";
+import { Bell, Bot, Box, Bug, ChevronLeft, Code, FileText, Folder, Gauge, GitBranch, Info, Keyboard, MessageSquarePlus, Palette, Rows, Shield, Smartphone, TerminalSquare, Wrench, X } from "@/components/icons/phosphor";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { HOME_ENVIRONMENT } from "@/lib/environments";
 import { useEnvironments } from "@/store/environments-store";
@@ -19,11 +19,10 @@ import { MobileMacSettings, type MacSettingsPage } from "./MobileMacSettings";
 import { Choices, Row } from "./MobileSettingsParts";
 import { MobileUsage } from "./MobileUsage";
 import "@/styles/mobile-settings.css";
-import { isAuxiliarySession } from "@/lib/pull-ask";
 
 type Page = "notifications" | "appearance" | "keyboard" | "organization" | "usage" | "about" | MacSettingsPage | AboutSubpage;
 type Translate = ReturnType<typeof useTranslation>;
-const MAC_PAGES: readonly MacSettingsPage[] = ["newConversations", "conversationBehavior", "sourceControl", "agentBehavior", "maintenance"];
+const MAC_PAGES: readonly MacSettingsPage[] = ["newConversations", "sourceControl", "agentBehavior", "maintenance"];
 
 /**
  * Settings as a sheet from the home's top corner: grouped rows,
@@ -48,7 +47,6 @@ export function MobileSettings({ online, navigation }: { online: boolean; naviga
     usage: t("mobile.usage"),
     about: t("mobile.about"),
     newConversations: t("phoneSettings.newConversations"),
-    conversationBehavior: t("phoneSettings.conversationBehavior"),
     sourceControl: t("phoneSettings.sourceControl"),
     agentBehavior: t("settings.agentBehavior"),
     maintenance: t("phoneSettings.maintenance"),
@@ -70,7 +68,7 @@ export function MobileSettings({ online, navigation }: { online: boolean; naviga
         <motion.div key={stack.join("/") || "root"} className="mobile-scroll mobile-form mobile-settings-page" custom={forward}
           variants={{ enter: (ahead: boolean) => ({ x: ahead ? "100%" : "-30%", opacity: ahead ? 1 : 0 }), center: { x: 0, opacity: 1 }, exit: (ahead: boolean) => ({ x: ahead ? "-30%" : "100%", opacity: ahead ? 0 : 1 }) }}
           initial="enter" animate="center" exit="exit" transition={slide}>
-          {page === null ? <SettingsIndex online={online} open={open} navigation={navigation} /> : null}
+          {page === null ? <SettingsIndex online={online} open={open} /> : null}
           {page === "notifications" ? <AlertsSection /> : null}
           {page === "appearance" ? <AppearancePage /> : null}
           {page === "keyboard" ? <KeyboardPage /> : null}
@@ -88,11 +86,8 @@ export function MobileSettings({ online, navigation }: { online: boolean; naviga
   </div>;
 }
 
-function SettingsIndex({ online, open, navigation }: { online: boolean; open: (page: Page) => void; navigation: MobileNavigation }) {
+function SettingsIndex({ online, open }: { online: boolean; open: (page: Page) => void }) {
   const t = useTranslation();
-  const sessions = useAppStore((state) => state.sessions);
-  const archived = useAppStore((state) => state.settings.archivedSessionIds);
-  const archivedCount = sessions.filter((session) => archived.includes(session.id) && !isAuxiliarySession(session)).length;
   return <>
     <section>
       <h2>{t("mobile.connections")}</h2>
@@ -114,7 +109,6 @@ function SettingsIndex({ online, open, navigation }: { online: boolean; open: (p
       <h2>{t("mobile.projectsAndConversations")}</h2>
       <div className="mobile-card">
         <Row icon={<Folder size={19} />} label={t("mobile.organization")} onClick={() => open("organization")} />
-        <Row icon={<Archive size={19} />} label={t("mobile.archivedConversations")} value={String(archivedCount)} onClick={() => navigation.open({ kind: "archived" })} />
       </div>
       <p className="mobile-help">{t("mobile.settingsHere")}</p>
     </section>
@@ -122,7 +116,6 @@ function SettingsIndex({ online, open, navigation }: { online: boolean; open: (p
       <h2>{t("phoneSettings.macSettings")}</h2>
       <div className="mobile-card">
         <Row icon={<MessageSquarePlus size={19} />} label={t("phoneSettings.newConversations")} onClick={() => open("newConversations")} />
-        <Row icon={<MessagesSquare size={19} />} label={t("phoneSettings.conversationBehavior")} onClick={() => open("conversationBehavior")} />
         <Row icon={<GitBranch size={19} />} label={t("phoneSettings.sourceControl")} onClick={() => open("sourceControl")} />
         <Row icon={<Bot size={19} />} label={t("settings.agentBehavior")} onClick={() => open("agentBehavior")} />
         <Row icon={<Wrench size={19} />} label={t("phoneSettings.maintenance")} onClick={() => open("maintenance")} />

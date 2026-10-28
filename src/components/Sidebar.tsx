@@ -7,7 +7,6 @@ import { AgentResources } from "@/components/AgentResources";
 import { RailGlyph, SidebarRailMore } from "@/components/SidebarRailMore";
 import { RAIL_LABELS, visibleRail } from "@/lib/rail";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
-import { ArchiveConfirm } from "@/components/SidebarRows";
 import { ContextMenu } from "@/components/arc/context-menu/context-menu";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { useTranslation } from "@/i18n/use-translation";
@@ -49,7 +48,6 @@ export function Sidebar({ motion = null }: { motion?: SidebarMotion }) {
   const current = (id: string) => id === "home" ? mainView === "session" : mainView === id;
 
   return <aside className="sidebar-material sidebar-shell" aria-label={t("Sidebar")} data-motion={motion ?? undefined}>
-    <ArchiveConfirm />
     {projectMenu.dialogs}
     <div className="titlebar-drag h-[var(--window-controls-height)] shrink-0" />
     <div className="sidebar-layout">

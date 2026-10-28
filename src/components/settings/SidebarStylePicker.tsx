@@ -36,17 +36,16 @@ interface Sample {
 function useSample(): Sample {
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
-  const archivedSessionIds = useAppStore(state => state.settings.archivedSessionIds);
   const pinnedSessionIds = useAppStore(state => state.settings.pinnedSessionIds);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const selectedSessionId = useAppStore(state => state.selectedSessionId);
   return useMemo(() => {
-    const settings: ConversationListSettings = { archivedSessionIds, pinnedSessionIds, sidebarAttentionFirst: false, sidebarThreadSortOrder: "updated_at" };
+    const settings: ConversationListSettings = { pinnedSessionIds, sidebarAttentionFirst: false, sidebarThreadSortOrder: "updated_at" };
     const project = projects.find(row => row.id === selectedProjectId) ?? projects[0] ?? null;
     const recent = conversationListItems(projects, sessions, settings, "recent").slice(0, 7);
     const current = sessions.find(row => row.id === selectedSessionId) ?? (recent[0]?.kind === "session" ? recent[0].session : null);
     return { project, title: current?.title ?? "", recent };
-  }, [projects, sessions, archivedSessionIds, pinnedSessionIds, selectedProjectId, selectedSessionId]);
+  }, [projects, sessions, pinnedSessionIds, selectedProjectId, selectedSessionId]);
 }
 
 function Lights() {
@@ -90,13 +89,13 @@ function ListSidebar({ sample }: { sample: Sample }) {
       </span> : null)}
       {!sample.recent.length ? <span className="conversation-sidebar-empty">{t("sidebarList.empty")}</span> : null}
     </span></span>
-    <span className="conversation-sidebar-foot"><span className="flex-1" /><ChartBar size={17} /><RailGlyph id="archived" size={17} /><Settings size={17} /></span>
+    <span className="conversation-sidebar-foot"><span className="flex-1" /><ChartBar size={17} /><Settings size={17} /></span>
   </span>;
 }
 
 function Rail() {
   return <span className="sidebar-thumb-rail">
-    {(["home", "inbox", "tasks", "archived", "pulls"] as const).map((id, index) => <span key={id} className="sidebar-thumb-rail-button" data-on={index === 0 || undefined}><RailGlyph id={id} active={index === 0} size={20} /></span>)}
+    {(["home", "inbox", "tasks", "pulls"] as const).map((id, index) => <span key={id} className="sidebar-thumb-rail-button" data-on={index === 0 || undefined}><RailGlyph id={id} active={index === 0} size={20} /></span>)}
     <span className="flex-1" />
     <span className="sidebar-thumb-rail-button"><Settings size={20} /></span>
   </span>;

@@ -336,10 +336,10 @@ fn start(dir: &Path) -> crate::error::Result<AppHandle> {
     // Computer use drives the Mac's own apps; it never runs on a server.
     crate::computer_mcp::init(app.clone(), dir.to_path_buf(), false);
     app.manage(Arc::new(AppState::new(data_path, worktree_root, data)));
+    crate::archive_removal::delete_archived(app.state::<Arc<AppState>>().inner());
     crate::notifications::install(&app);
     crate::crash_resume::resume_interrupted(&app);
     crate::snooze::start(app.clone());
-    crate::auto_archive::start(app.clone());
     crate::idle_compaction::start(app.clone());
     crate::auto_pull::start(app.clone());
     crate::ci_autofix::start(app.clone());

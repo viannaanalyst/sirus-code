@@ -35,10 +35,9 @@ test("settings: sidebar mode and list order are closed, default to the rail and 
   assert.equal(mergeSettings({ sidebarMode: "hidden", sidebarListOrder: "name" } as never).sidebarListOrder, "recent");
 });
 
-test("the list leaves out archived, snoozed, side chats, Ask conversations, foreign projects and listed team workers", () => {
+test("the list leaves out snoozed, side chats, Ask conversations, foreign projects and listed team workers", () => {
   const rows = [
     ...sessions,
-    session("archived", "a", "2026-01-08"),
     session("snoozed", "a", "2026-01-08", { snoozedUntil: "2999-01-01T00:00:00Z" }),
     session("side", "a", "2026-01-08", { sideChat: { parentSessionId: "a-old" } }),
     session("ask", "a", "2026-01-08", { pullAsk: { repository: "o/r", number: 1, kind: "pull", title: "t", url: "https://github.com/o/r/pull/1" } } as unknown as Partial<Session>),
@@ -46,8 +45,7 @@ test("the list leaves out archived, snoozed, side chats, Ask conversations, fore
     session("worker", "a", "2026-01-08", { teamWorker: { coordinatorSessionId: "a-mid" } } as Partial<Session>),
     session("orphan-worker", "a", "2026-01-08", { teamWorker: { coordinatorSessionId: "deleted" } } as Partial<Session>),
   ];
-  const settings = mergeSettings({ archivedSessionIds: ["archived"] });
-  assert.deepEqual(listedConversations(projects, rows, settings).map(row => row.id).sort(), ["a-mid", "a-old", "b-new", "b-old", "orphan-worker"]);
+  assert.deepEqual(listedConversations(projects, rows).map(row => row.id).sort(), ["a-mid", "a-old", "b-new", "b-old", "orphan-worker"]);
 });
 
 test("Recent is flat by last activity whatever the thread order, with pinned conversations first in pin order", () => {

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { Archive, ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, FolderPlus, Moon, PanelLeft, Pencil, Pin, PinOff, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ModelIcon } from "@/components/ModelIcon";
@@ -10,7 +10,6 @@ import { useProjectMenu } from "@/components/ProjectActions";
 import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { SessionActionDialog } from "@/components/SessionActions";
-import { ArchiveConfirm } from "@/components/SidebarRows";
 import { RailGlyph } from "@/components/SidebarRailMore";
 import { SnoozePicker } from "@/components/SnoozePicker";
 import { useTranslation } from "@/i18n/use-translation";
@@ -59,8 +58,8 @@ const saveSettings = (change: Partial<AppSettings>) => { const state = store(); 
 
 /**
  * The column sidebar (ADR-139): recent conversations from every project, flat or in project
- * folders, with search, the list order, New project, Inbox / Tasks / PRs, usage rings, Archived
- * and Settings. It replaces the header's project switcher while it shows; ⌘S hides it.
+ * folders, with search, the list order, New project, Inbox / Tasks / PRs, usage rings and
+ * Settings. It replaces the header's project switcher while it shows; ⌘S hides it.
  */
 export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion }) {
   const t = useTranslation();
@@ -71,7 +70,7 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const historyLength = useAppStore(state => state.navHistory.length);
   const dots = useNavDots();
   const collapsed = useAppStore(state => state.sidebarCollapsed);
-  // Hidden (⌘S), the rows unmount once the column has closed; the archive confirmation stays.
+  // Hidden (⌘S), the rows unmount once the column has closed.
   const hidden = collapsed && !motion;
   // Edits made outside Sirus (an editor, a terminal) show up when the window comes back.
   useEffect(() => {
@@ -87,7 +86,6 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={toolButton}><SquarePen size={15} /></IconButton>;
 
   return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} style={{ width }}>
-    <ArchiveConfirm />
     <div data-tauri-drag-region className="conversation-sidebar-head titlebar-drag">
       <span className="conversation-sidebar-brand" data-tauri-drag-region>Sirus <span>Code</span></span>
       <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}</div>
@@ -109,15 +107,12 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
       </button>)}
     </nav>
     {hidden ? <div className="flex-1" /> : <ConversationList />}
-    {/* The quota rings stay on the 52 px rail; here the Usage page sits beside Archived and Settings. */}
+    {/* The quota rings stay on the 52 px rail; here the Usage page sits beside Settings. */}
     <div className="conversation-sidebar-foot">
       <AgentResources placement="foot" />
       <span className="flex-1" />
       <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" aria-label={t("usage.title")} title={t("usage.title")} aria-current={mainView === "usage" ? "page" : undefined} onClick={() => store().setMainView("usage")}>
         <ChartBar size={17} weight={mainView === "usage" ? "fill" : undefined} />
-      </button>
-      <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" aria-label={t(RAIL_LABELS.archived)} title={t(RAIL_LABELS.archived)} aria-current={mainView === "archived" ? "page" : undefined} onClick={() => store().setMainView("archived")}>
-        <RailGlyph id="archived" active={mainView === "archived"} size={17} />
       </button>
       <button type="button" className="sidebar-rail-button conversation-sidebar-foot-button" data-section="settings" aria-label={t("Settings")} title={t("Settings")} onClick={() => store().setSettingsOpen(true)}>
         <Settings size={17} />
@@ -157,13 +152,12 @@ function ConversationList() {
   const projects = useAppStore(state => state.projects);
   const sessions = useAppStore(selectListedSessions);
   const order = useAppStore(state => state.settings.sidebarListOrder);
-  const archivedSessionIds = useAppStore(state => state.settings.archivedSessionIds);
   const pinnedSessionIds = useAppStore(state => state.settings.pinnedSessionIds);
   const sidebarAttentionFirst = useAppStore(state => state.settings.sidebarAttentionFirst);
   const savedOpenFolders = useAppStore(state => state.settings.sidebarOpenFolders);
   const selectedProjectId = useAppStore(state => state.selectedProjectId);
   const selectedSessionId = useAppStore(state => state.mainView === "session" ? state.selectedSessionId : null);
-  const listSettings = useMemo<ConversationListSettings>(() => ({ archivedSessionIds, pinnedSessionIds, sidebarAttentionFirst, sidebarThreadSortOrder: "updated_at" }), [archivedSessionIds, pinnedSessionIds, sidebarAttentionFirst]);
+  const listSettings = useMemo<ConversationListSettings>(() => ({ pinnedSessionIds, sidebarAttentionFirst, sidebarThreadSortOrder: "updated_at" }), [pinnedSessionIds, sidebarAttentionFirst]);
   const { unseen, computer } = useWaitingSets();
   const [hovering, setHovering] = useState(false);
   // Ages refresh when the person comes back to the window or points at the list; no timer.
@@ -279,7 +273,6 @@ function ConversationList() {
       { id: "rename", label: t("session.rename"), icon: <Pencil size={15} />, group: "edit", onSelect: () => setAction({ session: menuSession, kind: "rename" }) },
       { id: "pin", label: t(pinned ? "Unpin session" : "Pin session"), icon: pinned ? <PinOff size={15} /> : <Pin size={15} />, group: "edit", onSelect: () => { const current = useAppStore.getState(); void current.saveSettings({ ...current.settings, pinnedSessionIds: toggleSidebarId(current.settings.pinnedSessionIds, menuSession.id) }); } },
       { id: "snooze", label: t("snooze.menu"), icon: <Moon size={15} />, group: "edit", disabled: !snoozable, hint: snoozable ? undefined : t("snooze.activeHint"), onSelect: () => { const anchor = document.querySelector<HTMLElement>(`[data-conversation="${menuSession.id}"]`); if (anchor) setSnoozing({ session: menuSession, anchor }); } },
-      { id: "archive", label: t("Archive session"), icon: <Archive size={15} />, group: "edit", onSelect: () => useAppStore.getState().requestArchive(menuSession.id) },
       ...moveItems(menuSession),
       { id: "delete", label: t("session.delete"), icon: <Trash2 size={15} />, group: "danger", destructive: true, disabled: busy, onSelect: () => setAction({ session: menuSession, kind: "delete" }) },
     ];
@@ -389,7 +382,7 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
       {title}
       {variant === "full" ? detail : null}
     </button>
-    {/* Pin and Archive while pointed at, as in the header switcher; they take the age's place. */}
+    {/* Pin while pointed at, as in the header switcher; they take the age's place. */}
     <SessionHoverActions sessionId={session.id} pinned={pinned} className="header-switcher-actions conversation-hover-actions" />
   </div>;
 });

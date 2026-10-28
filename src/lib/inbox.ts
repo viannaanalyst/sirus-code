@@ -17,8 +17,8 @@ const recent = (list: Session[]) => list.sort((a, b) => b.lastActivityAt.localeC
  * person, running ones, finished or failed ones the person has not opened,
  * plus PR review requests.
  */
-export function inboxGroups(sessions: readonly Session[], unseen: readonly string[], archived: readonly string[], pulls: GithubInbox | null | undefined): InboxGroups {
-  const listed = sessions.filter((session) => !isAuxiliarySession(session) && !archived.includes(session.id));
+export function inboxGroups(sessions: readonly Session[], unseen: readonly string[], pulls: GithubInbox | null | undefined): InboxGroups {
+  const listed = sessions.filter((session) => !isAuxiliarySession(session));
   const unread = new Set(unseen);
   return {
     needsYou: recent(listed.filter((session) => session.status === "waiting")),

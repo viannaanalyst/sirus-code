@@ -207,8 +207,7 @@ test("bootstrap reopening preference retains sessions and drafts without startin
   const drafts = { "session:saved": "unsent" };
   let restorePreviousSessions = false;
   let openLastProject = true;
-  let archivedSessionIds: string[] = [];
-  context.mock.method(client, "loadState", async () => ({ projects: [project], sessions, composerDrafts: drafts, settings: { ...defaultSettings, restorePreviousSessions, openLastProject, archivedSessionIds } }));
+  context.mock.method(client, "loadState", async () => ({ projects: [project], sessions, composerDrafts: drafts, settings: { ...defaultSettings, restorePreviousSessions, openLastProject } }));
   context.mock.method(client, "detectAgents", async () => []);
   context.mock.method(client, "gitIdentity", async () => status("main").identity);
   context.mock.method(client, "gitStatus", async () => status("main"));
@@ -221,11 +220,6 @@ test("bootstrap reopening preference retains sessions and drafts without startin
   restorePreviousSessions = true;
   await useAppStore.getState().bootstrap();
   assert.equal(useAppStore.getState().selectedSessionId, "saved");
-  archivedSessionIds = ["saved"];
-  await useAppStore.getState().bootstrap();
-  assert.equal(useAppStore.getState().selectedSessionId, null);
-  assert.equal(useAppStore.getState().sessions, sessions);
-  assert.equal(useAppStore.getState().composerDrafts, drafts);
   openLastProject = false;
   await useAppStore.getState().bootstrap();
   assert.equal(useAppStore.getState().selectedProjectId, null);
