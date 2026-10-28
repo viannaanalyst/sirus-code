@@ -115,7 +115,7 @@ export function GitIncomingButton() {
   return <AnimatePresence initial={false}>
     {shown === "hidden" ? null : <motion.span key="git-incoming" className="inline-flex" {...motionProps}>
       {shown === "diverged" ? <Tooltip label={label}>
-        <button type="button" className="git-incoming-button" data-tone="muted" aria-disabled="true" aria-label={label}><CloudArrowDown size={14} /></button>
+        <button type="button" className="git-incoming-button" data-tone="muted" aria-disabled="true" aria-label={label}><CloudArrowDown size={16} /></button>
       </Tooltip> : <Popover open={open} onOpenChange={(next) => {
         setOpen(next);
         if (next) return;

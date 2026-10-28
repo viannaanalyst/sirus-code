@@ -11,7 +11,7 @@ import { activityElapsed, formatActivityDuration, isActivityActive } from "@/lib
 import { useTranslation } from "@/i18n/use-translation";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useAmbientActive } from "@/lib/ambient-motion";
-import { foldBoundary, liveFoldBoundary, groupFailures, groupSentence, isSecretRow, markerSentence, stepCategory, stepDetail, stepSentence, timelineParts, type StepCategory } from "@/lib/turn-timeline";
+import { foldBoundary, groupExpanded, liveFoldBoundary, groupFailures, groupSentence, isSecretRow, markerSentence, stepCategory, stepDetail, stepSentence, timelineParts, workIsLive, type StepCategory } from "@/lib/turn-timeline";
 import { maskSecrets } from "@/lib/redact";
 import { cascadeIndex } from "@/lib/cascade";
 import { assignReveals, splitAroundDetail } from "@/lib/tree-reveal";
@@ -213,15 +213,19 @@ function StepLine({ item, cwd, live = false, tree = false }: { item: ActivityIte
   const [before, mono, after] = splitAroundDetail(sentence, detail);
   // Rows recorded before native masking are masked here too.
   const output = useMemo(() => item.output?.trim() ? maskSecrets(item.output) : "", [item.output]);
-  // Output always starts folded (failed steps stay visible as red rows); a click opens it.
+  // Output always starts folded; a click opens it (in the tree its chevron shows on hover).
   const [open, setOpen] = useState(false);
   const expanded = Boolean(output) && open;
+  const failed = item.state === "failed";
   const body = <>
     <span className="tl-icon"><Icon size={tree ? 16 : 15} aria-hidden="true" /></span>
     <span className={`tl-label${live ? " tl-shine" : ""}`}>
-      {mono ? <>{before}<span className="tl-mono">{mono}</span>{after}</> : sentence}{category === "skill" && item.detail ? <> <span className="tl-skill">/{item.detail}</span></> : null}
+      {tree
+        ? mono ? <><span className="tl-action">{before}</span><span className="tl-detail">{mono}</span>{after ? <span className="tl-action">{after}</span> : null}</> : <span className="tl-action">{sentence}</span>
+        : mono ? <>{before}<span className="tl-detail">{mono}</span>{after}</> : sentence}{category === "skill" && item.detail ? <> <span className="tl-skill">/{item.detail}</span></> : null}
     </span>
-    {item.state === "failed" ? <X size={12} className="tl-failed" aria-label={t("timeline.failed")} /> : item.state === "stopped" ? <Square size={10} className="tl-stopped" aria-label={t("timeline.stopped")} /> : null}
+    {failed && tree ? <span className="sr-only">{t("timeline.failed")}</span> : null}
+    {failed && !tree ? <X size={12} className="tl-failed" aria-label={t("timeline.failed")} /> : item.state === "stopped" ? <Square size={10} className="tl-stopped" aria-label={t("timeline.stopped")} /> : null}
     {output ? <ChevronRight size={12} className={expanded ? "tl-detail-chevron tl-fold-open" : "tl-detail-chevron"} aria-hidden="true" /> : null}
   </>;
   if (!output) return <div className="tl-line" data-state={item.state} data-category={category}>{body}</div>;
@@ -262,31 +266,31 @@ function FinishedMarker({ item }: { item: ActivityItem }) {
   </div>;
 }
 
-/** Back-to-back steps: one sentence that opens into its rows; the step still running stays on its own live row. */
+/**
+ * Back-to-back steps: one sentence that opens into the tree of its rows. While the turn works on
+ * the group it is open (each new step arrives as a branch, the one in progress last); once the
+ * agent writes text or the turn ends it collapses to its summary. The person's choice wins (ADR-176).
+ */
 function WorkGroup({ items, cwd, live, active, modelLabel, now, moving, controls }: { items: ActivityItem[]; cwd?: string; live: boolean; active: boolean; modelLabel: (id: string) => string; now: number; moving: boolean; controls?: string }) {
   const t = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [choice, setChoice] = useState<boolean | null>(null);
   const listId = useId();
   const children = items.filter(item => item.kind === "agent");
   // Cards that appear together cascade from the first new one; the ones already shown stay put.
   const firstNew = Math.max(0, children.findIndex(item => !seenChildren.has(item.id)));
   const steps = items.filter(item => item.kind !== "agent");
-  // While the turn runs, its newest running step is the live row under the group.
-  const current = live ? [...steps].reverse().find(item => item.state === "running") : undefined;
-  const settled = current ? steps.filter(item => item !== current) : steps;
-  // Failures stay visible even inside a closed group.
-  const failed = open ? [] : settled.filter(item => item.state === "failed");
+  // A single settled step stays a flat line; a group being worked on is always a summary and a tree.
+  const tree = steps.length > 1 || (live && steps.length === 1);
+  const open = groupExpanded(choice, live);
   return <div className="tl-group">
-    {settled.length === 1 ? <StepLine item={settled[0]} cwd={cwd} /> : null}
-    {settled.length > 1 ? <>
-      <button type="button" className="tl-line tl-toggle tl-sum" data-shimmer={(live && moving) || undefined} aria-expanded={open} aria-controls={listId} onClick={() => setOpen(value => !value)}>
-        <ChevronRight size={12} className={open ? "tl-sum-chevron tl-fold-open" : "tl-sum-chevron"} aria-hidden="true" />
-        <span className="tl-label">{groupSentence(settled, t)}{groupFailures(settled) ? <span className="tl-failed-count">{`, ${t(groupFailures(settled) === 1 ? "timeline.failedCount.one" : "timeline.failedCount", { count: groupFailures(settled) })}`}</span> : null}</span>
+    {steps.length === 1 && !tree ? <StepLine item={steps[0]} cwd={cwd} /> : null}
+    {tree ? <>
+      <button type="button" className="tl-line tl-toggle tl-sum" data-shimmer={(live && moving) || undefined} aria-expanded={open} aria-controls={listId} onClick={() => setChoice(!open)}>
+        <ChevronRight size={14} className={open ? "tl-sum-chevron tl-fold-open" : "tl-sum-chevron"} aria-hidden="true" />
+        <span className="tl-label">{groupSentence(steps, t)}{groupFailures(steps) ? <span className="tl-failed-count">{`, ${t(groupFailures(steps) === 1 ? "timeline.failedCount.one" : "timeline.failedCount", { count: groupFailures(steps) })}`}</span> : null}</span>
       </button>
-      {open ? <ActivityTree id={listId} items={current ? [...settled, current] : settled} cwd={cwd} active={active} moving={moving} /> : null}
-      {failed.map(item => <StepLine key={item.id} item={item} cwd={cwd} />)}
+      {open ? <ActivityTree id={listId} items={steps} cwd={cwd} active={active} moving={moving} /> : null}
     </> : null}
-    {current && !(open && settled.length > 1) ? <StepLine item={current} cwd={cwd} live={moving} /> : null}
     {children.length ? <ol className="subagent-cards" data-cascade>
       {children.map((item, index) => <ChildRow key={item.id} item={item} modelLabel={modelLabel} name={item.label || t("Subagent {number}", { number: index + 1 })} now={now} index={index - firstNew} entering={active} controls={controls} />)}
     </ol> : null}
@@ -366,7 +370,6 @@ export function AgentActivity({ activity, message = null, content = "", steers =
   const foldable = !active && boundary > 0;
   // The live row's latest thought (ADR-101): what the agent reasons about right now.
   const thought = active && !waiting && activity.thought?.trim() ? maskSecrets(activity.thought.trim()) : null;
-  const lastWork = parts.reduce((last, part, index) => part.kind === "work" ? index : last, -1);
   // Background subagents (ADR-097): counted while they run, and offered again once interrupted.
   const backgroundRunning = active ? runningBackground(activity).length : 0;
   const interrupted = active ? [] : interruptedBackground(activity);
@@ -399,7 +402,7 @@ export function AgentActivity({ activity, message = null, content = "", steers =
         if (part.kind === "marker") return hidden ? null : <FinishedMarker key={part.item.id} item={part.item} />;
         // A folded turn still shows the steps that failed.
         const items = hidden ? part.items.filter(item => item.state === "failed") : part.items;
-        return items.length ? <WorkGroup key={`w${index}`} items={items} cwd={cwd} live={active && index === lastWork} active={active} modelLabel={modelLabel} now={clock.now} moving={live} controls={active ? subagentControls : undefined} /> : null;
+        return items.length ? <WorkGroup key={`w${index}`} items={items} cwd={cwd} live={workIsLive(parts, index, active)} active={active} modelLabel={modelLabel} now={clock.now} moving={live} controls={active ? subagentControls : undefined} /> : null;
       })}
       {thought ? <div className="tl-line tl-thought" data-thought="">
         <span className="tl-icon"><Lightbulb size={14} aria-hidden="true" /></span>

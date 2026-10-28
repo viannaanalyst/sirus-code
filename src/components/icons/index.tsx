@@ -4,7 +4,7 @@
  * ./solar-data.ts. Lucide-era export names stay stable so call sites do not change; `fill` other than
  * "none" (or `weight="fill"`) selects the Solar Bold glyph for active and pinned items. ADR-177.
  */
-import { forwardRef, memo, type ComponentType, type SVGProps } from "react";
+import { forwardRef, memo, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { SOLAR_ICONS, SOLAR_ICON_NAMES } from "./solar-data";
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, "ref" | "fill"> {
@@ -257,3 +257,25 @@ export const CloudArrowDown = make("CloudArrowDown");
 export const Planet = make("Planet");
 export const RotateView = make("RotateView");
 export const ScreenDashed = make("ScreenDashed");
+
+/* Zeron's own glyphs (ADR-178), drawn at 1.75 on the 24 grid beside the Solar set. */
+const ownProps = { xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+type GlyphProps = Omit<IconProps, "fill" | "weight"> & { open?: boolean };
+
+function glyph(name: string, draw: (props: { open: boolean }) => ReactNode): ComponentType<GlyphProps> {
+  const Icon = forwardRef<SVGSVGElement, GlyphProps>(function Icon({ size = 16, strokeWidth, absoluteStrokeWidth, open = true, ...rest }, ref) {
+    void strokeWidth;
+    void absoluteStrokeWidth;
+    return <svg ref={ref} {...ownProps} width={size} height={size} {...rest}>{draw({ open })}</svg>;
+  });
+  Icon.displayName = name;
+  return memo(Icon) as unknown as ComponentType<GlyphProps>;
+}
+
+const frame = <rect x="3" y="4" width="18" height="16" rx="4" />;
+/** The sidebar: a rounded frame with its panel filled; closing narrows the panel (CSS, `.sidebar-glyph-panel`). */
+export const SidebarLeft = glyph("SidebarLeft", ({ open }) => <>{frame}<rect className="sidebar-glyph-panel" data-open={open || undefined} data-side="left" x="6.5" y="7.5" width="5.5" height="9" rx=".9" fill="currentColor" stroke="none" /></>);
+export const SidebarRight = glyph("SidebarRight", ({ open }) => <>{frame}<rect className="sidebar-glyph-panel" data-open={open || undefined} data-side="right" x="12" y="7.5" width="5.5" height="9" rx=".9" fill="currentColor" stroke="none" /></>);
+/** Two corner arrows pointing out, and the pair pointing in. */
+export const ExpandArrows = glyph("ExpandArrows", () => <path d="M9 4H4v5m0-5 6 6m5 10h5v-5m0 5-6-6" />);
+export const CollapseArrows = glyph("CollapseArrows", () => <path d="M4 10h6V4m0 6L4 4m16 10h-6v6m0-6 6 6" />);

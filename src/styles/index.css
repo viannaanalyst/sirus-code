@@ -42,7 +42,11 @@
   --border-subtle: oklch(1 0 0 / 0.07);
   --border-default: oklch(1 0 0 / 0.115);
   /* The agent activity tree's trunk and elbows (ADR-176). */
-  --tree-line: oklch(1 0 0 / 0.13);
+  --tree-line: oklch(1 0 0 / 0.12);
+  /* Panel chips (ADR-178). */
+  --chip-text: oklch(0.708 0 0);
+  --chip-hover: oklch(1 0 0 / 0.06);
+  --chip-selected: oklch(1 0 0 / 0.1);
   --text-primary: oklch(0.95 0.004 285);
   --text-secondary: oklch(0.78 0.008 285);
   --text-muted: oklch(0.6 0.01 285);
@@ -339,7 +343,10 @@ html[data-theme="light"] {
   --background-elevated: oklch(1 0 0);
   --border-subtle: oklch(0.25 0.02 285 / 0.08);
   --border-default: oklch(0.25 0.02 285 / 0.14);
-  --tree-line: oklch(0.25 0.02 285 / 0.2);
+  --tree-line: oklch(0.25 0.02 285 / 0.14);
+  --chip-text: var(--text-secondary);
+  --chip-hover: oklch(0.25 0.02 285 / 0.06);
+  --chip-selected: oklch(0.25 0.02 285 / 0.1);
   --text-primary: oklch(0.22 0.01 285);
   --text-secondary: oklch(0.33 0.01 285);
   --text-muted: oklch(0.5 0.012 285);
@@ -459,21 +466,28 @@ html[data-ambient="off"] .animate-pulse { animation-play-state: paused; }
 /* Drag to reorder (src/lib/use-pointer-reorder.ts): the dragged item lifts with a shadow over its neighbours. */
 [data-reorder-lifted] { position: relative; border-radius: 8px; background: var(--navigation-selected); box-shadow: 0 10px 24px rgb(0 0 0 / .4), inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent); cursor: grabbing; }
 
-/* Right dock tabs: pills that shrink to fit; the icon turns into a drag grip on hover. */
-.dock-tab { position: relative; display: flex; align-items: center; flex: 0 1 200px; min-width: 96px; height: 30px; border-radius: 10px; color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); user-select: none; touch-action: none; }
-.dock-tab:hover:not([data-active]) { background: var(--navigation-hover); color: var(--text-secondary); }
-.dock-tab[data-active] { background: var(--navigation-selected); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent); color: var(--text-primary); }
-.dock-tab-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; height: 100%; padding: 0 4px 0 10px; text-align: left; cursor: pointer; }
+/* Zeron's sidebar glyph (ADR-178): the filled panel narrows from 5.5 to 1.75 as the sidebar closes. */
+.sidebar-glyph-panel { transform-box: fill-box; transform: scaleX(0.318); transition: transform var(--motion-fast) var(--ease-out); }
+.sidebar-glyph-panel[data-side="left"] { transform-origin: left center; }
+.sidebar-glyph-panel[data-side="right"] { transform-origin: right center; }
+.sidebar-glyph-panel[data-open] { transform: none; }
+
+/* Right dock tabs (ADR-178), after Zeron: fixed 112x24 chips, a wash for hover and selected, no border or shadow.
+   Dragging starts anywhere on the chip. */
+.dock-tab { position: relative; display: flex; align-items: center; flex: none; width: 112px; height: 24px; border-radius: 6px; color: var(--chip-text); transition: background-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); user-select: none; touch-action: none; }
+.dock-tab:hover:not([data-active]) { background: var(--chip-hover); }
+.dock-tab[data-active] { background: var(--chip-selected); color: var(--text-primary); }
+.dock-tab-open { display: flex; flex: 1; min-width: 0; align-items: center; gap: 6px; height: 100%; padding: 0 0 0 8px; border-radius: 6px; font-size: 12px; text-align: left; cursor: default; }
 .dock-tab[data-dragging] .dock-tab-open { cursor: grabbing; }
-.dock-tab-icon { position: relative; display: grid; place-items: center; width: 14px; height: 14px; flex: none; }
-.dock-tab-icon > svg { transition: opacity var(--motion-fast) var(--ease-out); }
-.dock-tab-grip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 11px; letter-spacing: -1px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
-.dock-tab:hover .dock-tab-icon > svg { opacity: 0; }
-.dock-tab:hover .dock-tab-grip { opacity: 1; }
+.dock-tab-icon { display: grid; place-items: center; width: 14px; height: 14px; flex: none; }
 .dock-tab-label { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.dock-tab-close { display: grid; place-items: center; flex: none; width: 20px; height: 20px; margin-right: 6px; border-radius: 6px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
+.dock-tab-close { display: grid; place-items: center; flex: none; width: 16px; height: 16px; margin-right: 6px; border-radius: 4px; color: var(--text-muted); opacity: 0; transition: opacity var(--motion-fast) var(--ease-out); }
 .dock-tab[data-active] .dock-tab-close, .dock-tab:hover .dock-tab-close, .dock-tab-close:focus-visible { opacity: 1; }
-.dock-tab-close:hover { background: var(--navigation-hover); color: var(--text-primary); }
+.dock-tab-close:hover { background: var(--chip-hover); color: var(--text-primary); }
+/* Chips overflowing the strip fade out 36px from each edge that has more to scroll to. */
+.dock-tabs-fade { --fade-start: 0px; --fade-end: 0px; -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent); mask-image: linear-gradient(to right, transparent, #000 var(--fade-start), #000 calc(100% - var(--fade-end)), transparent); }
+.dock-tabs-fade[data-fade~="start"] { --fade-start: 36px; }
+.dock-tabs-fade[data-fade~="end"] { --fade-end: 36px; }
 
 /* Material Icon Theme glyphs (FileGlyph): the inlined SVG fills its sized box. */
 .material-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; }

@@ -14,7 +14,7 @@ import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ChartBar, Folder, GitBranch, Link, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons";
+import { ChartBar, Folder, GitBranch, Link, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, Search, SidebarRight, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -312,7 +312,7 @@ export default function App() {
               {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
               <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
-            <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
+            <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-28px)/2)] ml-auto flex h-7 self-start items-center gap-0.5">
               {localClient ? <span className="mr-1.5 inline-flex"><AppUpdatePill /></span> : null}
               {mainView === "session" ? <GitIncomingButton /> : null}
               <EnvironmentToggle />
@@ -321,9 +321,9 @@ export default function App() {
                 shortcut={shortcutLabel(effectiveShortcut(settings.customShortcuts, "toggle-context"))}
                 aria-expanded={dockOpen}
                 onClick={toggleDock}
-                className="size-6 min-h-0 rounded-[6px] p-0 text-text-muted"
+                className="size-7 min-h-0 rounded-[6px] p-0 text-text-muted"
               >
-                {dockOpen ? <PanelRightOpen size={14} strokeWidth={1.7} /> : <PanelRight size={14} strokeWidth={1.7} />}
+                <SidebarRight size={16} open={dockOpen} />
               </IconButton>
             </div>
           </header>
