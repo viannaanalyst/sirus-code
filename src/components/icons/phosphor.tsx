@@ -185,7 +185,6 @@ import {
   WarningCircle as PhWarningCircle,
   Wrench as PhWrench,
   X as PhX,
-  Tray as PhTray,
   ClipboardText as PhClipboardText,
   BookmarkSimple as PhBookmarkSimple,
   DotsSixVertical as PhDotsSixVertical,
@@ -399,7 +398,6 @@ export const Wrench = adapt(PhWrench, "Wrench");
 export const X = adapt(PhX, "X");
 export const XCircle = adapt(PhXCircle, "XCircle");
 export const Zap = adapt(PhLightning, "Zap");
-export const Inbox = adapt(PhTray, "Inbox");
 export const ClipboardList = adapt(PhClipboardText, "ClipboardList");
 export const Bookmark = adapt(PhBookmarkSimple, "Bookmark");
 export const GripVertical = adapt(PhDotsSixVertical, "GripVertical");

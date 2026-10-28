@@ -52,7 +52,7 @@ function Lights() {
   return <span className="sidebar-thumb-lights"><i /><i /><i /></span>;
 }
 
-/** The column's tool rows: search, order, New project and New conversation; Inbox · Tasks · PRs. */
+/** The column's tool rows: search, order, New project and New conversation; PRs. */
 function ToolRows() {
   const t = useTranslation();
   return <>
@@ -63,7 +63,7 @@ function ToolRows() {
       <span className="conversation-sidebar-order"><SquarePen size={15} /></span>
     </span>
     <span className="conversation-sidebar-nav">
-      {(["inbox", "pulls"] as const).map(id => <span key={id} className="conversation-sidebar-nav-item"><RailGlyph id={id} size={14} /><span>{id === "pulls" ? t("sidebarList.pulls") : t(RAIL_LABELS[id])}</span></span>)}
+      {(["pulls"] as const).map(id => <span key={id} className="conversation-sidebar-nav-item"><RailGlyph id={id} size={14} /><span>{id === "pulls" ? t("sidebarList.pulls") : t(RAIL_LABELS[id])}</span></span>)}
     </span>
   </>;
 }
@@ -95,7 +95,7 @@ function ListSidebar({ sample }: { sample: Sample }) {
 
 function Rail() {
   return <span className="sidebar-thumb-rail">
-    {(["home", "inbox", "pulls"] as const).map((id, index) => <span key={id} className="sidebar-thumb-rail-button" data-on={index === 0 || undefined}><RailGlyph id={id} active={index === 0} size={20} /></span>)}
+    {(["home", "pulls"] as const).map((id, index) => <span key={id} className="sidebar-thumb-rail-button" data-on={index === 0 || undefined}><RailGlyph id={id} active={index === 0} size={20} /></span>)}
     <span className="flex-1" />
     <span className="sidebar-thumb-rail-button"><Settings size={20} /></span>
   </span>;

@@ -17,7 +17,6 @@ import { conversationListItems, conversationOrderSettings, conversationSortKeys,
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { tabStatus, type TabStatus } from "@/lib/header-tabs";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
-import { isAuxiliarySession } from "@/lib/pull-ask";
 import { RAIL_LABELS } from "@/lib/rail";
 import { relativeTime } from "@/lib/session-board";
 import { holdSessionOrder, sessionOrderSignature, toggleSidebarId, type SessionOrderSnapshot } from "@/lib/sidebar-layout";
@@ -35,16 +34,15 @@ import "@/styles/sidebar.css";
 import "@/styles/header-tabs.css";
 import "@/styles/conversation-sidebar.css";
 
-const NAV_ITEMS = ["inbox", "pulls"] as const;
+const NAV_ITEMS = ["pulls"] as const;
 
-/** Rail dots for the compact nav row: a session waits for the person, or an unread pull request. */
+/** Rail dots for the compact nav row: an unread pull request. */
 function useNavDots() {
-  const needsYou = useAppStore(state => state.sessions.some(session => session.status === "waiting" && !isAuxiliarySession(session) && session.id !== state.selectedSessionId));
   const githubInbox = useAppStore(state => state.githubInbox);
   const githubSeen = useAppStore(state => state.settings.githubSeen);
   const githubSeenFloor = useAppStore(state => state.settings.githubSeenFloor);
   const pulls = useMemo(() => hasUnreadGithubItems(Object.values(githubInbox).flatMap(list => list.data?.items ?? []), githubSeen, githubSeenFloor), [githubInbox, githubSeen, githubSeenFloor]);
-  return { inbox: needsYou, pulls };
+  return { pulls };
 }
 
 function useWaitingSets() {
@@ -58,7 +56,7 @@ const saveSettings = (change: Partial<AppSettings>) => { const state = store(); 
 
 /**
  * The column sidebar (ADR-139): recent conversations from every project, flat or in project
- * folders, with search, the list order, New project, Inbox / Tasks / PRs, usage rings and
+ * folders, with search, the list order, New project, PRs, usage rings and
  * Settings. It replaces the header's project switcher while it shows; ⌘S hides it.
  */
 export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion }) {
@@ -202,7 +200,7 @@ function ConversationList() {
     if (!next.delete(projectId)) next.add(projectId);
     return next;
   }), []);
-  // Selecting a conversation (anywhere: tabs, palette, Inbox) opens its folder.
+  // Selecting a conversation (anywhere: tabs, palette) opens its folder.
   const seenSelection = useRef(selectedSessionId);
   useEffect(() => {
     if (seenSelection.current === selectedSessionId) return;

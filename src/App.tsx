@@ -14,7 +14,7 @@ import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ChartBar, Folder, GitBranch, Inbox, Link, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
+import { ChartBar, Folder, GitBranch, Link, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -58,7 +58,6 @@ import {
 const SettingsPage = lazy(() => import("@/components/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const CreateProjectDialog = lazy(() => import("@/components/CreateProjectDialog").then((module) => ({ default: module.CreateProjectDialog })));
 const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then((module) => ({ default: module.NewSessionDialog })));
-const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
 const UsagePage = lazy(() => import("@/components/usage/UsagePage").then((module) => ({ default: module.UsagePage })));
 const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
@@ -156,7 +155,6 @@ export default function App() {
         { id: "search-conversations", label: t("Search all conversations"), group: actions, icon: <Search />, shortcut: shortcut("search-conversations"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch("all"); } },
         { id: "find-in-conversation", label: t("Find in conversation"), group: actions, icon: <TextSearch />, shortcut: shortcut("find-in-conversation"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
         { id: "pull-requests", label: t("pulls.title"), group: actions, icon: <GitPullRequest />, run: () => setMainView("pulls") },
-        { id: "inbox", label: t("inbox.title"), group: actions, icon: <Inbox />, run: () => setMainView("inbox") },
         { id: "open-terminal", label: t("Open Terminal"), group: actions, icon: <SquareTerminal />, shortcut: shortcut("open-terminal"), run: () => useAppStore.getState().openDockPane("terminal") },
         { id: "toggle-context", label: t("Toggle right panel"), group: actions, icon: <PanelRight />, shortcut: shortcut("toggle-context"), run: () => toggleDock() },
         { id: "toggle-sidebar", label: t("Toggle Sidebar"), group: actions, icon: <PanelLeft />, shortcut: shortcut("toggle-sidebar"), run: toggleSidebar },
@@ -311,8 +309,8 @@ export default function App() {
           >
             {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
             {mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
+              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               {localClient ? <span className="mr-1.5 inline-flex"><AppUpdatePill /></span> : null}
@@ -339,7 +337,6 @@ export default function App() {
               onNewSession={openNewSession}
               onModelChange={changeModel}
             /> : null}
-            {mainView === "inbox" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><InboxPage /></Suspense> : null}
             {mainView === "usage" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><UsagePage /></Suspense> : null}
             {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}
             {/* A page an agent opened floats over the conversation's corner (ADR-151). */}
