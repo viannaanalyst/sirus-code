@@ -356,6 +356,7 @@ pub fn run() {
             session_move::import_session,
             session_move::mark_session_moved,
             turn_undo::undo_turn_changes,
+            turn_undo::check_turn_undo,
             commands::trash_workspace_entry,
             skills::skill_action,
             mcp_config::mcp_action,

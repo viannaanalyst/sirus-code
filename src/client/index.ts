@@ -547,6 +547,11 @@ export class SirusClient {
     return this.transport.invoke<import("./types").UndoTurnOutcome>("undo_turn_changes", { request: { sessionId, messageId, paths, confirm: true } });
   }
 
+  /** Read-only: why undoing this turn would be refused right now, or null (ADR-187). */
+  checkTurnUndo(sessionId: string, messageId: string, paths?: string[]) {
+    return this.transport.invoke<import("./types").UndoBlock | null>("check_turn_undo", { request: { sessionId, messageId, paths } });
+  }
+
   keepTurnChanges(sessionId: string, messageId: string) {
     return this.transport.invoke<import("./types").TurnReview>("keep_turn_changes", { sessionId, messageId });
   }

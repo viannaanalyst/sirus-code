@@ -92,9 +92,16 @@ export interface TurnReview {
   sharedWorkspace: boolean;
   keptAt: string | null;
   expired: boolean;
+  /** Commit id of the workspace's HEAD when the turn settled; undo refuses once it moved (ADR-187). */
+  head?: string | null;
 }
 /** Files left as they were: changed again since the turn, or no retained diff (ADR-061). */
 export interface UndoTurnOutcome { undone: string[]; refused: string[] }
+/** Why undoing a turn is refused, before anything is touched (ADR-187). */
+export type UndoBlock =
+  | { kind: "headMoved"; was: string; now: string }
+  | { kind: "otherSession"; sessionId: string; title: string; running: boolean; files: string[] }
+  | { kind: "changedAgain"; files: string[]; laterTurn: boolean };
 export interface TurnActivity {
   review?: TurnReview | null;
   provider: AgentProviderId; model: string | null; startedAt: number; endedAt: number | null;
