@@ -24,6 +24,7 @@ export const defaultSettings: AppSettings = {
   showSessionTabs: true,
   continueInterruptedSessions: true,
   compactIdleBeforeCacheExpiry: false,
+  rotateAtContextLimit: false,
   agentSounds: false,
   keepIdleAgents: 16,
   browserRecordingFps: 30,
@@ -174,6 +175,7 @@ export function mergeSettings(value: Partial<AppSettings> | null | undefined): A
     showSessionTabs: value?.showSessionTabs !== false,
     continueInterruptedSessions: value?.continueInterruptedSessions !== false,
     compactIdleBeforeCacheExpiry: value?.compactIdleBeforeCacheExpiry === true,
+    rotateAtContextLimit: value?.rotateAtContextLimit === true,
     agentSounds: value?.agentSounds === true,
     keepIdleAgents: [0, 1, 2, 3, 5, 16].includes(value?.keepIdleAgents as number) ? value?.keepIdleAgents as number : 16,
     browserRecordingFps: value?.browserRecordingFps === 60 ? 60 : 30,
@@ -403,7 +405,7 @@ function booleanPreference(value: unknown, fallback: boolean): boolean { return 
 
 /** Chat behavior's Agent behavior rows, restored with the page. */
 export const CHAT_AGENT_KEYS = ["responseStreaming", "agentBrowserAccess"] as const satisfies readonly (keyof AppSettings)[];
-export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "compactIdleBeforeCacheExpiry", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
+export const CHAT_SETTING_KEYS = ["steerWhileRunning", "dictationEnterSends", "foldFinishedTurns", "showWorkingPanel", "composerAutocorrect", "showSessionTabs", "continueInterruptedSessions", "compactIdleBeforeCacheExpiry", "rotateAtContextLimit", "githubLinksInApp", "linkOpenTarget", "diffWordWrap", "confirmTerminalClose"] as const satisfies readonly (keyof AppSettings)[];
 
 export const APPEARANCE_SETTING_KEYS = ["theme", "darkWindowTranslucent", "lightWindowTranslucent", "darkWindowOpacity", "lightWindowOpacity", "darkSidebarTranslucent", "lightSidebarTranslucent", "darkSidebarOpacity", "lightSidebarOpacity", "translucentOpacity", "systemUiFont", "uiFont", "uiFontSize", "codeFont", "codeFontSize", "terminalFont", "terminalFontSize", "fontSmoothing", "dockIcon", "density", "animations", "composerLineSpeed", "pointerGlow", "reduceMotion", "sidebarMode", "sidebarListOrder"] as const satisfies readonly (keyof AppSettings)[];
 export function resetAppearanceSettings(settings: AppSettings): AppSettings {

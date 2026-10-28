@@ -176,9 +176,17 @@ fn task_view(child: &Session) -> Value {
                 .iter()
                 .rev()
                 .find(|message| message.role == MessageRole::Agent)
-                .map(|message| crate::launch::bounded(message.content.trim(), RESULT_CHARS))
+                .map(|message| crate::token_budget::cap_chars(message.content.trim(), RESULT_CHARS))
         })
         .flatten();
+    let truncated = result.as_ref().is_some_and(|(_, cut)| *cut);
+    let result = result.map(|(text, cut)| {
+        if cut {
+            format!("{text}\n\n[Result cut at {RESULT_CHARS} characters.]")
+        } else {
+            text
+        }
+    });
     json!({
         "taskId": child.id,
         "title": child.title,
@@ -188,6 +196,7 @@ fn task_view(child: &Session) -> Value {
         "waitingForPerson": child.status == SessionStatus::Waiting,
         "resultSource": result.is_some().then_some(RESULT_SOURCE),
         "result": result,
+        "resultTruncated": truncated,
         "lastError": child.last_error,
     })
 }
@@ -715,5 +724,13 @@ mod tests {
         assert_eq!(task_view(&child)["result"], "Done.");
         assert_eq!(task_view(&child)["resultSource"], RESULT_SOURCE);
         assert_eq!(task_view(&child)["status"], "completed");
+        assert_eq!(task_view(&child)["resultTruncated"], false);
+        // A long final answer is cut, says so, and flags it for the parent (ADR-181).
+        child.messages[0].content = "x".repeat(RESULT_CHARS + 500);
+        let view = task_view(&child);
+        assert_eq!(view["resultTruncated"], true);
+        let text = view["result"].as_str().unwrap();
+        assert!(text.starts_with(&"x".repeat(RESULT_CHARS)) && text.contains("Result cut"));
+        assert!(text.chars().count() < RESULT_CHARS + 60);
     }
 }

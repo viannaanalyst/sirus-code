@@ -121,6 +121,8 @@ export interface Message {
   visuals?: MessageVisual[];
   /** User messages: the send's `clientRequestId`, so a doubled delivery starts one turn. */
   clientRequestId?: string;
+  /** User messages: this send started a fresh provider session because the context was nearly full (ADR-181). */
+  rotation?: { used: number; window: number };
 }
 /** A self-contained HTML visual shown as a sandboxed card in a reply; the same title in a turn replaces it (ADR-123). */
 export interface MessageVisual {
@@ -322,6 +324,8 @@ export interface HandoffOrigin {
   pending: boolean;
   /** The recap went out with a prompt the provider has not taken yet (ADR-101). */
   delivering?: boolean;
+  /** A context rotation (same provider, fresh session, code-built brief), not a provider switch (ADR-181). */
+  rotated?: boolean;
 }
 
 export interface Session {
@@ -487,6 +491,8 @@ export interface AppSettings {
   continueInterruptedSessions: boolean;
   /** Beta: idle Claude conversations over 200K tokens compact shortly before the cache expires (ADR-157). */
   compactIdleBeforeCacheExpiry: boolean;
+  /** At 80% of the context window the next send starts a fresh session seeded with a brief built by code, no model call (ADR-181). */
+  rotateAtContextLimit: boolean;
   /** Sounds (off by default): soft chimes when an agent finishes a turn or needs you (ADR-171). */
   agentSounds: boolean;
   /** Providers → Advanced: finished conversations that keep their agent running (16 = all). */

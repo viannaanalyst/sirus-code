@@ -180,6 +180,12 @@ export const SETTINGS_INDEX: SettingsIndexEntry[] = [
  },
  {
   "section": "chat",
+  "title": "chatBehavior.rotate",
+  "description": "chatBehavior.rotateHelp",
+  "group": "chatBehavior.conversation"
+ },
+ {
+  "section": "chat",
   "title": "chatBehavior.wrap",
   "description": "chatBehavior.wrapHelp",
   "group": "chatBehavior.review"

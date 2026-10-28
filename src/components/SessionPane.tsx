@@ -299,6 +299,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
                     const change = providerChanges.get(message.id);
                     return <Fragment key={message.id}>
                       {change ? <HandoffMarker sessionId={session.id} from={change.from} to={change.to} live={message.streaming && !passive} /> : null}
+                      {message.rotation ? <div className="flex items-center gap-2 text-[12px] text-text-muted" role="separator" title={t("context.rotatedHelp")}><span className="h-px flex-1 bg-border" /><span>{t("context.rotated", { percent: String(Math.round(message.rotation.used / message.rotation.window * 100)) })}</span><span className="h-px flex-1 bg-border" /></div> : null}
                       <TranscriptMessage message={message} session={session} searchQuery={searchQuery} nodes={messageNodes} compacted={compactions.has(message.id)} last={session.messages.at(-1)?.id === message.id} />
                       {message === messages[messages.length - 1] && !passive ? <><PlanActions session={session} message={message} />{emptyReply(message, session) ? <EmptyReplyNotice sessionId={session.id} /> : null}</> : null}
                     </Fragment>;

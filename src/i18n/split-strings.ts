@@ -29,6 +29,8 @@ const strings: Record<string, [string, string]> = {
   "context.tokens": ["{used} / {window} tokens", "{used} / {window} tokens"],
   "context.compact": ["Compact", "Compactar"],
   "context.wait": ["Wait for the current turn to finish", "Espere o turno atual terminar"],
+  "context.rotated": ["Fresh session started at {percent}% of the context", "Sessão nova iniciada com {percent}% do contexto"],
+  "context.rotatedHelp": ["The context was nearly full, so this message started a fresh provider session with a brief of the conversation so far. The full transcript stays here.", "O contexto estava quase cheio, então esta mensagem iniciou uma sessão nova do provedor com um resumo da conversa até aqui. A conversa completa continua aqui."],
   "context.compacted": ["Context compacted", "Contexto compactado"],
   "context.compacting": ["Compacting context…", "Compactando o contexto…"],
   "context.cannotCompact": ["Only Codex and Claude Code conversations can be compacted.", "Só conversas do Codex e do Claude Code podem ser compactadas."],

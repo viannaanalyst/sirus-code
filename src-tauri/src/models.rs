@@ -209,6 +209,9 @@ pub struct Message {
     /// twice starts one turn (idempotent sends).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub client_request_id: Option<String>,
+    /// User messages: this send started a fresh provider session (ADR-181).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<ContextRotation>,
 }
 
 /// A self-contained HTML visual shown as a card in an agent reply (ADR-123). It only ever
@@ -505,6 +508,19 @@ pub struct HandoffOrigin {
     /// ends before taking it gives the recap back; one that took it spends it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub delivering: bool,
+    /// A context rotation, not a provider switch: the same provider continues in a fresh
+    /// session seeded with a code-built brief (ADR-181).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rotated: bool,
+}
+
+/// A user message that began a fresh provider session because the context was nearly full
+/// (ADR-181): the transcript shows a marker above it.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContextRotation {
+    pub used: u64,
+    pub window: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -688,6 +704,11 @@ pub struct AppSettings {
     /// Chat behavior (beta, off by default): an idle Claude conversation with a large context
     /// compacts shortly before its prompt cache expires (ADR-157).
     pub compact_idle_before_cache_expiry: bool,
+    /// Chat behavior (off by default): when a Claude or Codex conversation's reported context
+    /// reaches 80% of its window, the next send starts a fresh provider session seeded with a
+    /// brief built by code, with no model call (ADR-181).
+    #[serde(default)]
+    pub rotate_at_context_limit: bool,
     /// Sounds (off by default): a soft chime when an agent finishes a turn or needs approval or an answer.
     /// The window plays it, and never for the conversation in view while the window is focused.
     #[serde(default)]
@@ -915,6 +936,7 @@ impl Default for AppSettings {
             show_session_tabs: true,
             continue_interrupted_sessions: true,
             compact_idle_before_cache_expiry: false,
+            rotate_at_context_limit: false,
             agent_sounds: false,
             keep_idle_agents: 16,
             browser_recording_fps: 30,

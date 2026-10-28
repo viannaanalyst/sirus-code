@@ -55,7 +55,7 @@ fn context_limit() -> Error {
 
 /// Whether the next turn resumes the session's own native conversation, rather than
 /// starting one from the reconstructed transcript (a fork's first turn).
-fn resumes_native(session: &Session) -> bool {
+pub(crate) fn resumes_native(session: &Session) -> bool {
     session.native_thread.as_ref().is_some_and(|thread| {
         session.fork_origin.as_ref().is_none_or(|origin| {
             origin.seeded_native_thread_id.as_deref() == Some(thread.thread_id.as_str())
@@ -85,7 +85,14 @@ pub fn compaction_refusal(
     None
 }
 
+#[cfg(test)]
 pub fn process_prompt(session: &Session, prompt: &str) -> Result<String> {
+    process_prompt_with(session, prompt, 0)
+}
+
+/// `process_prompt`, where `reserved` tokens of attachments travel with the message and come
+/// off the history a text-replay provider may be sent (ADR-181).
+pub fn process_prompt_with(session: &Session, prompt: &str, reserved: u64) -> Result<String> {
     let native = matches!(
         session.agent,
         AgentProviderId::Codex | AgentProviderId::Claude | AgentProviderId::OpenCode
@@ -103,7 +110,16 @@ pub fn process_prompt(session: &Session, prompt: &str) -> Result<String> {
     Ok(if native {
         prompt.to_string()
     } else {
-        crate::agent::conversation_prompt(&session.messages, prompt)
+        let (window, used) = session
+            .context_usage
+            .as_ref()
+            .map_or((None, 0), |usage| (usage.window, usage.used));
+        let budget = crate::token_budget::handoff_history(
+            window,
+            used,
+            crate::token_budget::estimate(prompt) + reserved,
+        );
+        crate::agent::conversation_prompt_within(&session.messages, prompt, budget)
     })
 }
 
@@ -326,6 +342,7 @@ pub fn handoff_snapshot(
             request: handoff_request(slice),
             pending: true,
             delivering: false,
+            rotated: false,
         }),
         account_bindings: HashMap::from([(agent.clone(), provider_account_id.clone())]),
         id: id.into(),
@@ -382,6 +399,7 @@ pub fn arm_in_session_handoff(session: &mut Session, previous: AgentProviderId) 
         request: handoff_request(&session.messages),
         pending: true,
         delivering: false,
+        rotated: false,
     });
 }
 
@@ -394,7 +412,12 @@ pub fn consume_handoff(session: &mut Session, prompt: String) -> String {
         Some(handoff) if handoff.pending || handoff.delivering => {
             handoff.pending = false;
             handoff.delivering = true;
-            wrap_handoff_prompt(&handoff.from, &handoff.brief, &prompt)
+            if handoff.rotated {
+                // The same conversation in a fresh session, not a switch of provider (ADR-181).
+                format!("{}\n\n{}", handoff.brief.trim(), prompt)
+            } else {
+                wrap_handoff_prompt(&handoff.from, &handoff.brief, &prompt)
+            }
         }
         _ => prompt,
     }
