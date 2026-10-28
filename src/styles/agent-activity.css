@@ -147,6 +147,29 @@ html[data-ambient="off"] :is(.agent-activity .activity-state, .tl-shine), html[d
     background-image: linear-gradient(to right, transparent, var(--text-primary), transparent), linear-gradient(var(--text-muted), var(--text-muted));
     background-size: 4.5rem 100%, 100% 100%; background-repeat: no-repeat; animation: tl-shine 2.2s steps(30) infinite; }
 }
+/* The activity tree (ADR-176): rows 32px tall with no gap, so the trunk runs on beside expanded output.
+   Trunk at x=12.5, elbows to x=28, a 4px break, the 16px icon at x=32, 8px to the label. Geometry after Zeron (MIT). */
+.tl-sum { min-height: 26px; gap: 6px; padding: 0; }
+.tl-sum-chevron { flex-shrink: 0; width: 12px; height: 12px; color: var(--text-muted); transition: transform var(--motion-fast) var(--ease-out); }
+.tl-tree { padding-left: 0; }
+.tl-node { position: relative; min-width: 0; }
+.tl-node::before { content: ""; position: absolute; left: 12px; top: 0; width: 16px; height: 16px; box-sizing: border-box; border-left: 1.5px solid var(--tree-line); border-bottom: 1.5px solid var(--tree-line); border-bottom-left-radius: 7px; pointer-events: none; }
+.tl-node:not([data-last])::after { content: ""; position: absolute; left: 12px; top: 16px; bottom: 0; border-left: 1.5px solid var(--tree-line); pointer-events: none; }
+.tl-tree .tl-line { min-height: 32px; gap: 8px; padding: 0 2px 0 32px; border-radius: 0; }
+.tl-tree .tl-icon { width: 16px; height: 16px; }
+.tl-tree .tl-line[data-state="running"] .tl-icon { color: var(--accent); }
+.tl-tree .tl-output { margin: 2px 0 6px 56px; }
+.tl-mono { font-family: var(--font-mono); font-size: .92em; color: var(--text-secondary); }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-animations="off"], [data-reduce-motion="on"]) .tl-node[data-reveal] { animation: tl-node-in 360ms cubic-bezier(0.16, 1, 0.3, 1) var(--tl-delay, 0ms) both; }
+  html:not([data-animations="off"], [data-reduce-motion="on"]) .tl-node[data-reveal]::before { animation: tl-draw 480ms cubic-bezier(0.22, 1, 0.36, 1) var(--tl-delay, 0ms) both; }
+  /* A group still working: a slow light sweep across its summary. */
+  html:not([data-animations="off"], [data-reduce-motion="on"]) .tl-sum[data-shimmer] .tl-label { background: linear-gradient(90deg, var(--text-muted) 0%, var(--text-muted) 35%, var(--text-primary) 50%, var(--text-muted) 65%, var(--text-muted) 100%); background-size: 250% 100%; background-clip: text; -webkit-background-clip: text; color: transparent; animation: tl-sum-sweep 3.4s linear infinite; }
+}
+html[data-ambient="off"] .tl-sum[data-shimmer] .tl-label { animation-play-state: paused; }
+@keyframes tl-node-in { from { opacity: 0; translate: 0 4px; } }
+@keyframes tl-draw { from { clip-path: inset(0 100% 0 0); } }
+@keyframes tl-sum-sweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @keyframes tl-open { from { opacity: 0; transform: translateY(-2px); } }
 @keyframes tl-shine { from { background-position: -4.5rem 0, 0 0; } to { background-position: calc(100% + 4.5rem) 0, 0 0; } }
 

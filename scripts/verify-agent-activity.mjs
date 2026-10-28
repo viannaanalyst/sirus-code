@@ -48,6 +48,10 @@ try {
     const order = ["/graphify", "[Antes]", "src/app.ts", "[Depois]"].map((needle) => open.indexOf(needle));
     assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1])), `skill, text, read and final text in order: ${order}`);
     assert.ok(!open.includes("/fixture/src"), "workspace paths show relative");
+    // A group of several steps is a summary with a chevron (the tree opens under it); the group icon is gone.
+    const group = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [1, 2, 3].map((n) => ({ id: `g${n}`, kind: "command", label: "Command", state: "completed", model: null, detail: `npm run ${n}` })) } }));
+    assert.match(group, /class="tl-line tl-toggle tl-sum"[^>]*aria-expanded="false"/, "the group summary is a disclosure");
+    assert.ok(group.includes("tl-sum-chevron") && !group.includes("tl-tree"), "closed: chevron, no tree");
     const empty = renderToString(createElement(AgentActivity, { activity: { ...activity, items: [] } }));
     assert.ok(!empty.includes("<button"), "no disclosure when no details are offered");
     const request = { requestId: "r", generation: "g", turnId: "t", itemId: "i", kind: { type: "userInput", questions: [{ id: "q1", header: "Scope", question: "First question?", isOther: true, isSecret: false, options: [{ label: "Choice", description: "Description" }] }, { id: "q2", header: "Style", question: "Second question?", isOther: true, isSecret: false, options: null }] } };

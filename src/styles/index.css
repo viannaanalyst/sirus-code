@@ -41,6 +41,8 @@
   --background-elevated: oklch(0.205 0.008 285);
   --border-subtle: oklch(1 0 0 / 0.07);
   --border-default: oklch(1 0 0 / 0.115);
+  /* The agent activity tree's trunk and elbows (ADR-176). */
+  --tree-line: oklch(1 0 0 / 0.13);
   --text-primary: oklch(0.95 0.004 285);
   --text-secondary: oklch(0.78 0.008 285);
   --text-muted: oklch(0.6 0.01 285);
@@ -337,6 +339,7 @@ html[data-theme="light"] {
   --background-elevated: oklch(1 0 0);
   --border-subtle: oklch(0.25 0.02 285 / 0.08);
   --border-default: oklch(0.25 0.02 285 / 0.14);
+  --tree-line: oklch(0.25 0.02 285 / 0.2);
   --text-primary: oklch(0.22 0.01 285);
   --text-secondary: oklch(0.33 0.01 285);
   --text-muted: oklch(0.5 0.012 285);
