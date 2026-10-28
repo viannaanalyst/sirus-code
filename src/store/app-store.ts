@@ -118,8 +118,8 @@ function withWorkspace(
 ) {
   return { terminalWorkspacesBySession: { ...state.terminalWorkspacesBySession, [sessionId]: workspace } };
 }
-/** Main column: conversation or a page (inbox, tasks, archived, pull requests; ADR-050). The Kanban board was retired (ADR-110). */
-export type MainView = "session" | "pulls" | "inbox" | "tasks" | "archived" | "usage";
+/** Main column: conversation or a page (inbox, archived, pull requests; ADR-050). The Kanban board was retired (ADR-110). */
+export type MainView = "session" | "pulls" | "inbox" | "archived" | "usage";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
   mainView: MainView;
@@ -348,10 +348,6 @@ interface AppStore {
   /** Review inbox lists per `${kind}:${state}` (ADR-050); memory-only, refreshed on demand. */
   githubInbox: Record<string, { data: import("@/client/types").GithubInbox | null; loading: boolean; error: string | null }>;
   loadGithubInbox: (kind: import("@/client/types").GithubItemKind, state: import("@/client/types").GithubItemState) => Promise<void>;
-  /** Personal tasks (ADR-052); null until first loaded. */
-  tasks: import("@/client/types").Task[] | null;
-  /** Closed `task_action`; failures land in `error` and resolve null. */
-  taskAction: (action: import("@/client/types").TaskAction) => Promise<import("@/client/types").Task[] | null>;
   /** `owner/repo#n` a chat link asked the Pull requests page to show (Chat behavior). */
   pullsSelection: string | null;
   /** Session waiting for the Chat behavior archive confirmation. */
@@ -1081,7 +1077,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
   ciAutoFix: [],
   prWatches: [],
-  tasks: null,
   loadedTranscripts: {},
   ensureTranscript: (sessionId, refresh = false) => {
     // A load in flight (the rest of a first page, below) answers before "already loaded".
@@ -2028,14 +2023,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
-  taskAction: async (action) => {
-    try {
-      const tasks = await client.taskAction(action);
-      set({ tasks });
-      return tasks;
-    } catch (error) { set({ error: formatUnknownError(error) }); return null; }
-  },
-
   ciAutofixAction: async (action) => {
     try {
       set({ ciAutoFix: await client.ciAutofixAction(action) });
@@ -2891,7 +2878,7 @@ export function resetComputerScope() {
     terminalWorkspacesBySession: {}, runningTerminals: {}, splitLayout: initialSplit(),
     openTabsByProject: {}, lastActiveTabByProject: {}, draftTabByProject: {}, unseenSessionIds: [],
     closedItems: [], navHistory: [], navIndex: -1, messageJump: null, transcriptSearch: null,
-    tasks: null, githubInbox: {}, prWatches: [], ciAutoFix: [], secrets: null,
+    githubInbox: {}, prWatches: [], ciAutoFix: [], secrets: null,
   });
   // Read once by `bindRealtime`; the transport already talks to the next computer.
   void useAppStore.getState().ciAutofixAction({ type: "status" });
@@ -2939,8 +2926,6 @@ export async function bindRealtime() {
       if (next !== current) useAppStore.setState({ settings: next });
     }));
     void useAppStore.getState().prWatchAction({ type: "status" });
-    // Tasks an agent added or changed reach the Tasks page and Inbox without a reload.
-    unlisteners.push(await client.onTasksChanged(() => { void useAppStore.getState().taskAction({ type: "list" }); }));
     unlisteners.push(await client.onSessionUpdated((session) => {
       // Earlier deltas apply first; the snapshot then supersedes them by offset.
       outputBatch.flush();

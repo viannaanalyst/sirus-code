@@ -202,7 +202,6 @@ test("native admission clears the initial draft once while startup IPC is pendin
   context.mock.method(client, "sendPrompt", () => new Promise<Session>(done => { resolve = done; }));
   let updated!: (session: Session) => void;
   context.mock.method(client, "onSessionUpdated", async (handler: typeof updated) => { updated = handler; return () => {}; });
-  context.mock.method(client, "onTasksChanged", async () => () => {});
   context.mock.method(client, "onCiAutofixChanged", async () => () => {});
   context.mock.method(client, "ciAutofixAction", async () => []);
   context.mock.method(client, "onPrWatchChanged", async () => () => {});

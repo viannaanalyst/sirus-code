@@ -1,6 +1,6 @@
 # ADR-110: Kanban retired; agents keep Tasks; `.icns` project icons; compact activity rows
 
-**Status:** Accepted (2026-10-11)
+**Status:** Accepted (2026-10-11). Superseded by ADR-172 (Tasks and scheduled tasks removed).
 
 ## Context
 

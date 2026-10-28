@@ -1,6 +1,6 @@
 # ADR-161: Scheduled tasks that run on a webhook
 
-**Status:** Accepted (2026-10-22). Extends ADR-142 and ADR-155.
+**Status:** Accepted (2026-10-22). Extends ADR-142 and ADR-155. Superseded by ADR-172 (Tasks and scheduled tasks removed).
 
 ## Context
 

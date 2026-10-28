@@ -36,7 +36,7 @@ import "@/styles/sidebar.css";
 import "@/styles/header-tabs.css";
 import "@/styles/conversation-sidebar.css";
 
-const NAV_ITEMS = ["inbox", "tasks", "pulls"] as const;
+const NAV_ITEMS = ["inbox", "pulls"] as const;
 
 /** Rail dots for the compact nav row: a session waits for the person, or an unread pull request. */
 function useNavDots() {
@@ -45,7 +45,7 @@ function useNavDots() {
   const githubSeen = useAppStore(state => state.settings.githubSeen);
   const githubSeenFloor = useAppStore(state => state.settings.githubSeenFloor);
   const pulls = useMemo(() => hasUnreadGithubItems(Object.values(githubInbox).flatMap(list => list.data?.items ?? []), githubSeen, githubSeenFloor), [githubInbox, githubSeen, githubSeenFloor]);
-  return { inbox: needsYou, tasks: false, pulls };
+  return { inbox: needsYou, pulls };
 }
 
 function useWaitingSets() {

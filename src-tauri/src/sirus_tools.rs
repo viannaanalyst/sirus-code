@@ -66,51 +66,14 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({ "name": "sirus_read_session", "description": "Sirus Code: a session's status and its last messages (user and assistant text only, each shortened to 2,000 characters).", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "limit": { "type": "integer", "description": "Messages to return, 1–20 (default 6)." } }, "required": ["sessionId"] } }),
         json!({ "name": "sirus_session_status", "description": "Sirus Code: a session's status (idle, running, waiting for the person, completed, failed, stopped), title and last error.", "inputSchema": id() }),
         json!({ "name": "sirus_create_session", "description": "Sirus Code: start a new visible session in a project with a first prompt. It runs on its own with your approval mode (so it may wait for the person's approval in its own tab) and returns at once; check it later with sirus_session_status. At most 4 per turn.", "inputSchema": { "type": "object", "properties": { "project": { "type": "string", "description": "Project name or id." }, "prompt": { "type": "string", "description": "The task: objective, context, constraints, what it may change and the result you expect." }, "title": { "type": "string" }, "provider": { "type": "string", "description": "Optional provider id (claude, codex, opencode, …); defaults to yours." }, "model": { "type": "string" }, "newWorktree": { "type": "boolean", "description": "Default true: an isolated worktree, so parallel sessions never mix files." } }, "required": ["project", "prompt"] } }),
-        // The person's Tasks list: agents add, read and update to-dos; deleting one
-        // and handing it to a session stay with the person (ADR-110).
-        json!({ "name": "sirus_create_task", "description": "Sirus Code: add a to-do to the person's Tasks list, for example when they ask to note something for later. It is filed under your project unless you name another or none.", "inputSchema": { "type": "object", "properties": { "title": { "type": "string", "description": "What needs doing, as one line." }, "notes": { "type": "string", "description": "Optional details; an agent the task is later handed to receives them." }, "priority": { "type": "string", "enum": ["none", "low", "medium", "high", "urgent"] }, "dueDate": { "type": "string", "description": "Optional day, YYYY-MM-DD." }, "project": { "type": "string", "description": "Optional project name or id; \"none\" files it under no project." } }, "required": ["title"] } }),
-        json!({ "name": "sirus_list_tasks", "description": "Sirus Code: the person's to-dos from the Tasks list (id, title, priority, project, due date, done). Done ones are hidden unless includeDone is true; notes are shortened.", "inputSchema": { "type": "object", "properties": { "includeDone": { "type": "boolean" }, "project": { "type": "string", "description": "Only tasks of this project (name or id)." } } } }),
-        json!({ "name": "sirus_update_task", "description": "Sirus Code: change a to-do in the Tasks list (title, notes, priority, due date, project) or mark it done or not done. Omitted fields stay as they are.", "inputSchema": { "type": "object", "properties": { "taskId": { "type": "string" }, "title": { "type": "string" }, "notes": { "type": "string" }, "priority": { "type": "string", "enum": ["none", "low", "medium", "high", "urgent"] }, "dueDate": { "type": "string", "description": "YYYY-MM-DD, or an empty string to clear it." }, "project": { "type": "string", "description": "Project name or id; \"none\" files it under no project." }, "done": { "type": "boolean" } }, "required": ["taskId"] } }),
         json!({ "name": "sirus_session_diff", "description": "Sirus Code: the uncommitted changes in a session's workspace: a per-file summary and the unified diff against HEAD (new files listed by name), cut to 60,000 characters. Optional path: one file, relative to the workspace.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "path": { "type": "string" } }, "required": ["sessionId"] } }),
         json!({ "name": "sirus_answer_approval", "description": "Sirus Code: answer an approval waiting in a session you started (its requestId is in sirus_session_status's pendingApprovals). decline is always allowed; accept only when you yourself run with full access. Questions are left to the person.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "requestId": { "type": "string" }, "decision": { "type": "string", "enum": ["accept", "decline"] } }, "required": ["sessionId", "requestId", "decision"] } }),
         json!({ "name": "sirus_send_to_session", "description": "Sirus Code: continue another idle session with a message, using your approval mode. Returns at once.", "inputSchema": { "type": "object", "properties": { "sessionId": { "type": "string" }, "prompt": { "type": "string" } }, "required": ["sessionId", "prompt"] } }),
     ]);
-    // Scheduled tasks (ADR-142): prompts that run by themselves, with no broader access than yours.
-    tools.extend(crate::scheduled_tasks::tool_definitions());
     tools
 }
 
 /// Sessions these tools may see: not side chats.
-/// Shortened notes in lists; one task's own read keeps them whole.
-const TASK_NOTES_PREVIEW: usize = 240;
-const MAX_LISTED_TASKS: usize = 100;
-
-fn task_row(data: &AppData, task: &crate::tasks::Task, preview: bool) -> Value {
-    let notes: String = if preview {
-        task.notes.chars().take(TASK_NOTES_PREVIEW).collect()
-    } else {
-        task.notes.clone()
-    };
-    json!({
-        "id": task.id, "title": task.title, "notes": notes, "priority": task.priority,
-        "project": task.project_id.as_deref().and_then(|id| project_name(data, id)),
-        "dueDate": task.due_date, "done": task.completed_at.is_some(), "handedTo": task.session_id,
-    })
-}
-
-fn task_list(data: &AppData, include_done: bool, project: Option<&str>) -> Value {
-    let rows: Vec<&crate::tasks::Task> = data
-        .tasks
-        .iter()
-        .filter(|task| include_done || task.completed_at.is_none())
-        .filter(|task| project.is_none_or(|id| task.project_id.as_deref() == Some(id)))
-        .collect();
-    json!({
-        "tasks": rows.iter().take(MAX_LISTED_TASKS).map(|task| task_row(data, task, true)).collect::<Vec<_>>(),
-        "truncated": rows.len() > MAX_LISTED_TASKS,
-    })
-}
-
 fn visible(session: &Session) -> bool {
     !session.is_auxiliary()
 }
@@ -412,15 +375,7 @@ pub fn execute(
     };
     let mutating = matches!(
         tool,
-        "sirus_create_session"
-            | "sirus_send_to_session"
-            | "sirus_answer_approval"
-            | "sirus_create_task"
-            | "sirus_update_task"
-            | "sirus_schedule_task"
-            | "sirus_update_scheduled_task"
-            | "sirus_delete_scheduled_task"
-            | "sirus_run_scheduled_task_now"
+        "sirus_create_session" | "sirus_send_to_session" | "sirus_answer_approval"
     );
     // Planning, and an Ask conversation about a pull request (ADR-050), are read-only.
     if mutating && (caller.execution.planning || caller.pull_ask.is_some()) {
@@ -551,111 +506,6 @@ pub fn execute(
             }
             crate::launch::send_from(app, &caller, &target, prompt)
         }
-        "sirus_list_tasks" => {
-            let data = state.data.lock();
-            let project = match arg("project") {
-                wanted if wanted.is_empty() => None,
-                wanted => Some(resolve_project(&data, &wanted)?),
-            };
-            Ok(task_list(
-                &data,
-                args.get("includeDone")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false),
-                project.as_deref(),
-            ))
-        }
-        "sirus_create_task" | "sirus_update_task" => {
-            let result = {
-                let mut data = state.data.lock();
-                let now = chrono::Local::now().to_rfc3339();
-                let created = tool == "sirus_create_task";
-                let existing = if created {
-                    None
-                } else {
-                    let id = arg("taskId");
-                    Some(
-                        data.tasks
-                            .iter()
-                            .find(|task| task.id == id)
-                            .cloned()
-                            .ok_or("task not found")?,
-                    )
-                };
-                let text = |key: &str, fallback: Option<&str>| {
-                    args.get(key)
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                        .or(fallback.map(str::to_owned))
-                };
-                let project_id = match args.get("project").and_then(Value::as_str).map(str::trim) {
-                    Some("none") => None,
-                    Some(wanted) if !wanted.is_empty() => Some(resolve_project(&data, wanted)?),
-                    _ => match &existing {
-                        Some(task) => task.project_id.clone(),
-                        None => Some(caller.project_id.clone()),
-                    },
-                };
-                let priority = match args.get("priority").and_then(Value::as_str) {
-                    Some(value) => serde_json::from_value(json!(value)).map_err(|_| {
-                        "priority must be none, low, medium, high or urgent".to_string()
-                    })?,
-                    None => existing
-                        .as_ref()
-                        .map(|task| task.priority)
-                        .unwrap_or(crate::tasks::Priority::None),
-                };
-                let due_date = match args.get("dueDate").and_then(Value::as_str) {
-                    Some("") => None,
-                    Some(day) => Some(day.to_owned()),
-                    None => existing.as_ref().and_then(|task| task.due_date.clone()),
-                };
-                let input = crate::tasks::TaskInput {
-                    id: existing.as_ref().map(|task| task.id.clone()),
-                    title: text("title", existing.as_ref().map(|task| task.title.as_str()))
-                        .unwrap_or_default(),
-                    notes: text("notes", existing.as_ref().map(|task| task.notes.as_str()))
-                        .unwrap_or_default(),
-                    priority,
-                    project_id,
-                    due_date,
-                };
-                let before: std::collections::HashSet<String> =
-                    data.tasks.iter().map(|task| task.id.clone()).collect();
-                crate::tasks::upsert(&mut data, input, &now).map_err(|error| error.to_string())?;
-                let id = match &existing {
-                    Some(task) => task.id.clone(),
-                    None => data
-                        .tasks
-                        .iter()
-                        .find(|task| !before.contains(&task.id))
-                        .map(|task| task.id.clone())
-                        .ok_or("task not saved")?,
-                };
-                if let Some(done) = args.get("done").and_then(Value::as_bool) {
-                    let task =
-                        crate::tasks::find(&mut data, &id).map_err(|error| error.to_string())?;
-                    task.completed_at = done.then(|| now.clone());
-                    task.updated_at = now.clone();
-                }
-                let task = data
-                    .tasks
-                    .iter()
-                    .find(|task| task.id == id)
-                    .cloned()
-                    .ok_or("task not saved")?;
-                (task, created)
-            };
-            state.persist().map_err(|error| error.to_string())?;
-            let _ = crate::runtime::Emitter::emit(app, "tasks-changed", ());
-            let (task, created) = result;
-            Ok(
-                json!({ if created { "created" } else { "updated" }: task_row(&state.data.lock(), &task, false) }),
-            )
-        }
-        tool if crate::scheduled_tasks::TOOLS.contains(&tool) => {
-            crate::scheduled_tasks::execute_tool(app, &state, &caller, tool, args)
-        }
         _ => Err("unknown Sirus tool".into()),
     }
 }
@@ -723,49 +573,6 @@ mod tests {
             .contains("relative"));
     }
 
-    #[test]
-    fn agents_list_open_tasks_by_default_with_short_notes() {
-        let mut data: AppData = serde_json::from_value(json!({"settings":{},"projects":[{"id":"p","name":"Lab","path":"/lab","addedAt":"t","lastOpenedAt":"t"}],"sessions":[]})).unwrap();
-        let now = "2026-10-11T10:00:00-03:00";
-        for (title, notes) in [("Open", "x".repeat(400)), ("Done", String::new())] {
-            crate::tasks::upsert(
-                &mut data,
-                crate::tasks::TaskInput {
-                    id: None,
-                    title: title.into(),
-                    notes,
-                    priority: crate::tasks::Priority::High,
-                    project_id: Some("p".into()),
-                    due_date: Some("2026-10-20".into()),
-                },
-                now,
-            )
-            .unwrap();
-        }
-        data.tasks[1].completed_at = Some(now.into());
-        let open = task_list(&data, false, None);
-        assert_eq!(open["tasks"].as_array().unwrap().len(), 1);
-        assert_eq!(open["tasks"][0]["project"], "Lab");
-        assert_eq!(
-            open["tasks"][0]["notes"].as_str().unwrap().chars().count(),
-            TASK_NOTES_PREVIEW
-        );
-        assert_eq!(
-            task_list(&data, true, None)["tasks"]
-                .as_array()
-                .unwrap()
-                .len(),
-            2
-        );
-        assert_eq!(
-            task_list(&data, true, Some("other"))["tasks"]
-                .as_array()
-                .unwrap()
-                .len(),
-            0
-        );
-    }
-
     fn session(id: &str, project: &str, activity: &str) -> Session {
         serde_json::from_value(json!({
             "id": id, "title": id, "projectId": project, "agent": "claude", "status": "completed",
@@ -799,13 +606,8 @@ mod tests {
         std::env::set_var(ENV, "1");
         let tools = tool_definitions();
         std::env::remove_var(ENV);
-        // Delegation (4), inline visuals (1), review guides (2), sessions (7), the Tasks list (3)
-        // and scheduled tasks (5).
-        assert_eq!(tools.len(), 22);
-        assert!(tools
-            .iter()
-            .any(|tool| tool["name"] == "sirus_schedule_task"));
-        assert!(tools.iter().any(|tool| tool["name"] == "sirus_create_task"));
+        // Delegation (4), inline visuals (1), review guides (2) and sessions (7).
+        assert_eq!(tools.len(), 14);
         assert!(tools
             .iter()
             .all(|tool| tool["name"].as_str().unwrap().starts_with("sirus_")));

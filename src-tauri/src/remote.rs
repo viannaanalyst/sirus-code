@@ -732,11 +732,6 @@ async fn start(app: AppHandle, remote: Arc<Remote>) {
         )
         .route("/api/socket", get(socket))
         .route("/api/thumbnail/{id}", get(thumbnail))
-        // Webhook-triggered scheduled tasks (ADR-161): the secret in the path is the credential.
-        .route(
-            "/hooks/{task}/{secret}",
-            post(hook).layer(hook_body_limit()),
-        )
         .fallback(get(asset))
         // The bundle is several megabytes of text; compressed it is about a quarter (gzip/brotli).
         .layer(tower_http::compression::CompressionLayer::new());
@@ -950,69 +945,6 @@ fn host_identity(remote: &Remote) -> Value {
         "hostName": crate::commands::machine_host_name(),
         "kind": if cfg!(feature = "desktop") { "mac" } else { "server" },
     })
-}
-
-/// Where a webhook task's URL is reached (ADR-161): the public route first, then this
-/// computer's own HTTPS name or its loopback address, and whether the server runs now.
-pub struct WebhookBases {
-    pub urls: Vec<String>,
-    /// The first URL is the public route's.
-    pub public: bool,
-    pub serving: bool,
-}
-
-/// Webhook bodies above 256 KB are answered 413 before the handler runs.
-fn hook_body_limit() -> axum::extract::DefaultBodyLimit {
-    axum::extract::DefaultBodyLimit::max(crate::scheduled_webhooks::BODY_LIMIT)
-}
-
-pub fn webhook_bases() -> WebhookBases {
-    let Some(remote) = REMOTE.get() else {
-        return WebhookBases {
-            urls: vec![],
-            public: false,
-            serving: false,
-        };
-    };
-    let port = remote.config.lock().port.unwrap_or(DEFAULT_PORT);
-    let mut urls = vec![];
-    let public = public_route(&remote.path)
-        .map(|route| urls.push(route.url))
-        .is_some();
-    if let Some(host) = own_https_host(remote) {
-        urls.push(format!("https://{host}"));
-    }
-    urls.push(format!("http://127.0.0.1:{port}"));
-    WebhookBases {
-        urls,
-        public,
-        serving: remote.server.lock().is_some(),
-    }
-}
-
-/// One webhook delivery: 202 when taken (or filtered and deduplicated, which the sender need
-/// not know), 404 for anything that is not a live webhook task with this secret, 429 over
-/// the task's rate, 413 above the body limit (refused by the layer before this runs).
-async fn hook(
-    AxumState(shared): AxumState<Shared>,
-    axum::extract::Path((task, secret)): axum::extract::Path<(String, String)>,
-    headers: HeaderMap,
-    body: axum::body::Bytes,
-) -> Response {
-    let headers = headers.iter().filter_map(|(name, value)| {
-        Some((name.as_str().to_owned(), value.to_str().ok()?.to_owned()))
-    });
-    let delivery = crate::scheduled_webhooks::Delivery::new(headers, &body);
-    match crate::scheduled_webhooks::deliver(&shared.app, &task, &secret, delivery) {
-        crate::scheduled_webhooks::Outcome::NotFound => StatusCode::NOT_FOUND.into_response(),
-        crate::scheduled_webhooks::Outcome::TooMany => {
-            StatusCode::TOO_MANY_REQUESTS.into_response()
-        }
-        crate::scheduled_webhooks::Outcome::Ignored
-        | crate::scheduled_webhooks::Outcome::Accepted(_) => {
-            (StatusCode::ACCEPTED, Json(json!({ "accepted": true }))).into_response()
-        }
-    }
 }
 
 async fn health(AxumState(shared): AxumState<Shared>) -> Response {
@@ -1934,36 +1866,6 @@ fn tailscale_addresses() -> Vec<Ipv4Addr> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn webhook_bodies_over_the_limit_are_refused_with_413() {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        runtime.block_on(async {
-            async fn taken(_body: axum::body::Bytes) -> axum::http::StatusCode {
-                axum::http::StatusCode::ACCEPTED
-            }
-            let router = axum::Router::new()
-                .route("/hooks/{task}/{secret}", axum::routing::post(taken).layer(hook_body_limit()));
-            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-            let address = listener.local_addr().unwrap();
-            tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
-            let status = |size: usize| async move {
-                let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
-                let head = format!("POST /hooks/t/s HTTP/1.1\r\nHost: x\r\nContent-Length: {size}\r\nConnection: close\r\n\r\n");
-                stream.write_all(head.as_bytes()).await.unwrap();
-                let _ = stream.write_all(&vec![b'x'; size]).await;
-                let mut reply = String::new();
-                let _ = stream.read_to_string(&mut reply).await;
-                reply.split(' ').nth(1).unwrap_or_default().to_owned()
-            };
-            assert_eq!(status(crate::scheduled_webhooks::BODY_LIMIT).await, "202");
-            assert_eq!(status(crate::scheduled_webhooks::BODY_LIMIT + 1).await, "413");
-        });
-    }
-
     #[test]
     fn public_routes_are_https_origins_and_make_an_app_pairing_link() {
         let dir = tempfile::tempdir().unwrap();

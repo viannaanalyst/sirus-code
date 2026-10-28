@@ -19,7 +19,7 @@ test("keyboard search uses translated commands, descriptions, categories and liv
 test("workspace context prevents pane commands behind settings, palettes and dialogs", () => {
   const state = { settingsOpen: false, paletteOpen: false, newSessionOpen: false, mainView: "session", selectedSessionId: "owned" };
   assert.equal(workspaceShortcutsAvailable(state), true);
-  for (const change of [{ settingsOpen: true }, { paletteOpen: true }, { newSessionOpen: true }, { mainView: "tasks" }, { selectedSessionId: null }]) assert.equal(workspaceShortcutsAvailable({ ...state, ...change }), false);
+  for (const change of [{ settingsOpen: true }, { paletteOpen: true }, { newSessionOpen: true }, { mainView: "inbox" }, { selectedSessionId: null }]) assert.equal(workspaceShortcutsAvailable({ ...state, ...change }), false);
 });
 
 test("custom shortcuts require Command and preserve system/editing shortcuts", () => {
@@ -75,7 +75,7 @@ test("Escape stops only the selected live agent and only from the conversation",
   assert.equal(escapeStopsAgent(state, element(false) as unknown as EventTarget), false);
   for (const status of ["starting", "waiting"]) assert.equal(escapeStopsAgent({ ...state, sessions: [{ id: "owned", status }] }, null), true);
   for (const status of ["idle", "completed", "failed", "stopped"]) assert.equal(escapeStopsAgent({ ...state, sessions: [{ id: "owned", status }] }, null), false);
-  for (const change of [{ environmentOpen: true }, { settingsOpen: true }, { paletteOpen: true }, { newSessionOpen: true }, { mainView: "tasks" }, { selectedSessionId: "missing" }]) assert.equal(escapeStopsAgent({ ...state, ...change }, null), false);
+  for (const change of [{ environmentOpen: true }, { settingsOpen: true }, { paletteOpen: true }, { newSessionOpen: true }, { mainView: "inbox" }, { selectedSessionId: "missing" }]) assert.equal(escapeStopsAgent({ ...state, ...change }, null), false);
 });
 
 test("send and start new thread binds Enter with modifiers but never plain ⌘↩", () => {

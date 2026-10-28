@@ -1,6 +1,6 @@
 # ADR-051: Scheduled automations start agent turns
 
-**Status:** Accepted. *Amended 2026-10-07:* the Automations page was removed; the engine remains for Astro habits (ADR-069).
+**Status:** Accepted. *Amended 2026-10-07:* the Automations page was removed; the engine remains for Astro habits (ADR-069). Superseded by ADR-172 (Tasks and scheduled tasks removed).
 
 ## Context
 

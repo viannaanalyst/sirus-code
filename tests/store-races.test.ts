@@ -29,7 +29,6 @@ test("pin acknowledgments serialize without replacing newer output and old snaps
   await useAppStore.getState().setMessagePinned(fixture.id, "answer", true);
   let snapshot!: (session: import("../src/client/types.ts").Session) => void;
   context.mock.method(client, "onSessionUpdated", async (handler: typeof snapshot) => { snapshot = handler; return () => {}; });
-  context.mock.method(client, "onTasksChanged", async () => () => {});
   context.mock.method(client, "onCiAutofixChanged", async () => () => {});
   context.mock.method(client, "ciAutofixAction", async () => []);
   context.mock.method(client, "onPrWatchChanged", async () => () => {});
@@ -92,7 +91,7 @@ test("opening a session from a page preserves execution state and unsent drafts"
   const sessions = [{ id: "board-card", projectId: "owned", status: "running", messages: [{ content: "stream" }] }] as import("../src/client/types.ts").Session[];
   const drafts = { "session:board-card": "unsent" };
   useAppStore.setState({ mainView: "session", sessions, composerDrafts: drafts, selectedSessionId: null });
-  useAppStore.getState().setMainView("tasks");
+  useAppStore.getState().setMainView("inbox");
   assert.equal(useAppStore.getState().selectedSessionId, null);
   await useAppStore.getState().selectSession("board-card");
   assert.equal(useAppStore.getState().mainView, "session");

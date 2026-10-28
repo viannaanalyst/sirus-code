@@ -1036,7 +1036,7 @@ impl Default for AppSettings {
 
 /// Customizable rail items (Settings is fixed at the bottom).
 /// The Kanban board was retired on 2026-10-11 (ADR-110); saved settings drop its id.
-pub const RAIL_ITEMS: [&str; 5] = ["home", "inbox", "tasks", "archived", "pulls"];
+pub const RAIL_ITEMS: [&str; 4] = ["home", "inbox", "archived", "pulls"];
 
 /// Most unread markers kept for the Pull requests page; the renderer drops the oldest.
 pub const GITHUB_SEEN_LIMIT: usize = 500;
@@ -1726,15 +1726,9 @@ pub struct AppData {
     /// Per-session pull request watches and what their agents were told (ADR-079).
     #[serde(default)]
     pub pr_watches: Vec<crate::pr_watch::PrWatch>,
-    /// Personal tasks, optionally handed to an agent session (ADR-052).
-    #[serde(default)]
-    pub tasks: Vec<crate::tasks::Task>,
     /// Guided reviews of pull requests and session changes (ADR-125); one row each in `state.db`.
     #[serde(default)]
     pub review_guides: Vec<crate::review_guides::ReviewGuide>,
-    /// Prompts that run by themselves at a time (ADR-142); one row each in `state.db`.
-    #[serde(default)]
-    pub scheduled_tasks: Vec<crate::scheduled_tasks::ScheduledTask>,
 }
 
 impl AppData {

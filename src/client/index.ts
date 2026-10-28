@@ -600,11 +600,6 @@ export class SirusClient {
     return this.transport.listen<{ path: string }>("workspace-changed", (event) => handler(event.path));
   }
 
-  /** An agent changed the Tasks list (`sirus_create_task` / `sirus_update_task`). */
-  onTasksChanged(handler: () => void) {
-    return this.transport.listen<unknown>("tasks-changed", () => handler());
-  }
-
   /** Sends the conversation's last message again, with its attachments while the app keeps them. */
   retryLastTurn(sessionId: string) {
     return this.transport.invoke<unknown>("retry_last_turn", { sessionId });
@@ -639,20 +634,6 @@ export class SirusClient {
     // A browser has no Mac window to show; the computer would refuse it (ADR-080).
     if (isRemoteUi) return Promise.resolve();
     return this.transport.invoke<void>("window_ready");
-  }
-
-  taskAction(action: import("./types").TaskAction) {
-    return this.transport.invoke<import("./types").Task[]>("task_action", { action });
-  }
-
-  /** Scheduled tasks (ADR-142): list, save, delete, turn on or off, or run one now. */
-  scheduledTaskAction(action: import("./types").ScheduledTaskAction): Promise<import("./types").ScheduledTasksSnapshot> {
-    return this.transport.invoke<import("./types").ScheduledTasksSnapshot>("scheduled_task_action", { action });
-  }
-
-  /** Scheduled tasks changed (an edit, an agent's tool call, a run starting or finishing). */
-  onScheduledTasksChanged(handler: (snapshot: import("./types").ScheduledTasksSnapshot) => void) {
-    return this.transport.listen<import("./types").ScheduledTasksSnapshot>("scheduled-tasks-changed", handler);
   }
 
   ciAutofixAction(action: import("./types").CiFixAction) {
