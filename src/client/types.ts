@@ -887,7 +887,8 @@ export interface PromptAttachment { id: string; name: string; kind: "file" | "fo
 export type WordBlock = { type: "paragraph"; text: string; heading: number; list: boolean } | { type: "table"; rows: string[][] };
 export interface DocumentCell { row: number; column: number; value: string; formula: string | null }
 export interface DocumentSheet { name: string; rows: number; columns: number; cells: DocumentCell[] }
-export type DocumentPreview = { type: "pdf"; data: string } | { type: "word"; blocks: WordBlock[] } | { type: "spreadsheet"; sheets: DocumentSheet[] };
+export type OfficeFormat = "docx" | "xlsx" | "pptx";
+export type DocumentPreview = { type: "pdf"; data: string } | { type: "word"; blocks: WordBlock[] } | { type: "spreadsheet"; sheets: DocumentSheet[] } | { type: "office"; format: OfficeFormat; data: string };
 
 export interface QueuedPromptContext {
   messageId: string | null;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ChevronDown, Eye, FileCode2, WrapText, FolderOpen, Hammer, MousePointer2, SquareCode, SquareTerminal, X } from "@/components/icons";
 import { client } from "@/client";
 import type { EditorId, TextFileSnapshot } from "@/client/types";
@@ -12,6 +12,9 @@ import { CodeEditor, languageForPath, type EditorReveal } from "@/components/edi
 import { editorWrap, markdownView, setEditorWrap, setMarkdownView } from "@/lib/editor-preferences";
 import { isVideoPath } from "@/lib/video-preview";
 import { VideoPreview } from "@/components/VideoPreview";
+import { isWorkspaceDocument } from "@/lib/document-reader";
+
+const WorkspaceDocument = lazy(async () => ({ default: (await import("@/components/WorkspaceDocument")).WorkspaceDocument }));
 import { ConfirmDialog } from "@/primitives/ConfirmDialog";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 
@@ -33,9 +36,11 @@ function EditorMark({ id, png }: { id: EditorId; png?: string }) {
 /** Mounted views per buffer: a clean buffer is released when its last view closes. */
 const openViews = new Map<string, number>();
 
-/** Videos play in the pane (ADR-108); every other file opens in the text editor. */
+/** Videos play in the pane (ADR-108), PDF and Office files are read in it (ADR-184); every other file opens in the text editor. */
 export function EditorPane(props: { sessionId: string; path: string; reveal?: EditorReveal; onClose?: () => void }) {
-  return isVideoPath(props.path) ? <VideoPreview sessionId={props.sessionId} path={props.path} /> : <TextEditorPane {...props} />;
+  if (isVideoPath(props.path)) return <VideoPreview sessionId={props.sessionId} path={props.path} />;
+  if (isWorkspaceDocument(props.path)) return <Suspense fallback={null}><WorkspaceDocument sessionId={props.sessionId} path={props.path} /></Suspense>;
+  return <TextEditorPane {...props} />;
 }
 
 function TextEditorPane({ sessionId, path, reveal, onClose }: { sessionId: string; path: string; reveal?: EditorReveal; onClose?: () => void }) {

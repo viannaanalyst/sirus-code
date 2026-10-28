@@ -9,6 +9,7 @@ const server = await createServer({ server: { middlewareMode: true, hmr: false }
 try {
   const { WordReader } = await server.ssrLoadModule("/src/components/DocumentReader.tsx");
   const { SheetReader } = await server.ssrLoadModule("/src/components/SheetReader.tsx");
+  const { OfficeReader } = await server.ssrLoadModule("/src/components/office/OfficeReader.tsx");
   const { ComposerContextChips } = await server.ssrLoadModule("/src/components/ComposerAddMenu.tsx");
   const { useAppStore } = await server.ssrLoadModule("/src/store/app-store.ts");
   const { client, SirusClient } = await server.ssrLoadModule("/src/client/index.ts");
@@ -48,6 +49,17 @@ try {
     const sheet = renderToString(createElement(SheetReader, { zoom: 1, sheets: [{ name: "Resumo", rows: 5000, columns: 3, cells: [{ row: 0, column: 0, value: "<script>evil()</script>", formula: "SUM(B1:C1)" }] }] }));
     assert.ok(sheet.includes("=SUM(B1:C1)") && sheet.includes("&lt;script&gt;evil()&lt;/script&gt;"));
     assert.equal((sheet.match(/scope="row"/g) ?? []).length, 60, "Large grids only render a bounded row window");
+    // Office files: a payload past the 10 MiB bound is refused before any engine loads, with the
+    // limit message, Retry, and (Word and Excel only) the typed text view.
+    const oversize = Buffer.alloc(10 * 1024 * 1024 + 1).toString("base64");
+    const expected = locale === "en" ? { limit: "exceeds the reader&#x27;s page, slide or sheet limits", retry: "Try again", text: "Show text view", loading: "Opening document" } : { limit: "excede os limites de páginas, slides ou planilhas", retry: "Tentar novamente", text: "Mostrar visão de texto", loading: "Abrindo documento" };
+    for (const format of ["docx", "xlsx", "pptx"]) {
+      const refused = renderToString(createElement(OfficeReader, { format, data: oversize, onPlain() {} }));
+      assert.ok(refused.includes('role="alert"') && refused.includes(expected.limit) && refused.includes(expected.retry), `${format} limit message in ${locale}`);
+      assert.equal(refused.includes(expected.text), format !== "pptx", `${format} text view offer`);
+      const opening = renderToString(createElement(OfficeReader, { format, data: Buffer.from("PK").toString("base64") }));
+      assert.ok(opening.includes(`data-office-reader="${format}"`) && opening.includes(expected.loading), `${format} opens lazily behind a loading state`);
+    }
     const chips = renderToString(createElement(ComposerContextChips, { owner, context: { attachments: [file], goal: "", planning: false }, disabled: false, planningAvailable: true, onChange() {} }));
     assert.ok(chips.includes(locale === "en" ? "Read Report.docx" : "Ler Report.docx"));
   }
@@ -78,8 +90,15 @@ try {
   const calls = [];
   const api = new SirusClient({ invoke: async (command, args) => { calls.push({ command, args }); return { type: "word", blocks: [] }; }, listen: async () => () => {} });
   await api.attachmentPreview(owner, file.id);
-  assert.deepEqual(calls, [{ command: "attachment_preview", args: { owner, id: file.id } }]);
-  console.log("Document reader: safe Word/sheet/chip rendering in both locales, virtual rows, opaque IPC, landing, transfer, removal and the attachment modal passed");
+  assert.deepEqual(calls, [{ command: "attachment_preview", args: { owner, id: file.id, plain: false } }]);
+  calls.length = 0;
+  await api.workspaceDocument("session-1", "docs/Deck.pptx");
+  await api.workspaceDocument("session-1", "docs/a.docx", true);
+  assert.deepEqual(calls, [
+    { command: "workspace_document", args: { sessionId: "session-1", path: "docs/Deck.pptx", plain: false } },
+    { command: "workspace_document", args: { sessionId: "session-1", path: "docs/a.docx", plain: true } },
+  ], "workspace documents go through one bounded native command taking a session and a relative path");
+  console.log("Document reader: Office limits and lazy opening, safe Word/sheet/chip rendering in both locales, virtual rows, opaque IPC, landing, transfer, removal and the attachment modal passed");
 } finally { await server.close(); }
 
 // Render an actual two-page PDF using the same bundled PDF.js display and worker.

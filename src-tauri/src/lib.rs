@@ -486,6 +486,7 @@ pub fn run() {
             attachments::pick_prompt_attachments,
             attachments::capture_prompt_window,
             document_preview::attachment_preview,
+            document_preview::workspace_document,
             turn_review::keep_turn_changes,
             attachments::paste_prompt_attachments,
             attachments::drop_prompt_attachments,

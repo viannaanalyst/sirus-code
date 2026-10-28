@@ -8,6 +8,7 @@ import { useTranslation } from "@/i18n/use-translation";
 import { IconButton } from "@/primitives/IconButton";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SheetReader } from "./SheetReader";
+import { OfficeReader } from "./office/OfficeReader";
 
 const PdfReader = lazy(async () => ({ default: (await import("./PdfReader")).PdfReader }));
 
@@ -20,50 +21,63 @@ export function ReaderZoom({ zoom, onChange }: { zoom: number; onChange: (zoom: 
   </div>;
 }
 
-/** A readable attachment's body (PDF, Word, spreadsheet, CSV), shared by the dock reader and the attachment modal. */
-export function DocumentBody({ owner, attachmentId, active, zoom }: { owner: string; attachmentId: string; active: boolean; zoom: number }) {
-  const t = useTranslation();
+/** Where a document comes from: an owner-bound attachment snapshot, or a file in a session's workspace. */
+export type DocumentSource = { owner: string; attachmentId: string } | { sessionId: string; path: string };
+
+/** Loads a document through the bounded native readers; `plain` swaps an Office render for the text view. */
+function useDocument(source: DocumentSource) {
   const [result, setResult] = useState<DocumentPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
+  const [plain, setPlain] = useState(false);
+  // Plain values identify the source, so a new document restarts the load.
+  const workspace = "path" in source;
+  const first = workspace ? source.sessionId : source.owner;
+  const second = workspace ? source.path : source.attachmentId;
+  const key = `${first}\u0000${second}`;
+  const [shown, setShown] = useState(key);
+  if (shown !== key) { setShown(key); setResult(null); setError(null); setPlain(false); }
   useEffect(() => {
     let cancelled = false;
-    client.attachmentPreview(owner, attachmentId).then((preview) => {
+    const load = workspace ? client.workspaceDocument(first, second, plain) : client.attachmentPreview(first, second, plain);
+    load.then((preview) => {
       if (!cancelled) { setResult(preview); setError(null); }
     }).catch((reason: unknown) => { if (!cancelled) setError(documentError(reason)); });
     return () => { cancelled = true; };
-  }, [owner, attachmentId, retry]);
-  return error ? <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-text-muted">{t(error)}</p><InteractiveButton variant="toolbar" onClick={() => { setError(null); setRetry((value) => value + 1); }}>{t("reader.retry")}</InteractiveButton></div>
+  }, [workspace, first, second, retry, plain]);
+  const reload = () => { setError(null); setResult(null); setRetry((value) => value + 1); };
+  return { result, error, reload, showText: () => { setResult(null); setPlain(true); } };
+}
+
+function DocumentView({ document, zoom, active }: { document: ReturnType<typeof useDocument>; zoom: number; active: boolean }) {
+  const t = useTranslation();
+  const { result, error, reload, showText } = document;
+  return error ? <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-text-muted">{t(error)}</p><InteractiveButton variant="toolbar" onClick={reload}>{t("reader.retry")}</InteractiveButton></div>
     : !result ? <p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>
     : result.type === "pdf" ? <Suspense fallback={<p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>}><PdfReader data={result.data} active={active} /></Suspense>
+    : result.type === "office" ? <OfficeReader format={result.format} data={result.data} onPlain={showText} />
     : result.type === "word" ? <WordReader blocks={result.blocks} zoom={zoom} />
     : <SheetReader sheets={result.sheets} zoom={zoom} />;
 }
 
+/** A readable document's body (PDF, Word, spreadsheet, slides, CSV), shared by the dock reader, the attachment modal and the file pane. */
+export function DocumentBody({ source, active, zoom }: { source: DocumentSource; active: boolean; zoom: number }) {
+  const document = useDocument(source);
+  return <DocumentView document={document} zoom={zoom} active={active} />;
+}
+
 export function DocumentReader({ document, active }: { document: NonNullable<DockPane["document"]>; active: boolean }) {
   const t = useTranslation();
-  const [result, setResult] = useState<DocumentPreview | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [retry, setRetry] = useState(0);
   const [zoom, setZoom] = useState(1);
-  useEffect(() => {
-    let cancelled = false;
-    client.attachmentPreview(document.owner, document.attachmentId).then((preview) => {
-      if (!cancelled) { setResult(preview); setError(null); }
-    }).catch((reason: unknown) => { if (!cancelled) setError(documentError(reason)); });
-    return () => { cancelled = true; };
-  }, [document.owner, document.attachmentId, retry]);
+  const loaded = useDocument({ owner: document.owner, attachmentId: document.attachmentId });
+  const { result } = loaded;
   return <section aria-label={document.name} className="flex h-full min-h-0 flex-col">
     <header className="flex shrink-0 items-center gap-2 border-y border-border-subtle px-3 py-2">
       <FileText size={15} className="shrink-0 text-text-muted" aria-hidden="true" />
       <div className="min-w-0 flex-1"><h2 className="truncate ui-control font-medium" title={document.name}>{document.name}</h2><p className="ui-caption text-text-muted">{t("reader.readOnly")}</p></div>
-      {result && result.type !== "pdf" ? <ReaderZoom zoom={zoom} onChange={setZoom} /> : null}
+      {result && result.type !== "pdf" && result.type !== "office" ? <ReaderZoom zoom={zoom} onChange={setZoom} /> : null}
     </header>
-    {error ? <div role="alert" className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center"><p className="text-text-muted">{t(error)}</p><InteractiveButton variant="toolbar" onClick={() => { setError(null); setRetry((value) => value + 1); }}>{t("reader.retry")}</InteractiveButton></div>
-      : !result ? <p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>
-      : result.type === "pdf" ? <Suspense fallback={<p role="status" className="p-6 text-text-muted">{t("reader.loading")}</p>}><PdfReader data={result.data} active={active} /></Suspense>
-      : result.type === "word" ? <WordReader blocks={result.blocks} zoom={zoom} />
-      : <SheetReader sheets={result.sheets} zoom={zoom} />}
+    <DocumentView document={loaded} zoom={zoom} active={active} />
   </section>;
 }
 

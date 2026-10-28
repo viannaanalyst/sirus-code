@@ -95,6 +95,7 @@
   .mobile-file-name { flex: 1; min-width: 0; overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-file-preview { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
   .mobile-file-text { margin: 0; color: var(--text-primary); font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .mobile-file-preview.is-document { display: flex; flex-direction: column; overflow: hidden; padding: 0 0 env(safe-area-inset-bottom); }
   .mobile-file-image { display: block; max-width: 100%; margin: 0 auto; border-radius: 12px; }
   .mobile-file-markdown { font-size: 15px; line-height: 1.55; }
 

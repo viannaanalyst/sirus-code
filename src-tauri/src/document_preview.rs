@@ -22,9 +22,22 @@ static READER_GATE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum DocumentPreview {
-    Pdf { data: String },
-    Word { blocks: Vec<WordBlock> },
-    Spreadsheet { sheets: Vec<Sheet> },
+    Pdf {
+        data: String,
+    },
+    Word {
+        blocks: Vec<WordBlock>,
+    },
+    Spreadsheet {
+        sheets: Vec<Sheet>,
+    },
+    /// A DOCX, XLSX or PPTX that passed the archive preflight. The front end draws it with
+    /// the lazily loaded Office engines (ADR-184); `plain` requests fall back to the typed
+    /// content views above.
+    Office {
+        format: String,
+        data: String,
+    },
 }
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -449,11 +462,12 @@ fn csv_preview(bytes: &[u8]) -> Result<DocumentPreview> {
         sheets: vec![sheet],
     })
 }
-fn parse(file: &PreparedAttachment) -> Result<DocumentPreview> {
-    let bytes = file.bytes()?;
-    let extension = file
-        .view
-        .name
+fn parse(file: &PreparedAttachment, plain: bool) -> Result<DocumentPreview> {
+    parse_bytes(file.bytes()?, &file.view.name, plain)
+}
+
+fn parse_bytes(bytes: Vec<u8>, name: &str, plain: bool) -> Result<DocumentPreview> {
+    let extension = name
         .rsplit('.')
         .next()
         .unwrap_or_default()
@@ -464,12 +478,21 @@ fn parse(file: &PreparedAttachment) -> Result<DocumentPreview> {
         });
     }
     match extension.as_str() {
+        "docx" | "xlsx" | "pptx" if !plain => {
+            // The archive bounds apply before the bytes reach the renderer.
+            let office = Office::new(bytes.clone())?;
+            drop(office);
+            Ok(DocumentPreview::Office {
+                format: extension,
+                data: STANDARD.encode(bytes),
+            })
+        }
         "docx" => word(Office::new(bytes)?),
         "xlsx" => spreadsheet(Office::new(bytes)?),
         "csv" => csv_preview(&bytes),
         _ => Err(Error::new(
             "document_unsupported",
-            "Use PDF, DOCX, XLSX or CSV. Convert legacy DOC/XLS files first.",
+            "Use PDF, DOCX, XLSX, PPTX or CSV. Convert legacy DOC/XLS/PPT files first.",
         )),
     }
 }
@@ -479,6 +502,7 @@ pub async fn attachment_preview(
     state: crate::runtime::State<'_, Arc<crate::commands::AppState>>,
     owner: String,
     id: String,
+    plain: Option<bool>,
 ) -> Result<DocumentPreview> {
     let permit = READER_GATE
         .try_acquire()
@@ -497,7 +521,7 @@ pub async fn attachment_preview(
     let reading = snapshot.clone();
     let result = tokio::task::spawn_blocking(move || {
         let _permit = permit;
-        parse(&reading)
+        parse(&reading, plain.unwrap_or(false))
     })
     .await
     .map_err(|_| invalid())??;
@@ -512,6 +536,45 @@ pub async fn attachment_preview(
         ));
     }
     Ok(result)
+}
+
+/// A document inside a session's workspace (a project file or one an agent wrote), read with
+/// the same 10 MiB bound, regular-file rule and archive preflight as an attachment snapshot.
+#[cfg_attr(feature = "desktop", tauri::command)]
+pub async fn workspace_document(
+    state: crate::runtime::State<'_, Arc<crate::commands::AppState>>,
+    session_id: String,
+    path: String,
+    plain: Option<bool>,
+) -> Result<DocumentPreview> {
+    let permit = READER_GATE
+        .try_acquire()
+        .map_err(|_| Error::new("document_busy", "Another document is loading. Try again."))?;
+    state.ensure_running()?;
+    let state = state.inner().clone();
+    let plain = plain.unwrap_or(false);
+    tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        let cwd = crate::commands::session_path(&state, &session_id)?;
+        if crate::editor::is_reserved_path(std::path::Path::new(&path)) {
+            return Err(Error::invalid_path("cannot open reserved paths"));
+        }
+        let file = crate::paths::open_regular_within(&cwd, std::path::Path::new(&path))?;
+        let limit_bytes = crate::attachments::MAX_FILE_BYTES as u64;
+        if file.metadata()?.len() > limit_bytes {
+            return Err(limit());
+        }
+        let mut bytes = Vec::new();
+        file.take(limit_bytes + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| invalid())?;
+        if bytes.len() as u64 > limit_bytes {
+            return Err(limit());
+        }
+        parse_bytes(bytes, &path, plain)
+    })
+    .await
+    .map_err(|_| invalid())?
 }
 
 #[cfg(test)]
@@ -643,5 +706,45 @@ mod tests {
     fn wide_and_long_csv_are_refused_before_returning_large_grids() {
         assert!(csv_preview("a,".repeat(128).as_bytes()).is_err());
         assert!(csv_preview("a\n".repeat(5001).as_bytes()).is_err());
+    }
+    #[test]
+    fn office_files_pass_the_archive_preflight_and_plain_keeps_the_typed_views() {
+        let deck = archive(&[("ppt/presentation.xml", "<p/>")]);
+        let rich =
+            serde_json::to_value(parse_bytes(deck.clone(), "Deck.PPTX", false).unwrap()).unwrap();
+        assert_eq!(rich["type"], "office");
+        assert_eq!(rich["format"], "pptx");
+        assert!(
+            parse_bytes(deck, "deck.pptx", true).is_err(),
+            "no plain view for slides"
+        );
+        let sheet = archive(&[
+            (
+                "xl/workbook.xml",
+                r#"<workbook xmlns:r="urn:rel"><sheets><sheet name="A" r:id="r1"/></sheets></workbook>"#,
+            ),
+            (
+                "xl/_rels/workbook.xml.rels",
+                r#"<Relationships><Relationship Id="r1" Type="urn:office/worksheet" Target="worksheets/sheet1.xml"/></Relationships>"#,
+            ),
+            (
+                "xl/worksheets/sheet1.xml",
+                "<worksheet><sheetData/></worksheet>",
+            ),
+        ]);
+        assert_eq!(
+            serde_json::to_value(parse_bytes(sheet.clone(), "a.xlsx", false).unwrap()).unwrap()
+                ["type"],
+            "office"
+        );
+        assert_eq!(
+            serde_json::to_value(parse_bytes(sheet, "a.xlsx", true).unwrap()).unwrap()["type"],
+            "spreadsheet"
+        );
+        assert!(parse_bytes(b"not a zip".to_vec(), "a.docx", false).is_err());
+        assert!(parse_bytes(b"x".to_vec(), "old.ppt", false).is_err());
+        let names: Vec<_> = (0..513).map(|i| format!("file{i}")).collect();
+        let parts: Vec<_> = names.iter().map(|n| (n.as_str(), "x")).collect();
+        assert!(parse_bytes(archive(&parts), "big.pptx", false).is_err());
     }
 }
