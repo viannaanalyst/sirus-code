@@ -31,6 +31,13 @@ Copyright (c) Microsoft Corporation.
 
 Copyright (c) 2026 Wing
 
+## Markdown in replies (ADR-179)
+
+Replies are rendered with `react-markdown` (Copyright (c) Espen Hovlandsdal), `remark-gfm` and
+`remark-breaks` (Copyright (c) Titus Wormer) and `remark-math` (Copyright (c) Junyoung Choi), all MIT, and the
+`unified`, `remark` and `micromark` packages they build on (MIT). The pipeline follows T3 Code's
+`ChatMarkdown` (MIT, listed above). The licence texts are kept in `public/licenses/markdown/`.
+
 ## MIT License (applies to all of the above)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -1,12 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseChatInline } from "../src/lib/chat-markdown.ts";
+import { urlTransform } from "../src/lib/markdown-pipeline.ts";
 
-test("reply images render for https and data URLs; other paths stay links", () => {
-  assert.deepEqual(parseChatInline("veja ![tela](https://x.dev/a.png) ok"), [{ kind: "text", text: "veja " }, { kind: "image", url: "https://x.dev/a.png", alt: "tela" }, { kind: "text", text: " ok" }]);
-  assert.equal(parseChatInline("![p](data:image/png;base64,AAAA)")[0].kind, "image");
-  assert.deepEqual(parseChatInline("![shot](/tmp/shot.png)"), [{ kind: "link", url: "/tmp/shot.png", children: [{ kind: "text", text: "shot" }] }]);
-  assert.equal(parseChatInline("![x](javascript:alert(1))")[0].kind, "link", "never an image from another scheme");
+test("reply image targets: https and base64 rasters stay images; other schemes are dropped", () => {
+  assert.equal(urlTransform("https://x.dev/a.png", "src"), "https://x.dev/a.png");
+  assert.equal(urlTransform("data:image/png;base64,AAAA", "src"), "data:image/png;base64,AAAA");
+  assert.equal(urlTransform("data:image/png;base64,AAAA", "href"), "", "data: is an image source only");
+  assert.equal(urlTransform("data:image/svg+xml;base64,AAAA", "src"), "");
+  assert.equal(urlTransform("/tmp/shot.png", "src"), "/tmp/shot.png", "local paths reach the link or media component");
+  assert.equal(urlTransform("javascript:alert(1)", "src"), "");
+  assert.equal(urlTransform(" JavaScript:alert(1)", "href"), "");
+  assert.equal(urlTransform("vbscript:x", "href"), "");
 });
 
 test("links to image files on the Mac open in the gallery; web and other links do not", async () => {
