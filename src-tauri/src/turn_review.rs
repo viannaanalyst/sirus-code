@@ -53,6 +53,16 @@ pub struct TurnReview {
     pub kept_at: Option<String>,
     #[serde(default)]
     pub expired: bool,
+    /// Commit id of the workspace's `HEAD` when the turn settled; undo refuses once it moved (ADR-187).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
+}
+/// The workspace's current `HEAD` commit; `None` outside a repository or before the first commit.
+pub(crate) fn head_of(cwd: &Path) -> Option<String> {
+    let output =
+        crate::git::bounded_probe(cwd, &["rev-parse", "--verify", "--quiet", "HEAD"]).ok()?;
+    let head = String::from_utf8(output.stdout).ok()?.trim().to_owned();
+    (output.status.success() && !head.is_empty()).then_some(head)
 }
 /// Transcripts and session events leave diff texts out (ADR-164): they are most of a
 /// settled turn's bytes and only the review pane reads them. Each file keeps its path, kind
@@ -454,6 +464,7 @@ fn compare(before: Snapshot, after: Snapshot, shared: bool) -> TurnReview {
         shared_workspace: shared,
         kept_at: None,
         expired: false,
+        head: None,
     };
     let names: BTreeSet<_> = before.files.keys().chain(after.files.keys()).collect();
     let deadline = Instant::now() + Duration::from_secs(3);
@@ -634,8 +645,11 @@ pub async fn finish(
                 shared_workspace: capture.shared,
                 kept_at: None,
                 expired: false,
+                head: None,
             },
         };
+        let mut review = review;
+        review.head = head_of(&capture.root);
         Some((capture.message_id, review))
     })
     .await
@@ -809,6 +823,7 @@ mod tests {
             shared_workspace: true,
             kept_at: None,
             expired: false,
+            head: None,
         }
     }
     fn fixture_state(root: &Path) -> std::sync::Arc<AppState> {
