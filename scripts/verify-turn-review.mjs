@@ -70,38 +70,32 @@ try {
     assert.ok(kept.includes('disabled=""'));
     const historical = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m", path: file.path }));
     assert.ok(historical.includes(locale === "pt-BR" ? "Diff histórico" : "Historical diff"));
-    assert.ok(historical.includes("&lt;script&gt;unsafe&lt;/script&gt;") && !historical.includes("<script>unsafe"));
+    // Diff rows are drawn by Pierre in the browser (ADR-169); on the server the lazy viewer shows its loading state, never raw diff text.
+    assert.ok(!historical.includes("<script>unsafe"));
     assert.ok(historical.includes(locale === "pt-BR" ? "Workspace compartilhado" : "Shared workspace"));
     assert.ok(historical.includes(`aria-label="third.ts, ${kind}, +2 −1"`) && historical.includes("focus-visible:outline-2"), "review list rows are labelled full-width buttons");
     const binary = renderToString(createElement(TurnReviewPane, { sessionId: "s", messageId: "m", path: "binary.bin" }));
-    assert.ok(binary.includes(locale === "pt-BR" ? "Arquivo binário" : "Binary file"));
+    // The binary notice is the file header's note in Pierre's viewer, drawn in the browser (ADR-169); the list still names the file.
+    assert.ok(binary.includes("binary.bin"));
   }
   // This response's retained data stays usable even when current git_status has unrelated files.
   useAppStore.setState({ gitStatus: { changes: [{ path: "unrelated.ts", kind: "modified", additions: 999, deletions: 999 }] } });
   assert.deepEqual(store().sessions[0].messages[0].activity.review.files.map((f) => f.path), review.files.map((f) => f.path));
-  // Large diffs are virtualized (ADR-145): only the rows near the viewport mount, inside a box as tall as the whole diff.
+  // Diffs are drawn by @pierre/diffs (ADR-169), loaded on demand: the server renders the shell and a loading state.
   const { DiffViewer } = await server.ssrLoadModule("/src/components/DiffViewer.tsx");
-  const { DIFF_ROW_HEIGHT } = await server.ssrLoadModule("/src/lib/diff-window.ts");
   const bigDiff = `--- a/big.ts\n+++ b/big.ts\n@@ -0,0 +1,1000 @@\n${Array.from({ length: 1000 }, (_, i) => `+line ${i}`).join("\n")}\n`;
   const big = { path: "big.ts", kind: "modified", additions: 1000, deletions: 0 };
   const bigHtml = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: bigDiff, onSelect: () => {} }));
-  const mounted = bigHtml.match(/data-diff-index=/g)?.length ?? 0;
-  assert.ok(mounted > 20 && mounted <= 100, `only the rows near the viewport are mounted (${mounted})`);
-  assert.ok(bigHtml.includes('data-diff-index="0"') && !bigHtml.includes('data-diff-index="999"'));
-  assert.ok(bigHtml.includes(`height:${1003 * DIFF_ROW_HEIGHT + 16}px`), "the content box keeps the whole diff's height");
-  const smallHtml = renderToString(createElement(DiffViewer, { changes: [file], selected: file, diff: file.diff, onSelect: () => {} }));
-  assert.equal(smallHtml.match(/data-diff-index=/g)?.length, 6, "short diffs mount whole");
-  const untracked = (count) => `+++ untracked\n${Array.from({ length: count }, (_, i) => `const v${i} = ${i};`).join("\n")}\n`;
-  const untrackedHtml = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: untracked(10), onSelect: () => {} }));
-  assert.equal(untrackedHtml.match(/data-diff-index=/g)?.length, 10, "untracked files are rows with their own line numbers");
-  // A whole review: every file gets a collapsible header, and only the first screen mounts.
+  assert.ok(bigHtml.includes("big.ts") && !bigHtml.includes("line 999"), "rows are never serialized");
+  const noText = renderToString(createElement(DiffViewer, { changes: [big], selected: big, diff: "Binary files differ\n", onSelect: () => {}, emptyDiffMessage: "Nothing to draw" }));
+  assert.ok(noText.includes("Nothing to draw"), "a diff without hunks says why");
+  // A whole review: the shell lists every file; the rows come from the viewer.
   const many = Array.from({ length: 50 }, (_, index) => ({ path: `src/file${index}.ts`, diff: bigDiff.replaceAll("big.ts", `file${index}.ts`) }));
   const manyChanges = many.map((entry) => ({ path: entry.path, kind: "modified", additions: 1000, deletions: 0 }));
   const reviewHtml = renderToString(createElement(DiffViewer, { changes: manyChanges, selected: manyChanges[0], diff: null, files: many, onSelect: () => {} }));
-  assert.ok(reviewHtml.includes('aria-expanded="true"') && reviewHtml.includes("Collapse src/file0.ts"));
-  assert.ok((reviewHtml.match(/data-diff-index=/g)?.length ?? 0) <= 100 && !reviewHtml.includes("Collapse src/file1.ts"), "later files are not mounted");
+  assert.ok(reviewHtml.includes("src/file49.ts") && !reviewHtml.includes("line 5"));
   useAppStore.setState({ selectedSessionId: "another", dockPanes: [] });
   store().openTurnReview("s", "m");
   assert.equal(store().dockPanes.length, 0);
-  console.log("Turn review: compact/localized/escaped historical summaries, virtualized large diffs and reviews, owner-scoped dock and acknowledgment races verified.");
+  console.log("Turn review: compact/localized/escaped historical summaries, Pierre-drawn diffs and reviews, owner-scoped dock and acknowledgment races verified.");
 } finally { await server.close(); }
