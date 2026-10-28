@@ -104,3 +104,20 @@ test("a live event without a command's output keeps the output already held", ()
   const plain = [message("u", "user", "go")];
   assert.equal(keepSentOutputs(held.messages, plain)[0], plain[0]);
 });
+
+test("closed transcripts are bounded to six conversations and 12 MiB, least recently opened first", async () => {
+  const { TRANSCRIPT_BUDGET, TRANSCRIPT_CACHE } = await import("../src/lib/transcripts.ts");
+  assert.equal(TRANSCRIPT_CACHE, 6);
+  assert.equal(TRANSCRIPT_BUDGET, 12 * 1024 * 1024);
+  const ids = Array.from({ length: 10 }, (_, index) => `s${index}`);
+  const sessions = ids.map((id) => session([message(`${id}-m`, "agent", "x")], { id, status: "completed" }));
+  const loaded = Object.fromEntries(ids.map((id, index) => [id, index + 1]));
+  const keep = transcriptsToKeep({ loaded, sessions, selectedSessionId: null, queued: [], retained: [] });
+  assert.deepEqual([...keep].sort(), ["s4", "s5", "s6", "s7", "s8", "s9"], "the six newest stay");
+
+  // 1.5M characters are about 3 MB of UTF-16: four fit in 12 MiB, the fifth does not.
+  const big = (id: string) => session([message(`${id}-m`, "agent", "y".repeat(1_500_000))], { id, status: "completed" });
+  const heavy = ["h0", "h1", "h2", "h3", "h4"].map(big);
+  const kept = transcriptsToKeep({ loaded: { h0: 1, h1: 2, h2: 3, h3: 4, h4: 5 }, sessions: heavy, selectedSessionId: null, queued: [], retained: [] });
+  assert.deepEqual([...kept], ["h4", "h3", "h2", "h1"], "the least recently opened is released");
+});

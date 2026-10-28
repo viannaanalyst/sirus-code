@@ -79,8 +79,7 @@
   .conversation-row-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conversation-row-title > svg { flex-shrink: 0; color: var(--text-muted); }
   /* Unread, waiting or working: the title reads stronger. */
-  .conversation-row:is([data-unread], [data-active]) .conversation-row-title,
-  .conversation-row:has(.header-tab-status) .conversation-row-title { color: var(--text-primary); }
+  .conversation-row:is([data-unread], [data-active], [data-status]) .conversation-row-title { color: var(--text-primary); }
   .conversation-row[data-unread] .conversation-row-title > span { font-weight: 500; }
   .conversation-row-detail { display: flex; min-width: 0; align-items: center; gap: 6px; height: 16px; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-ui-11); }
   .conversation-row-branch { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

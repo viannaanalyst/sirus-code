@@ -7,6 +7,7 @@ import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
 import { ChevronDown, GitFork, RotateCcw, TerminalSquare } from "@/components/icons";
 import { formatUnknownError } from "@/lib/format-error";
+import { hasMessageTrail } from "@/lib/message-trail";
 import { isCompactCommand } from "@/lib/compact-before-send";
 import "@/styles/context-meter.css";
 import { TranscriptSearchBar } from "@/components/TranscriptSearchBar";
@@ -255,7 +256,7 @@ export function SessionPane({ agents, onSend, onStop, onModelChange, passive = f
             </div>
           </div>
         ) : (
-          <div className="transcript-shell relative flex min-h-0 flex-1 flex-col">
+          <div className="transcript-shell relative flex min-h-0 flex-1 flex-col" data-trail={hasMessageTrail(messages) || undefined}>
               <motion.div
                 ref={transcript}
                 tabIndex={0}

@@ -5,12 +5,12 @@ import { reuseMessages } from "@/lib/agent-events";
  * Transcripts are loaded per session (ADR-048). Besides these recent ones, the
  * selected, active, queued and explicitly retained sessions always stay loaded.
  */
-export const TRANSCRIPT_CACHE = 8;
+export const TRANSCRIPT_CACHE = 6;
 /**
- * Estimated bytes the recent (not in use) transcripts may hold together, after
- * A session cache: a few huge transcripts release the older ones early.
+ * Estimated bytes the recent (not in use) transcripts may hold together; a few huge
+ * transcripts release the older ones early, least recently opened first (ADR-180).
  */
-export const TRANSCRIPT_BUDGET = 32 * 1024 * 1024;
+export const TRANSCRIPT_BUDGET = 12 * 1024 * 1024;
 
 const ACTIVE: SessionStatus[] = ["starting", "running", "waiting"];
 

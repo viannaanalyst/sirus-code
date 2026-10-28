@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useClock } from "@/lib/shared-clock";
 import type { Session } from "@/client/types";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ChevronRight } from "@/components/icons";
@@ -39,13 +40,7 @@ export function WorkingPanel({ collapsed = false, onToggle }: { collapsed?: bool
   const open = enabled && rows.length >= WORKING_MIN;
   // Its own clock: the conversation beside it does not re-render each second.
   const ambient = useAmbientActive();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!open || !ambient || collapsed) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [open, ambient, collapsed]);
+  const now = useClock(1000, open && ambient && !collapsed);
   if (!open) return null;
   if (collapsed) {
     const needs = rows.some(waiting);

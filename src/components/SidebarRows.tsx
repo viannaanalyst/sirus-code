@@ -53,7 +53,7 @@ export function SidebarProjectRow({ project, expanded, onSelect, sessionCount, r
   const pinLabel = t(pinned ? "Unpin project" : "Pin project");
   return <>
     <SidebarHoverCard label={project.name} content={<>
-      <div className="sidebar-card-line sidebar-card-title ui-control"><ProjectIcon project={project} size={24} /><strong>{project.name}</strong><RowAction label={pinLabel} pressed={pinned} onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction></div>
+      <div className="sidebar-card-line sidebar-card-title sidebar-card-title-action ui-control"><ProjectIcon project={project} size={24} /><strong>{project.name}</strong><RowAction label={pinLabel} pressed={pinned} onClick={togglePin}><Pin fill={pinned ? "currentColor" : "none"} /></RowAction></div>
       <div className="sidebar-card-line ui-control"><MessageCircle /><span>{t("{count} sessions", { count: sessionCount })}</span></div>
       <div className="sidebar-card-separator" />
       <div className="sidebar-card-line ui-caption"><SidebarFolder /><span className="sidebar-card-path" title={project.path}>{project.path}</span></div>

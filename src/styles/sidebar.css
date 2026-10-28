@@ -124,7 +124,7 @@
   .sidebar-card-line > .sidebar-folder-glyph { width: 14px; height: 14px; color: var(--text-muted); }
   .sidebar-card-path { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .sidebar-card-title { color: var(--text-primary); }
-  .sidebar-card-title:has(.sidebar-row-action) { padding-block: 2px; }
+  .sidebar-card-title-action { padding-block: 2px; }
   .sidebar-card-title .sidebar-row-action { width: 20px; height: 20px; }
   .sidebar-card-title .sidebar-row-action svg { width: 12px; height: 12px; }
   .sidebar-card-title > strong { min-width: 0; flex: 1; overflow-wrap: anywhere; font-weight: 500; }

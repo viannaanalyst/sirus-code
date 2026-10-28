@@ -285,6 +285,8 @@ pub fn emit_soon(app: &AppHandle, session_id: &str) {
 pub fn emit_from(app: &AppHandle, session: &Session, from: usize) {
     // This snapshot supersedes a deferred activity publication.
     SCHEDULED.lock().take(&session.id);
+    // Output recorded before this snapshot reaches the renderer before it (ADR-180).
+    crate::output_batch::flush(app, &session.id);
     if session.messages.loaded().is_none() {
         // A metadata change of a transcript that is not in memory (ADR-099).
         match session_event(session, 0) {

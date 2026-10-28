@@ -1,4 +1,5 @@
-import { memo, useEffect, useId, useMemo, useState } from "react";
+import { memo, useId, useMemo, useState } from "react";
+import { useClock } from "@/lib/shared-clock";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ChevronDown, CircleHelp, Square, Users, X, Zap } from "@/components/icons";
 import type { ActivityItem, AgentProviderId } from "@/client/types";
@@ -28,21 +29,7 @@ export function MemberMark({ provider, model }: { provider: AgentProviderId; mod
 
 /** A clock that ticks once a second while `running`, resting while the window is hidden. */
 export function useTick(running: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running) return;
-    let timer: number | undefined;
-    const schedule = () => {
-      window.clearInterval(timer);
-      timer = undefined;
-      setNow(Date.now());
-      if (!document.hidden) timer = window.setInterval(() => setNow(Date.now()), 1000);
-    };
-    schedule();
-    document.addEventListener("visibilitychange", schedule);
-    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", schedule); };
-  }, [running]);
-  return now;
+  return useClock(1000, running);
 }
 
 /**
