@@ -388,13 +388,13 @@ html:is([data-animations="off"], [data-reduce-motion="on"]) .inline-visual { ani
 .workflow-phase-head { display: flex; align-items: center; gap: 8px; color: var(--text-secondary); }
 .workflow-phase-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .workflow-phase-count, .workflow-phase-state { flex-shrink: 0; color: var(--text-muted); }
-.workflow-phase[data-state="running"] .workflow-phase-state { color: var(--info, #6ea8fe); }
+.workflow-phase[data-state="running"] .workflow-phase-state { color: var(--accent); }
 .workflow-phase[data-state="failed"] .workflow-phase-state { color: var(--danger); }
 .workflow-phase[data-state="done"] .workflow-phase-state { color: var(--success); }
 .workflow-members { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
 .workflow-member { display: flex; flex-wrap: wrap; align-items: center; gap: 0 7px; min-height: 20px; color: var(--text-secondary); }
 .workflow-member-dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--text-muted); opacity: 0.5; }
-.workflow-member[data-state="running"] .workflow-member-dot { background: #6ea8fe; opacity: 1; animation: header-status-pulse 1.6s steps(6) infinite; }
+.workflow-member[data-state="running"] .workflow-member-dot { background: var(--accent); opacity: 1; animation: header-status-pulse 1.6s steps(6) infinite; }
 html[data-ambient="off"] .workflow-member-dot { animation-play-state: paused; }
 .workflow-member[data-state="completed"] .workflow-member-dot { background: var(--success); opacity: 1; }
 .workflow-member[data-state="failed"] .workflow-member-dot { background: var(--danger); opacity: 1; }

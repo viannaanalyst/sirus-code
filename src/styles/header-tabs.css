@@ -47,7 +47,7 @@
   @keyframes header-tab-in { from { opacity: 0; translate: 0 -4px; scale: .96; } }
 
   .header-tab-status { position: relative; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; }
-  .header-tab-status[data-status="running"] { background: #6ea8fe; animation: header-status-pulse 1.6s steps(6) infinite; }
+  .header-tab-status[data-status="running"] { background: var(--accent); animation: header-status-pulse 1.6s steps(6) infinite; }
   html[data-ambient="off"] .header-tab-status { animation-play-state: paused; }
   .header-tab-status[data-status="waiting"] { background: var(--warning); }
   .header-tab-status[data-status="done"] { background: var(--success); }
@@ -55,7 +55,7 @@
   .header-tab-glyph { display: inline-grid; place-items: center; width: 13px; height: 13px; flex-shrink: 0; }
   .header-tab-done { color: var(--success); }
   .header-tab-dots { display: inline-flex; align-items: center; justify-content: center; gap: 1.5px; }
-  .header-tab-dots i { width: 3px; height: 3px; border-radius: 50%; background: #6ea8fe; animation: header-tab-hop 1s ease-in-out infinite; }
+  .header-tab-dots i { width: 3px; height: 3px; border-radius: 50%; background: var(--accent); animation: header-tab-hop 1s ease-in-out infinite; }
   .header-tab-dots i:nth-child(2) { animation-delay: 0.15s; }
   .header-tab-dots i:nth-child(3) { animation-delay: 0.3s; }
   @keyframes header-tab-hop { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-3px); opacity: 1; } }
@@ -63,10 +63,10 @@
   /* A shadow ring repaints on every frame it moves, for as long as an agent runs. It steps at
      ~15 fps (steps(6) per quarter) along an ease-out curve instead. */
   @keyframes header-status-pulse {
-    from { box-shadow: 0 0 0 0 color-mix(in srgb, #6ea8fe 55%, transparent); }
-    25% { box-shadow: 0 0 0 2.5px color-mix(in srgb, #6ea8fe 32%, transparent); }
-    50% { box-shadow: 0 0 0 4.1px color-mix(in srgb, #6ea8fe 17%, transparent); }
-    75% { box-shadow: 0 0 0 5.4px color-mix(in srgb, #6ea8fe 6%, transparent); }
+    from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+    25% { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--accent) 32%, transparent); }
+    50% { box-shadow: 0 0 0 4.1px color-mix(in srgb, var(--accent) 17%, transparent); }
+    75% { box-shadow: 0 0 0 5.4px color-mix(in srgb, var(--accent) 6%, transparent); }
     to { box-shadow: 0 0 0 6px transparent; }
   }
 
