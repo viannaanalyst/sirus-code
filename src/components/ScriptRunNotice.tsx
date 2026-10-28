@@ -7,6 +7,9 @@ import { visibleScriptRun } from "@/lib/project-scripts";
 import { useAppStore } from "@/store/app-store";
 import "@/styles/context-meter.css";
 
+/** The store's current state; read outside the hook so the compiler does not see a hook used as a value. */
+const appState = () => useAppStore.getState();
+
 /** Above the composer: the latest project Setup / On finish run in this session's worktree (ADR-078). */
 export function ScriptRunNotice({ session }: { session: Session }) {
   const t = useTranslation();
@@ -14,7 +17,7 @@ export function ScriptRunNotice({ session }: { session: Session }) {
   const [open, setOpen] = useState(false);
   const run = visibleScriptRun(session);
   if (!run) return null;
-  const store = useAppStore.getState();
+  const store = appState();
   const running = run.status === "running";
   const failed = run.status === "failed" || run.status === "timedOut";
   const busy = ["starting", "running", "waiting"].includes(session.status);

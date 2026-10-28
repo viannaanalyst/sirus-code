@@ -36,6 +36,8 @@ export function useMoveMenu(group = "move") {
   };
 }
 
+const computersState = () => useComputers.getState();
+
 /** The confirmation and progress of moving a conversation; mounted once in the window. */
 export function MoveSessionDialog() {
   const t = useTranslation();
@@ -55,7 +57,7 @@ export function MoveSessionDialog() {
   }, [request, session?.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const name = request ? computerLabel(request.targetId) : "";
-  const refusal = request && remoteUrl !== undefined ? useComputers.getState().moveRefusal(request.sessionId, request.targetId, remoteUrl) : null;
+  const refusal = request && remoteUrl !== undefined ? computersState().moveRefusal(request.sessionId, request.targetId, remoteUrl) : null;
   const busy = moving !== null;
   const move = async () => {
     if (!request || busy || refusal) return;
