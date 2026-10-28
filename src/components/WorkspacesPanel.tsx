@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FolderGit2, GitBranch, RefreshCw } from "@/components/icons/phosphor";
+import { FolderGit2, GitBranch, RefreshCw } from "@/components/icons";
 import { client } from "@/client";
 import type { GitWorktree } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Eye, RefreshCw, RotateCcw, Search } from "@/components/icons/phosphor";
+import { Box, Eye, RefreshCw, RotateCcw, Search } from "@/components/icons";
 import { client } from "@/client";
 import type { AgentSkill, AppSettings, SkillSource } from "@/client/types";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";

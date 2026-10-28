@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, MessagesCircle, MessagesSquare } from "@/components/icons/phosphor";
+import { Check, MessagesCircle, MessagesSquare } from "@/components/icons";
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { HandoffIcon } from "@/components/icons/HandoffIcon";
 import { ModelIcon } from "@/components/ModelIcon";

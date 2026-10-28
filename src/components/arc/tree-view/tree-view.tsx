@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
-import { ChevronRight, File, Folder, FolderOpen } from "@/components/icons/phosphor";
+import { ChevronRight, File, Folder, FolderOpen } from "@/components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { motionTokens } from "../lib/motion-tokens";

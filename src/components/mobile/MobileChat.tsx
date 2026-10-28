@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObj
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@/client/types";
-import { ChevronDown, ChevronLeft, ChevronUp, CloudOff, Ellipsis, FileDiff, FolderOpen, GitBranch, GitCommitHorizontal, Play, Plus, SquareTerminal, X } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronLeft, ChevronUp, CloudOff, Ellipsis, FileDiff, FolderOpen, GitBranch, GitCommitHorizontal, Play, Plus, SquareTerminal, X } from "@/components/icons";
 import { SessionPane } from "@/components/SessionPane";
 import { PhoneComposerSlotContext } from "@/components/phone-composer-slot";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";

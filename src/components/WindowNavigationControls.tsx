@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, PanelLeft } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, PanelLeft } from "@/components/icons";
 import { IconSwap } from "@/components/icons/IconSwap";
 import { useTranslation } from "@/i18n/use-translation";
 import { IconButton } from "@/primitives/IconButton";

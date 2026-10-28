@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState, type RefObject } from "react";
-import { CalendarDays, Clock3 } from "@/components/icons/phosphor";
+import { CalendarDays, Clock3 } from "@/components/icons";
 import type { Session } from "@/client/types";
 import { useArcReducedMotion } from "@/components/arc/lib/use-arc-motion";
 import { useTranslation } from "@/i18n/use-translation";

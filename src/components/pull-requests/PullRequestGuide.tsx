@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Signpost, Sparkles, Trash2 } from "@/components/icons/phosphor";
+import { Signpost, Sparkles, Trash2 } from "@/components/icons";
 import type { FileChange, GithubItem, ReviewGuideAnchor } from "@/client/types";
 import { DiffViewer, type DiffFocus } from "@/components/DiffViewer";
 import { ReviewGuideTour } from "@/components/review-guide/ReviewGuideTour";

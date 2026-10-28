@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Globe, PanelRight, X } from "@/components/icons/phosphor";
+import { Globe, PanelRight, X } from "@/components/icons";
 import { agentPageShows, cornerPosition, clampPlayerPosition, miniPlayerSize, nearestCorner, type PlayerPoint } from "@/lib/mini-player";
 import { motionTokens } from "@/lib/motion";
 import { useBrowserBounds } from "@/lib/use-browser-bounds";

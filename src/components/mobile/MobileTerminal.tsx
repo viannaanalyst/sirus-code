@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, Keyboard, Plus, SquareTerminal } from "@/components/icons/phosphor";
+import { ChevronLeft, Keyboard, Plus, SquareTerminal } from "@/components/icons";
 import { client } from "@/client";
 import { TerminalTabsPane } from "@/components/TerminalPanel";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";

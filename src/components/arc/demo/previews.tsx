@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Check } from '@/components/icons/phosphor';
+import { Check } from '@/components/icons';
 import { Button } from '../button/button';
 import { ActionButton } from '../action-button/action-button';
 import { SplitButton } from '../split-button/split-button';

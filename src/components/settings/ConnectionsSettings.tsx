@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy, LoaderCircle, Pencil, QrCode, RefreshCw, ShieldCheck, Smartphone } from "@/components/icons/phosphor";
+import { Check, Copy, LoaderCircle, Pencil, QrCode, RefreshCw, ShieldCheck, Smartphone } from "@/components/icons";
 import { IconSwap } from "@/components/icons/IconSwap";
 import { client as activeClient, localClient } from "@/client";
 

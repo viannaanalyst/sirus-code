@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { Project, Session } from "@/client/types";
-import { Laptop, LoaderCircle, Plus, Server, WifiOff } from "@/components/icons/phosphor";
+import { Laptop, LoaderCircle, Plus, Server, WifiOff } from "@/components/icons";
 import { normalizePairingCode } from "@/client/remote-pairing";
 import { HOME_ENVIRONMENT, environmentLabel, mergeEnvironments, summaryWithPending, unreachableEnvironments, type Environment, type EnvironmentFilter, type MergedHome } from "@/lib/environments";
 import { formatUnknownError } from "@/lib/format-error";

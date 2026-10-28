@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FileEntry, WorkspaceFileSuggestion } from "@/client/types";
 import { client } from "@/client";
-import { ChevronLeft, ChevronRight, LoaderCircle, Search, X } from "@/components/icons/phosphor";
+import { ChevronLeft, ChevronRight, LoaderCircle, Search, X } from "@/components/icons";
 import { MarkdownPreview } from "@/components/MarkdownPreview";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { isLocalImageLink } from "@/lib/chat-markdown";

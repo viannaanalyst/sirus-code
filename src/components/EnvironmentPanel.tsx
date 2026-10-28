@@ -25,7 +25,7 @@ import {
   Settings2,
   Square,
   SquareTerminal,
-} from "@/components/icons/phosphor";
+} from "@/components/icons";
 import { client } from "@/client";
 import type { BranchInfo, EditorId } from "@/client/types";
 import { GitHubIcon } from "@/components/icons/BrandIcons";

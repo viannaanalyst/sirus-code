@@ -2,7 +2,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
-import { ArrowUpDown, Clock3, Copy, GitBranch, Moon, Pencil, Pin, PinOff, Trash2, Undo2 } from "@/components/icons/phosphor";
+import { ArrowUpDown, Clock3, Copy, GitBranch, Moon, Pencil, Pin, PinOff, Trash2, Undo2 } from "@/components/icons";
 import { SnoozeCountdown } from "@/components/SnoozePicker";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { environmentLabel, rowActionRoute } from "@/lib/environments";

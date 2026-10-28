@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@/client/types";
-import { CalendarDays, Clock3, Moon } from "@/components/icons/phosphor";
+import { CalendarDays, Clock3, Moon } from "@/components/icons";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { motionTokens } from "@/lib/motion";
 import { customSnoozeTime, dateInputValue, phoneSnoozeChoices, snoozeClock, snoozeDeadline, snoozePresetTime, timeInputValue } from "@/lib/snooze";

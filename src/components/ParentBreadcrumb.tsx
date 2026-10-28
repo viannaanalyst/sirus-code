@@ -1,4 +1,4 @@
-import { ChevronRight, CornerUpLeft, Users } from "@/components/icons/phosphor";
+import { ChevronRight, CornerUpLeft, Users } from "@/components/icons";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { parentLink } from "@/lib/session-parent";

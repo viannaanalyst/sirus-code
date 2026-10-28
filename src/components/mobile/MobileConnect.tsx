@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { normalizePairingCode } from "@/client/remote-pairing";
-import { Check, LoaderCircle } from "@/components/icons/phosphor";
+import { Check, LoaderCircle } from "@/components/icons";
 import { translate, type Locale } from "@/i18n";
 import "@/styles/mobile.css";
 

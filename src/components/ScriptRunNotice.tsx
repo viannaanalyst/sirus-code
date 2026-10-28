@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "@/client/types";
-import { CircleCheck, FileTerminal, LoaderCircle, RotateCw, Square, TriangleAlert, X } from "@/components/icons/phosphor";
+import { CircleCheck, FileTerminal, LoaderCircle, RotateCw, Square, TriangleAlert, X } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { visibleScriptRun } from "@/lib/project-scripts";
 import { useAppStore } from "@/store/app-store";

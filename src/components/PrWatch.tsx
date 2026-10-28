@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, GitMerge, MessageSquare, XCircle } from "@/components/icons/phosphor";
+import { Eye, GitMerge, MessageSquare, XCircle } from "@/components/icons";
 import type { PrWatch, PrWatchEvent } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { watchedEvents } from "@/lib/pull-requests";

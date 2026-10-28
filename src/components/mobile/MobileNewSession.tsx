@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentProviderId, ApprovalMode } from "@/client/types";
-import { ArrowUp, FolderGit2, Folder, Link2, TriangleAlert, X } from "@/components/icons/phosphor";
+import { ArrowUp, FolderGit2, Folder, Link2, TriangleAlert, X } from "@/components/icons";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

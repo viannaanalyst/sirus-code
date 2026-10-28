@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons/phosphor";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, PanelLeft, Pencil, Pin, PinOff, Plus, Rows, Search, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ModelIcon } from "@/components/ModelIcon";

@@ -4,7 +4,7 @@ import type { AgentInstall, AgentProviderId, AppSettings, Connector, ConnectorAu
 import { Checkbox } from "@/components/arc/checkbox/checkbox";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Input } from "@/components/arc/input/input";
-import { LogIn, LogOut, MoreHorizontal, Pencil, Plus, PowerIcon, Search, Trash2 } from "@/components/icons/phosphor";
+import { LogIn, LogOut, MoreHorizontal, Pencil, Plus, PowerIcon, Search, Trash2 } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { BRAND_MARKS } from "@/lib/connector-marks";
 import { CONNECTOR_AGENTS, CONNECTOR_CATALOG, CONNECTOR_CATEGORIES, catalogEntry, supabaseDetails, supabaseUrl, validConnectorUrl, type CatalogConnector } from "@/lib/connectors-catalog";

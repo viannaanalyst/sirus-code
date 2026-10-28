@@ -1,5 +1,5 @@
 import type { ProjectLook } from "@/client/types";
-import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@phosphor-icons/react";
+import { Folder as FolderGlyph, FolderOpen as FolderOpenGlyph } from "@/components/icons";
 import { AstroIcon } from "@/components/AstroIcon";
 import { ASTRO_DEFAULT_COLOR } from "@/lib/astro-art";
 import { cn } from "@/lib/cn";
@@ -33,5 +33,5 @@ export function ProjectGlyph({ project, expanded = false, size = 15, className }
   }
   const Glyph = expanded ? FolderOpenGlyph : FolderGlyph;
   const color = projectColor(look);
-  return <Glyph aria-hidden="true" size={size} weight={color ? "duotone" : "regular"} className={cn("sidebar-folder-glyph", className)} style={color ? { color } : undefined} />;
+  return <Glyph aria-hidden="true" size={size} weight={color ? "fill" : "regular"} className={cn("sidebar-folder-glyph", className)} style={color ? { color } : undefined} />;
 }

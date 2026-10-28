@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Laptop, Server } from "@/components/icons/phosphor";
+import { ArrowRight, Laptop, Server } from "@/components/icons";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { client } from "@/client";
 import type { Session } from "@/client/types";

@@ -27,6 +27,10 @@ Copyright (c) 2014 Ryan L McIntyre
 
 Copyright (c) Microsoft Corporation.
 
+## Zeron (adjusted Solar icon drawings used for the interface icons)
+
+Copyright (c) 2026 Wing
+
 ## MIT License (applies to all of the above)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -46,3 +50,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Solar Icon Set (interface icons)
+
+The interface icons are from the Solar Icon Set by 480 Design
+(https://www.figma.com/community/file/1166831539721848736), licensed under the Creative Commons
+Attribution 4.0 International license (CC BY 4.0, https://creativecommons.org/licenses/by/4.0/).
+The icons are taken from the `@iconify-json/solar` package and from Zeron's adjusted copies
+(https://github.com/zeronsh/comet, MIT, listed above); their stroke width is normalized to 1.7 and
+some coordinates are rounded. Those changes were made by Sirus Code. The attribution and license
+texts are kept in `public/licenses/solar-icons/`.

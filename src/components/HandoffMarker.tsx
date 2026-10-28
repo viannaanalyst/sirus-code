@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import type { AgentProviderId } from "@/client/types";
-import { ChevronRight } from "@/components/icons/phosphor";
+import { ChevronRight } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/provider-registry";

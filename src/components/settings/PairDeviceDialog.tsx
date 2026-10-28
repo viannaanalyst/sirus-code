@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Clock3 as Clock, Copy, Globe, Laptop, RefreshCw, Smartphone } from "@/components/icons/phosphor";
+import { Check, Clock3 as Clock, Copy, Globe, Laptop, RefreshCw, Smartphone } from "@/components/icons";
 import { IconSwap } from "@/components/icons/IconSwap";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import type { RemoteDevice, RemotePairing } from "@/client/types";

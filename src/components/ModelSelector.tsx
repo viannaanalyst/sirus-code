@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ChevronDown, ChevronLeft, Search, Star, X, Zap } from "@/components/icons/phosphor";
+import { Check, ChevronDown, ChevronLeft, Search, Star, X, Zap } from "@/components/icons";
 import { motion } from "motion/react";
 import type { AgentProviderId } from "@/client/types";
 import { ModelEffortPanel } from "@/components/ModelEffortPanel";

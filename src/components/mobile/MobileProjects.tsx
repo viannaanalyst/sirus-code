@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, FolderPlus, Plus } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronLeft, FolderPlus, Plus } from "@/components/icons";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { listedSessions, projectGroups, shortAgo } from "@/lib/mobile";

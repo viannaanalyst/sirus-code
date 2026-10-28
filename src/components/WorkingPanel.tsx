@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@/client/types";
 import { ProjectIcon } from "@/components/ProjectAvatar";
-import { ChevronRight } from "@/components/icons/phosphor";
+import { ChevronRight } from "@/components/icons";
 import { ModelIcon } from "@/components/ModelIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { activityElapsed, formatActivityDuration } from "@/lib/agent-activity";

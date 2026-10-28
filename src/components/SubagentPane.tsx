@@ -1,5 +1,5 @@
 import { memo, useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, Box, ChevronRight, FilePenLine, Lightbulb, Search, Terminal, Wrench } from "@/components/icons/phosphor";
+import { ArrowLeft, Bot, Box, ChevronRight, FilePenLine, Lightbulb, Search, Terminal, Wrench } from "@/components/icons";
 import type { ActivityKind, ActivityStep, SubagentFeedEntry } from "@/client/types";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { MemberMark, MemberStatusMark, useTick } from "@/components/SubagentTeam";

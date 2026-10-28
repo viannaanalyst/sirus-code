@@ -1,5 +1,5 @@
 import { memo, useMemo, useRef, useState, type ComponentProps, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from "react";
-import { GripVertical, X } from "@/components/icons/phosphor";
+import { GripVertical, X } from "@/components/icons";
 import { ModelIcon } from "@/components/ModelIcon";
 import { SessionPane } from "@/components/SessionPane";
 import { useTranslation } from "@/i18n/use-translation";

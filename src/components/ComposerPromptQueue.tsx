@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, ListOrdered, Pause, Play } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronUp, ListOrdered, Pause, Play } from "@/components/icons";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
 import { InteractiveButton } from "@/primitives/InteractiveButton";

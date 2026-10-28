@@ -1,4 +1,4 @@
-import { RotateCcw } from "@/components/icons/phosphor";
+import { RotateCcw } from "@/components/icons";
 import type { ReactNode } from "react";
 import type { AgentInstall, AppSettings } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

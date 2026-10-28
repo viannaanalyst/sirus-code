@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { PopoverAnchor } from "@radix-ui/react-popover";
-import { Check, Ellipsis, GitPullRequest, GripVertical, SlidersHorizontal } from "@/components/icons/phosphor";
+import { Check, Ellipsis, GitPullRequest, GripVertical, SlidersHorizontal } from "@/components/icons";
 import { SidebarNavigationIcon } from "@/components/icons/SidebarNavigationIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { cn } from "@/lib/cn";

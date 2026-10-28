@@ -1,4 +1,4 @@
-import { Bookmark, X } from "@/components/icons/phosphor";
+import { Bookmark, X } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/primitives/Popover";
 

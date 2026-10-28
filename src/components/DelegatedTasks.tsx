@@ -1,4 +1,4 @@
-import { ChevronRight, Square } from "@/components/icons/phosphor";
+import { ChevronRight, Square } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useTranslation } from "@/i18n/use-translation";
 import { providerById } from "@/lib/provider-registry";

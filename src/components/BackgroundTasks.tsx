@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Message, Session } from "@/client/types";
 import { client } from "@/client";
-import { ChevronDown, Square } from "@/components/icons/phosphor";
+import { ChevronDown, Square } from "@/components/icons";
 import { useTranslation } from "@/i18n/use-translation";
 import { formatActivityDuration } from "@/lib/agent-activity";
 import { useAmbientActive } from "@/lib/ambient-motion";

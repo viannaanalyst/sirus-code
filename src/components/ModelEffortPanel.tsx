@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ChevronRight, RotateCcw, Zap } from "@/components/icons/phosphor";
+import { ChevronRight, RotateCcw, Zap } from "@/components/icons";
 import type { AgentProviderId, ExecutionOptions } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { resolveModelBrand } from "@/lib/model-brand-resolver";

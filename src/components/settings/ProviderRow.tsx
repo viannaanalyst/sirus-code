@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { client } from "@/client";
 import type { AgentInstall } from "@/client/types";
-import { Check, ChevronDown, FolderOpen, RotateCcw, Users } from "@/components/icons/phosphor";
+import { Check, ChevronDown, FolderOpen, RotateCcw, Users } from "@/components/icons";
 import { ProviderAccountsPanel } from "@/components/ProviderAccountsPanel";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { translate } from "@/i18n";

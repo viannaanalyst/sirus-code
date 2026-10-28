@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent } from "@/components/arc/dialog/dialog";
 import { Checkbox } from "@/components/arc/checkbox/checkbox";
 import { Input } from "@/components/arc/input/input";
-import { MoreHorizontal, Columns3, GitBranch, Rows, Pencil, Trash2 } from "@/components/icons/phosphor";
+import { MoreHorizontal, Columns3, GitBranch, Rows, Pencil, Trash2 } from "@/components/icons";
 import { useState } from "react";
 import type { Session } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

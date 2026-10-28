@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleMinus, ExternalLink, LoaderCircle, Sparkles, X } from "@/components/icons/phosphor";
+import { ChevronRight, CircleAlert, CircleCheck, CircleDashed, CircleMinus, ExternalLink, LoaderCircle, Sparkles, X } from "@/components/icons";
 import { client } from "@/client";
 import type { GithubDetail, GithubFailedCheck } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";

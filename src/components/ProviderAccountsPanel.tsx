@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, LogIn, Plus, RefreshCw } from "@/components/icons/phosphor";
+import { ArrowLeft, Check, LogIn, Plus, RefreshCw } from "@/components/icons";
 import { useEffect, useRef, useState } from "react";
 import { client } from "@/client";
 import type { AgentProviderId, ProviderUsage } from "@/client/types";

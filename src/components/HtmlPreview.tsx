@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { client } from "@/client";
-import { Code, Eye } from "@/components/icons/phosphor";
+import { Code, Eye } from "@/components/icons";
 import { CodeBlock } from "@/components/arc/code-block/code-block";
 import { useTranslation } from "@/i18n/use-translation";
 

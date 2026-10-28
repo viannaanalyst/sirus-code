@@ -5,7 +5,7 @@ import { SearchText } from "@/components/SearchText";
 import { codeChunks, shouldHighlight } from "@/lib/code-chunks";
 import { normaliseLanguage, tokenKind, tokenPattern } from "@/lib/code-tokens";
 import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { ChevronDown, FileCode2 } from "@/components/icons/phosphor";
+import { ChevronDown, FileCode2 } from "@/components/icons";
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
 import { motionTokens } from "../lib/motion-tokens";

@@ -5,7 +5,7 @@ import { CodeBlock } from "@/components/arc/code-block/code-block";
 const TranscriptCodeBlock = memo(CodeBlock);
 import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { MessageActions, MessageTimestamp } from "@/components/MessageActions";
-import { ChevronDown, GitFork, RotateCcw, TerminalSquare } from "@/components/icons/phosphor";
+import { ChevronDown, GitFork, RotateCcw, TerminalSquare } from "@/components/icons";
 import { formatUnknownError } from "@/lib/format-error";
 import { isCompactCommand } from "@/lib/compact-before-send";
 import "@/styles/context-meter.css";

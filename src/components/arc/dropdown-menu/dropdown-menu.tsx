@@ -5,7 +5,7 @@ import type { FocusEvent, ReactNode, ComponentPropsWithoutRef } from "react";
 import * as DropdownPrimitive from "@radix-ui/react-dropdown-menu";
 import { AnimatePresence, motion } from "motion/react";
 import { useArcReducedMotion as useReducedMotion } from "../lib/use-arc-motion";
-import { ChevronDown } from "@/components/icons/phosphor";
+import { ChevronDown } from "@/components/icons";
 import { motionTokens } from "../lib/motion-tokens";
 import styles from "./dropdown-menu.module.css";
 

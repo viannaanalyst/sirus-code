@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode, type WheelEvent } from "react";
 import type { AstroIconId, AstroStyle, ProjectLook } from "@/client/types";
 import type { LookChange } from "@/lib/project-folders";
-import { ImagePlus, Search, Trash2 } from "@/components/icons/phosphor";
+import { ImagePlus, Search, Trash2 } from "@/components/icons";
 import { AstroIcon } from "@/components/AstroIcon";
 import { COLOR_ORDER, EMOJIS } from "@/components/ProjectLookEditor";
 import { ProjectIcon } from "@/components/ProjectAvatar";

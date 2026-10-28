@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ChevronDown } from "@/components/icons/phosphor";
+import { Check, ChevronDown } from "@/components/icons";
 import { motionTokens } from "@/lib/motion";
 
 export interface MobileOption<T extends string> {

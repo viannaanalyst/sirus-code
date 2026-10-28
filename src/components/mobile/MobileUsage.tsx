@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw } from "@/components/icons/phosphor";
+import { RefreshCw } from "@/components/icons";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { orderedUsageWindows, resetDuration, USAGE_PROVIDER_IDS, usageWindowLabel } from "@/lib/provider-usage";

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { FileText, Minus, Plus } from "@/components/icons/phosphor";
+import { FileText, Minus, Plus } from "@/components/icons";
 import { client } from "@/client";
 import type { DocumentPreview, WordBlock } from "@/client/types";
 import type { DockPane } from "@/store/app-store";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { motion } from "motion/react";
-import { Eraser, X } from "@/components/icons/phosphor";
+import { Eraser, X } from "@/components/icons";
 import type { GithubItem } from "@/client/types";
 import { AgentComposer } from "@/components/AgentComposer";
 import { AgentRequests } from "@/components/AgentRequests";

@@ -7,7 +7,7 @@ import { ComposerEditor, type ComposerPasteContext } from "@/components/Composer
 import type { ComposerHandle } from "@/lib/composer-focus";
 import { useMotionPreferences } from "@/lib/use-motion-preferences";
 import { useTranslation } from "@/i18n/use-translation";
-import { Bot, Check, ChevronDown, ClipboardList, Hand, Square, ArrowUp, Minimize2, Zap } from "@/components/icons/phosphor";
+import { Bot, Check, ChevronDown, ClipboardList, Hand, Square, ArrowUp, Minimize2, Zap } from "@/components/icons";
 import { AnimatePresence, motion } from "motion/react";
 import { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";

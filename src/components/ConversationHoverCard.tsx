@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent } from "react";
-import { GitBranch } from "@/components/icons/phosphor";
+import { GitBranch } from "@/components/icons";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/arc/popover/popover";
 import { ModelIcon } from "@/components/ModelIcon";
 import { ProjectIcon } from "@/components/ProjectAvatar";

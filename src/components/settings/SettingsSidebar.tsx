@@ -19,7 +19,7 @@ import {
   TerminalSquare,
   Search,
   X,
-} from "@/components/icons/phosphor";
+} from "@/components/icons";
 import { isRemoteUi } from "@/client";
 import { useHostFeatures } from "@/components/mobile/use-phone-host";
 import { cn } from "@/lib/cn";

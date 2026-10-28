@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Laptop, Server } from "@/components/icons/phosphor";
+import { Laptop, Server } from "@/components/icons";
 import type { Project } from "@/client/types";
 import { ProjectIcon } from "@/components/ProjectAvatar";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";

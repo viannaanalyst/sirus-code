@@ -1,5 +1,5 @@
 import { useTranslation } from "@/i18n/use-translation";
-import { Plus } from "@/components/icons/phosphor";
+import { Plus } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 interface Props {

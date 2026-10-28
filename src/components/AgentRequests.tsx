@@ -2,7 +2,7 @@ import { memo, useState, type FormEvent } from "react";
 import type { AgentResponse, PendingRequest, Session } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "@/i18n/use-translation";
-import { Eye, EyeOff, Lock, MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons/phosphor";
+import { Eye, EyeOff, Lock, MessageCircle, MousePointerClick, ShieldCheck } from "@/components/icons";
 import type { ComputerRequest, SecretRequest } from "@/client/types";
 import { maskInput, maskSecrets } from "@/lib/redact";
 import "@/styles/computer.css";

@@ -1,5 +1,5 @@
 import { memo, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Search, X } from "@/components/icons/phosphor";
+import { ChevronDown, ChevronUp, Search, X } from "@/components/icons";
 import { selectListedSessions, useAppStore } from "@/store/app-store";
 import { client } from "@/client";
 import type { Session } from "@/client/types";

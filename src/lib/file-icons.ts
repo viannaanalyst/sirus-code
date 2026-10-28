@@ -25,7 +25,7 @@ import {
   GitBranch,
   Package,
   type LucideIcon,
-} from "@/components/icons/phosphor";
+} from "@/components/icons";
 
 export interface FileIconSpec {
   Icon: LucideIcon;

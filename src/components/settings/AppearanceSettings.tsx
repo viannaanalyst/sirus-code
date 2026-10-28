@@ -1,4 +1,4 @@
-import { ImagePlus, RotateCcw } from "@/components/icons/phosphor";
+import { ImagePlus, RotateCcw } from "@/components/icons";
 import { client } from "@/client";
 import { formatUnknownError } from "@/lib/format-error";
 import { useState } from "react";

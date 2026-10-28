@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons/phosphor";
+import { Bot, Box, MessageCircle, WorkflowIcon, Check, ChevronDown, ChevronRight, CircleHelp, Clock3, Eye, FilePenLine, Globe, Lightbulb, Lock, RotateCcw, Search, Square, Terminal, Wrench, X, Zap } from "@/components/icons";
 import type { ActivityItem, ActivityKind, ActivityStep, AgentProviderId, Message, TurnActivity, WorkflowProgress } from "@/client/types";
 import { memberAnswer, workflowGroups } from "@/lib/workflow-groups";
 import { ModelIcon } from "@/components/ModelIcon";

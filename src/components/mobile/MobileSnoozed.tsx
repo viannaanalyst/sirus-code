@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft } from "@/components/icons/phosphor";
+import { ChevronLeft } from "@/components/icons";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { filterByEnvironment, type EnvironmentFilter } from "@/lib/environments";
 import { isSnoozed } from "@/lib/snooze";

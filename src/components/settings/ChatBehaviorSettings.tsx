@@ -1,4 +1,4 @@
-import { RotateCcw } from "@/components/icons/phosphor";
+import { RotateCcw } from "@/components/icons";
 import type { AppSettings } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
 import { CHAT_AGENT_KEYS, CHAT_SETTING_KEYS, defaultSettings, STREAMING_CHOICES } from "@/lib/settings";

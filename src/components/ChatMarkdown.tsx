@@ -1,4 +1,4 @@
-import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons/phosphor";
+import { FolderOpen, FileText, AppWindow, Copy, FolderSearch, ImagePlus } from "@/components/icons";
 import { createContext, Fragment, memo, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { client } from "@/client";
 import type { EditorId } from "@/client/types";
