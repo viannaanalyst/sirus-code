@@ -11,9 +11,9 @@ import { CopyButton } from "@/components/arc/copy-button/copy-button";
 import { clearFindMatches, lineSelector, paintFindMatches, type RenderedDiffFile } from "@/lib/diff-find-dom";
 import type { DiffMatch } from "@/lib/diff-find";
 import { addressOfLine, hashText, selectionOfRows } from "@/lib/diff-pierre";
-import { DIFF_UNSAFE_CSS, diffThemeName } from "@/lib/diff-theme";
+import { DIFF_UNSAFE_CSS } from "@/lib/diff-theme";
 import type { DiffLine } from "@/lib/transcript";
-import { DiffWorkerPool, useDiffAppearance } from "./DiffWorkerPool";
+import { DiffWorkerPool, useDiffAppearance, useDiffThemeName } from "./DiffWorkerPool";
 
 /** One file of the document: its text, our parsed rows, Pierre's model, and what to say when there is no text diff. */
 export interface DiffEntry { path: string; diff: string; lines: readonly DiffLine[]; fileDiff: FileDiffMetadata | null; message: string | null }
@@ -84,6 +84,7 @@ function useRowHeight(host: RefObject<HTMLElement | null>) {
 
 function DiffCodeView({ entries, headers, collapsed, wrap, selectable, selection, matches, initialTop, initialPath, handle, labels, onToggle, onSelect, onScroll, onKeyDown }: DiffCodeProps) {
   const appearance = useDiffAppearance();
+  const themeName = useDiffThemeName();
   const viewer = useRef<CodeViewHandle<undefined, undefined>>(null);
   const host = useRef<HTMLDivElement>(null);
   const rowHeight = useRowHeight(host);
@@ -170,7 +171,7 @@ function DiffCodeView({ entries, headers, collapsed, wrap, selectable, selection
   const options = useMemo(() => ({
     diffStyle: "unified" as const,
     overflow: wrap ? ("wrap" as const) : ("scroll" as const),
-    theme: diffThemeName(appearance),
+    theme: themeName,
     themeType: appearance,
     preferredHighlighter: "highlights" as const,
     tokenizeMaxLineLength: 1000,
@@ -182,7 +183,7 @@ function DiffCodeView({ entries, headers, collapsed, wrap, selectable, selection
     itemMetrics: { lineHeight: rowHeight, diffHeaderHeight: 36, hunkSeparatorHeight: 24, spacing: 0, paddingTop: 0, paddingBottom: headers ? 8 : 0 },
     layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
     onPostRender: paint,
-  }), [appearance, wrap, headers, selectable, rowHeight, paint]);
+  }), [appearance, themeName, wrap, headers, selectable, rowHeight, paint]);
 
   const renderHeaderPrefix = useCallback((item: { id: string; collapsed?: boolean }): ReactNode => {
     const entry = byPath.get(item.id);

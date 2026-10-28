@@ -5,7 +5,8 @@ import { WorkerPoolContext } from "@pierre/diffs/react";
 import { WorkerPoolManager } from "@pierre/diffs/worker";
 import DiffsWorker from "@pierre/diffs/worker/worker.js?worker";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { diffThemeName, registerDiffThemes, type DiffAppearance } from "@/lib/diff-theme";
+import { DIFF_THEME_NAMES, diffThemeName, registerDiffThemes, type DiffAppearance } from "@/lib/diff-theme";
+import { subscribeCodeTheme } from "@/lib/code-theme-state";
 
 const IDLE_MS = 30_000;
 const listeners = new Set<() => void>();
@@ -16,12 +17,15 @@ export function readAppearance(): DiffAppearance {
   return typeof document !== "undefined" && document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 function subscribeAppearance(listener: () => void) {
+  // An imported VS Code theme (ADR-185) changes the syntax palette without the light or dark switch.
+  const stopCodeTheme = subscribeCodeTheme(listener);
   listeners.add(listener);
   if (!observer && typeof MutationObserver !== "undefined") {
     observer = new MutationObserver(() => listeners.forEach((notify) => notify()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   }
   return () => {
+    stopCodeTheme();
     listeners.delete(listener);
     if (!listeners.size) { observer?.disconnect(); observer = null; }
   };
@@ -29,6 +33,11 @@ function subscribeAppearance(listener: () => void) {
 /** Re-renders when the app switches between its light and dark theme. */
 export function useDiffAppearance(): DiffAppearance {
   return useSyncExternalStore(subscribeAppearance, readAppearance, () => "dark");
+}
+
+/** The syntax theme in use (Sirus's or an imported one); re-renders when it changes. */
+export function useDiffThemeName(): string {
+  return useSyncExternalStore(subscribeAppearance, () => diffThemeName(readAppearance()), () => DIFF_THEME_NAMES.dark);
 }
 
 interface Shared { pool: WorkerPoolManager; stop: () => void; consumers: number; idle: ReturnType<typeof setTimeout> | undefined }

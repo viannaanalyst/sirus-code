@@ -95,7 +95,7 @@ test("system UI override retains custom font and code/terminal families and size
 test("root application writes independent role fonts, density and real material flags", () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "document");
   const properties = new Map<string, string>();
-  const root = { dataset: {} as Record<string, string>, style: { fontSize: "", setProperty: (key: string, value: string) => properties.set(key, value) } };
+  const root = { dataset: {} as Record<string, string>, style: { fontSize: "", setProperty: (key: string, value: string) => properties.set(key, value), removeProperty: (key: string) => properties.delete(key) } };
   Object.defineProperty(globalThis, "document", { value: { documentElement: root }, configurable: true });
   try {
     const settings = mergeSettings({ theme: "dark", darkWindowTranslucent: true, systemUiFont: false, uiFont: "geist", uiFontSize: 18, codeFont: "fira", codeFontSize: 10, terminalFont: "menlo", terminalFontSize: 22, density: "compact", fontSmoothing: false });

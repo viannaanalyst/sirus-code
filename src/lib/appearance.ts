@@ -1,5 +1,6 @@
 import type { AppSettings, AppearanceSupport, Session } from "@/client/types";
 import { hasConversation } from "./transcripts";
+import { activeVsCodeTheme, guardAnsi, mapVsCodeTheme } from "./vscode-theme";
 
 /** Landing and pending handoffs retain their own background until conversation starts. */
 export function isConversationStarted(session: Session | null) {
@@ -21,12 +22,18 @@ export function resolveAppearanceMaterial(settings: AppSettings, support?: Appea
 export function terminalAppearance(settings: AppSettings, support?: AppearanceSupport, systemPalette: "dark" | "light" = "dark") {
   const material = resolveAppearanceMaterial(settings, support, systemPalette);
   const light = material.palette === "light";
-  const base = light ? "#f4f4f5" : "#0c0c0c";
+  // An imported VS Code theme (ADR-185) replaces the colours it defines, already contrast-guarded.
+  const theme = activeVsCodeTheme(settings, material.palette);
+  const imported = theme ? mapVsCodeTheme(theme).terminal : {};
+  const base = imported.background ?? (light ? "#f4f4f5" : "#0c0c0c");
+  const palette = { ...(light ? TERMINAL_ANSI_LIGHT : TERMINAL_ANSI_DARK), ...imported };
   return {
-    ...(light ? TERMINAL_ANSI_LIGHT : TERMINAL_ANSI_DARK),
+    ...palette,
+    // Sirus's own ANSI colours that the theme leaves out are held to the same floor on its background.
+    ...(theme ? guardAnsi(palette, [base], material.palette) : {}),
     background: material.windowGlass ? `${base}00` : base,
-    foreground: light ? "#18181b" : "#d4d4d4",
-    cursor: light ? "#18181b" : "#ececec",
+    foreground: imported.foreground ?? (light ? "#18181b" : "#d4d4d4"),
+    cursor: imported.cursor ?? (light ? "#18181b" : "#ececec"),
     cursorAccent: base,
   };
 }

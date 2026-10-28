@@ -790,6 +790,11 @@ pub struct AppSettings {
     pub terminal_font: MonoFont,
     pub font_smoothing: bool,
     pub dock_icon: DockIcon,
+    /// Imported VS Code colour themes (ADR-185), bounded and validated; the two ids are the
+    /// ones in use for the light and dark palettes (none means Default (Sirus)).
+    pub vscode_themes: Vec<crate::vscode_theme::VsCodeTheme>,
+    pub light_vscode_theme: Option<String>,
+    pub dark_vscode_theme: Option<String>,
     pub density: DensityPref,
     pub animations: bool,
     pub composer_line_speed: ComposerLineSpeed,
@@ -987,6 +992,9 @@ impl Default for AppSettings {
             terminal_font: MonoFont::SfMono,
             font_smoothing: true,
             dock_icon: DockIcon::Default,
+            vscode_themes: Vec::new(),
+            light_vscode_theme: None,
+            dark_vscode_theme: None,
             density: DensityPref::Default,
             animations: true,
             composer_line_speed: ComposerLineSpeed::Slow,
@@ -1142,6 +1150,11 @@ impl AppSettings {
         {
             return Err(Error::new("invalid_settings", "Invalid chat background."));
         }
+        crate::vscode_theme::validate_stored(
+            &self.vscode_themes,
+            self.light_vscode_theme.as_deref(),
+            self.dark_vscode_theme.as_deref(),
+        )?;
         if self.sidebar_usage_providers.len() > 2
             || self
                 .sidebar_usage_providers

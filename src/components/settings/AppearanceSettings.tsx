@@ -14,6 +14,7 @@ import { Slider } from "@/components/arc/slider/slider";
 import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
 import { ThemeModePicker } from "./ThemeModePicker";
 import { SidebarStylePicker, type SidebarStyleChoice } from "./SidebarStylePicker";
+import { VsCodeThemesGroup } from "./VsCodeThemesGroup";
 import { resolveAppearanceMaterial } from "@/lib/appearance";
 import { useSystemPalette } from "@/lib/use-system-palette";
 import { useAppStore } from "@/store/app-store";
@@ -129,6 +130,7 @@ export function AppearanceSettings({ settings, host, onSave }: { settings: AppSe
   return <div className="general-settings appearance-settings"><SettingsSection title={t("Appearance")} description={t("Personalize materials, typography and motion.")}
     headerAction={<InteractiveButton variant="secondary" glow={false} disabled={!APPEARANCE_SETTING_KEYS.some(key => settings[key] !== defaultSettings[key])} onClick={() => onSave(resetAppearanceSettings(settings))}><RotateCcw size={14} aria-hidden="true" />{t("Restore defaults")}</InteractiveButton>}>
     <SettingsGroup title={t("Theme")}><ThemeModePicker value={settings.theme} onChange={theme => onSave({ ...settings, theme })} /></SettingsGroup>
+    <VsCodeThemesGroup settings={settings} onSave={onSave} />
     <SidebarStyleGroup settings={settings} onSave={onSave} />
     <SettingsGroup title={t("Materials")} card>
       <SettingsRow title={t("Translucency")} description={t(supported ? "Menus and popups follow the active theme and material." : nativeNote)}><Switch label={t("Translucency")} checked={glass} disabled={!supported} onChange={value => onSave({ ...settings, [windowKey]: value, [sidebarKey]: false })} /></SettingsRow>

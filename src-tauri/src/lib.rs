@@ -123,6 +123,7 @@ mod turn_undo;
 mod usage_history;
 mod usage_prices;
 mod visuals;
+mod vscode_theme;
 mod window_attachment;
 #[cfg(feature = "desktop")]
 mod window_reveal;
@@ -340,6 +341,9 @@ pub fn run() {
             attachments::attachment_image,
             chat_background::chat_background_action,
             chat_background::chat_background_image,
+            vscode_theme::vscode_themes_search,
+            vscode_theme::vscode_themes_fetch,
+            vscode_theme::vscode_themes_import_local,
             site_favicon::site_favicon,
             window_snap::window_snap_action,
             app_update::app_update_action,
