@@ -1,6 +1,6 @@
 # ADR-142: Scheduled tasks
 
-- Status: accepted
+- Status: accepted. Superseded by ADR-172 (Tasks and scheduled tasks removed).
 - Date: 2026-10-18
 
 ## Context

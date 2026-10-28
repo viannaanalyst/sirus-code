@@ -14,7 +14,7 @@ import { MoveSessionDialog } from "@/components/MoveSessionDialog";
 import { useChatBackground } from "@/lib/use-chat-background";
 import { QuitToast } from "@/components/QuitToast";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Archive, ChartBar, Folder, GitBranch, Inbox, Link, ListTodo, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
+import { Archive, ChartBar, Folder, GitBranch, Inbox, Link, GitPullRequest, FolderPlus, MessagesSquare, PanelLeft, PanelRight, PanelRightOpen, Search, Settings, SquarePen, SquareTerminal, TextSearch } from "@/components/icons/phosphor";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ErrorToast } from "@/components/ErrorToast";
 import { TopToastStack } from "@/components/TopToastStack";
@@ -62,7 +62,6 @@ const NewSessionDialog = lazy(() => import("@/components/NewSessionDialog").then
 const InboxPage = lazy(() => import("@/components/InboxPage").then((module) => ({ default: module.InboxPage })));
 const ArchivedPage = lazy(() => import("@/components/ArchivedPage").then((module) => ({ default: module.ArchivedPage })));
 const UsagePage = lazy(() => import("@/components/usage/UsagePage").then((module) => ({ default: module.UsagePage })));
-const TasksPage = lazy(() => import("@/components/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
 const PullRequestsPage = lazy(() => import("@/components/pull-requests/PullRequestsPage").then((module) => ({ default: module.PullRequestsPage })));
 
 /** Header tabs are on screen in the conversation view, outside Settings and overlays (ADR-092). */
@@ -160,7 +159,6 @@ export default function App() {
         { id: "find-in-conversation", label: t("Find in conversation"), group: actions, icon: <TextSearch />, shortcut: shortcut("find-in-conversation"), run: () => { setMainView("session"); useAppStore.getState().openTranscriptSearch(); } },
         { id: "pull-requests", label: t("pulls.title"), group: actions, icon: <GitPullRequest />, run: () => setMainView("pulls") },
         { id: "inbox", label: t("inbox.title"), group: actions, icon: <Inbox />, run: () => setMainView("inbox") },
-        { id: "tasks", label: t("tasks.title"), group: actions, icon: <ListTodo />, run: () => setMainView("tasks") },
         { id: "open-terminal", label: t("Open Terminal"), group: actions, icon: <SquareTerminal />, shortcut: shortcut("open-terminal"), run: () => useAppStore.getState().openDockPane("terminal") },
         { id: "toggle-context", label: t("Toggle right panel"), group: actions, icon: <PanelRight />, shortcut: shortcut("toggle-context"), run: () => toggleDock() },
         { id: "toggle-sidebar", label: t("Toggle Sidebar"), group: actions, icon: <PanelLeft />, shortcut: shortcut("toggle-sidebar"), run: toggleSidebar },
@@ -315,8 +313,8 @@ export default function App() {
           >
             {/* The header carries the project switcher, with every session, and the open tabs (ADR-092). */}
             {mainView === "session" ? <HeaderTabs /> : <div className="mt-[calc((var(--window-controls-height)-26px)/2)] inline-flex h-[26px] min-w-0 max-w-[min(640px,65vw)] self-start items-center gap-2 px-2 ui-control text-text-primary">
-              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "tasks" ? <ListTodo size={13} className="shrink-0 text-text-muted" /> : mainView === "archived" ? <Archive size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
-              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "tasks" ? t("tasks.title") : mainView === "archived" ? t("Archived sessions") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
+              {mainView === "pulls" ? <GitPullRequest size={13} className="shrink-0 text-text-muted" /> : mainView === "inbox" ? <Inbox size={13} className="shrink-0 text-text-muted" /> : mainView === "archived" ? <Archive size={13} className="shrink-0 text-text-muted" /> : mainView === "usage" ? <ChartBar size={13} className="shrink-0 text-text-muted" /> : <AgentIcon id={sessionAgent ?? settings.defaultAgent} className="rounded-none bg-transparent" />}
+              <span className="truncate">{mainView === "pulls" ? t("pulls.title") : mainView === "inbox" ? t("inbox.title") : mainView === "archived" ? t("Archived sessions") : mainView === "usage" ? t("usage.title") : sessionTitle ?? t("session.new")}</span>
             </div>}
             <div className="titlebar-no-drag mt-[calc((var(--window-controls-height)-26px)/2)] ml-auto flex h-[26px] self-start items-center gap-0.5">
               {localClient ? <span className="mr-1.5 inline-flex"><AppUpdatePill /></span> : null}
@@ -344,7 +342,6 @@ export default function App() {
               onModelChange={changeModel}
             /> : null}
             {mainView === "inbox" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><InboxPage /></Suspense> : null}
-            {mainView === "tasks" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><TasksPage /></Suspense> : null}
             {mainView === "archived" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><ArchivedPage /></Suspense> : null}
             {mainView === "usage" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><UsagePage /></Suspense> : null}
             {mainView === "pulls" ? <Suspense fallback={<div className="flex-1" aria-busy="true" />}><PullRequestsPage /></Suspense> : null}

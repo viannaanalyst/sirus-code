@@ -71,11 +71,9 @@ pub fn state_meta(data: &AppData) -> Result<Value> {
             }
         }
     }
-    // Review guides load one at a time through `review_guide_action` (ADR-125), and
-    // scheduled tasks through `scheduled_task_action` (ADR-142).
+    // Review guides load one at a time through `review_guide_action` (ADR-125).
     if let Some(fields) = value.as_object_mut() {
         fields.remove("reviewGuides");
-        fields.remove("scheduledTasks");
     }
     Ok(value)
 }
