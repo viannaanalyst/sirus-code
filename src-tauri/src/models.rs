@@ -405,9 +405,6 @@ pub struct Session {
     /// is opened, which clears this through `snooze_session` with no time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snooze_reminder_at: Option<String>,
-    /// The person turned auto-archive off for this conversation (ADR-130): the background pass skips it whatever the global rules say.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub auto_archive_disabled: bool,
     pub id: String,
     pub title: String,
     pub project_id: String,
@@ -698,8 +695,6 @@ pub struct AppSettings {
     pub link_open_target: LinkOpenTarget,
     /// Chat behavior: diffs wrap long lines by default.
     pub diff_word_wrap: bool,
-    /// Chat behavior: ask before archiving a session.
-    pub confirm_archive: bool,
     /// Chat behavior: ask before closing a terminal tab.
     pub confirm_terminal_close: bool,
     /// System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054).
@@ -735,9 +730,6 @@ pub struct AppSettings {
     /// Image strength once the conversation has messages, in percent.
     pub chat_background_session_visibility: u8,
     pub worktree_base_path: Option<String>,
-    /// Archiving a session removes its isolated worktree when it is clean and its
-    /// branch is merged or pushed (ADR-078); off by default.
-    pub release_worktree_on_archive: bool,
     pub default_session_workspace: SessionWorkspacePref,
     pub confirm_close_running: bool,
     pub restore_previous_sessions: bool,
@@ -812,7 +804,6 @@ pub struct AppSettings {
     pub pinned_project_ids: Vec<String>,
     pub project_folders: Vec<ProjectFolder>,
     pub pinned_session_ids: Vec<String>,
-    pub archived_session_ids: Vec<String>,
     /// Remote MCP servers every supported agent receives, per project or for all (ADR-137).
     #[serde(default)]
     pub connectors: Vec<crate::connectors::Connector>,
@@ -849,10 +840,6 @@ pub struct AppSettings {
     /// New conversations: the approval mode they start on when the provider offers it
     /// (ADR-130). Full access, as before; a provider without it steps down, never up.
     pub default_approval: ApprovalMode,
-    /// Auto-archive (ADR-130): conversations whose own pull request was merged.
-    pub auto_archive_merged: bool,
-    /// Auto-archive (ADR-130): conversations inactive for this many days (1–90), or never.
-    pub auto_archive_inactive_days: Option<u32>,
     /// Source control (ADR-130): fast-forward the project checkout's default branch from
     /// origin while it has no local changes.
     pub git_auto_pull: bool,
@@ -882,9 +869,6 @@ pub enum ResponseStreaming {
     #[default]
     Token,
 }
-
-/// Longest inactivity Auto-archive accepts, in days.
-pub const AUTO_ARCHIVE_MAX_DAYS: u32 = 90;
 
 fn default_locale() -> String {
     "pt-BR".into()
@@ -924,7 +908,6 @@ impl Default for AppSettings {
             github_links_in_app: true,
             link_open_target: LinkOpenTarget::App,
             diff_word_wrap: false,
-            confirm_archive: false,
             confirm_terminal_close: true,
             window_snap_enabled: false,
             window_snap_shortcut: WindowSnapShortcut::default(),
@@ -944,7 +927,6 @@ impl Default for AppSettings {
             chat_background_empty_visibility: 24,
             chat_background_session_visibility: 24,
             worktree_base_path: None,
-            release_worktree_on_archive: false,
             default_session_workspace: SessionWorkspacePref::Ask,
             confirm_close_running: true,
             restore_previous_sessions: true,
@@ -1004,7 +986,6 @@ impl Default for AppSettings {
             pinned_project_ids: Vec::new(),
             project_folders: Vec::new(),
             pinned_session_ids: Vec::new(),
-            archived_session_ids: Vec::new(),
             connectors: Vec::new(),
             environment_panel_default_open: false,
             show_environment_usage: true,
@@ -1022,8 +1003,6 @@ impl Default for AppSettings {
             app_update_notes: None,
             locale: default_locale(),
             default_approval: ApprovalMode::Full,
-            auto_archive_merged: false,
-            auto_archive_inactive_days: None,
             git_auto_pull: false,
             worktrees_from_origin: true,
             response_streaming: ResponseStreaming::Token,
@@ -1036,7 +1015,7 @@ impl Default for AppSettings {
 
 /// Customizable rail items (Settings is fixed at the bottom).
 /// The Kanban board was retired on 2026-10-11 (ADR-110); saved settings drop its id.
-pub const RAIL_ITEMS: [&str; 4] = ["home", "inbox", "archived", "pulls"];
+pub const RAIL_ITEMS: [&str; 3] = ["home", "inbox", "pulls"];
 
 /// Most unread markers kept for the Pull requests page; the renderer drops the oldest.
 pub const GITHUB_SEEN_LIMIT: usize = 500;
@@ -1107,15 +1086,6 @@ impl AppSettings {
             return Err(Error::new(
                 "invalid_settings",
                 "Recordings run at 30 or 60 frames per second.",
-            ));
-        }
-        if self
-            .auto_archive_inactive_days
-            .is_some_and(|days| !(1..=AUTO_ARCHIVE_MAX_DAYS).contains(&days))
-        {
-            return Err(Error::new(
-                "invalid_settings",
-                "Archive after 1 to 90 days without activity.",
             ));
         }
         if ![0, 1, 2, 3, 5, 16].contains(&self.keep_idle_agents) {
@@ -1589,28 +1559,18 @@ mod settings_tests {
     fn mac_settings_from_the_phone_load_old_files_and_stay_bounded() {
         let legacy: AppSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(legacy.default_approval, ApprovalMode::Full);
-        assert!(!legacy.auto_archive_merged && legacy.auto_archive_inactive_days.is_none());
         assert!(!legacy.git_auto_pull && legacy.worktrees_from_origin);
         assert_eq!(legacy.response_streaming, ResponseStreaming::Token);
         assert!(legacy.agent_browser_access);
         let saved: AppSettings = serde_json::from_value(serde_json::json!({
             "defaultApproval": "auto",
-            "autoArchiveInactiveDays": 3,
             "responseStreaming": "paragraph",
         }))
         .unwrap();
         let value = serde_json::to_value(&saved).unwrap();
         assert_eq!(value["defaultApproval"], "auto");
-        assert_eq!(value["autoArchiveInactiveDays"], 3);
         assert_eq!(value["responseStreaming"], "paragraph");
         assert!(saved.validate_controls().is_ok());
-        for days in [0, 91] {
-            let settings = AppSettings {
-                auto_archive_inactive_days: Some(days),
-                ..AppSettings::default()
-            };
-            assert!(settings.validate_controls().is_err());
-        }
         assert!(serde_json::from_value::<AppSettings>(
             serde_json::json!({ "responseStreaming": "fast" })
         )

@@ -25,7 +25,6 @@ import { TooltipProvider } from "@/primitives/Tooltip";
 import { bindRealtime, selectSessionsMeta, useAppStore } from "@/store/app-store";
 import { useEnvironments } from "@/store/environments-store";
 import { MobileAddProject } from "./MobileAddProject";
-import { MobileArchived } from "./MobileArchived";
 import { MobileChooseProject } from "./MobileChooseProject";
 import { MobileChat } from "./MobileChat";
 import { MobileFiles } from "./MobileFiles";
@@ -226,7 +225,6 @@ export default function MobileApp() {
             {screen.kind === "new" ? <MobileNewSession projectId={screen.projectId} link={screen.link} navigation={navigation} /> : null}
             {screen.kind === "choose-project" ? <MobileChooseProject navigation={navigation} /> : null}
             {screen.kind === "add-project" ? <MobileAddProject then={screen.then} navigation={navigation} /> : null}
-            {screen.kind === "archived" ? <MobileArchived navigation={navigation} /> : null}
             {screen.kind === "snoozed" ? <MobileSnoozed navigation={navigation} /> : null}
             {screen.kind === "git" ? <MobileGit sessionId={screen.sessionId} navigation={navigation} /> : null}
             {screen.kind === "files" ? <MobileFiles sessionId={screen.sessionId} open={screen.open} directory={screen.dir} navigation={navigation} /> : null}
@@ -296,8 +294,7 @@ function withoutSession(search: string): string {
  */
 function AppIconBadge() {
   const ready = useAppStore((state) => state.ready);
-  const archived = useAppStore((state) => state.settings.archivedSessionIds);
-  const waiting = useAppStore((state) => needsYouCount(selectSessionsMeta(state), archived));
+  const waiting = useAppStore((state) => needsYouCount(selectSessionsMeta(state)));
   useEffect(() => { if (ready) void syncAppBadge(waiting); }, [ready, waiting]);
   return null;
 }

@@ -1,40 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initialSidebarPanel, sidebarPanelReducer, sidebarActivityFeed } from "../src/lib/sidebar-panels.ts";
+import { sidebarActivityFeed } from "../src/lib/sidebar-panels.ts";
 import { mergeSettings } from "../src/lib/settings.ts";
 import type { Project, Session } from "../src/client/types.ts";
 
-test("stale rail leave cannot dismiss a newer hover and pin commits exactly the previewed section", () => {
-  const first = sidebarPanelReducer(initialSidebarPanel, { type: "peek", section: "home" });
-  const second = sidebarPanelReducer(first, { type: "peek", section: "archived" });
-  assert.equal(sidebarPanelReducer(second, { type: "leave", revision: first.revision }), second);
-  const pinned = sidebarPanelReducer(second, { type: "pin" });
-  assert.equal(pinned.section, "archived"); assert.equal(pinned.peek, null);
-  assert.equal(sidebarPanelReducer(pinned, { type: "leave", revision: second.revision }), pinned);
-  assert.equal(sidebarPanelReducer(second, { type: "leave", revision: second.revision }).peek, null);
-});
-
-test("hover previews are temporary while a click selects the section, collapsed or docked", () => {
-  const hover = sidebarPanelReducer(initialSidebarPanel, { type: "peek", section: "archived" });
-  assert.equal(hover.section, "home"); assert.equal(hover.peek, "archived");
-  const peek = sidebarPanelReducer(initialSidebarPanel, { type: "select", section: "archived", collapsed: true });
-  assert.equal(peek.section, "archived"); assert.equal(peek.peek, "archived");
-  const dismiss = sidebarPanelReducer(peek, { type: "dismiss" });
-  assert.equal(dismiss.section, "archived"); assert.equal(dismiss.peek, null);
-  const docked = sidebarPanelReducer(dismiss, { type: "select", section: "home", collapsed: false });
-  assert.equal(docked.section, "home"); assert.equal(docked.peek, null);
-});
-
 const projects: Project[] = ["a", "b"].map(id => ({ id, name: `Project ${id}`, path: `/fixture/${id}`, addedAt: "time", lastOpenedAt: "time" }));
 const session = (id: string, projectId = "a"): Session => ({ id, projectId, title: id, agent: "codex", status: "running", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: `branch/${id}`, isolated: true }, messages: [], lastError: null });
-test("activity feed owns every row once, preserves pin order and excludes archived/foreign sessions", () => {
-  const sessions = [session("pin", "b"), session("draft"), session("recent"), session("archived"), session("foreign", "missing"), session("blank")];
-  const settings = mergeSettings({ pinnedSessionIds: ["pin"], archivedSessionIds: ["archived"] });
+test("activity feed owns every row once, preserves pin order and excludes foreign sessions", () => {
+  const sessions = [session("pin", "b"), session("draft"), session("recent"), session("foreign", "missing"), session("blank")];
+  const settings = mergeSettings({ pinnedSessionIds: ["pin"] });
   const sections = sidebarActivityFeed(projects, sessions, settings);
   assert.deepEqual(sections.map(group => group.sessions.map(row => row.id)), [["pin"], ["draft", "recent", "blank"]]);
   assert.equal(new Set(sections.flatMap(group => group.sessions.map(row => row.id))).size, 4);
   assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, { query: "branch/draft", projectId: "a" }).flatMap(group => group.sessions.map(row => row.id)), ["draft"]);
-  assert.deepEqual(sidebarActivityFeed(projects, sessions, settings, { archived: true }).flatMap(group => group.sessions.map(row => row.id)), ["archived"]);
 });
 
 test("sidebar PR chips only use an owned cached snapshot matching actual workspace and branch", async () => {

@@ -1,11 +1,11 @@
-import { Clock3, Download, GitFork, GitMerge, Globe, RefreshCw, RotateCcw } from "@/components/icons/phosphor";
+import { Download, GitFork, Globe, RefreshCw, RotateCcw } from "@/components/icons/phosphor";
 import type { AppSettings } from "@/client/types";
 import { useHostFeatures, usePhoneTranslation as useTranslation } from "./use-phone-host";
-import { APPROVAL_CHOICES, AUTO_ARCHIVE_DEFAULT_DAYS, AUTO_ARCHIVE_MAX_DAYS, clampArchiveDays, STREAMING_CHOICES, WORKSPACE_CHOICES } from "@/lib/settings";
+import { APPROVAL_CHOICES, STREAMING_CHOICES, WORKSPACE_CHOICES } from "@/lib/settings";
 import { useAppStore } from "@/store/app-store";
-import { Choices, DaysStepper, SwitchRow } from "./MobileSettingsParts";
+import { Choices, SwitchRow } from "./MobileSettingsParts";
 
-export type MacSettingsPage = "newConversations" | "conversationBehavior" | "sourceControl" | "agentBehavior" | "maintenance";
+export type MacSettingsPage = "newConversations" | "sourceControl" | "agentBehavior" | "maintenance";
 
 /**
  * The Mac's own settings, changed from the phone (ADR-130):
@@ -38,21 +38,6 @@ export function MobileMacSettings({ page, online }: { page: MacSettingsPage; onl
     </section>
     {footer}
   </>;
-  if (page === "conversationBehavior") {
-    const days = settings.autoArchiveInactiveDays;
-    return <>
-      <section>
-        <h2>{t("settings.autoArchive")}</h2>
-        <div className="mobile-card">
-          <SwitchRow icon={<GitMerge size={19} />} label={t("settings.autoArchiveMerged")} help={t("settings.autoArchiveMergedHelp")} checked={settings.autoArchiveMerged} disabled={disabled} onChange={(autoArchiveMerged) => save({ autoArchiveMerged })} />
-          <SwitchRow icon={<Clock3 size={19} />} label={t("settings.autoArchiveInactive", { days: days ?? AUTO_ARCHIVE_DEFAULT_DAYS })} help={t("settings.autoArchiveInactiveHelp")} checked={days !== null} disabled={disabled}
-            onChange={(on) => save({ autoArchiveInactiveDays: on ? AUTO_ARCHIVE_DEFAULT_DAYS : null })} />
-          {days !== null ? <DaysStepper label={t("settings.inactiveDays")} value={days} min={1} max={AUTO_ARCHIVE_MAX_DAYS} disabled={disabled} onChange={(value) => save({ autoArchiveInactiveDays: clampArchiveDays(value) })} /> : null}
-        </div>
-      </section>
-      {footer}
-    </>;
-  }
   if (page === "sourceControl") return <>
     <section>
       <h2>{t("phoneSettings.defaultBranch")}</h2>

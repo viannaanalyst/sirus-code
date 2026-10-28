@@ -23,20 +23,19 @@ export function CommandPalette({ commands }: { commands: CommandItem[] }) {
 
   const sessions = useAppStore(selectListedSessions);
   const projects = useAppStore((state) => state.projects);
-  const archivedIds = useAppStore((state) => state.settings.archivedSessionIds);
   // Chats come first: the five most recent, or the best title matches while typing (bounded).
   const chats = useMemo<CommandItem[]>(() => {
     if (!open) return [];
     const needle = query.trim();
     const recent = needle ? rankChats(sessions, needle, 20)
-      : sessions.filter((session) => !archivedIds.includes(session.id)).sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)).slice(0, 5);
+      : [...sessions].sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt)).slice(0, 5);
     return recent.map((session) => ({
       id: `chat-${session.id}`, label: session.title, group: t("palette.recentChats"),
       icon: <ProviderIcon id={session.agent} size={16} />,
       meta: projects.find((project) => project.id === session.projectId)?.name,
       run: () => { const store = useAppStore.getState(); store.setMainView("session"); void store.selectSession(session.id); },
     }));
-  }, [open, query, sessions, projects, archivedIds, t]);
+  }, [open, query, sessions, projects, t]);
   // Then chats whose messages match: native returns bounded candidates (transcripts may not be
   // loaded), matched here like the all-conversations search, one row per chat.
   const [found, setFound] = useState<{ query: string; sessions: Session[] } | null>(null);

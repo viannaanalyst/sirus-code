@@ -215,9 +215,6 @@ export function SettingsPanels({
           <SettingsRow title={t("worktreeCleanup.leftovers")} description={t("worktreeCleanup.leftoversHelp")}>
             <LeftoverCleanupButton />
           </SettingsRow>
-          <SettingsRow title={t("worktreeCleanup.release")} description={t("worktreeCleanup.releaseHelp")}>
-            <Switch checked={settings.releaseWorktreeOnArchive} label={t("worktreeCleanup.release")} onChange={(releaseWorktreeOnArchive) => onSave({ ...settings, releaseWorktreeOnArchive })} />
-          </SettingsRow>
         </SettingsGroup>
         </div>
       </SettingsSection>

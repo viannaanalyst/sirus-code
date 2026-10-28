@@ -2,7 +2,7 @@ import { Fragment, useState, type ReactNode } from "react";
 import type { AppSettings, Project, Session } from "@/client/types";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
-import { Archive, ArchiveRestore, ArrowUpDown, Clock3, Copy, GitBranch, Moon, Pencil, Pin, PinOff, Trash2, Undo2 } from "@/components/icons/phosphor";
+import { ArrowUpDown, Clock3, Copy, GitBranch, Moon, Pencil, Pin, PinOff, Trash2, Undo2 } from "@/components/icons/phosphor";
 import { SnoozeCountdown } from "@/components/SnoozePicker";
 import { usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { environmentLabel, rowActionRoute } from "@/lib/environments";
@@ -69,29 +69,26 @@ export function MobileSessionRow({ session, project, showProject = true, pinned 
 
 const MENU_ICONS: Record<RowMenuId, ReactNode> = {
   "copy-id": <Copy size={16} />,
-  archive: <Archive size={16} />,
-  unarchive: <ArchiveRestore size={16} />,
   return: <Undo2 size={16} />,
   arrange: <ArrowUpDown size={16} />,
   pin: <Pin size={16} />,
   unpin: <PinOff size={16} />,
   rename: <Pencil size={16} />,
-  "auto-archive": <Clock3 size={16} />,
   delete: <Trash2 size={16} />,
 };
 
 /**
  * A conversation row with its swipe actions and long-press menu
  * (ADR-086, ADR-129). The swipe shows two round buttons: the lifecycle step in the accent
- * circle (archive, restore, or return from snooze) and snooze or delete plain. Everything
- * else (copy the id, arrange, pin, rename, auto-archive, delete) sits in the long-press
+ * circle (snooze, or return from snooze) and, for a snoozed row, a change of time. Everything
+ * else (copy the id, arrange, pin, rename, delete) sits in the long-press
  * menu. Delete asks first; snoozing opens its sheet.
  *
  * A row of another computer (`environmentId`, ADR-132) offers the same: each action runs on
  * that computer through its own client, without switching, and changes its settings, not the
  * active computer's. While it cannot be reached the menu says so and only copies the id.
  */
-export function MobileSessionItem({ session, project, showProject = true, archived = false, snoozed = false, arrange = false, marker, environmentId, onOpen }: { session: Session; project: Project | undefined; showProject?: boolean; archived?: boolean; snoozed?: boolean; arrange?: boolean; marker?: ReactNode; environmentId?: string; onOpen: () => void }) {
+export function MobileSessionItem({ session, project, showProject = true, snoozed = false, arrange = false, marker, environmentId, onOpen }: { session: Session; project: Project | undefined; showProject?: boolean; snoozed?: boolean; arrange?: boolean; marker?: ReactNode; environmentId?: string; onOpen: () => void }) {
   const t = useTranslation();
   const storeId = useEnvironments((state) => state.storeId);
   const connection = useEnvironments((state) => environmentId ? state.connection[environmentId] : undefined);
@@ -124,29 +121,23 @@ export function MobileSessionItem({ session, project, showProject = true, archiv
     if (!await there({ type: "snooze", until })) return;
     useAppStore.setState({ snoozeNotice: { id: Date.now(), sessionId: session.id, until, wasSelected: false, undo: () => there({ type: "snooze", until: null }) } });
   };
-  const unarchive = () => elsewhere ? void there({ type: "unarchive" }) : save((settings) => ({ ...settings, archivedSessionIds: settings.archivedSessionIds.filter((id) => id !== session.id) }));
-  const archive = () => elsewhere ? void there({ type: "archive" }) : useAppStore.getState().requestArchive(session.id, true);
   const unsnooze = () => void (elsewhere ? there({ type: "snooze", until: null }) : useAppStore.getState().snoozeSession(session.id, null));
   const togglePin = () => elsewhere ? void there({ type: pinned ? "unpin" : "pin" }) : save((settings) => ({ ...settings, pinnedSessionIds: toggleSidebarId(settings.pinnedSessionIds, session.id) }));
   const swipe: SwipeAction[] = snoozed ? [
     { id: "return", label: t("snooze.return"), icon: <Undo2 size={17} />, tone: "primary", onSelect: unsnooze },
     { id: "change", label: t("snooze.change"), icon: <Clock3 size={17} />, tone: "plain", onSelect: () => setSnoozing(true) },
-  ] : archived ? [
-    { id: "restore", label: t("mobile.unarchive"), icon: <ArchiveRestore size={17} />, tone: "primary", onSelect: unarchive },
-    { id: "delete", label: t("mobile.delete"), icon: <Trash2 size={17} />, tone: "danger", disabled: active, onSelect: () => setDeleting(true) },
   ] : [
-    { id: "archive", label: t("mobile.archive"), icon: <Archive size={17} />, tone: "primary", disabled: active, onSelect: archive },
-    { id: "snooze", label: t("snooze.confirm"), icon: <Moon size={17} />, tone: "plain", disabled: !canSnooze(session), onSelect: () => setSnoozing(true) },
+    { id: "snooze", label: t("snooze.confirm"), icon: <Moon size={17} />, tone: "primary", disabled: !canSnooze(session), onSelect: () => setSnoozing(true) },
   ];
   const actions = swipe;
   const labels: Record<RowMenuId, string> = {
-    "copy-id": t("phoneHome.copyId"), archive: t("mobile.archive"), unarchive: t("mobile.unarchive"), return: t("snooze.return"),
+    "copy-id": t("phoneHome.copyId"), return: t("snooze.return"),
     arrange: t("phoneHome.arrange"), pin: t("mobile.pin"), unpin: t("mobile.unpin"), rename: t("phoneHome.rename"),
-    "auto-archive": t("phoneHome.autoArchive"), delete: t("mobile.delete"),
+    delete: t("mobile.delete"),
   };
   const run: Partial<Record<RowMenuId, () => void>> = {
     "copy-id": () => void navigator.clipboard?.writeText(session.id).catch(() => undefined),
-    archive, unarchive, return: unsnooze,
+    return: unsnooze,
     pin: togglePin,
     unpin: togglePin,
     rename: () => { setTitle(session.title); setRenaming(true); },
@@ -154,15 +145,14 @@ export function MobileSessionItem({ session, project, showProject = true, archiv
   };
   const choose = (menu: RowMenuId, choice: string) => {
     if (menu === "arrange") usePhonePrefs.getState().update({ threadOrder: choice === "created_at" ? "created_at" : "updated_at" });
-    if (menu === "auto-archive") void (elsewhere ? there({ type: "auto-archive", enabled: choice === "enabled" }) : useAppStore.getState().setSessionAutoArchive(session.id, choice === "enabled"));
   };
   const items = rowMenuItems({
-    place: snoozed ? "snoozed" : archived ? "archived" : arrange ? "home" : "list",
-    pinned, active, autoArchiveDisabled: !!session.autoArchiveDisabled, order,
+    place: snoozed ? "snoozed" : arrange ? "home" : "list",
+    pinned, active, order,
   });
   const menu: RowMenuEntry[] = items.map((item) => ({
     id: item.id, label: labels[item.id], icon: MENU_ICONS[item.id], destructive: item.destructive, disabled: item.disabled, onSelect: run[item.id],
-    submenu: item.submenu?.map((option) => ({ id: option.id, checked: option.checked, label: t(`phoneHome.${item.id === "arrange" ? "arrange" : "autoArchive"}.${option.id}`), onSelect: () => choose(item.id, option.id) })),
+    submenu: item.submenu?.map((option) => ({ id: option.id, checked: option.checked, label: t(`phoneHome.arrange.${option.id}`), onSelect: () => choose(item.id, option.id) })),
   }));
   const rename = async () => {
     const next = title.trim();
@@ -173,11 +163,11 @@ export function MobileSessionItem({ session, project, showProject = true, archiv
   const name = environment ? environmentLabel(environment, t("environments.computer")) : "";
   const hostName = useHostLabel();
   const note = queueTo ? t("environments.rowQueued", { name: name || hostName }) : undefined;
-  const row = <MobileSessionRow session={session} project={project} showProject={showProject} pinned={pinned && !archived} pending={waiting} marker={marker} onOpen={onOpen} />;
+  const row = <MobileSessionRow session={session} project={project} showProject={showProject} pinned={pinned} pending={waiting} marker={marker} onOpen={onOpen} />;
   return <>
     <MobileSwipeRow actions={actions} onLongPress={setMenuAnchor}>{row}</MobileSwipeRow>
     <MobileRowMenu open={!!menuAnchor} anchor={menuAnchor} items={menu} note={note} onClose={() => setMenuAnchor(null)}
-      preview={<MobileSessionRow session={session} project={project} showProject={showProject} pinned={pinned && !archived} pending={waiting} marker={marker} />} />
+      preview={<MobileSessionRow session={session} project={project} showProject={showProject} pinned={pinned} pending={waiting} marker={marker} />} />
     <MobileDialog open={renaming} title={t("session.rename")} onClose={() => setRenaming(false)}>
       <form onSubmit={(event) => { event.preventDefault(); void rename(); }}>
         <input className="mobile-input" autoFocus value={title} maxLength={200} onChange={(event) => setTitle(event.target.value)} aria-label={t("session.titleOptional")} enterKeyHint="done" />
@@ -188,6 +178,6 @@ export function MobileSessionItem({ session, project, showProject = true, archiv
       </form>
     </MobileDialog>
     <MobileDeleteDialog session={session} open={deleting} onClose={() => setDeleting(false)} onDelete={elsewhere ? (removeWorktree) => there({ type: "delete", removeWorktree }) : undefined} />
-    {archived ? null : <MobileSnoozeSheet session={session} open={snoozing} onClose={() => setSnoozing(false)} onSnooze={elsewhere ? (until) => void snoozeThere(until) : undefined} />}
+    <MobileSnoozeSheet session={session} open={snoozing} onClose={() => setSnoozing(false)} onSnooze={elsewhere ? (until) => void snoozeThere(until) : undefined} />
   </>;
 }

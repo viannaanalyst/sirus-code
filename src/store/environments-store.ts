@@ -102,7 +102,7 @@ const initial = isRemoteUi ? readEnvironments(window.localStorage, origin()) : [
 const watchers = new Map<string, () => void>();
 /** Computers this launch already gave this app's alert subscription to. */
 const pushShared = new Set<string>();
-/** Each watched computer's full settings (archive and pin lists are per computer) and its reload. */
+/** Each watched computer's full settings (the pin list is per computer) and its reload. */
 const settingsOf = new Map<string, AppSettings>();
 const reloaders = new Map<string, () => Promise<void>>();
 let summaryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -140,7 +140,7 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
     const app = useAppStore.getState();
     const id = get().storeId;
     if (!app.ready || !app.projects.length && !app.sessions.length) return;
-    setSummary(id, () => summarize({ sessions: app.sessions, projects: app.projects, archivedSessionIds: app.settings.archivedSessionIds, pinnedSessionIds: app.settings.pinnedSessionIds }));
+    setSummary(id, () => summarize({ sessions: app.sessions, projects: app.projects, pinnedSessionIds: app.settings.pinnedSessionIds }));
   };
   const unwatch = (id: string) => {
     watchers.get(id)?.();
@@ -160,7 +160,7 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
         const [data, info] = await Promise.all([other.loadState(), other.hostInfo().catch(() => null)]);
         if (stopped) return;
         settingsOf.set(id, mergeSettings(data.settings));
-        setSummary(id, () => summarize({ sessions: data.sessions, projects: data.projects, archivedSessionIds: data.settings.archivedSessionIds, pinnedSessionIds: data.settings.pinnedSessionIds }));
+        setSummary(id, () => summarize({ sessions: data.sessions, projects: data.projects, pinnedSessionIds: data.settings.pinnedSessionIds }));
         noteHost(id, info);
       } catch { /* out of reach: the last summary stays */ }
     };
@@ -168,7 +168,7 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
       other.onSessionUpdated((session) => setSummary(id, (current) => current ? applySessionUpdate(current, session) : current)),
       other.onSettingsChanged((settings) => {
         settingsOf.set(id, mergeSettings(settings));
-        setSummary(id, (current) => current ? { ...current, archivedSessionIds: settings.archivedSessionIds ?? [], pinnedSessionIds: settings.pinnedSessionIds ?? [] } : current);
+        setSummary(id, (current) => current ? { ...current, pinnedSessionIds: settings.pinnedSessionIds ?? [] } : current);
       }),
     ];
     const stopConnection = onEnvironmentConnection((changed, state, previous) => {
@@ -194,12 +194,10 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
         if (id !== get().storeId) return get().sessionAction(id, sessionId, action);
         const app = useAppStore.getState();
         switch (action.type) {
-          case "archive": app.requestArchive(sessionId, true); return true;
-          case "unarchive": case "pin": case "unpin":
+          case "pin": case "unpin":
             return app.saveSettings(applyRowSettingsAction(app.settings, action.type, sessionId)).then(() => true, () => false);
           case "snooze": return app.snoozeSession(sessionId, action.until);
           case "rename": return app.renameSession(sessionId, action.title);
-          case "auto-archive": return app.setSessionAutoArchive(sessionId, action.enabled);
           case "delete": return app.deleteSession(sessionId, action.removeWorktree);
         }
       });
@@ -375,27 +373,18 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
       if (environmentId === state.storeId || !other || state.connection[environmentId] !== "open") return false;
       try {
         switch (action.type) {
-          case "archive":
-          case "unarchive":
           case "pin":
           case "unpin": {
             const current = settingsOf.get(environmentId) ?? mergeSettings((await other.loadState()).settings);
             const saved = mergeSettings(await other.saveSettings(applyRowSettingsAction(current, action.type, sessionId)));
             settingsOf.set(environmentId, saved);
             setSummary(environmentId, (summary) => summary ? summaryWithSettings(summary, saved) : summary);
-            // As on the active computer: archiving can hand an isolated worktree back.
-            const session = get().summaries[environmentId]?.sessions.find((item) => item.id === sessionId);
-            if (action.type === "archive" && saved.releaseWorktreeOnArchive && saved.archivedSessionIds.includes(sessionId) && session?.worktree.isolated) {
-              await other.releaseArchivedWorktree(sessionId).catch((error: unknown) => useAppStore.setState({ error: formatUnknownError(error) }));
-            }
             break;
           }
           case "snooze":
-          case "rename":
-          case "auto-archive": {
+          case "rename": {
             const updated = action.type === "snooze" ? await other.snoozeSession(sessionId, action.until)
-              : action.type === "rename" ? await other.renameSession(sessionId, action.title.trim())
-              : await other.setSessionAutoArchive(sessionId, action.enabled);
+              : await other.renameSession(sessionId, action.title.trim());
             setSummary(environmentId, (summary) => summary ? applySessionUpdate(summary, updated) : summary);
             break;
           }
@@ -408,7 +397,7 @@ export const useEnvironments = create<EnvironmentsState>()((set, get) => {
         useAppStore.setState({ error: formatUnknownError(error) });
         return false;
       }
-      // That computer's list again, for what the action moved (side chats, auto-archive, order).
+      // That computer's list again, for what the action moved (side chats, order).
       void reloaders.get(environmentId)?.();
       return true;
     },

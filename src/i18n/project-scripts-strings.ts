@@ -37,17 +37,6 @@ const strings: Record<string, [string, string]> = {
   "worktreeCleanup.confirm": ["Remove {count} leftover folders and free {size}? Only folders without uncommitted changes are removed, without --force; their branches stay.", "Remover {count} pastas que sobraram e liberar {size}? Só pastas sem alterações não commitadas são removidas, sem --force; as branches ficam."],
   "worktreeCleanup.keptCount": ["{count} kept: they have uncommitted changes or Git could not check them.", "{count} mantidas: têm alterações não commitadas ou o Git não conseguiu verificá-las."],
   "worktreeCleanup.done": ["Freed {size} from {count} folders.", "{size} liberados de {count} pastas."],
-  "worktreeCleanup.release": ["Release the worktree when a session is archived", "Liberar o worktree ao arquivar uma sessão"],
-  "worktreeCleanup.releaseHelp": ["Removes an archived session's own worktree when it has no uncommitted changes and its branch is merged or pushed. The branch stays.", "Remove o worktree próprio de uma sessão arquivada quando não tem alterações não commitadas e a branch foi mesclada ou enviada. A branch fica."],
-  "worktreeRelease.released": ["Worktree removed", "Worktree removido"],
-  "worktreeRelease.releasedHelp": ["Branch {branch} is kept.", "A branch {branch} foi mantida."],
-  "worktreeRelease.kept": ["Worktree kept", "Worktree mantido"],
-  "worktreeRelease.uncommitted": ["It has uncommitted or untracked changes.", "Ele tem alterações não commitadas ou não rastreadas."],
-  "worktreeRelease.unmerged": ["Branch {branch} has commits that are not merged or pushed.", "A branch {branch} tem commits que não foram mesclados nem enviados."],
-  "worktreeRelease.unverified": ["Git could not check it.", "O Git não conseguiu verificá-lo."],
-  "worktreeRelease.inUse": ["Another session or an open terminal still uses it.", "Outra sessão ou um terminal aberto ainda o usa."],
-  "worktreeRelease.running": ["The session is still running.", "A sessão ainda está rodando."],
-  "worktreeRelease.failed": ["Git refused to remove it.", "O Git recusou removê-lo."],
 };
 export const projectScriptsEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const projectScriptsPortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { moveRailItem, railOrder, visibleRail } from "../src/lib/rail.ts";
 
 test("rail order keeps saved items, drops unknown and retired ones and appends new items", () => {
-  assert.deepEqual(railOrder(["pulls", "home", "bogus", "automations", "pulls"]), ["pulls", "home", "inbox", "archived"]);
+  assert.deepEqual(railOrder(["pulls", "home", "bogus", "automations", "archived", "pulls"]), ["pulls", "home", "inbox"]);
 });
 
 test("hidden items disappear unless current, and Home cannot be hidden", () => {

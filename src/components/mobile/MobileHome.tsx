@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Archive, Laptop, ListFilter, Moon, MoreHorizontal, Search, Server, SquarePen, X } from "@/components/icons/phosphor";
+import { Laptop, ListFilter, Moon, MoreHorizontal, Search, Server, SquarePen, X } from "@/components/icons/phosphor";
 import { ProjectGlyph } from "@/components/ProjectGlyph";
 import { useHostLabel, usePhoneTranslation as useTranslation } from "./use-phone-host";
 import { homeSections, listedSessions, projectGroups } from "@/lib/mobile";
@@ -8,7 +8,7 @@ import { motionTokens } from "@/lib/motion";
 import { activeHomeFilter, filterHomeSessions } from "@/lib/phone-home";
 import { usePhonePrefs } from "@/lib/phone-prefs";
 import { isSnoozed } from "@/lib/snooze";
-import { selectSessionsMeta, selectSnoozedSessions, useAppStore } from "@/store/app-store";
+import { selectSnoozedSessions, useAppStore } from "@/store/app-store";
 import { useEnvironments } from "@/store/environments-store";
 import type { MobileNavigation } from "./MobileApp";
 import { MobileSessionItem } from "./MobileSessionRow";
@@ -25,8 +25,6 @@ import { isAuxiliarySession } from "@/lib/pull-ask";
  */
 export function MobileHome({ navigation, online }: { navigation: MobileNavigation; online: boolean }) {
   const t = useTranslation();
-  const sessions = useAppStore(selectSessionsMeta);
-  const archived = useAppStore((state) => state.settings.archivedSessionIds);
   const ready = useAppStore((state) => state.ready);
   const [query, setQuery] = useState("");
   const host = useHostLabel();
@@ -46,8 +44,8 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
   }), [storedProject, storedComputer, merged, paired]);
   const projectOrder = usePhonePrefs((state) => state.prefs.projectOrder);
   const [optionsAnchor, setOptionsAnchor] = useState<HTMLElement | null>(null);
-  const listed = useMemo(() => filterHomeSessions(listedSessions(merged.sessions, merged.archivedSessionIds).filter((session) => !isSnoozed(session)), filter, merged.environmentOf, merged.storeId), [merged, filter]);
-  const orderedProjects = useMemo(() => optionsAnchor ? projectGroups(merged.projects, listedSessions(merged.sessions, merged.archivedSessionIds), projectOrder).map((group) => group.project) : [], [optionsAnchor, merged, projectOrder]);
+  const listed = useMemo(() => filterHomeSessions(listedSessions(merged.sessions).filter((session) => !isSnoozed(session)), filter, merged.environmentOf, merged.storeId), [merged, filter]);
+  const orderedProjects = useMemo(() => optionsAnchor ? projectGroups(merged.projects, listedSessions(merged.sessions), projectOrder).map((group) => group.project) : [], [optionsAnchor, merged, projectOrder]);
   const filteredProject = filter.projectId ? merged.projects.find((project) => project.id === filter.projectId) : undefined;
   const filteredComputer = filter.environmentId ? paired.find((item) => item.id === filter.environmentId) : undefined;
   const filtering = !!(filteredProject || filteredComputer);
@@ -56,12 +54,11 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
   const newConversation = () => filteredProject
     ? openOn(merged.environmentOf.get(filteredProject.id) ?? merged.storeId, { kind: "new", projectId: filteredProject.id })
     : navigation.open({ kind: "choose-project" });
-  // Snoozed and archived conversations of every computer (ADR-132 addendum).
-  const snoozedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session) && !merged.archivedSessionIds.includes(session.id)).length : snoozed.filter((session) => !archived.includes(session.id)).length, [merged, snoozed, archived]);
+  // Snoozed conversations of every computer (ADR-132 addendum).
+  const snoozedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session)).length : snoozed.length, [merged, snoozed]);
   const macOrder = useAppStore((state) => state.settings.sidebarThreadSortOrder);
   const order = usePhonePrefs((state) => state.prefs.threadOrder) ?? macOrder;
   const sections = useMemo(() => homeSections(listed, merged.projects, query, merged.pinnedSessionIds, order), [listed, merged, query, order]);
-  const archivedCount = useMemo(() => merged.multiple ? merged.sessions.filter((session) => merged.archivedSessionIds.includes(session.id) && !isAuxiliarySession(session)).length : sessions.filter((session) => archived.includes(session.id) && !isAuxiliarySession(session)).length, [merged, sessions, archived]);
   const byId = useMemo(() => new Map(merged.projects.map((project) => [project.id, project])), [merged]);
   const groups = [
     { key: "needsYou", title: t("mobile.needsYou"), items: sections.needsYou },
@@ -104,8 +101,7 @@ export function MobileHome({ navigation, online }: { navigation: MobileNavigatio
         </div>
       </section>)}
       {ready && !groups.length ? <p className="mobile-empty">{query ? t("mobile.noResults") : filtering ? t("phoneHome.filterEmpty") : t("mobile.empty")}</p> : null}
-      {snoozedCount && !query ? <button type="button" className="mobile-archived-link" onClick={() => navigation.open({ kind: "snoozed" })}><Moon size={15} aria-hidden="true" />{t("snooze.group", { count: snoozedCount })}</button> : null}
-      {archivedCount && !query ? <button type="button" className="mobile-archived-link" onClick={() => navigation.open({ kind: "archived" })}><Archive size={15} aria-hidden="true" />{t("mobile.archivedCount", { count: archivedCount })}</button> : null}
+      {snoozedCount && !query ? <button type="button" className="mobile-snoozed-link" onClick={() => navigation.open({ kind: "snoozed" })}><Moon size={15} aria-hidden="true" />{t("snooze.group", { count: snoozedCount })}</button> : null}
       {ready && groups.length ? <p className="mobile-help mobile-center mobile-swipe-hint">{t("phoneHome.swipeHint")}</p> : null}
     </div>
     <div className="mobile-dock">

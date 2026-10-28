@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::commands::AppState;
-use crate::models::{AgentProviderId, AppData, Session};
+use crate::models::{AgentProviderId, Session};
 use crate::runtime::{AppHandle, Manager};
 
 /// Below this a cold re-read is cheap, so compacting mostly loses context for little saving
@@ -20,8 +20,7 @@ const PASS: Duration = Duration::from_secs(30);
 const FIRST_PASS: Duration = Duration::from_secs(60);
 
 /// Whether this conversation should compact now: idle, large, and inside its window.
-fn due(data: &AppData, session: &Session, now_ms: i64) -> bool {
-    let settings = &data.settings;
+fn due(session: &Session, now_ms: i64) -> bool {
     let Some(usage) = session.context_usage else {
         return false;
     };
@@ -35,7 +34,6 @@ fn due(data: &AppData, session: &Session, now_ms: i64) -> bool {
         && session.snoozed_until.is_none()
         && !session.is_auxiliary()
         && session.team_worker.is_none()
-        && !settings.archived_session_ids.contains(&session.id)
         && usage.used >= MIN_TOKENS
         && now_ms >= expires - LEAD_MS
         && now_ms < expires
@@ -66,7 +64,7 @@ async fn pass(app: &AppHandle, state: &Arc<AppState>, sent: &mut HashSet<(String
         }
         data.sessions
             .iter()
-            .filter(|session| due(&data, session, now_ms))
+            .filter(|session| due(session, now_ms))
             .filter_map(|session| {
                 let expires = session.context_usage?.cache_expires_at?;
                 Some((session.id.clone(), expires, session.execution.clone()))
@@ -103,7 +101,6 @@ mod tests {
 
     #[test]
     fn only_a_large_idle_claude_conversation_inside_its_window_is_due() {
-        let mut data = AppData::default();
         let mut session: Session = serde_json::from_value(serde_json::json!({
             "id": "s1", "title": "Work", "projectId": "p", "agent": "claude", "status": "idle",
             "createdAt": "2026-10-21T00:00:00Z", "lastActivityAt": "2026-10-21T00:00:00Z",
@@ -119,17 +116,14 @@ mod tests {
             window: None,
             cache_expires_at: Some(expires),
         });
-        assert!(due(&data, &session, expires - LEAD_MS));
-        assert!(!due(&data, &session, expires - LEAD_MS - 1), "too early");
-        assert!(!due(&data, &session, expires), "the cache already expired");
-        data.settings.archived_session_ids.push("s1".into());
-        assert!(!due(&data, &session, expires - 1000), "archived");
-        data.settings.archived_session_ids.clear();
+        assert!(due(&session, expires - LEAD_MS));
+        assert!(!due(&session, expires - LEAD_MS - 1), "too early");
+        assert!(!due(&session, expires), "the cache already expired");
         session.context_usage = Some(crate::models::ContextUsage {
             used: MIN_TOKENS - 1,
             window: None,
             cache_expires_at: Some(expires),
         });
-        assert!(!due(&data, &session, expires - 1000), "small context");
+        assert!(!due(&session, expires - 1000), "small context");
     }
 }

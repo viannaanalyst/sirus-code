@@ -33,7 +33,7 @@ test("the app badge counts what needs the person and stays quiet where unsupport
     session("d", { status: "waiting", sideChat: { parentSessionId: "a" } }),
     session("e", { status: "completed" }),
   ];
-  assert.equal(needsYouCount(sessions, ["c"]), 2);
+  assert.equal(needsYouCount(sessions), 3);
   const calls: string[] = [];
   const badge = { setAppBadge: async (count?: number) => { calls.push(`set:${count}`); }, clearAppBadge: async () => { calls.push("clear"); } };
   assert.equal(await syncAppBadge(2, badge), true);

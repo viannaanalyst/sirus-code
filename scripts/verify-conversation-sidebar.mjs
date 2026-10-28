@@ -18,7 +18,6 @@ try {
     session("beta-old", "beta", 3),
     session("beta-new", "beta", 9),
     session("alpha-working", "alpha", 5, { status: "running" }),
-    session("archived", "alpha", 8),
     session("side", "alpha", 8, { sideChat: { parentSessionId: "alpha-old" } }),
     session("snoozed", "alpha", 8, { snoozedUntil: "2999-01-01T00:00:00Z" }),
   ];
@@ -28,7 +27,7 @@ try {
   const render = (node) => renderToString(createElement(TooltipProvider, null, node));
   for (const locale of ["pt-BR", "en"]) {
     for (const order of ["recent", "project"]) {
-      snapshot.settings = { ...snapshot.settings, locale, archivedSessionIds: ["archived"], sidebarMode: "list", sidebarListOrder: order, sidebarOpenFolders: null };
+      snapshot.settings = { ...snapshot.settings, locale, sidebarMode: "list", sidebarListOrder: order, sidebarOpenFolders: null };
       snapshot.sidebarCollapsed = false;
       const html = render(createElement(ConversationSidebar));
       const rows = [...html.matchAll(/data-conversation="([^"]+)"/g)].map(match => match[1]);
@@ -47,7 +46,7 @@ try {
       // Status: working pulse, unread dot (on the folder in By project), current row marked.
       assert.ok(html.includes('data-status="running"') && html.includes('data-status="unread"') && html.includes('aria-current="page"'));
       if (order === "recent") assert.ok(html.includes('data-unread="true"'), "the unread conversation reads stronger");
-      // Search, order, New project and New conversation (no separate Open project), nav row, Archived and Settings.
+      // Search, order, New project and New conversation (no separate Open project), nav row, Usage and Settings.
       assert.ok(html.includes("conversation-sidebar-search") && (html.match(/conversation-sidebar-tool(?!s)/g) ?? []).length === 3);
       assert.ok(!html.includes('aria-label="Open Project"') && !html.includes('aria-label="Abrir projeto"'));
       assert.equal((html.match(/conversation-sidebar-nav-item/g) ?? []).length, 3);
@@ -81,7 +80,7 @@ try {
     assert.ok(render(createElement(HeaderTabs)).match(/class="[^"]*\bheader-project\b/));
   }
   // A long list mounts only its first window of rows.
-  snapshot.settings = { ...snapshot.settings, sidebarListOrder: "recent", archivedSessionIds: [] };
+  snapshot.settings = { ...snapshot.settings, sidebarListOrder: "recent" };
   snapshot.sessions = Array.from({ length: 300 }, (_, index) => session(`many-${index}`, index % 2 ? "alpha" : "beta", 1 + (index % 28)));
   const long = render(createElement(ConversationSidebar));
   const mounted = (long.match(/data-conversation=/g) ?? []).length;

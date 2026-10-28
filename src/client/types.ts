@@ -37,11 +37,10 @@ export type ProjectScriptsAction =
   | { type: "run"; sessionId: string; kind: ScriptKind }
   | { type: "cancel"; sessionId: string }
   | { type: "dismiss"; sessionId: string; kind: ScriptKind };
-export type WorktreeKeptReason = "uncommitted" | "unmerged" | "unverified" | "inUse" | "running" | "failed";
+export type WorktreeKeptReason = "uncommitted" | "unverified" | "inUse" | "failed";
 export interface WorktreeLeftover { path: string; bytes: number; kept: WorktreeKeptReason | null }
 export interface WorktreeLeftoverScan { leftovers: WorktreeLeftover[]; reclaimableBytes: number }
 export interface WorktreeCleanupResult { removed: number; freedBytes: number; kept: WorktreeLeftover[] }
-export type WorktreeRelease = { outcome: "released"; branch: string } | { outcome: "kept"; reason: WorktreeKeptReason; branch: string } | { outcome: "missing" };
 
 export interface ProjectFolder { id: string; name: string; look: ProjectLook; projectIds: string[]; collapsed: boolean }
 export interface ProjectLook { color?: string | null; emoji?: string | null; logo?: string | null; astro?: ProjectAstroIcon | null; icon?: string | null }
@@ -371,8 +370,6 @@ export interface Session {
   snoozedUntil?: string | null;
   /** When a snooze reminder fired (ADR-103); the conversation reads as unread until opened. */
   snoozeReminderAt?: string | null;
-  /** Auto-archive is off for this conversation (ADR-130); absent when it follows the global rules. */
-  autoArchiveDisabled?: boolean;
   execution?: ExecutionOptions;
   pendingRequests?: PendingRequest[];
   /** Coordinator sessions own a team plan and its progress (ADR-043). */
@@ -507,7 +504,6 @@ export interface AppSettings {
   /** Where a plain click on a web link in chat or a terminal opens (ADR-149). */
   linkOpenTarget: LinkOpenTarget;
   diffWordWrap: boolean;
-  confirmArchive: boolean;
   confirmTerminalClose: boolean;
   /** System-wide shortcut that snaps the frontmost app window into the open composer (ADR-054). */
   windowSnapEnabled: boolean;
@@ -539,8 +535,6 @@ export interface AppSettings {
   chatBackgroundEmptyVisibility: number;
   chatBackgroundSessionVisibility: number;
   worktreeBasePath: string | null;
-  /** Archiving removes the session's clean, merged or pushed isolated worktree (ADR-078). */
-  releaseWorktreeOnArchive: boolean;
   defaultSessionWorkspace: "ask" | "checkout" | "worktree";
   confirmCloseRunning: boolean;
   restorePreviousSessions: boolean;
@@ -607,7 +601,6 @@ export interface AppSettings {
   /** Switcher folders that group projects (display only). */
   projectFolders: ProjectFolder[];
   pinnedSessionIds: string[];
-  archivedSessionIds: string[];
   /** Remote MCP servers every supported agent receives, per project or for all (ADR-137). */
   connectors: Connector[];
   environmentPanelDefaultOpen: boolean;
@@ -632,10 +625,6 @@ export interface AppSettings {
   locale: "pt-BR" | "en";
   /** New conversations start on this approval mode when the provider offers it (ADR-130). */
   defaultApproval: ApprovalMode;
-  /** Auto-archive (ADR-130): conversations whose own pull request was merged. */
-  autoArchiveMerged: boolean;
-  /** Auto-archive (ADR-130): conversations inactive for this many days (1–90), or never. */
-  autoArchiveInactiveDays: number | null;
   /** Fast-forward the project checkout's default branch while it has no local changes (ADR-130). */
   gitAutoPull: boolean;
   /** New worktrees start from origin's default branch after a fetch (ADR-130). */

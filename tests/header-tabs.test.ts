@@ -29,9 +29,9 @@ test("reordering moves the dragged tab onto the target position", () => {
   assert.deepEqual(moveTab(["a", "b", "c"], "c", "a", "after"), ["a", "c", "b"]);
 });
 
-test("only owned, unarchived sessions of the current project are shown", () => {
+test("only owned sessions of the current project are shown", () => {
   const sessions = [session("a"), session("b", "other"), session("c")];
-  assert.deepEqual(visibleTabSessions(["a", "b", "c", "gone"], sessions, "p", ["c"]).map((row) => row.id), ["a"]);
+  assert.deepEqual(visibleTabSessions(["a", "b", "c", "gone"], sessions, "p").map((row) => row.id), ["a", "c"]);
 });
 
 test("tab and project status: waiting beats running beats unseen completion", () => {

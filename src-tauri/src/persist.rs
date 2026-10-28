@@ -225,6 +225,8 @@ fn load_json(path: &Path) -> Result<AppData> {
 /// flags, settings defaults), reading only transcripts that need it.
 fn load_from(path: &Path, value: serde_json::Value, source: Source) -> Result<AppData> {
     let original_settings = value.get("settings").cloned();
+    // Archiving was removed (ADR-173): its conversations are deleted once the app state exists.
+    crate::archive_removal::note(path, crate::archive_removal::legacy_of(&value));
     let entries = value
         .get("sessions")
         .and_then(|sessions| sessions.as_array())

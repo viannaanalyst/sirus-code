@@ -1,6 +1,6 @@
 @layer components {
-  /* Phone settings additions (ADR-130): Mac settings switches, the days stepper, About pages and
-     the archived search dock. Tokens, cards and glass come from mobile.css. */
+  /* Phone settings additions (ADR-130): Mac settings switches and About pages.
+     Tokens, cards and glass come from mobile.css. */
   .mobile-switch-row { align-items: flex-start; padding-top: 12px; padding-bottom: 12px; }
   .mobile-switch-row .mobile-settings-icon { padding-top: 1px; }
   .mobile-switch-row button[role="switch"] { flex-shrink: 0; margin-top: 1px; }
@@ -8,11 +8,6 @@
   .mobile-switch-label { color: var(--text-primary); font-size: 16px; line-height: 1.3; }
   .mobile-choice:disabled, .mobile-switch-row:has(button[role="switch"]:disabled) { opacity: .55; }
 
-  .mobile-stepper { display: inline-flex; flex-shrink: 0; align-items: center; gap: 4px; padding: 3px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--background-1); }
-  .mobile-stepper button { display: grid; place-items: center; width: 36px; height: 32px; border-radius: 999px; color: var(--text-primary); transition: background-color var(--motion-fast) var(--ease-out); }
-  .mobile-stepper button:active { background: var(--accent-muted); }
-  .mobile-stepper button:disabled { color: var(--text-muted); opacity: .5; }
-  .mobile-stepper output { min-width: 64px; color: var(--text-primary); font-size: 15px; font-variant-numeric: tabular-nums; text-align: center; }
 
   .mobile-storage-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); }
   .mobile-storage-item:last-child { border-bottom: 0; }
@@ -28,7 +23,4 @@
   .mobile-legal { padding: 14px 16px; }
   .mobile-legal h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 16px; font-weight: 600; }
   .mobile-legal p { margin: 0; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
-
-  /* Archived conversations: the list scrolls clear of the floating search. */
-  .mobile-archived .mobile-scroll { padding-bottom: calc(var(--dock-bottom) + var(--dock-height) + 32px); }
 }

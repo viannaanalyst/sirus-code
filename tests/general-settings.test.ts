@@ -35,7 +35,7 @@ test("General page reset restores its preferences without resetting other pages 
   const settings = mergeSettings({ defaultAgent: "claude", defaultModel: "claude::model", locale: "en", defaultSessionWorkspace: "worktree", openLastProject: false,
     showEnvironmentUsage: false, showEnvironmentEditor: false, showEnvironmentNotepad: false, showEnvironmentInstructions: false,
     sidebarProjectSortOrder: "created_at", sidebarThreadSortOrder: "updated_at", sidebarProjectOrder: ["b", "a"],
-    pinnedSessionIds: ["s"], archivedSessionIds: ["archived"], composerLineSpeed: "fast", uiFontSize: 14, disabledProviders: ["grok"] });
+    pinnedSessionIds: ["s"], composerLineSpeed: "fast", uiFontSize: 14, disabledProviders: ["grok"] });
   const original = structuredClone(settings);
   const restored = resetGeneralSettings(settings);
   assert.equal(restored.defaultAgent, "codex");
@@ -50,7 +50,6 @@ test("General page reset restores its preferences without resetting other pages 
   assert.equal(restored.uiFontSize, 14);
   assert.deepEqual(restored.disabledProviders, ["grok"]);
   assert.deepEqual(restored.pinnedSessionIds, ["s"]);
-  assert.deepEqual(restored.archivedSessionIds, ["archived"]);
   assert.deepEqual(restored.sidebarProjectOrder, ["b", "a"]);
   assert.deepEqual(settings, original, "reset does not mutate the currently saved settings");
   assert.deepEqual(settings.sidebarProjectOrder, ["b", "a"]);

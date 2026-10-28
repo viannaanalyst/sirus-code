@@ -60,7 +60,7 @@ export function SidebarProjects({ floating = false, query = "" }: { floating?: b
             {groups.projects.map((item) => {
               const open = isExpanded(item.id);
               const nested = groups.nested.filter((session) => session.projectId === item.id);
-              const count = sessions.filter((session) => session.projectId === item.id && !settings.archivedSessionIds.includes(session.id)).length;
+              const count = sessions.filter((session) => session.projectId === item.id).length;
               return <section key={item.id} className="sidebar-project-group" data-reorder-id={item.id} data-dragging={dragging === item.id || undefined} data-drop-edge={reorder.over?.id === item.id ? reorder.over.edge : undefined}>
 
                 <SidebarProjectRow project={item} expanded={open} sessionCount={count} reorderProps={{

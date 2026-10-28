@@ -1,5 +1,5 @@
 //! Worktree cleanup (ADR-078): leftover folders under the worktree base that no
-//! session references, and the opt-in release of an archived session's worktree.
+//! session references.
 //! Nothing with uncommitted or untracked changes is ever removed, removal never
 //! uses `--force`, and branches are always kept.
 use std::collections::HashSet;
@@ -14,7 +14,6 @@ use crate::commands::AppState;
 use crate::error::{Error, Result};
 use crate::git;
 use crate::paths::display_path;
-use crate::worktree::{self, Unsafe};
 
 /// Entries counted when measuring one folder; beyond it the size is a lower bound.
 const MAX_SIZE_ENTRIES: usize = 400_000;
@@ -32,19 +31,15 @@ pub enum Action {
     Scan,
     /// Removes the leftovers that are safe to remove; the caller has confirmed.
     Clean { confirm: bool },
-    /// Releases an archived session's isolated worktree when the setting is on.
-    ReleaseArchived { session_id: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum KeptReason {
     Uncommitted,
-    Unmerged,
     /// Git cannot tell whether the folder holds work (not a worktree, or its repository is gone).
     Unverified,
     InUse,
-    Running,
     Failed,
 }
 
@@ -72,26 +67,11 @@ pub struct Cleaned {
     pub kept: Vec<Leftover>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", tag = "outcome")]
-pub enum Release {
-    Released {
-        branch: String,
-    },
-    Kept {
-        reason: KeptReason,
-        branch: String,
-    },
-    /// The folder was already gone; only Git metadata was pruned.
-    Missing,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum Response {
     Scan(Scan),
     Cleaned(Cleaned),
-    Release(Release),
 }
 
 #[cfg_attr(feature = "desktop", tauri::command)]
@@ -120,9 +100,6 @@ pub async fn worktree_cleanup_action(
                 ));
             }
             clean(&state).map(Response::Cleaned)
-        }
-        Action::ReleaseArchived { session_id } => {
-            release_archived(&state, &session_id).map(Response::Release)
         }
     })
     .await
@@ -331,110 +308,21 @@ fn clean(state: &AppState) -> Result<Cleaned> {
     Ok(cleaned)
 }
 
-pub(crate) fn release_archived(state: &AppState, session_id: &str) -> Result<Release> {
-    let (tree, root) = {
-        let data = state.data.lock();
-        state.ensure_running()?;
-        if !data.settings.release_worktree_on_archive {
-            return Err(Error::agent(
-                "Turn on releasing worktrees on archive in Settings first.",
-            ));
-        }
-        if !data
-            .settings
-            .archived_session_ids
-            .iter()
-            .any(|id| id == session_id)
-        {
-            return Err(Error::agent("This session is not archived."));
-        }
-        let session = data
-            .sessions
-            .iter()
-            .find(|session| session.id == session_id)
-            .ok_or_else(|| Error::not_found("session not found"))?;
-        let tree = session.worktree.clone();
-        if !tree.isolated {
-            return Err(Error::agent("This session works in the project checkout."));
-        }
-        let kept = |reason| {
-            Ok(Release::Kept {
-                reason,
-                branch: tree.branch.clone(),
-            })
-        };
-        let side_chats = crate::side_chat::children(&data.sessions, session_id);
-        let owners = |id: &String| id == session_id || side_chats.contains(id);
-        {
-            let agents = state.agents.lock();
-            if data.sessions.iter().any(|item| {
-                owners(&item.id) && (item.status.is_active() || agents.contains_key(&item.id))
-            }) {
-                return kept(KeptReason::Running);
-            }
-        }
-        let path = canonical(Path::new(&tree.path));
-        let shared = data
-            .sessions
-            .iter()
-            .any(|item| !owners(&item.id) && canonical(Path::new(&item.worktree.path)) == path);
-        let terminals = state
-            .ptys
-            .lock()
-            .values()
-            .any(|pty| owners(&pty.session_id));
-        if shared || terminals {
-            return kept(KeptReason::InUse);
-        }
-        let root = data
-            .projects
-            .iter()
-            .find(|project| project.id == session.project_id)
-            .map(|project| PathBuf::from(&project.path))
-            .ok_or_else(|| Error::not_found("project not found"))?;
-        (tree, root)
-    };
-    let path = PathBuf::from(&tree.path);
-    if !path.exists() {
-        worktree::tidy(&root, &path);
-        return Ok(Release::Missing);
-    }
-    let kept = |reason| Release::Kept {
-        reason,
-        branch: tree.branch.clone(),
-    };
-    match worktree::release_blocker(&path, &tree.branch) {
-        Ok(Some(Unsafe::Uncommitted)) => return Ok(kept(KeptReason::Uncommitted)),
-        Ok(Some(Unsafe::Unmerged)) => return Ok(kept(KeptReason::Unmerged)),
-        Ok(None) => {}
-        Err(_) => return Ok(kept(KeptReason::Unverified)),
-    }
-    crate::project_scripts::cancel(session_id);
-    match worktree::remove(&root, &tree, true) {
-        Ok(()) => Ok(Release::Released {
-            branch: tree.branch.clone(),
-        }),
-        Err(error) => {
-            tracing::warn!(%error, "kept an archived session's worktree");
-            Ok(kept(KeptReason::Failed))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::git::tests::Repo;
     use crate::models::AppData;
+    use crate::worktree;
     use parking_lot::Mutex;
     use std::collections::HashMap;
     use std::sync::atomic::AtomicBool;
 
-    fn state(repo: &Repo, sessions: serde_json::Value, archived: &[&str]) -> AppState {
+    fn state(repo: &Repo, sessions: serde_json::Value) -> AppState {
         let data: AppData = serde_json::from_value(serde_json::json!({
             "projects":[{"id":"p","name":"Fixture","path":display_path(&repo.cwd()),"addedAt":"t","lastOpenedAt":"t"}],
-            "settings":{"releaseWorktreeOnArchive":true,"archivedSessionIds":archived},
-            "sessions":sessions,
+            "settings":{},
+                        "sessions":sessions,
         }))
         .unwrap();
         AppState {
@@ -489,7 +377,7 @@ mod tests {
         fs::write(plain.join("notes.txt"), "not git").unwrap();
         let foreign = repo.0.join("trees").join("not-a-project").join("tree");
         fs::create_dir_all(&foreign).unwrap();
-        let state = state(&repo, serde_json::json!([session("s", &used)]), &[]);
+        let state = state(&repo, serde_json::json!([session("s", &used)]));
 
         let found = scan(&state).unwrap();
         let reason = |path: &Path| {
@@ -526,65 +414,5 @@ mod tests {
         assert!(plain.join("notes.txt").exists());
         assert!(foreign.exists());
         assert!(git::run_ok(&repo.cwd(), &["rev-parse", "--verify", &clean.branch]).is_ok());
-    }
-
-    #[test]
-    fn archive_release_keeps_unsafe_or_shared_worktrees() {
-        let repo = Repo::new();
-        let parent = repo.0.join("trees").join("p");
-        let tree = worktree::create_isolated(
-            &repo.cwd(),
-            &parent,
-            "11111111-a",
-            "Done",
-            "sirus/{session-name}-{id}",
-        )
-        .unwrap();
-        // Not archived yet: refused.
-        let state1 = state(&repo, serde_json::json!([session("s", &tree)]), &[]);
-        assert!(release_archived(&state1, "s").is_err());
-        // Shared with another session: kept.
-        let shared = state(
-            &repo,
-            serde_json::json!([session("s", &tree), session("o", &tree)]),
-            &["s"],
-        );
-        assert!(matches!(
-            release_archived(&shared, "s").unwrap(),
-            Release::Kept {
-                reason: KeptReason::InUse,
-                ..
-            }
-        ));
-        // Unmerged commits: kept.
-        let path = PathBuf::from(&tree.path);
-        fs::write(path.join("new.txt"), "work").unwrap();
-        let only = state(&repo, serde_json::json!([session("s", &tree)]), &["s"]);
-        assert!(matches!(
-            release_archived(&only, "s").unwrap(),
-            Release::Kept {
-                reason: KeptReason::Uncommitted,
-                ..
-            }
-        ));
-        git::run_ok(&path, &["add", "--", "new.txt"]).unwrap();
-        git::run_ok(&path, &["commit", "-qm", "work"]).unwrap();
-        assert!(matches!(
-            release_archived(&only, "s").unwrap(),
-            Release::Kept {
-                reason: KeptReason::Unmerged,
-                ..
-            }
-        ));
-        // Merged: released, branch kept.
-        git::run_ok(&repo.cwd(), &["merge", "-q", "--ff-only", &tree.branch]).unwrap();
-        assert_eq!(
-            release_archived(&only, "s").unwrap(),
-            Release::Released {
-                branch: tree.branch.clone()
-            }
-        );
-        assert!(!path.exists());
-        assert_eq!(release_archived(&only, "s").unwrap(), Release::Missing);
     }
 }

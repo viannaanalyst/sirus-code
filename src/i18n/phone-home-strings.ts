@@ -6,9 +6,6 @@ const strings: Record<string, [string, string]> = {
   "phoneHome.arrange.updated_at": ["By last activity", "Pela última atividade"],
   "phoneHome.arrange.created_at": ["By creation", "Pela criação"],
   "phoneHome.rename": ["Rename", "Renomear"],
-  "phoneHome.autoArchive": ["Auto-archive behavior", "Arquivamento automático"],
-  "phoneHome.autoArchive.enabled": ["Enabled", "Ativado"],
-  "phoneHome.autoArchive.disabled": ["Disabled", "Desativado"],
   "phoneHome.back": ["Back", "Voltar"],
   "phoneHome.chooseProject": ["Choose project", "Escolher projeto"],
   "phoneHome.searchProjects": ["Search projects", "Buscar projetos"],
@@ -43,7 +40,7 @@ const strings: Record<string, [string, string]> = {
   "phoneHome.clearFilter": ["Clear filter: {name}", "Limpar filtro: {name}"],
   "phoneHome.activeFilters": ["Active filters", "Filtros ativos"],
   "phoneHome.filterEmpty": ["No conversations match this filter.", "Nenhuma conversa corresponde a este filtro."],
-  "phoneHome.swipeHint": ["Slide a conversation left to archive or snooze it; press and hold for more.", "Deslize uma conversa para a esquerda para arquivar ou adiar; toque e segure para mais opções."],
+  "phoneHome.swipeHint": ["Slide a conversation left to snooze it; press and hold for more.", "Deslize uma conversa para a esquerda para adiar; toque e segure para mais opções."],
 };
 export const phoneHomeEnglish: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[0]]));
 export const phoneHomePortuguese: Record<string, string> = Object.fromEntries(Object.entries(strings).map(([key, value]) => [key, value[1]]));

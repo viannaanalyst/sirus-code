@@ -1,19 +1,15 @@
-/** Phone settings sheet additions (ADR-130): Mac settings pages, archived search and About pages. English source, Portuguese translation. */
+/** Phone settings sheet additions (ADR-130): Mac settings pages and About pages. English source, Portuguese translation. */
 const strings: Record<string, [string, string]> = {
   "phoneSettings.macSettings": ["Mac settings", "Ajustes do Mac"],
   "phoneSettings.macHelp": ["These change the Mac's own settings, the same ones as in Sirus Code's Settings there.", "Estes mudam os ajustes do próprio Mac, os mesmos dos Ajustes do Sirus Code nele."],
   "phoneSettings.offline": ["Reconnect to the Mac to change its settings.", "Reconecte ao Mac para mudar os ajustes dele."],
   "phoneSettings.newConversations": ["New conversations", "Novas conversas"],
-  "phoneSettings.conversationBehavior": ["Conversation behavior", "Comportamento das conversas"],
   "phoneSettings.sourceControl": ["Source control", "Controle de versão"],
   "phoneSettings.maintenance": ["Maintenance", "Manutenção"],
   "phoneSettings.defaultBranch": ["Default branch", "Branch padrão"],
   "phoneSettings.worktrees": ["Worktrees", "Worktrees"],
   "phoneSettings.updates": ["Updates", "Atualizações"],
   "phoneSettings.browser": ["In-app browser", "Navegador do app"],
-  "phoneSettings.searchArchived": ["Search archived conversations", "Buscar conversas arquivadas"],
-  "phoneSettings.searchArchivedShort": ["Search title, project or branch", "Buscar título, projeto ou branch"],
-  "phoneSettings.noArchivedMatch": ["No archived conversation matches.", "Nenhuma conversa arquivada corresponde."],
   "phoneSettings.clientStorage": ["Client storage", "Armazenamento do app"],
   "phoneSettings.diagnostics": ["Diagnostics", "Diagnóstico"],
   "phoneSettings.licenses": ["Open source licenses", "Licenças de código aberto"],

@@ -29,7 +29,7 @@ const strings: Record<string, [string, string]> = {
   "mcp.agents.can": ["Agents can", "Agentes podem"],
   "mcp.agents.canHelp": ["List projects and sessions, read a session's status and last messages (shortened), start a visible session with a prompt (up to 4 per turn) and send a message to an idle session (up to 8 per turn).", "Listar projetos e sessões, ler o status e as últimas mensagens de uma sessão (encurtadas), iniciar uma sessão visível com um prompt (até 4 por turno) e enviar mensagem a uma sessão parada (até 8 por turno)."],
   "mcp.agents.cannot": ["Agents cannot", "Agentes não podem"],
-  "mcp.agents.cannotHelp": ["Delete, archive, rename or stop sessions, approve requests, change settings or projects, see side chats, act while planning (read-only), or start sessions more than two levels deep.", "Apagar, arquivar, renomear ou parar sessões, aprovar pedidos, mudar configurações ou projetos, ver chats laterais, agir durante o planejamento (somente leitura) nem iniciar sessões a mais de dois níveis."],
+  "mcp.agents.cannotHelp": ["Delete, rename or stop sessions, approve requests, change settings or projects, see side chats, act while planning (read-only), or start sessions more than two levels deep.", "Apagar, renomear ou parar sessões, aprovar pedidos, mudar configurações ou projetos, ver chats laterais, agir durante o planejamento (somente leitura) nem iniciar sessões a mais de dois níveis."],
   "mcp.dialog.title": ["Add MCP server", "Adicionar servidor MCP"],
   "mcp.dialog.description": ["Paste standard mcpServers JSON or fill in the fields, then choose where to install it.", "Cole o JSON padrão mcpServers ou preencha os campos e escolha onde instalar."],
   "mcp.dialog.paste": ["Paste JSON", "Colar JSON"],

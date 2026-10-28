@@ -105,10 +105,10 @@ test("computers are named by the person, else Mac, else the server's name", () =
 
 test("summaries keep the recent conversations without transcripts and follow updates", () => {
   const many = Array.from({ length: SUMMARY_LIMIT + 5 }, (_, index) => session(`s${index}`, { lastActivityAt: `2026-10-07T10:${String(index % 60).padStart(2, "0")}:00Z`, messages: [{ id: "m" } as never] }));
-  const summary = summarize({ sessions: [...many, session("side", { sideChat: { parentSessionId: "s1" } as never })], projects: [project("p1")], archivedSessionIds: ["s1", "missing"], pinnedSessionIds: [] }, 5);
+  const summary = summarize({ sessions: [...many, session("side", { sideChat: { parentSessionId: "s1" } as never })], projects: [project("p1")], pinnedSessionIds: ["s1", "missing"] }, 5);
   assert.equal(summary.sessions.length, SUMMARY_LIMIT);
   assert.ok(summary.sessions.every((item) => item.messages.length === 0 && !item.sideChat));
-  assert.ok(!summary.archivedSessionIds.includes("missing"));
+  assert.ok(!summary.pinnedSessionIds.includes("missing"));
   assert.equal(summary.updatedAt, 5);
 
   const updated = applySessionUpdate(summary, session(summary.sessions[3].id, { title: "Renamed" }), 9);
@@ -126,8 +126,8 @@ test("summaries keep the recent conversations without transcripts and follow upd
 
 test("the Home merges every computer, the active one winning, sorted together", () => {
   const merged = mergeEnvironments(
-    { id: "home", sessions: [session("a", { lastActivityAt: "2026-10-07T09:00:00Z" }), session("dup", { title: "live" })], projects: [project("p1", "sirus")], archivedSessionIds: [], pinnedSessionIds: ["a"] },
-    [{ id: "vps", sessions: [session("b", { projectId: "p2", lastActivityAt: "2026-10-07T12:00:00Z" }), session("c", { projectId: "p2", status: "waiting" }), session("dup", { title: "stale" })], projects: [project("p2", "api"), project("p1", "dup")], archivedSessionIds: ["c"], pinnedSessionIds: [] }],
+    { id: "home", sessions: [session("a", { lastActivityAt: "2026-10-07T09:00:00Z" }), session("dup", { title: "live" })], projects: [project("p1", "sirus")], pinnedSessionIds: ["a"] },
+    [{ id: "vps", sessions: [session("b", { projectId: "p2", lastActivityAt: "2026-10-07T12:00:00Z" }), session("c", { projectId: "p2", status: "waiting" }), session("dup", { title: "stale" })], projects: [project("p2", "api"), project("p1", "dup")], pinnedSessionIds: [] }],
   );
   assert.deepEqual(merged.sessions.map((item) => item.id), ["a", "dup", "b", "c"]);
   assert.equal(merged.sessions.find((item) => item.id === "dup")?.title, "live");
@@ -135,8 +135,7 @@ test("the Home merges every computer, the active one winning, sorted together", 
   assert.equal(merged.environmentOf.get("b"), "vps");
   assert.equal(merged.environmentOf.get("p2"), "vps");
   assert.equal(merged.environmentOf.get("a"), "home");
-  assert.deepEqual(merged.archivedSessionIds, ["c"]);
-  const sections = homeSections(merged.sessions.filter((item) => !merged.archivedSessionIds.includes(item.id)), merged.projects, "", merged.pinnedSessionIds);
+  const sections = homeSections(merged.sessions, merged.projects, "", merged.pinnedSessionIds);
   assert.deepEqual(sections.pinned.map((item) => item.id), ["a"]);
   assert.deepEqual(sections.recent.map((item) => item.id), ["b", "dup"]);
   // Searching finds the other computer's project names.

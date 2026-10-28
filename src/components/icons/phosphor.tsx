@@ -23,7 +23,6 @@ import {
   CloudArrowDown as PhCloudArrowDown,
   Planet as PhPlanet,
   DeviceRotate as PhDeviceRotate,
-  Archive as PhArchive,
   ArrowBendDownRight as PhArrowBendDownRight,
   ArrowBendUpLeft as PhArrowBendUpLeft,
   ArrowClockwise as PhArrowClockwise,
@@ -42,7 +41,6 @@ import {
   Bell as PhBell,
   Binoculars as PhBinoculars,
   Signpost as PhSignpost,
-  BoxArrowUp as PhBoxArrowUp,
   BracketsCurly as PhBracketsCurly,
   Bug as PhBug,
   CalendarDots as PhCalendarDots,
@@ -218,8 +216,6 @@ function adapt(Glyph: PhosphorIcon, name: string, mirrored = false): LucideIcon 
 export const AlertCircle = adapt(PhWarningCircle, "AlertCircle");
 export const AlertTriangle = adapt(PhWarning, "AlertTriangle");
 export const AppWindow = adapt(PhAppWindow, "AppWindow");
-export const Archive = adapt(PhArchive, "Archive");
-export const ArchiveRestore = adapt(PhBoxArrowUp, "ArchiveRestore");
 export const ArrowDown = adapt(PhArrowDown, "ArrowDown");
 export const ArrowLeft = adapt(PhArrowLeft, "ArrowLeft");
 export const ArrowRight = adapt(PhArrowRight, "ArrowRight");

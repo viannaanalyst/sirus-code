@@ -109,12 +109,10 @@ test("the switcher merges other computers' projects by name and lists their conv
       session("s1", "v-shared", "2026-10-11T00:00:00Z"),
       session("s2", "v-shared", "2026-10-12T00:00:00Z"),
       session("s3", "v-only", "2026-10-13T00:00:00Z"),
-      session("old", "v-shared", "2026-10-14T00:00:00Z"),
       session("side", "v-shared", "2026-10-15T00:00:00Z", { sideChat: { parentSessionId: "s1" } as Session["sideChat"] }),
       session("later", "v-shared", "2026-10-16T00:00:00Z", { snoozedUntil: "2099-01-01T00:00:00Z" } as Partial<Session>),
     ],
     projects: [{ ...project("v-shared", "2026-02-01T00:00:00Z"), name: " DP-Inchurch " }, project("v-only", "2026-01-01T00:00:00Z")],
-    archivedSessionIds: ["old"],
     pinnedSessionIds: [],
     updatedAt: 1,
   };

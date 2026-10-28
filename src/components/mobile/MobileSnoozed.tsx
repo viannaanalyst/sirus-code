@@ -19,8 +19,7 @@ export function MobileSnoozed({ navigation }: { navigation: MobileNavigation }) 
   const openOn = useOpenOnEnvironment(navigation);
   const [filter, setFilter] = useState<EnvironmentFilter>("all");
   const all = useMemo(() => {
-    const archived = new Set(merged.archivedSessionIds);
-    return merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session) && !archived.has(session.id))
+    return merged.sessions.filter((session) => isSnoozed(session) && !isAuxiliarySession(session))
       .sort((a, b) => Date.parse(a.snoozedUntil ?? "") - Date.parse(b.snoozedUntil ?? ""));
   }, [merged]);
   const list = useMemo(() => filterByEnvironment(all, merged.environmentOf, filter, merged.storeId), [all, merged, filter]);

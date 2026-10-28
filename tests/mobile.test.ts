@@ -38,9 +38,9 @@ test("Badges name what the agent waits for", () => {
   assert.equal(needsYou(session("f", { status: "waiting" })), true);
 });
 
-test("Lists hide side chats and archived sessions", () => {
-  const sessions = [session("a"), session("b", { sideChat: { parentSessionId: "a" } }), session("d")];
-  assert.deepEqual(listedSessions(sessions, ["d"]).map((item) => item.id), ["a"]);
+test("Lists hide side chats", () => {
+  const sessions = [session("a"), session("b", { sideChat: { parentSessionId: "a" } })];
+  assert.deepEqual(listedSessions(sessions).map((item) => item.id), ["a"]);
 });
 
 test("Projects sort by their latest conversation and count what needs attention", () => {

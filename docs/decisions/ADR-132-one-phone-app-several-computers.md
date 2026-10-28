@@ -1,6 +1,6 @@
 # ADR-132: One phone app, several computers
 
-**Status:** Accepted (2026-10-13).
+**Status:** Accepted (2026-10-13); the archiving it describes is superseded by [ADR-173](ADR-173-conversation-archive-removed.md).
 
 ## Context
 

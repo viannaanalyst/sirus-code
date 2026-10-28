@@ -1,6 +1,6 @@
 # ADR-086: Phone app features
 
-**Status:** Accepted
+**Status:** Accepted; the archiving it describes is superseded by [ADR-173](ADR-173-conversation-archive-removed.md).
 
 ## Context
 

@@ -1,7 +1,7 @@
 import { RotateCcw } from "@/components/icons/phosphor";
 import type { AppSettings } from "@/client/types";
 import { useTranslation } from "@/i18n/use-translation";
-import { AUTO_ARCHIVE_DEFAULT_DAYS, AUTO_ARCHIVE_MAX_DAYS, CHAT_AGENT_KEYS, CHAT_SETTING_KEYS, clampArchiveDays as clampDays, defaultSettings, STREAMING_CHOICES } from "@/lib/settings";
+import { CHAT_AGENT_KEYS, CHAT_SETTING_KEYS, defaultSettings, STREAMING_CHOICES } from "@/lib/settings";
 import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { Switch } from "@/primitives/Switch";
@@ -46,7 +46,7 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       {toggle("continueInterruptedSessions", "chatBehavior.continueInterrupted", "chatBehavior.continueInterruptedHelp")}
       {toggle("compactIdleBeforeCacheExpiry", "chatBehavior.compactIdle", "chatBehavior.compactIdleHelp")}
     </SettingsGroup>
-    {/* Agent behavior and Auto-archive (ADR-130), also on the phone's Mac settings. */}
+    {/* Agent behavior (ADR-130), also on the phone's Mac settings. */}
     <SettingsGroup title={t("settings.agentBehavior")} card>
       <SettingsRow title={t("settings.responseStreaming")} description={t("settings.responseStreamingHelp")}>
         <SegmentedControl label={t("settings.responseStreaming")} value={settings.responseStreaming} options={STREAMING_CHOICES.map((choice) => ({ value: choice.mode, label: t(choice.label) }))}
@@ -55,21 +55,6 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       <SettingsRow title={t("settings.browserAccess")} description={t("settings.browserAccessHelp")}>
         <Switch checked={settings.agentBrowserAccess} label={t("settings.browserAccess")} onChange={(agentBrowserAccess) => onSave({ ...settings, agentBrowserAccess })} />
       </SettingsRow>
-    </SettingsGroup>
-    <SettingsGroup title={t("settings.autoArchive")} card>
-      <SettingsRow title={t("settings.autoArchiveMerged")} description={t("settings.autoArchiveMergedHelp")}>
-        <Switch checked={settings.autoArchiveMerged} label={t("settings.autoArchiveMerged")} onChange={(autoArchiveMerged) => onSave({ ...settings, autoArchiveMerged })} />
-      </SettingsRow>
-      <SettingsRow title={t("settings.autoArchiveInactive", { days: settings.autoArchiveInactiveDays ?? AUTO_ARCHIVE_DEFAULT_DAYS })} description={t("settings.autoArchiveInactiveHelp")}>
-        <Switch checked={settings.autoArchiveInactiveDays !== null} label={t("settings.autoArchiveInactive", { days: settings.autoArchiveInactiveDays ?? AUTO_ARCHIVE_DEFAULT_DAYS })}
-          onChange={(on) => onSave({ ...settings, autoArchiveInactiveDays: on ? AUTO_ARCHIVE_DEFAULT_DAYS : null })} />
-      </SettingsRow>
-      {settings.autoArchiveInactiveDays !== null ? <SettingsRow title={t("settings.inactiveDays")} description={t("settings.inactiveDaysHelp")}>
-        <input type="number" min={1} max={AUTO_ARCHIVE_MAX_DAYS} step={1} aria-label={t("settings.inactiveDays")} defaultValue={settings.autoArchiveInactiveDays} key={settings.autoArchiveInactiveDays}
-          onBlur={(event) => { const days = clampDays(event.target.valueAsNumber); event.target.value = String(days); if (days !== settings.autoArchiveInactiveDays) onSave({ ...settings, autoArchiveInactiveDays: days }); }}
-          onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-          className="h-8 w-[80px] rounded-[var(--radius-md)] border border-border-subtle bg-background-1 px-2.5 text-right font-mono ui-control outline-none focus:border-border-default" />
-      </SettingsRow> : null}
     </SettingsGroup>
     <SettingsGroup title={t("chatBehavior.review")} card>
       {/* How links open (ADR-149): ⌘, Ctrl, Alt or middle click always use the system browser. */}
@@ -105,7 +90,6 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
       </SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("chatBehavior.safety")} card>
-      {toggle("confirmArchive", "chatBehavior.confirmArchive", "chatBehavior.confirmArchiveHelp")}
       {toggle("confirmTerminalClose", "chatBehavior.confirmTerminal", "chatBehavior.confirmTerminalHelp")}
       <SettingsRow title={t("chatBehavior.confirmDelete")} description={t("chatBehavior.confirmDeleteHelp")}>
         <Switch checked disabled label={t("chatBehavior.confirmDelete")} onChange={() => undefined} />

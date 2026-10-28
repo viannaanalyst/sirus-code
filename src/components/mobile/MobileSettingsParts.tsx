@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
-import { Check, ChevronRight, Minus, Plus } from "@/components/icons/phosphor";
-import { usePhoneTranslation as useTranslation } from "./use-phone-host";
+import { Check, ChevronRight } from "@/components/icons/phosphor";
 import { Switch } from "@/primitives/Switch";
 
 /** One settings row: icon, name, an optional value, and a chevron when it opens something. */
@@ -32,19 +31,5 @@ export function SwitchRow({ icon, label, help, checked, onChange, disabled = fal
     <span className="mobile-settings-icon" aria-hidden="true">{icon}</span>
     <span className="mobile-switch-text"><span className="mobile-switch-label">{label}</span>{help ? <span className="mobile-choice-help">{help}</span> : null}</span>
     <Switch checked={checked} disabled={disabled} onChange={onChange} label={label} />
-  </div>;
-}
-
-/** A number of days with finger-sized − and + buttons. */
-export function DaysStepper({ label, value, min, max, onChange, disabled = false }: { label: string; value: number; min: number; max: number; onChange: (value: number) => void; disabled?: boolean }) {
-  const t = useTranslation();
-  return <div className="mobile-settings-row mobile-stepper-row">
-    <span className="mobile-settings-icon" aria-hidden="true" />
-    <span className="mobile-settings-label">{label}</span>
-    <span className="mobile-stepper" role="group" aria-label={label}>
-      <button type="button" aria-label={t("settings.fewerDays")} disabled={disabled || value <= min} onClick={() => onChange(value - 1)}><Minus size={15} aria-hidden="true" /></button>
-      <output aria-live="polite">{t("settings.days", { days: value })}</output>
-      <button type="button" aria-label={t("settings.moreDays")} disabled={disabled || value >= max} onClick={() => onChange(value + 1)}><Plus size={15} aria-hidden="true" /></button>
-    </span>
   </div>;
 }

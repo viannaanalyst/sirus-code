@@ -33,7 +33,7 @@ import { CONTEXT_TEXT_LIMIT, hasContextOwner, normalizeContextTexts } from "@/li
 import { newId, newRequestId } from "@/lib/ids";
 import { scanLocalServers, type NativeLocalServer } from "@/lib/local-servers";
 import type { PlayerCorner } from "@/lib/mini-player";
-import { archiveSidebarSession, pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
+import { pruneSidebarSettings, sidebarGroups } from "@/lib/sidebar-layout";
 import type { PullRequestLoadState } from "@/lib/pull-requests";
 import { create } from "zustand";
 import { client } from "@/client";
@@ -118,8 +118,8 @@ function withWorkspace(
 ) {
   return { terminalWorkspacesBySession: { ...state.terminalWorkspacesBySession, [sessionId]: workspace } };
 }
-/** Main column: conversation or a page (inbox, archived, pull requests; ADR-050). The Kanban board was retired (ADR-110). */
-export type MainView = "session" | "pulls" | "inbox" | "archived" | "usage";
+/** Main column: conversation or a page (inbox, pull requests; ADR-050). The Kanban board was retired (ADR-110). */
+export type MainView = "session" | "pulls" | "inbox" | "usage";
 export interface NavEntry {
   settingsPage?: { section: SettingsSectionId } | null;
   mainView: MainView;
@@ -350,12 +350,6 @@ interface AppStore {
   loadGithubInbox: (kind: import("@/client/types").GithubItemKind, state: import("@/client/types").GithubItemState) => Promise<void>;
   /** `owner/repo#n` a chat link asked the Pull requests page to show (Chat behavior). */
   pullsSelection: string | null;
-  /** Session waiting for the Chat behavior archive confirmation. */
-  archivePrompt: string | null;
-  /** Archives a session, asking first when Chat behavior requires it. */
-  requestArchive: (sessionId: string, confirmed?: boolean) => void;
-  /** What happened to an archived session's worktree when releasing it is on (ADR-078). */
-  worktreeReleaseNotice: { id: number; release: import("@/client/types").WorktreeRelease } | null;
   /** Result of a discard in the Changes pane, shown by `ChangesToast` (already translated). */
   changesNotice: { id: number; variant: "success" | "error"; title: string; description?: string } | null;
   /** Saves a project's Setup and On finish scripts; blank removes one. */
@@ -385,8 +379,6 @@ interface AppStore {
    * Snoozing closes its tab (moving the selection like closing it would) and raises the undo toast.
    */
   snoozeSession: (sessionId: string, until: string | null) => Promise<boolean>;
-  /** Auto-archive on (following the global rules) or off for one conversation (ADR-130). */
-  setSessionAutoArchive: (sessionId: string, enabled: boolean) => Promise<boolean>;
   /** The undo toast of the latest snooze (ADR-103). */
   /** `undo` returns a conversation of another computer (ADR-132), which the store does not hold. */
   snoozeNotice: { id: number; sessionId: string; until: string; wasSelected: boolean; undo?: () => Promise<boolean> } | null;
@@ -1031,7 +1023,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   draftTabByProject: {},
   closeDraftTab: (projectId) => {
     const state = get();
-    const tabs = visibleTabSessions(state.openTabsByProject[projectId] ?? [], state.sessions, projectId, state.settings.archivedSessionIds).map(session => session.id);
+    const tabs = visibleTabSessions(state.openTabsByProject[projectId] ?? [], state.sessions, projectId).map(session => session.id);
     const onDraft = state.mainView === "session" && !state.selectedSessionId && state.selectedProjectId === projectId;
     // The blank tab is the landing itself; it can only go away when another tab can take focus.
     const fallback = state.lastActiveTabByProject[projectId] && tabs.includes(state.lastActiveTabByProject[projectId]) ? state.lastActiveTabByProject[projectId] : tabs.at(-1);
@@ -1044,22 +1036,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   githubInbox: {},
   pullsSelection: null,
   pullAskOpen: false,
-  archivePrompt: null,
-  requestArchive: (sessionId, confirmed = false) => {
-    const state = get();
-    if (state.settings.confirmArchive && !confirmed) { set({ archivePrompt: sessionId }); return; }
-    set({ archivePrompt: null });
-    void state.saveSettings(archiveSidebarSession(state.settings, sessionId)).then(async () => {
-      const { settings, sessions } = get();
-      const session = sessions.find((item) => item.id === sessionId);
-      if (!settings.releaseWorktreeOnArchive || !settings.archivedSessionIds.includes(sessionId) || !session?.worktree.isolated) return;
-      try {
-        const release = await client.releaseArchivedWorktree(sessionId);
-        if (release.outcome !== "missing") set({ worktreeReleaseNotice: { id: ++worktreeReleaseSequence, release } });
-      } catch (error) { set({ error: formatUnknownError(error) }); }
-    });
-  },
-  worktreeReleaseNotice: null,
   changesNotice: null,
   snoozeNotice: null,
   saveProjectScripts: async (projectId, setup, onFinish, previewUrl = "", openPreview = false) => {
@@ -1173,8 +1149,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   switchProject: async (projectId) => {
     set({ projectSwitcherOpen: false });
     const before = get();
-    const archived = new Set(before.settings.archivedSessionIds);
-    const alive = (id: string | undefined) => !!id && before.sessions.some(session => session.id === id && session.projectId === projectId && !archived.has(id));
+    const alive = (id: string | undefined) => !!id && before.sessions.some(session => session.id === id && session.projectId === projectId);
     const remembered = before.lastActiveTabByProject[projectId];
     const target = alive(remembered) ? remembered : (before.openTabsByProject[projectId] ?? []).find(alive);
     await get().selectProject(projectId);
@@ -1269,7 +1244,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       const sessions = data.sessions;
       const selectedSessionId =
         settings.restorePreviousSessions && selectedProjectId
-          ? (sessions.find((session) => session.projectId === selectedProjectId && !isAuxiliarySession(session) && !settings.archivedSessionIds.includes(session.id))?.id ?? null)
+          ? (sessions.find((session) => session.projectId === selectedProjectId && !isAuxiliarySession(session))?.id ?? null)
           : null;
       // Only the selected transcript loads before the first paint (ADR-048).
       const initialTranscript = selectedSessionId ? await client.loadTranscript(selectedSessionId).catch(() => null) : null;
@@ -1346,7 +1321,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set((state) => ({
       projects: state.projects.some((item) => item.id === project.id) ? state.projects.map((item) => item.id === project.id ? project : item) : [project, ...state.projects],
       selectedProjectId: project.id,
-      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !isAuxiliarySession(session) && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: state.sessions.find((session) => session.projectId === project.id && !isAuxiliarySession(session))?.id ?? null,
       gitStatus: null, selectedDiff: null, diffText: null,
       gitByPath: { ...state.gitByPath, [project.path]: identity },
     }));
@@ -1371,7 +1346,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const sequence = ++projectRequestSequence;
     const project = await client.openProject(projectId);
     if (sequence !== projectRequestSequence) return;
-    const sessions = get().sessions.filter((session) => session.projectId === projectId && !isAuxiliarySession(session) && !get().settings.archivedSessionIds.includes(session.id));
+    const sessions = get().sessions.filter((session) => session.projectId === projectId && !isAuxiliarySession(session));
     set({
       selectedProjectId: projectId,
       selectedSessionId: sessions[0]?.id ?? null,
@@ -1418,7 +1393,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       contextTextStatus: Object.fromEntries(Object.entries(get().contextTextStatus).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       composerContexts: Object.fromEntries(Object.entries(get().composerContexts).filter(([key]) => key !== `project:${projectId}` && !removedSessions.has(key))),
       selectedProjectId: nextProject,
-      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !isAuxiliarySession(session) && !get().settings.archivedSessionIds.includes(session.id))?.id ?? null,
+      selectedSessionId: sessions.find((session) => session.id === get().selectedSessionId)?.id ?? sessions.find((session) => session.projectId === nextProject && !isAuxiliarySession(session))?.id ?? null,
       terminalWorkspacesBySession,
       localServersBySession,
       selectedFileBySession,
@@ -1921,13 +1896,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return true;
     } catch (error) { set({ error: formatUnknownError(error) }); return false; }
   },
-  setSessionAutoArchive: async (sessionId, enabled) => {
-    try {
-      const updated = await client.setSessionAutoArchive(sessionId, enabled);
-      set((state) => ({ sessions: state.sessions.map((session) => session.id === sessionId ? { ...session, autoArchiveDisabled: updated.autoArchiveDisabled ?? false } : session) }));
-      return true;
-    } catch (error) { set({ error: formatUnknownError(error) }); return false; }
-  },
   snoozeSession: async (sessionId, until) => {
     try {
       const updated = await client.snoozeSession(sessionId, until);
@@ -1983,7 +1951,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
         const promptQueues = { ...state.promptQueues }; delete promptQueues[sessionId];
         const loadedTranscripts = { ...state.loadedTranscripts }; delete loadedTranscripts[sessionId];
         return { sessions, promptQueues, loadedTranscripts, unseenSessionIds: state.unseenSessionIds.filter((id) => id !== sessionId), settings: pruneSidebarSettings(state.settings, state.projects, sessions), composerDrafts, composerContexts, contextTexts, contextTextStatus, pullRequestsBySession, browserBySession, browserHistoryBySession, terminalWorkspacesBySession, localServersBySession, selectedFileBySession, dockPanes, dockActivePaneId, editorBuffers, ...(state.selectedSessionId === sessionId ? {
-          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !isAuxiliarySession(session) && !state.settings.archivedSessionIds.includes(session.id))?.id ?? null,
+          selectedSessionId: sessions.find((session) => session.projectId === state.selectedProjectId && !isAuxiliarySession(session))?.id ?? null,
           gitStatus: null, selectedDiff: null, diffText: null,
         } : {}) };
       });
@@ -2918,7 +2886,7 @@ export async function bindRealtime() {
     unlisteners.push(await client.onCiAutofixChanged(() => { void useAppStore.getState().ciAutofixAction({ type: "status" }); }));
     void useAppStore.getState().ciAutofixAction({ type: "status" });
     unlisteners.push(await client.onPrWatchChanged(() => { void useAppStore.getState().prWatchAction({ type: "status" }); }));
-    // Settings changed by the phone, another window or the Mac itself (auto-archive; ADR-130).
+    // Settings changed by the phone or another window.
     unlisteners.push(await client.onSettingsChanged((saved) => {
       if (settingsSavesPending > 0) return;
       const current = useAppStore.getState().settings;
@@ -3095,7 +3063,6 @@ export const selectEnabledAgents = (state: AppStore) =>
   );
 
 let windowSnapSequence = 0;
-let worktreeReleaseSequence = 0;
 /**
  * A global window snap joins the composer that is open: the selected session,
  * or the selected project's new-chat landing. Nothing is sent (ADR-054).
@@ -3141,7 +3108,7 @@ export function usageResumeActive(state: Pick<AppStore, "sessions" | "usageLimit
   const stoppedAt = session ? Date.parse(session.lastActivityAt) : Number.NaN;
   return resumeArmed({
     armed: Boolean(state.usageResumeArmed[sessionId]),
-    auto: state.settings.usageAutoResume && !state.settings.archivedSessionIds.includes(sessionId),
+    auto: state.settings.usageAutoResume,
     limited: Boolean(session?.usageLimit),
     resetsAt: limitReset(state, sessionId),
     stoppedAt: Number.isFinite(stoppedAt) ? stoppedAt : Number.POSITIVE_INFINITY,

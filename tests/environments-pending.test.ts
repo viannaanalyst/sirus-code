@@ -33,20 +33,20 @@ const session = (id: string, fields: Partial<Session> = {}) => ({
 
 test("actions for an unreachable computer wait, the latest of each kind wins", () => {
   let queue: PendingRowAction[] = [];
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "archive" } }, 1);
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "pin" } }, 2);
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "unarchive" } }, 3);
-  queue = queueRowAction(queue, { environmentId: "mac", sessionId: "a", action: { type: "archive" } }, 4);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "pin" } }, 1);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "snooze", until: null } }, 2);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "unpin" } }, 3);
+  queue = queueRowAction(queue, { environmentId: "mac", sessionId: "a", action: { type: "pin" } }, 4);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "rename", title: "One" } }, 5);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "rename", title: "Two" } }, 6);
   assert.deepEqual(queue.map((item) => [item.environmentId, item.sessionId, item.action.type]), [
-    ["vps", "a", "pin"], ["vps", "a", "unarchive"], ["mac", "a", "archive"], ["vps", "b", "rename"],
+    ["vps", "a", "snooze"], ["vps", "a", "unpin"], ["mac", "a", "pin"], ["vps", "b", "rename"],
   ]);
   assert.equal((queue[3].action as { title: string }).title, "Two");
   // A delete replaces whatever waited for that conversation.
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "delete", removeWorktree: false } }, 7);
   assert.deepEqual(queue.map((item) => [item.environmentId, item.sessionId, item.action.type]), [
-    ["mac", "a", "archive"], ["vps", "b", "rename"], ["vps", "a", "delete"],
+    ["mac", "a", "pin"], ["vps", "b", "rename"], ["vps", "a", "delete"],
   ]);
   assert.deepEqual([...pendingSessions(queue, "vps")].sort(), ["a", "b"]);
   // The queue is bounded.
@@ -68,16 +68,15 @@ test("waiting actions survive in storage and bad entries are dropped", () => {
 });
 
 test("rows already show what waits", () => {
-  const summary: EnvironmentSummary = { sessions: [session("a"), session("b"), session("c")], projects: [], archivedSessionIds: ["c"], pinnedSessionIds: [], updatedAt: 5 };
+  const summary: EnvironmentSummary = { sessions: [session("a"), session("b"), session("c")], projects: [], pinnedSessionIds: ["c"], updatedAt: 5 };
   let queue: PendingRowAction[] = [];
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "archive" } }, 1);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "pin" } }, 1);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "pin" } }, 2);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "snooze", until: "2026-10-20T09:00:00Z" } }, 3);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "rename", title: " Renamed " } }, 4);
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "c", action: { type: "unarchive" } }, 5);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "c", action: { type: "unpin" } }, 5);
   const shown = summaryWithPending(summary, queue);
-  assert.deepEqual(shown.archivedSessionIds, ["a"]);
-  assert.deepEqual(shown.pinnedSessionIds, ["b"]);
+  assert.deepEqual(shown.pinnedSessionIds, ["b", "a"]);
   const b = shown.sessions.find((item) => item.id === "b")!;
   assert.equal(b.snoozedUntil, "2026-10-20T09:00:00Z");
   assert.equal(b.title, "Renamed");
@@ -88,7 +87,7 @@ test("rows already show what waits", () => {
 
 test("a computer's actions go out in order when it is back; a failure keeps the rest", async () => {
   let queue: PendingRowAction[] = [];
-  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "archive" } }, 1);
+  queue = queueRowAction(queue, { environmentId: "vps", sessionId: "a", action: { type: "pin" } }, 1);
   queue = queueRowAction(queue, { environmentId: "mac", sessionId: "m", action: { type: "pin" } }, 2);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "b", action: { type: "pin" } }, 3);
   queue = queueRowAction(queue, { environmentId: "vps", sessionId: "c", action: { type: "pin" } }, 4);

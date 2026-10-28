@@ -9,22 +9,22 @@ try {
   const { useAppStore } = await server.ssrLoadModule("/src/store/app-store.ts");
   const snapshot = useAppStore.getInitialState();
   snapshot.projects = [{ id: "owned", name: "Fixture project", path: "/fixture", addedAt: "time", lastOpenedAt: "time" }];
-  snapshot.sessions = ["draft", "recent", "archived", "foreign"].map(id => ({ id, title: `Session ${id}`, projectId: id === "foreign" ? "foreign" : "owned", agent: "codex", model: "gpt-6-luna", status: "running", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: `branch/${id}`, isolated: true }, messages: [], lastError: null }));
+  snapshot.sessions = ["draft", "recent", "foreign"].map(id => ({ id, title: `Session ${id}`, projectId: id === "foreign" ? "foreign" : "owned", agent: "codex", model: "gpt-6-luna", status: "running", createdAt: "time", lastActivityAt: "time", worktree: { path: "/fixture", branch: `branch/${id}`, isolated: true }, messages: [], lastError: null }));
   snapshot.selectedProjectId = "owned";
   snapshot.composerDrafts = { "session:draft": "unsent" };
   for (const locale of ["pt-BR", "en"]) {
-    snapshot.settings = { ...snapshot.settings, locale, archivedSessionIds: ["archived"] };
+    snapshot.settings = { ...snapshot.settings, locale };
     for (const collapsed of [false, true]) {
       snapshot.sidebarCollapsed = collapsed;
       const html = renderToString(createElement(TooltipProvider, null, createElement(Sidebar)));
-      // Four customizable rail items (ADR-052; Kanban retired, ADR-110; Tasks removed, ADR-172), the "more" menu and Settings.
-      assert.equal((html.match(/data-section=/g) ?? []).length, 6);
+      // Three customizable rail items (ADR-052; Kanban retired, ADR-110; Tasks removed, ADR-172; Archived removed, ADR-173), the "more" menu and Settings.
+      assert.equal((html.match(/data-section=/g) ?? []).length, 5);
       assert.ok(!html.includes('data-section="drafts"') && !html.includes('data-section="automations"') && !html.includes('data-section="kanban"') && html.includes('data-section="more"'));
       const gear = html.match(/<button[^>]*data-section="settings"[^>]*>/)?.[0];
       assert.ok(gear && !gear.includes("aria-expanded") && !gear.includes("aria-controls"), "Settings is a direct page action, not a sidebar panel trigger");
       // The rail is the whole sidebar (ADR-092): no panel, no project or session rows, in either state.
       assert.ok(!html.includes('id="sidebar-docked"') && !html.includes("sidebar-peek") && !html.includes('data-section="projects"'));
-      assert.ok(!html.includes("Session draft") && !html.includes("Session recent") && !html.includes("Session foreign") && !html.includes("Session archived"));
+      assert.ok(!html.includes("Session draft") && !html.includes("Session recent") && !html.includes("Session foreign"));
       assert.ok(!html.includes("sidebar-project-group") && !html.includes("sidebar-panel-header"));
       assert.ok(html.includes('data-section="home"') && html.includes('aria-current="page"'), "Home is current in the conversation view");
     }

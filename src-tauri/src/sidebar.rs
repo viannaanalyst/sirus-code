@@ -11,7 +11,6 @@ pub fn validate(settings: &AppSettings) -> Result<()> {
         &settings.sidebar_project_order,
         &settings.pinned_project_ids,
         &settings.pinned_session_ids,
-        &settings.archived_session_ids,
     ] {
         if ids.len() > 4096 || ids.iter().any(|id| id.is_empty() || id.len() > 64) {
             return Err(Error::new(
@@ -76,11 +75,7 @@ pub fn normalize(settings: &mut AppSettings, projects: &[Project], sessions: &[S
             .project_ids
             .retain(|id| project_ids.contains(id.as_str()) && placed.insert(id.clone()));
     }
-    retain_unique(&mut settings.archived_session_ids, &session_ids);
     retain_unique(&mut settings.pinned_session_ids, &session_ids);
-    settings
-        .pinned_session_ids
-        .retain(|id| !settings.archived_session_ids.contains(id));
     // Rail items removed from the closed set (the old drafts filter, the Automations page)
     // drop out of saved settings.
     let rail: HashSet<&str> = crate::models::RAIL_ITEMS.into_iter().collect();
@@ -163,15 +158,13 @@ mod tests {
     }
 
     #[test]
-    fn archive_and_pin_references_are_bounded_owned_and_do_not_change_execution() {
+    fn pin_references_are_bounded_owned_and_do_not_change_execution() {
         let mut data = fixture();
         data.settings.pinned_project_ids = vec!["p".into(), "foreign".into(), "p".into()];
         data.settings.pinned_session_ids = vec!["s".into(), "missing".into()];
-        data.settings.archived_session_ids = vec!["s".into(), "missing".into(), "s".into()];
         prune(&mut data);
         assert_eq!(data.settings.pinned_project_ids, ["p"]);
-        assert_eq!(data.settings.archived_session_ids, ["s"]);
-        assert!(data.settings.pinned_session_ids.is_empty());
+        assert_eq!(data.settings.pinned_session_ids, ["s"]);
         assert!(data.sessions[0].status.is_active());
         assert_eq!(data.sessions[0].worktree.path, "/owned");
         data.settings.pinned_project_ids = vec!["p".into(); 4097];
@@ -244,16 +237,16 @@ mod tests {
     }
 
     #[test]
-    fn metadata_removal_prunes_pins_and_archives() {
+    fn metadata_removal_prunes_pins() {
         let mut data = fixture();
         data.settings.sidebar_project_order = vec!["p".into()];
         data.settings.pinned_project_ids = vec!["p".into()];
-        data.settings.archived_session_ids = vec!["s".into()];
+        data.settings.pinned_session_ids = vec!["s".into()];
         data.projects.clear();
         prune(&mut data);
         assert!(data.settings.sidebar_project_order.is_empty());
         assert!(data.settings.pinned_project_ids.is_empty());
-        assert!(data.settings.archived_session_ids.is_empty());
+        assert!(data.settings.pinned_session_ids.is_empty());
     }
 
     #[test]
@@ -264,12 +257,12 @@ mod tests {
         let mut data = fixture();
         data.settings.sidebar_project_order = vec!["p".into()];
         data.settings.pinned_project_ids = vec!["p".into()];
-        data.settings.archived_session_ids = vec!["s".into()];
+        data.settings.pinned_session_ids = vec!["s".into()];
         let restored: AppData =
             serde_json::from_slice(&serde_json::to_vec(&data).unwrap()).unwrap();
         assert_eq!(restored.settings.sidebar_project_order, ["p"]);
         assert_eq!(restored.settings.pinned_project_ids, ["p"]);
-        assert_eq!(restored.settings.archived_session_ids, ["s"]);
+        assert_eq!(restored.settings.pinned_session_ids, ["s"]);
     }
 
     #[test]

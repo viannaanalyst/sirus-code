@@ -1,6 +1,6 @@
 # ADR-130: Mac settings from the phone, auto-archive, auto-pull and About pages
 
-**Status:** Accepted (2026-10-13).
+**Status:** Accepted (2026-10-13); the archiving it describes is superseded by [ADR-173](ADR-173-conversation-archive-removed.md).
 
 ## Context
 

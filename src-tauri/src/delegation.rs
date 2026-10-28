@@ -81,7 +81,7 @@ pub fn active_children(data: &AppData, parent_id: &str) -> Vec<String> {
 }
 
 /// The delegated tasks to continue after a restart: cut mid-turn by a
-/// crash, unfinished, neither they nor their parent stopped by the person or archived, and
+/// crash, unfinished, neither they nor their parent stopped by the person, and
 /// within the shared limits (`crash_resume::may_continue`: not snoozed, at most three
 /// automatic continuations in a row; ADR-118).
 fn resumable(
@@ -92,8 +92,7 @@ fn resumable(
     data.sessions
         .iter()
         .filter(|session| interrupted.contains(&session.id))
-        // Nothing archived starts again.
-        .filter(|session| crate::crash_resume::may_continue(data, session, now))
+        .filter(|session| crate::crash_resume::may_continue(session, now))
         .filter(|session| {
             session.delegated_by.as_ref().is_some_and(|by| {
                 by.notify
@@ -102,10 +101,7 @@ fn resumable(
                         .sessions
                         .iter()
                         .find(|parent| parent.id == by.session_id)
-                        .is_some_and(|parent| {
-                            parent.stopped_by_user_at.is_none()
-                                && !data.settings.archived_session_ids.contains(&parent.id)
-                        })
+                        .is_some_and(|parent| parent.stopped_by_user_at.is_none())
             })
         })
         .map(|session| session.id.clone())
@@ -499,10 +495,7 @@ fn take_ready(data: &mut AppData, parent_id: &str) -> Option<(String, Vec<String
         .sessions
         .iter()
         .find(|session| session.id == parent_id)?;
-    if parent.status.is_active()
-        || parent.stopped_by_user_at.is_some()
-        || data.settings.archived_session_ids.contains(&parent.id)
-    {
+    if parent.status.is_active() || parent.stopped_by_user_at.is_some() {
         return None;
     }
     let children = |session: &&Session| {
@@ -619,7 +612,7 @@ mod tests {
     }
 
     #[test]
-    fn archived_work_never_restarts_and_unread_results_are_found() {
+    fn unread_results_are_found_and_snoozed_work_never_restarts() {
         let mut data = AppData {
             sessions: vec![
                 session("parent", SessionStatus::Completed, None),
@@ -633,17 +626,6 @@ mod tests {
             resumable(&data, &interrupted, chrono::Utc::now()),
             vec!["a".to_string()]
         );
-        data.settings.archived_session_ids = vec!["parent".into()];
-        assert!(
-            resumable(&data, &interrupted, chrono::Utc::now()).is_empty(),
-            "archived parent"
-        );
-        data.settings.archived_session_ids = vec!["a".into()];
-        assert!(
-            resumable(&data, &interrupted, chrono::Utc::now()).is_empty(),
-            "archived task"
-        );
-        data.settings.archived_session_ids.clear();
         data.sessions[1].snoozed_until = Some("2999-01-01T00:00:00Z".into());
         assert!(
             resumable(&data, &interrupted, chrono::Utc::now()).is_empty(),
@@ -656,15 +638,9 @@ mod tests {
             "three automatic continuations in a row"
         );
         data.sessions[1].auto_continuations = 0;
-        data.settings.archived_session_ids = vec!["a".into()];
         assert!(pending_parents(&data).is_empty());
         data.sessions[2].delegated_by.as_mut().unwrap().settled = true;
         assert_eq!(pending_parents(&data), vec!["parent".to_string()]);
-        data.settings.archived_session_ids = vec!["parent".into()];
-        assert!(
-            take_ready(&mut data, "parent").is_none(),
-            "an archived parent is not woken"
-        );
     }
 
     #[test]
