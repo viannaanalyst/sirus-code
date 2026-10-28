@@ -49,6 +49,24 @@ pub enum Thought {
     End,
 }
 
+/// One step of the agent's own to-do plan, normalized across providers (ADR-182).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanEntry {
+    pub text: String,
+    pub status: PlanStatus,
+}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PlanStatus {
+    Pending,
+    InProgress,
+    Completed,
+}
+/// Longest plan kept, and the longest text of one step.
+const MAX_PLAN: usize = 50;
+const MAX_PLAN_TEXT: usize = 200;
+
 const MAX_ITEMS: usize = 128;
 /// Newest steps kept per child; older ones only count toward `hidden_steps`.
 const MAX_CHILD_STEPS: usize = 20;
@@ -127,6 +145,9 @@ pub struct ActivityItem {
     /// Signal only: the provider took the turn's prompt, so a handoff recap it carried is spent.
     #[serde(skip)]
     pub delivered: bool,
+    /// Signal only: the agent's whole to-do plan as of now (ADR-182). An empty list clears it.
+    #[serde(skip)]
+    pub plan: Option<Vec<PlanEntry>>,
     /// The native delegation call that owns this child (Claude tool use): routes live updates
     /// and lets the person send that subagent to the background (ADR-111).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -185,6 +206,9 @@ pub struct TurnActivity {
     /// runs (ADR-101). Sent to the renderer, left out of transcript files, cleared at the end.
     #[serde(default, skip_deserializing, skip_serializing_if = "skip_thought")]
     pub thought: Option<String>,
+    /// The agent's latest to-do plan this turn (ADR-182): the whole list on every update.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plan: Vec<PlanEntry>,
     #[serde(skip)]
     pending: Vec<ActivityItem>,
     /// The open reasoning block: what was read so far, and whether its first sentence is known.
@@ -205,6 +229,7 @@ impl TurnActivity {
             truncated: false,
             review: None,
             thought: None,
+            plan: vec![],
             pending: vec![],
             thinking: None,
         }
@@ -284,12 +309,31 @@ impl TurnActivity {
         self.thought = Some(text);
         true
     }
+    /// Replaces the plan (bounded, credentials masked); true when it changed.
+    fn set_plan(&mut self, plan: Vec<PlanEntry>) -> bool {
+        let plan: Vec<PlanEntry> = plan
+            .into_iter()
+            .take(MAX_PLAN)
+            .map(|entry| PlanEntry {
+                text: short(&crate::redact::mask(&entry.text), MAX_PLAN_TEXT),
+                status: entry.status,
+            })
+            .collect();
+        if plan == self.plan {
+            return false;
+        }
+        self.plan = plan;
+        true
+    }
     pub fn observe(&mut self, mut item: ActivityItem) -> bool {
         if self.ended_at.is_some() {
             return false;
         }
         if let Some(signal) = item.thought.take() {
             return self.think(signal);
+        }
+        if let Some(plan) = item.plan.take() {
+            return self.set_plan(plan);
         }
         if item.delivered || item.id.is_empty() || item.id.len() > 256 {
             return false;
@@ -592,6 +636,7 @@ fn item(
         finished_task: false,
         thought: None,
         delivered: false,
+        plan: None,
         source: None,
         parent: None,
         workflow: None,
@@ -740,6 +785,11 @@ pub fn observe(session: &mut Session, observation: ActivityItem) -> bool {
     if let Some(Thought::Text { text, .. }) = observation.thought.as_mut() {
         *text = crate::secrets::scrub(&session.id, std::mem::take(text));
     }
+    if let Some(plan) = observation.plan.as_mut() {
+        for entry in plan {
+            entry.text = crate::secrets::scrub(&session.id, std::mem::take(&mut entry.text));
+        }
+    }
     // A value the person provided privately this turn never lands in a row.
     observation.detail =
         crate::secrets::scrub(&session.id, std::mem::take(&mut observation.detail));
@@ -761,6 +811,62 @@ pub fn model(session: &mut Session, model: &str) {
             activity.model = Some(short(model, 100));
         }
     }
+}
+/// A provider's status word as a plan status: `in_progress`, `inProgress` and `active` are the
+/// current step, `completed` and `done` are finished; anything else (including a cancelled
+/// OpenCode todo) is neither done nor being worked on.
+fn plan_status(entry: &Value) -> PlanStatus {
+    let word = entry["status"]
+        .as_str()
+        .map(|v| {
+            v.chars()
+                .filter(|c| c.is_ascii_alphanumeric())
+                .collect::<String>()
+                .to_ascii_lowercase()
+        })
+        .unwrap_or_default();
+    match word.as_str() {
+        "inprogress" | "active" | "running" => PlanStatus::InProgress,
+        "completed" | "complete" | "done" | "finished" => PlanStatus::Completed,
+        "" if entry["completed"] == true || entry["done"] == true => PlanStatus::Completed,
+        _ => PlanStatus::Pending,
+    }
+}
+/// The shared shape of every provider's plan: a list of `{text-ish, status}` entries (Claude
+/// `TodoWrite` `todos`, Codex `plan`, ACP `entries`, OpenCode `todowrite`, Cursor todos).
+fn plan_entries(list: &Value) -> Option<Vec<PlanEntry>> {
+    let list = list.as_array()?;
+    Some(
+        list.iter()
+            .take(MAX_PLAN)
+            .filter_map(|entry| {
+                let text = [
+                    "content",
+                    "step",
+                    "text",
+                    "title",
+                    "description",
+                    "activeForm",
+                ]
+                .iter()
+                .find_map(|key| entry[*key].as_str().filter(|t| !t.trim().is_empty()))
+                .or_else(|| entry.as_str())?;
+                Some(PlanEntry {
+                    text: text.trim().to_owned(),
+                    status: plan_status(entry),
+                })
+            })
+            .collect(),
+    )
+}
+fn plan_signal(list: &Value) -> Option<ActivityItem> {
+    let mut row = item("plan".into(), ItemKind::Tool, "", ItemState::Unknown, None);
+    row.plan = Some(plan_entries(list)?);
+    Some(row)
+}
+/// Codex `turn/plan/updated` (`update_plan`): the whole plan for the turn.
+pub fn codex_plan(params: &Value) -> Option<ActivityItem> {
+    plan_signal(&params["plan"])
 }
 /// Caller already checked parent thread AND active turn. Ignore all raw args and output; a
 /// finished reasoning item only feeds the live thought (ADR-101).
@@ -786,6 +892,7 @@ pub fn codex(v: &Value, started: bool) -> Vec<ActivityItem> {
                 .unwrap_or_default();
         }
         Some("agentMessage") if started => return vec![thought(Thought::End)],
+        Some("todoList") => return plan_signal(&v["items"]).into_iter().collect(),
         _ => {}
     }
     let state = if started {
@@ -1047,7 +1154,18 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
     } else {
         vec![]
     };
-    content
+    // The main agent's whole to-do list (ADR-182); a subagent's stays its own. The streamed
+    // block start carries no input yet, so only the complete message reads as a plan.
+    let plans: Vec<ActivityItem> = if parent.is_none() {
+        content
+            .iter()
+            .filter(|block| block["type"] == "tool_use" && block["name"] == "TodoWrite")
+            .filter_map(|block| plan_signal(&block["input"]["todos"]))
+            .collect()
+    } else {
+        vec![]
+    };
+    let mut rows: Vec<ActivityItem> = content
         .into_iter()
         .take(MAX_ITEMS)
         .filter_map(|block| {
@@ -1096,7 +1214,9 @@ pub fn claude(v: &Value) -> Vec<ActivityItem> {
             observed.parent = parent.map(str::to_owned);
             Some(observed)
         })
-        .collect()
+        .collect();
+    rows.extend(plans);
+    rows
 }
 /// A step on a subagent's card: the person's message reached it (ADR-113).
 pub fn subagent_message_delivered(task_id: &str) -> ActivityItem {
@@ -1179,6 +1299,8 @@ pub fn opencode(v: &Value) -> Vec<ActivityItem> {
                 .unwrap_or_default();
         }
         Some("agent_message_chunk") => return vec![thought(Thought::End)],
+        // ACP plan updates carry the whole list as `entries` (Gemini, Cursor, Devin, ...).
+        Some("plan") => return plan_signal(&v["entries"]).into_iter().collect(),
         _ => {}
     }
     if !matches!(
@@ -1227,7 +1349,9 @@ pub fn opencode(v: &Value) -> Vec<ActivityItem> {
         .or_else(|| v["title"].as_str())
         .unwrap_or("")
         .to_owned();
-    vec![row]
+    // OpenCode's `todowrite` and Cursor's todo updates carry the list in the call's input.
+    let plan = plan_signal(&v["rawInput"]["todos"]);
+    std::iter::once(row).chain(plan).collect()
 }
 
 #[cfg(test)]
@@ -1724,5 +1848,74 @@ mod tests {
             assert!(!a.observe(observed));
         }
         assert_eq!(a.items.len(), 1);
+    }
+
+    fn plan_of(items: Vec<ActivityItem>) -> Vec<(String, PlanStatus)> {
+        let mut a = TurnActivity::new(AgentProviderId::Claude, None);
+        for observed in items {
+            a.observe(observed);
+        }
+        a.plan.into_iter().map(|e| (e.text, e.status)).collect()
+    }
+    #[test]
+    fn every_provider_plan_shape_becomes_one_list() {
+        use PlanStatus::*;
+        let want = vec![
+            ("Read".to_owned(), Completed),
+            ("Fix".to_owned(), InProgress),
+            ("Test".to_owned(), Pending),
+        ];
+        // Claude TodoWrite, from the complete message (the streamed start has no input).
+        let claude_todos = json!({"type":"assistant","message":{"content":[{"type":"tool_use","id":"t","name":"TodoWrite","input":{"todos":[
+            {"content":"Read","status":"completed","activeForm":"Reading"},
+            {"content":"Fix","status":"in_progress","activeForm":"Fixing"},
+            {"content":"Test","status":"pending","activeForm":"Testing"}]}}]}});
+        assert_eq!(plan_of(claude(&claude_todos)), want);
+        let start = json!({"type":"stream_event","event":{"type":"content_block_start","content_block":{"type":"tool_use","id":"t","name":"TodoWrite","input":{}}}});
+        assert!(plan_of(claude(&start)).is_empty());
+        let mut child = claude_todos.clone();
+        child["parent_tool_use_id"] = json!("p");
+        assert!(plan_of(claude(&child)).is_empty());
+        // Codex update_plan and the legacy todoList item.
+        let codex_plan_update = codex_plan(&json!({"plan":[
+            {"step":"Read","status":"completed"},{"step":"Fix","status":"inProgress"},{"step":"Test","status":"pending"}]}));
+        assert_eq!(plan_of(codex_plan_update.into_iter().collect()), want);
+        let legacy = codex(
+            &json!({"id":"l","type":"todoList","items":[
+                {"text":"Read","completed":true},{"text":"Fix","completed":false},{"text":"Test","completed":false}]}),
+            false,
+        );
+        assert_eq!(plan_of(legacy)[0], ("Read".to_owned(), Completed));
+        // ACP plan entries.
+        let acp = opencode(&json!({"sessionUpdate":"plan","entries":[
+            {"content":"Read","priority":"high","status":"completed"},
+            {"content":"Fix","priority":"high","status":"in_progress"},
+            {"content":"Test","priority":"low","status":"pending"}]}));
+        assert_eq!(plan_of(acp), want);
+        // OpenCode todowrite (and a cancelled todo reads as pending) and Cursor todos.
+        let todowrite = opencode(
+            &json!({"sessionUpdate":"tool_call","toolCallId":"w","kind":"other","status":"completed","rawInput":{"todos":[
+            {"content":"Read","status":"completed","priority":"high"},
+            {"content":"Fix","status":"in_progress"},
+            {"content":"Test","status":"cancelled"}]}}),
+        );
+        assert_eq!(todowrite.len(), 2);
+        assert_eq!(plan_of(todowrite), want);
+    }
+    #[test]
+    fn plans_replace_wholesale_clear_and_mask_credentials() {
+        let mut a = TurnActivity::new(AgentProviderId::Codex, None);
+        let update =
+            |step: &str| codex_plan(&json!({"plan":[{"step":step,"status":"pending"}]})).unwrap();
+        assert!(a.observe(update("One")));
+        assert!(!a.observe(update("One")));
+        assert!(a.observe(update("Two")));
+        assert_eq!(a.plan.len(), 1);
+        assert!(a.observe(codex_plan(&json!({"plan":[]})).unwrap()));
+        assert!(a.plan.is_empty());
+        let long = "x".repeat(500);
+        a.observe(update(&long));
+        assert_eq!(a.plan[0].text.chars().count(), MAX_PLAN_TEXT);
+        assert!(serde_json::to_string(&a).unwrap().contains("\"plan\""));
     }
 }
