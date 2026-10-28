@@ -379,6 +379,7 @@ fn browser_tool(
                 .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
                 .map_err(map_error)
         }
+        "browser_fill_login" => crate::browser_login::agent_fill(app, session_id, &args),
         "browser_back" => browser::mcp_back(app, session_id)
             .map(|state| serde_json::to_value(state).unwrap_or(Value::Null))
             .map_err(map_error),
@@ -704,6 +705,7 @@ fn browser_tool_definitions() -> Vec<Value> {
         json!({ "name": "browser_evaluate", "description": "Run JavaScript in the active page and return its JSON value (bounded to 32 KB). Runs with the page's own permissions and can read what the page shows; it is available only while Agent browser access is on in Settings. Use an expression, or statements that end with return.", "inputSchema": { "type": "object", "properties": { "expression": { "type": "string" } }, "required": ["expression"] } }),
         json!({ "name": "browser_network", "description": "Recent requests of the current page since it loaded (fetch and XHR calls, plus resource timings): method, URL without query values, status, type, duration. Responses and bodies are not recorded; some requests made before the page's scripts ran may be missing.", "inputSchema": { "type": "object", "properties": { "limit": { "type": "number" }, "clear": { "type": "boolean" } } } }),
         json!({ "name": "browser_resize", "description": "Set the page's viewport to width by height CSS pixels (240–3840), like device mode with a custom size. Use browser_device with fill: true to go back to the pane's size.", "inputSchema": { "type": "object", "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } }, "required": ["width", "height"] } }),
+        crate::browser_login::tool_definition(),
         json!({ "name": "browser_color_scheme", "description": "Set the colour scheme pages see (prefers-color-scheme): light, dark, or system to follow the app.", "inputSchema": { "type": "object", "properties": { "scheme": { "type": "string", "enum": ["light", "dark", "system"] } }, "required": ["scheme"] } }),
     ]
 }

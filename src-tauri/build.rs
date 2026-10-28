@@ -23,6 +23,7 @@ mod host_commands {
         "app_update",
         "browser",
         "browser_agent",
+        "browser_login",
         "browser_recording",
         "devices",
         "window_reveal",

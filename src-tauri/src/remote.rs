@@ -87,6 +87,16 @@ const DENIED: &[&str] = &[
     "share_push_identity",
     // Updating replaces and restarts this Mac's app (ADR-140).
     "app_update_action",
+    // Saved browser logins stay on this Mac (ADR-186).
+    "login_vault_list",
+    "login_vault_save",
+    "login_vault_delete",
+    "login_vault_set_agent_use",
+    "login_vault_matches",
+    "login_vault_prompts",
+    "login_vault_answer_offer",
+    "login_vault_answer_approval",
+    "login_vault_autofill",
 ];
 
 const CSP: &str = "default-src 'self'; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' https://*.ts.net wss://*.ts.net; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; frame-ancestors 'none'";

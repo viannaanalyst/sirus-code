@@ -112,6 +112,7 @@ fn publish(app: &AppHandle) {
 
 /// Ends a session's turn: pending cards are declined, references and env files are gone.
 pub fn end_turn(session_id: &str) {
+    crate::login_vault::end_turn(session_id);
     let (pending, files, changed) = with_vault(|vault| {
         let before = vault.pending.len();
         let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut vault.pending)
@@ -152,6 +153,15 @@ pub fn clear_all() {
     }
     for (_, file) in files {
         let _ = std::fs::remove_file(file);
+    }
+}
+
+/// Registers a value that went into a page (a saved login's password) so any echo of it in
+/// this turn's output is masked like a provided secret (ADR-186).
+pub fn note_value(session_id: &str, value: &str) {
+    if value.len() >= 4 {
+        let value = Arc::new(SecretValue(value.to_string()));
+        with_vault(|vault| vault.values.push((session_id.to_string(), value)));
     }
 }
 
@@ -525,7 +535,7 @@ fn use_secret(app: &AppHandle, session_id: &str, args: &Value) -> Result<Value, 
 
 /// Sent as the session server's MCP `instructions`, which the agent CLIs put in their
 /// system prompt: credentials are asked for through the private card, never in chat.
-pub const INSTRUCTIONS: &str = "Sirus Code session tools. Credentials: whenever a task needs an API key, token, password or other secret you do not have, call `request_secret` (label, why, and the `envName` and/or workspace `path` it belongs in) and then `use_secret` with the returned secretRef. The person types it in a private card in the app; you never see the value. Do this instead of asking for the secret in chat, telling the person to paste it, or ending your reply with \"credentials are missing\". Only skip it when the person said they will configure it themselves.";
+pub const INSTRUCTIONS: &str = "Sirus Code session tools. Credentials: whenever a task needs an API key, token, password or other secret you do not have, call `request_secret` (label, why, and the `envName` and/or workspace `path` it belongs in) and then `use_secret` with the returned secretRef. The person types it in a private card in the app; you never see the value. Do this instead of asking for the secret in chat, telling the person to paste it, or ending your reply with \"credentials are missing\". Only skip it when the person said they will configure it themselves. Sign-ins: on a login page in the session browser, try `browser_fill_login` first; it uses a login the person saved and you never see the password.";
 
 /// Bridge entry for `request_secret` and `use_secret`; blocks while the card waits.
 pub fn execute(

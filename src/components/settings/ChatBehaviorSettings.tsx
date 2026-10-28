@@ -6,6 +6,7 @@ import { InteractiveButton } from "@/primitives/InteractiveButton";
 import { SegmentedControl } from "@/primitives/SegmentedControl";
 import { Switch } from "@/primitives/Switch";
 import { BrowserProfilesSettings } from "./BrowserProfilesSettings";
+import { SavedLoginsSettings } from "./SavedLoginsSettings";
 import { SettingsGroup, SettingsRow, SettingsSection } from "./SettingsSection";
 import "@/styles/general-settings.css";
 
@@ -77,6 +78,8 @@ export function ChatBehaviorSettings({ settings, onSave }: { settings: AppSettin
     </SettingsGroup>
     {/* Browser profiles (ADR-149). */}
     <BrowserProfilesSettings settings={settings} onSave={onSave} />
+    {/* Saved logins in the Keychain (ADR-186). */}
+    <SavedLoginsSettings />
     {/* Browser recordings (ADR-112). */}
     <SettingsGroup title={t("browser.recordingSettings")} card>
       <SettingsRow title={t("browser.recordFps")} description={t("browser.recordFpsHelp")}>
