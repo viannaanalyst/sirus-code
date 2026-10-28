@@ -58,6 +58,9 @@ export function NotificationSettings({ settings, onSave }: { settings: AppSettin
       </SettingsRow>
       <SettingsRow title={t("Notification sounds")} description={t("Play the selected cue. Uses your system output volume.")}>{toggle("sounds", "Notification sounds")}</SettingsRow>
       <SettingsRow title={t("Notify while app is in focus")} description={t("Also show system alerts and play sounds while Sirus Code is active.")}>{toggle("foreground", "Notify while app is in focus")}</SettingsRow>
+      <SettingsRow title={t("Sounds")} description={t("A soft chime when an agent finishes a turn or needs you. Not played for the conversation you are viewing.")}>
+        <Switch label={t("Sounds")} checked={settings.agentSounds} onChange={value => onSave({ ...settings, agentSounds: value })} />
+      </SettingsRow>
     </SettingsGroup>
     <SettingsGroup title={t("Events and sounds")} card>
       {rows.map(row => <SettingsRow key={row.key} title={t(row.label)} description={t(row.description)}>

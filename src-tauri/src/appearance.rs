@@ -393,6 +393,10 @@ mod tests {
         assert_eq!(defaults["dockIcon"], "default");
         assert_eq!(defaults["darkSidebarTranslucent"], false);
         assert_eq!(defaults["lightSidebarTranslucent"], false);
+        // Sounds are opt-in (ADR-171): a missing key stays off, and an explicit true survives.
+        assert_eq!(defaults["agentSounds"], false);
+        let sounds: AppSettings = serde_json::from_str(r#"{"agentSounds":true}"#).unwrap();
+        assert!(sounds.agent_sounds);
         let migrated: AppSettings =
             serde_json::from_str(r#"{"theme":"system","glass":true}"#).unwrap();
         assert_eq!(migrated.theme, ThemePref::System);

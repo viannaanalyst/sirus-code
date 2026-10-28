@@ -493,6 +493,8 @@ export interface AppSettings {
   continueInterruptedSessions: boolean;
   /** Beta: idle Claude conversations over 200K tokens compact shortly before the cache expires (ADR-157). */
   compactIdleBeforeCacheExpiry: boolean;
+  /** Sounds (off by default): soft chimes when an agent finishes a turn or needs you (ADR-171). */
+  agentSounds: boolean;
   /** Providers → Advanced: finished conversations that keep their agent running (16 = all). */
   keepIdleAgents: number;
   /** Browser recordings (ADR-112): 30 or 60 fps, and key presses and clicks drawn over the video. */
