@@ -8,6 +8,9 @@ import { UsageLimitAccountPicker } from "@/components/UsageLimitAccountPicker";
 import { useAppStore, usageResumeActive } from "@/store/app-store";
 import "@/styles/context-meter.css";
 
+/** The store's current state; read outside the hook so the compiler does not see a hook used as a value. */
+const appState = () => useAppStore.getState();
+
 /** Above the composer when the last turn hit the provider's usage limit. */
 export function UsageLimitNotice({ session }: { session: Session }) {
   const t = useTranslation();
@@ -30,7 +33,7 @@ export function UsageLimitNotice({ session }: { session: Session }) {
     return () => window.clearInterval(timer);
   }, [waiting]);
   if (!limit || dismissed) return null;
-  const store = useAppStore.getState();
+  const store = appState();
   const running = session.status === "starting" || session.status === "running" || session.status === "waiting";
   const when = () => {
     if (resetsAt == null) return t("usageLimit.unknown");

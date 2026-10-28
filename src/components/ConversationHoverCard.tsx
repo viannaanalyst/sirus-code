@@ -23,23 +23,23 @@ interface HoverTarget { id: string; row: HTMLElement }
 export function useConversationHover() {
   const [controller] = useState(() => new HoverCardController<HoverTarget>());
   const handlers = useMemo(() => {
-    let hovered: HTMLElement | null = null;
-    const leave = () => { if (hovered) controller.leave(hovered.dataset.conversation ?? ""); hovered = null; };
+    const hover: { row: HTMLElement | null } = { row: null };
+    const leave = () => { if (hover.row) controller.leave(hover.row.dataset.conversation ?? ""); hover.row = null; };
     return {
       onPointerOver: (event: ReactPointerEvent<HTMLElement>) => {
         // Touch never opens it; neither does a pointer dragging (a split drag, a selection).
         if (event.pointerType === "touch" || event.buttons !== 0 || "splitDragging" in document.documentElement.dataset) return;
         const row = (event.target as HTMLElement).closest<HTMLElement>("[data-conversation]");
-        if (row === hovered) return;
+        if (row === hover.row) return;
         leave();
         if (!row || !event.currentTarget.contains(row)) return;
-        hovered = row;
+        hover.row = row;
         controller.enter({ id: row.dataset.conversation ?? "", row });
       },
       onPointerLeave: leave,
       // A press opens the conversation or starts a drag: the card goes and stays away from that row.
       onPointerDown: (event: ReactPointerEvent<HTMLElement>) => controller.dismiss((event.target as HTMLElement).closest<HTMLElement>("[data-conversation]")?.dataset.conversation ?? null),
-      onScroll: () => controller.dismiss(hovered?.dataset.conversation ?? null),
+      onScroll: () => controller.dismiss(hover.row?.dataset.conversation ?? null),
       onMenuOpenChange: (open: boolean) => controller.block(open),
     };
   }, [controller]);

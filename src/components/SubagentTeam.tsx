@@ -61,7 +61,7 @@ export const SubagentTeam = memo(function SubagentTeam({ items, provider, sessio
     progress.running ? t("team.runningCount", { count: progress.running }) : null,
     progress.failed ? t(progress.failed === 1 ? "team.failedCount.one" : "team.failedCount", { count: progress.failed }) : null,
   ].filter(Boolean).join(" · ");
-  let number = 0;
+  const numbers = new Map(phases.flatMap((phase) => phase.members).map((member, index) => [member.id, index + 1] as const));
   return <section className="team-card" data-running={progress.running > 0 || undefined} aria-label={t("team.label")}>
     <button type="button" className="team-card-head" aria-expanded={open} aria-controls={bodyId} title={t(open ? "team.collapse" : "team.expand")} onClick={() => setOpen((value) => !value)}>
       <span className="team-card-icon" aria-hidden="true"><Users size={14} /></span>
@@ -77,8 +77,7 @@ export const SubagentTeam = memo(function SubagentTeam({ items, provider, sessio
           {phases.length > 1 ? <div className="team-phase-title">{t("team.phase", { number: phase.index })}</div> : null}
           <ul className="team-members">
             {phase.members.map((member) => {
-              number += 1;
-              const name = member.label || t("team.untitled", { number });
+              const name = member.label || t("team.untitled", { number: numbers.get(member.id) ?? 0 });
               return <li key={member.id}>
                 <MemberRow member={member} name={name} provider={provider} now={now} onOpen={() => openView(sessionId, messageId, { id: member.id, key: member.key, label: name })} />
               </li>;

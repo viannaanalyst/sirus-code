@@ -155,13 +155,11 @@ const ResultGroup = memo(function ResultGroup({ file, root, query, caseSensitive
 function Highlighted({ text, query, caseSensitive }: { text: string; query: string; caseSensitive: boolean }) {
   const ranges = literalRanges(text, query, caseSensitive);
   if (!ranges.length) return text;
-  let cursor = 0;
   return <>
-    {ranges.map((range) => {
-      const prefix = text.slice(cursor, range.start);
-      cursor = range.end;
+    {ranges.map((range, index) => {
+      const prefix = text.slice(index ? ranges[index - 1].end : 0, range.start);
       return <Fragment key={range.start}>{prefix}<mark className="rounded-sm bg-accent/25 text-text-primary">{text.slice(range.start, range.end)}</mark></Fragment>;
     })}
-    {text.slice(cursor)}
+    {text.slice(ranges[ranges.length - 1].end)}
   </>;
 }
