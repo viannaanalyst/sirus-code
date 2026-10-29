@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, 
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { ModelIcon } from "@/components/ModelIcon";
+import { PixelSpinner } from "@/components/PixelSpinner";
+import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
 import { useProjectMenu } from "@/components/ProjectActions";
 import { ProjectHoverActions, SessionHoverActions } from "@/components/HoverActions";
@@ -14,6 +16,7 @@ import { RailGlyph } from "@/components/SidebarRailMore";
 import { SnoozePicker } from "@/components/SnoozePicker";
 import { useTranslation } from "@/i18n/use-translation";
 import { conversationListItems, conversationOrderSettings, conversationSortKeys, expandOpenFolder, itemOffsets, offsetWindow, openFolderIds, toggleOpenFolder, type ConversationListSettings } from "@/lib/conversation-list";
+import { rowStatus, type RowStatus } from "@/lib/conversation-row-status";
 import { hasUnreadGithubItems } from "@/lib/github-seen";
 import { tabStatus, type TabStatus } from "@/lib/header-tabs";
 import { effectiveShortcut, shortcutLabel } from "@/lib/keybindings";
@@ -353,10 +356,21 @@ const MoreRow = memo(function MoreRow({ projectId, hidden, motion, depth, onTogg
   </div>;
 });
 
+const ROW_STATE_LABEL: Record<RowStatus, string> = { working: "sidebarList.state.working", needsYou: "sidebarList.state.needsYou", done: "sidebarList.state.done" };
+
+/** The right corner of a conversation under a project: working (pixel spinner), needs you (dot) or done (check), in words. */
+function RowStateLabel({ state }: { state: RowStatus }) {
+  const t = useTranslation();
+  return <span className="conversation-row-age conversation-row-state" data-state={state}>
+    {state === "working" ? <PixelSpinner /> : state === "done" ? <Check size={11} aria-hidden="true" /> : <span className="conversation-row-state-pip" aria-hidden="true" />}
+    {t(ROW_STATE_LABEL[state])}
+  </span>;
+}
+
 /**
  * "full" (Recent): project and age with the live dot, the title, branch and model mark.
- * "nested" (in a folder): one line with the dot, title, the branch when the conversation has
- * its own worktree, and age; the model is in the tooltip.
+ * "nested" (in a folder): one line with the agent mark (a pixel spinner while it works), title, the
+ * branch when the conversation has its own worktree, and the status or age; the model is in the tooltip.
  */
 const ConversationRow = memo(function ConversationRow({ session, project, status, active, pinned, age, variant, motion, depth = 0 }: { session: Session; project: Project; status: TabStatus; active: boolean; pinned: boolean; age: string; variant: "full" | "nested"; motion?: "open" | "close"; depth?: number }) {
   const t = useTranslation();
@@ -365,9 +379,12 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
   const ageText = <span className="conversation-row-age">{age === "now" ? t("Now") : age}</span>;
   const dotMark = dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : null;
   const nested = variant === "nested";
-  const title = <span className="conversation-row-title">{variant === "full" ? null : dotMark ?? (nested ? <span className="conversation-row-dot-space" aria-hidden="true" /> : null)}{pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>
+  const state = rowStatus(status, active);
+  const title = <span className="conversation-row-title">
+    {nested ? <span className="conversation-row-mark" aria-hidden="true">{state === "working" ? <PixelSpinner /> : <ProviderIcon id={session.agent} size={13} />}</span> : null}
+    {pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>
     {nested && session.worktree.isolated ? <span className="conversation-row-branch">{session.worktree.branch}</span> : null}
-    {variant === "full" ? null : ageText}</span>;
+    {nested ? (state ? <RowStateLabel state={state} /> : ageText) : null}</span>;
   const detail = <span className="conversation-row-detail">
     <span className="conversation-row-branch">{session.worktree.branch}</span>
     <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />

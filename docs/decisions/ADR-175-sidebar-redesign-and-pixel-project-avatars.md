@@ -148,3 +148,15 @@ states and performance rules above are unchanged.
 - A project's icon can no longer be a logo or an emoji. This is the owner's choice.
 - Old `look` data lingers unused until the follow-up prune.
 - Phones show the avatars and state but do not edit them yet; editing is desktop-only.
+
+## Amendment: conversation rows under a project
+
+The one-line rows nested under a project drop the vertical guide line and the large running dot,
+following Zeron's list. Each row starts with the conversation's agent mark (the provider logo, 13 px,
+in a fixed slot so it lines up under the project name) and then the single-line title. While the
+conversation works, the mark is replaced by a mini pixel spinner: a 2x3 grid of 2 px cells where a
+light runs clockwise (ring order `[[0,1],[5,2],[4,3]]`, 1.2 s per turn), a CSS animation that pauses
+offscreen and stays still with reduced motion or animations off. The right corner shows the age when
+idle, otherwise an 11 px status: working (spinner, accent), needs you (dot, warning; pending approval
+or question) or done (check, success; finished and not yet seen). The mapping is `rowStatus` in
+`src/lib/conversation-row-status.ts`. Recent's two-line rows are unchanged.
