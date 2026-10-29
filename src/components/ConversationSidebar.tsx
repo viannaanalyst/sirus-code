@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, GitBranch, Moon, Pencil, Pin, PinOff, Plus, Rows, Search, SidebarLeft, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, GitBranch, Moon, Pencil, Pin, PinOff, Plus, Rows, Search, SidebarLeft, Settings, Sparkles, Trash2 } from "@/components/icons";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
 import { PixelSpinner } from "@/components/PixelSpinner";
@@ -79,11 +79,11 @@ export function ConversationSidebar({ motion = null }: { motion?: SidebarMotion 
   const back = <IconButton tooltip={false} label={t("Back")} disabled={index <= 0} onClick={() => store().goBack()} className={headButton}><ArrowLeft size={16} /></IconButton>;
   const forward = <IconButton tooltip={false} label={t("Forward")} disabled={index >= historyLength - 1} onClick={() => store().goForward()} className={headButton}><ArrowRight size={16} /></IconButton>;
   const collapse = <IconButton tooltip={false} label={t("sidebar.hide")} aria-expanded onClick={() => store().toggleSidebar()} className={headButton}><SidebarLeft size={16} /></IconButton>;
-  const newConversation = <IconButton label={t("sidebarList.newConversation")} shortcut={shortcut("new-session")} onClick={() => store().requestNewSession()} className={headButton}><SquarePen size={14} strokeWidth={1.7} /></IconButton>;
+  // No New conversation button up here: ⌘N, or the pencil a project shows when pointed at.
 
   return <aside className="sidebar-material conversation-sidebar" aria-label={t("Sidebar")} data-motion={motion ?? undefined} data-avatar-gaze="" style={{ width }}>
     <div data-tauri-drag-region className="conversation-sidebar-head titlebar-drag">
-      <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}{newConversation}</div>
+      <div className="conversation-sidebar-head-actions titlebar-no-drag">{back}{forward}{collapse}</div>
     </div>
     <div className="conversation-sidebar-search-row">
       <button type="button" className="conversation-sidebar-search" onClick={() => store().setPaletteOpen(true)}>
