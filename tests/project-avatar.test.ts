@@ -87,10 +87,11 @@ test("appearances saved before v2 keep loading: old eyes map to the new ones, mo
   assert.deepEqual(Object.keys(loaded).sort(), ["accessory", "color", "eyes"]);
 });
 
-test("the mask is a 16 by 16 rounded block with the bubble tail at the bottom left", () => {
+test("the mask is a 16 by 16 rounded block with no tail", () => {
   assert.equal(MASK.length, AVATAR_SIZE);
   for (const row of MASK) assert.equal(row.length, AVATAR_SIZE);
-  assert.ok(inside(8, 3) && inside(2, 5) && inside(13, 11) && inside(1, 15), "block and tail");
+  assert.ok(inside(8, 3) && inside(2, 5) && inside(13, 11) && inside(4, 13), "block");
+  assert.ok(!inside(1, 15) && !inside(2, 14) && !inside(3, 13), "no tail, rounded bottom corner");
   assert.ok(!inside(0, 0) && !inside(13, 14) && !inside(15, 15), "empty around");
   assert.ok(!inside(3, 3) && inside(4, 3), "rounded top corner");
 });
@@ -102,14 +103,14 @@ test("the ramp's roles stay ordered edge < side < base < light < shine, and the 
   assert.ok(lum(ramp.eye) > 240);
 });
 
-test("the sprite fills a 16 by 17 buffer: a bubble with an edge, an extruded side and a tail, transparent elsewhere", () => {
+test("the sprite fills a 16 by 17 buffer: a block with an edge and an extruded side, transparent elsewhere", () => {
   const look = { color: "#5b8def", eyes: "bars", accessory: "none" } as const;
   const buffer = renderAvatar(look);
   assert.equal(buffer.length, AVATAR_SIZE * AVATAR_ROWS * 4);
   const ramp = avatarRamp(look.color);
   assert.equal(pixel(buffer, 0, 0)[3], 0, "empty corner");
   assert.equal(pixel(buffer, 15, 16)[3], 0, "empty under the right side");
-  assert.equal(pixel(buffer, 1, 16)[3], 255, "tail tip (the body rests one row down)");
+  assert.equal(pixel(buffer, 1, 16)[3], 0, "no tail under the left side");
   assert.deepEqual(pixel(buffer, 8, 4), [...ramp.edge], "top edge");
   assert.deepEqual(pixel(buffer, 2, 8), [...ramp.edge], "left edge");
   assert.deepEqual(pixel(buffer, 12, 8), [...ramp.side], "extruded right side, two pixels wide");

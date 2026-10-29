@@ -1,6 +1,6 @@
 /**
- * Project avatars (ADR-175, v2): a 16x16 pixel speech bubble (a rounded block with the bubble's
- * tail) with eyes and an optional accessory, drawn pixel by pixel into a buffer. Everything here
+ * Project avatars (ADR-175, v2): a 16x16 pixel rounded block (no speech-bubble tail since
+ * 2026-10-28) with eyes and an optional accessory, drawn pixel by pixel into a buffer. Everything here
  * is pure: the colour ramp (a hex colour turned into role colours in OKLCH with hue shifts), the
  * deterministic defaults from the project name, and the sprite (mask, shading, eyes, accessories).
  * `components/ProjectAvatar.tsx` paints the buffer on a canvas and `avatar-scheduler.ts` decides
@@ -170,7 +170,7 @@ export const poseKey = (pose: AvatarPose) => `${pose.state}${pose.blink ? "b" : 
 // ---------------------------------------------------------------------------------------------
 // Sprite
 
-/** A rounded block (rows 3..13, columns 2..13) with the speech-bubble tail at the bottom left. */
+/** A rounded block (rows 3..13, columns 2..13), rounded the same at the top and the bottom. */
 export const MASK = [
   "................",
   "................",
@@ -185,9 +185,9 @@ export const MASK = [
   "..############..",
   "..############..",
   "...##########...",
-  "...#########....",
-  "..##............",
-  ".##.............",
+  "....########....",
+  "................",
+  "................",
 ] as const;
 
 export const inside = (x: number, y: number) => y >= 0 && y < AVATAR_SIZE && x >= 0 && x < AVATAR_SIZE && MASK[y]![x] === "#";
