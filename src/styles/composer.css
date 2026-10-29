@@ -136,8 +136,10 @@
   @media (prefers-reduced-motion:reduce) { .effort-energy *, .effort-strike path { animation:none!important; } .effort-strike, .effort-embers { display:none; } .effort-fill,.effort-energy { transition:none; } }
 }
 
-/* The prompt box (ADR-168): a TipTap editor over one paragraph. It wraps like the textarea it replaced. */
-.composer-prompt { outline: none; overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; cursor: text; caret-color: var(--text-primary); scrollbar-gutter: stable; }
+/* The prompt box (ADR-168): a TipTap editor over one paragraph. It wraps like the textarea it replaced.
+   Plain greedy wrapping: `text-wrap: pretty` (from ui-chat) re-balances earlier lines on every keystroke,
+   so words jumped between lines while typing; only a word longer than the line breaks mid-word. */
+.composer-prompt { outline: none; overflow-x: hidden; white-space: pre-wrap; text-wrap: wrap; overflow-wrap: break-word; cursor: text; caret-color: var(--text-primary); scrollbar-gutter: stable; }
 .composer-prompt p { margin: 0; }
 .composer-prompt[contenteditable="false"] { opacity: .5; cursor: default; }
 .composer-placeholder { padding: var(--composer-editor-padding-top) var(--composer-editor-padding-x-end) var(--composer-editor-padding-bottom) var(--composer-editor-padding-x); text-overflow: ellipsis; white-space: nowrap; }
