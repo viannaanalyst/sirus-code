@@ -50,8 +50,10 @@ const EDGES: Edge[] = ["left", "right", "bottom", "bottomLeft", "bottomRight"];
  * The pane's page area: in device mode a centred frame the native view covers, with rails to
  * resize it from the sides and bottom (arrow keys work too), and the zoom that keeps its CSS size.
  */
-export function BrowserViewport({ sessionId, device, onDevice, frame, children }: {
-  sessionId: string; device: DeviceViewport; onDevice: (next: DeviceViewport) => void; frame: RefObject<HTMLDivElement | null>; children?: ReactNode;
+export function BrowserViewport({ sessionId, device, onDevice, frame, still = null, children }: {
+  sessionId: string; device: DeviceViewport; onDevice: (next: DeviceViewport) => void; frame: RefObject<HTMLDivElement | null>;
+  /** The page as it last looked, shown while a menu or dialog hides the native view. */
+  still?: string | null; children?: ReactNode;
 }) {
   const t = useTranslation();
   const container = useRef<HTMLDivElement>(null);
@@ -122,7 +124,9 @@ export function BrowserViewport({ sessionId, device, onDevice, frame, children }
     }
   };
   return <div ref={container} className="relative mt-1 min-h-0 flex-1 overflow-hidden" data-device={fit ? "" : undefined}>
-    <div ref={frame} className="absolute" style={fit ? { left, top: GUTTER, width: fit.width, height: fit.height } : { inset: 0 }} />
+    <div ref={frame} className="absolute" style={fit ? { left, top: GUTTER, width: fit.width, height: fit.height } : { inset: 0 }}>
+      {still ? <img src={still} alt="" aria-hidden="true" draggable={false} className="browser-still" /> : null}
+    </div>
     {fit ? EDGES.map((edge) => <div key={edge} role="separator" tabIndex={0} aria-label={t(`browser.resize.${edge}`)} aria-orientation={edge === "bottom" ? "horizontal" : "vertical"}
       className="browser-rail" data-edge={edge} style={rail(edge) ?? undefined} onPointerDown={drag(edge)} onKeyDown={nudge(edge)} />) : null}
     {children ? <div className="absolute inset-0">{children}</div> : null}

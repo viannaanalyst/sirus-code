@@ -121,7 +121,7 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
     };
   }, [sessionId, activeTabId, browserAnnotateCancel]);
 
-  useBrowserBounds(sessionId, viewport, Boolean(browser?.open && active && !blank && !floating));
+  const still = useBrowserBounds(sessionId, viewport, Boolean(browser?.open && active && !blank && !floating), activeTabId);
 
   // Device mode lives with the native browser, so an agent's choice shows here too (ADR-112).
   const device: DeviceViewport = browser?.device ? { kind: "device", width: browser.device.width, height: browser.device.height, preset: browser.device.preset ?? null } : { kind: "fill" };
@@ -345,7 +345,7 @@ export function BrowserPanel({ sessionId }: { sessionId: string }) {
       <NewTabMenu sessionId={sessionId} profiles={profiles} disabled={!browser.open} className={cn(controlClass, "ml-0.5")} />
     </div> : null}
     {browser?.dialog && !floating ? <BrowserDialogBar key={`${browser.dialog.tabId}:${browser.dialog.message}`} sessionId={sessionId} dialog={browser.dialog} /> : null}
-    <BrowserViewport sessionId={sessionId} device={floating ? { kind: "fill" } : device} onDevice={setDevice} frame={viewport}>
+    <BrowserViewport sessionId={sessionId} device={floating ? { kind: "fill" } : device} onDevice={setDevice} frame={viewport} still={still}>
       {floating ? <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-text-muted">
         <PictureInPicture size={20} aria-hidden="true" />
         <p className="ui-control text-text-secondary">{t("browser.pipShowing")}</p>

@@ -1,9 +1,12 @@
 import { overlapsBrowser } from "./browser-occlusion";
-import { useEffect, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
+import { client } from "@/client";
 import type { BrowserBounds } from "@/client/types";
 import { useAppStore } from "@/store/app-store";
 
 const BURST_FRAMES = 6;
+/** How long the still stays after the page is shown again, while the native view returns. */
+const STILL_LINGER_MS = 160;
 const HIT_POINTS: [number, number][] = [
   [0.5, 0.5],
   [0.25, 0.25],
@@ -15,25 +18,50 @@ const HIT_POINTS: [number, number][] = [
 /**
  * Measures the viewport and streams deduplicated logical bounds to the native
  * view. WKWebView paints above the DOM, so the view is hidden the moment a
- * dialog, menu or any other portal covers the pane.
+ * dialog, menu or any other portal covers the pane. While it is covered, the pane
+ * shows a still of the page (a JPEG data URL, returned here) instead of an empty frame.
  */
 export function useBrowserBounds(
   sessionId: string,
   viewport: RefObject<HTMLElement | null>,
   enabled: boolean,
+  tabId: string | null = null,
 ) {
   const setBrowserBounds = useAppStore((state) => state.setBrowserBounds);
+  const [still, setStill] = useState<string | null>(null);
   useEffect(() => {
     const node = viewport.current;
     if (!sessionId || !node || !enabled) return;
     const overlays = new Set<Element>();
+    // "shown" while the native view is on screen; a cover after it asks once for a still.
+    let state: "shown" | "covered" | "off" = "off";
+    let request = 0;
+    const settle = (next: typeof state, rect?: DOMRect) => {
+      if (next === state) return;
+      const was = state;
+      state = next;
+      if (next !== "covered") {
+        // The native view comes back a beat after this call: keep the still until it has.
+        const ticket = ++request;
+        if (next === "off") setStill(null);
+        else window.setTimeout(() => { if (ticket === request) setStill(null); }, STILL_LINGER_MS);
+        return;
+      }
+      if (was !== "shown" || !tabId || !rect) return;
+      const ticket = ++request;
+      void client.browserFrame(sessionId, tabId, Math.ceil(rect.width)).then((jpeg) => {
+        if (ticket === request && state === "covered") setStill(`data:image/jpeg;base64,${jpeg}`);
+      }).catch(() => undefined);
+    };
     const send = () => {
       if (document.hidden || !node.isConnected) {
+        settle("off");
         setBrowserBounds(sessionId, null);
         return;
       }
       const rect = node.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) {
+        settle("off");
         setBrowserBounds(sessionId, null);
         return;
       }
@@ -57,9 +85,11 @@ export function useBrowserBounds(
         return !top || !node.contains(top);
       });
       if (covered) {
+        settle("covered", rect);
         setBrowserBounds(sessionId, null);
         return;
       }
+      settle("shown");
       setBrowserBounds(sessionId, {
         x: rect.left,
         y: rect.top,
@@ -96,7 +126,10 @@ export function useBrowserBounds(
       portals.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", send);
+      request += 1;
+      setStill(null);
       setBrowserBounds(sessionId, null);
     };
-  }, [sessionId, viewport, enabled, setBrowserBounds]);
+  }, [sessionId, viewport, enabled, tabId, setBrowserBounds]);
+  return still;
 }
