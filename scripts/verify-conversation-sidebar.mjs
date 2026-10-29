@@ -45,6 +45,13 @@ try {
       assert.ok(html.includes(order === "recent" ? "branch/beta-new" : "branch/alpha-working"));
       // Status: working pulse, unread dot (on the folder in By project), current row marked.
       assert.ok(html.includes('data-status="running"') && html.includes('data-status="unread"') && html.includes('aria-current="page"'));
+      // Rows in a folder (ADR-175): the agent mark in a fixed slot (a pixel spinner while working), the status or age in the corner, no guide line or dot.
+      if (order === "project") {
+        assert.equal((html.match(/conversation-row-mark/g) ?? []).length, 2, "every nested row starts with a mark slot");
+        assert.equal((html.match(/class="pixel-spinner"/g) ?? []).length, 2, "the working row shows the spinner in its slot and in the corner");
+        assert.ok(html.includes(`conversation-row-state" data-state="working"`) && html.includes(locale === "en" ? "Working<" : "Trabalhando<"));
+        assert.ok(html.includes("<img") && !html.includes("conversation-row-dot-space"));
+      } else assert.ok(!html.includes("conversation-row-mark"), "Recent keeps its two-line rows");
       if (order === "recent") assert.ok(html.includes('data-unread="true"'), "the unread conversation reads stronger");
       // Search on its own line, Pull requests (no Inbox), the Projects title with New project and the order menu, then Usage and Settings (ADR-175).
       assert.ok(html.includes("conversation-sidebar-search-row") && html.includes("conversation-sidebar-search"));
