@@ -86,9 +86,11 @@
   .header-tab-status[data-status="unread"] { background: var(--info); }
 
   /* In a folder: one line, indented so the agent mark lines up under the project name (agent mark, title, branch, status or age). No guide line (ADR-175). */
-  .conversation-row[data-variant="nested"], .conversation-more { position: relative; height: 32px; padding-left: 28px; }
-  .conversation-row[data-variant="nested"] .conversation-row-open { height: 30px; justify-content: center; padding: 0 10px; border-radius: var(--radius-md); }
+  /* Nested rows span the full width like the project row: the agent mark sits centred under the 24 px avatar (left 5) and the title starts where the project name does (38 px). */
+  .conversation-row[data-variant="nested"], .conversation-more { position: relative; height: 32px; padding-left: 0; }
+  .conversation-row[data-variant="nested"] .conversation-row-open { height: 30px; justify-content: center; padding: 0 10px 0 11px; border-radius: var(--radius-md); }
   .conversation-row[data-variant="nested"] .conversation-row-title { gap: 6px; }
+  .conversation-row[data-variant="nested"] .conversation-row-mark { margin-right: 8px; }
   .conversation-row[data-variant="nested"] .conversation-row-title > span:not([class]) { flex: 1 1 auto; }
   .conversation-row[data-variant="nested"] .conversation-row-title > .conversation-row-branch { flex: 0 12 auto; max-width: 35%; color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-ui-11); }
   .conversation-row-mark { display: grid; width: 13px; height: 13px; flex: none; place-items: center; overflow: visible !important; }
@@ -106,7 +108,7 @@
   @keyframes pixel-spinner-run { 0% { opacity: 1; } 16.6% { opacity: 0.6; } 33.3% { opacity: 0.35; } 50%, 100% { opacity: 0.22; } }
   html[data-ambient="off"] .pixel-spinner i { animation-play-state: paused; }
   html:is([data-animations="off"], [data-reduce-motion="on"]) .pixel-spinner i { animation: none; opacity: 0.6; }
-  .conversation-more-toggle { display: flex; width: 100%; height: 30px; align-items: center; padding: 0 10px 0 10px; border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-ui-12); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
+  .conversation-more-toggle { display: flex; width: 100%; height: 30px; align-items: center; padding: 0 10px 0 38px; border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-ui-12); transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out); }
   .conversation-more-toggle:hover { background: var(--navigation-hover); color: var(--text-primary); }
   .conversation-more-toggle:focus-visible { outline: 1px solid var(--focus-ring); outline-offset: -2px; }
   /* Opening grows each row in from the folder; closing folds them up together. */
