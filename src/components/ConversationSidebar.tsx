@@ -1,10 +1,9 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AgentResources } from "@/components/AgentResources";
 import type { AppSettings, Project, Session } from "@/client/types";
-import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, Moon, Pencil, Pin, PinOff, Plus, Rows, Search, SidebarLeft, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
+import { ArrowLeft, ArrowRight, ArrowUpDown, ChartBar, Check, Clock3, Columns3, Folder, GitBranch, Moon, Pencil, Pin, PinOff, Plus, Rows, Search, SidebarLeft, Settings, Sparkles, SquarePen, Trash2 } from "@/components/icons";
 import { ContextMenu, type ContextMenuItem } from "@/components/arc/context-menu/context-menu";
 import { ConversationHoverCard, useConversationHover } from "@/components/ConversationHoverCard";
-import { ModelIcon } from "@/components/ModelIcon";
 import { PixelSpinner } from "@/components/PixelSpinner";
 import { ProviderIcon } from "@/components/settings/ProviderIcon";
 import { useMoveMenu } from "@/components/MoveSessionDialog";
@@ -368,7 +367,8 @@ function RowStateLabel({ state }: { state: RowStatus }) {
 }
 
 /**
- * "full" (Recent): project and age with the live dot, the title, branch and model mark.
+ * "full" (Recent, after Zeron): the project in small muted type with the status or age, then the agent mark
+ * (a pixel spinner while it works) and the title; the branch only when the conversation has its own worktree.
  * "nested" (in a folder): one line with the agent mark (a pixel spinner while it works), title, the
  * branch when the conversation has its own worktree, and the status or age; the model is in the tooltip.
  */
@@ -377,18 +377,17 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
   const dot = statusDotOf(status, active);
   const statusLabel = dot === "unread" ? t("sidebarList.unread") : dot ? t(`tabs.status.${dot}`) : null;
   const ageText = <span className="conversation-row-age">{age === "now" ? t("Now") : age}</span>;
-  const dotMark = dot ? <span className="header-tab-status" data-status={dot} aria-hidden="true" /> : null;
   const nested = variant === "nested";
   const state = rowStatus(status, active);
   const title = <span className="conversation-row-title">
-    {nested ? <span className="conversation-row-mark" aria-hidden="true">{state === "working" ? <PixelSpinner /> : <ProviderIcon id={session.agent} size={13} />}</span> : null}
+    <span className="conversation-row-mark" aria-hidden="true">{state === "working" ? <PixelSpinner /> : <ProviderIcon id={session.agent} size={13} />}</span>
     {pinned ? <Pin size={11} aria-hidden="true" /> : null}<span>{session.title}</span>
     {nested && session.worktree.isolated ? <span className="conversation-row-branch">{session.worktree.branch}</span> : null}
     {nested ? (state ? <RowStateLabel state={state} /> : ageText) : null}</span>;
-  const detail = <span className="conversation-row-detail">
-    <span className="conversation-row-branch">{session.worktree.branch}</span>
-    <ModelIcon modelId={session.model ?? ""} provider={session.agent} size={13} />
-  </span>;
+  // Recent (after Zeron): the branch shows only for a conversation in its own worktree.
+  const detail = session.worktree.isolated ? <span className="conversation-row-detail">
+    <GitBranch size={10} aria-hidden="true" /><span className="conversation-row-branch">{session.worktree.branch}</span>
+  </span> : null;
   return <div className="conversation-row" data-list-kind="session" data-variant={variant} data-conversation={session.id} data-active={active || undefined} data-unread={dot === "unread" || undefined} data-status={dot || undefined}
     data-motion={motion} style={motion ? { "--row-index": depth } as CSSProperties : undefined}>
     <button type="button" className="conversation-row-open" aria-current={active ? "page" : undefined}
@@ -396,10 +395,8 @@ const ConversationRow = memo(function ConversationRow({ session, project, status
       onPointerDown={event => beginSplitDrag(event, session.id, session.title)}
       onClick={() => void useAppStore.getState().selectSession(session.id)}>
       {variant === "full" ? <span className="conversation-row-meta">
-        <ProjectIcon project={project} size={13} />
         <span className="conversation-row-project">{project.name}</span>
-        {ageText}
-        {dotMark}
+        {state ? <RowStateLabel state={state} /> : ageText}
       </span> : null}
       {title}
       {variant === "full" ? detail : null}

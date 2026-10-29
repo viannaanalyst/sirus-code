@@ -51,7 +51,7 @@ try {
         assert.equal((html.match(/class="pixel-spinner"/g) ?? []).length, 2, "the working row shows the spinner in its slot and in the corner");
         assert.ok(html.includes(`conversation-row-state" data-state="working"`) && html.includes(locale === "en" ? "Working<" : "Trabalhando<"));
         assert.ok(html.includes("<img") && !html.includes("conversation-row-dot-space"));
-      } else assert.ok(!html.includes("conversation-row-mark"), "Recent keeps its two-line rows");
+      } else assert.ok(html.includes("conversation-row-mark") && html.includes("conversation-row-meta") && !html.includes("header-tab-status"), "Recent rows (after Zeron): a project line with the status or age, then the agent mark and title; no live dot");
       if (order === "recent") assert.ok(html.includes('data-unread="true"'), "the unread conversation reads stronger");
       // Search on its own line, Pull requests (no Inbox), the Projects title with New project and the order menu, then Usage and Settings (ADR-175).
       assert.ok(html.includes("conversation-sidebar-search-row") && html.includes("conversation-sidebar-search"));
@@ -64,7 +64,8 @@ try {
       assert.ok(!html.includes("conversation-sidebar-brand"), "no brand line");
       // Each project row has an avatar button (Appearance) and a canvas.
       assert.equal((html.match(/data-project-avatar="/g) ?? []).length, order === "project" ? 2 : 0);
-      assert.ok(html.includes("<canvas") && html.includes("project-avatar"));
+      // Recent rows name the project in words only (after Zeron); avatars are on project rows.
+      if (order === "project") assert.ok(html.includes("<canvas") && html.includes("project-avatar"));
       assert.ok(html.includes('data-section="settings"'), "Settings at the foot; the column has no resize handle");
       assert.ok(!html.includes("conversation-strip") && !html.includes("conversation-sidebar-project"));
       assert.ok(!/uppercase/.test(html), "labels are never forced into capitals");

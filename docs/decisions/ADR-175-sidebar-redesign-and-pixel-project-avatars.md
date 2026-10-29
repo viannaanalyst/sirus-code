@@ -160,3 +160,8 @@ offscreen and stays still with reduced motion or animations off. The right corne
 idle, otherwise an 11 px status: working (spinner, accent), needs you (dot, warning; pending approval
 or question) or done (check, success; finished and not yet seen). The mapping is `rowStatus` in
 `src/lib/conversation-row-status.ts`. Recent's two-line rows are unchanged.
+
+## Hierarchy and Recent rows (2026-10-28)
+
+- Projects: project names are primary text; their conversations are a step quieter (12 px, muted, 28 px rows), with the selected or unseen one in primary text, and 8 px of space after an open project's conversations before the next project.
+- Recent, after Zeron: two lines per conversation. The project name in small muted type with the status (Working, Needs you, Done) or the age, then the agent mark (the pixel spinner while working) and the title. The branch shows only for a conversation in its own worktree; the model mark and the live dot are gone.
