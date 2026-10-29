@@ -63,6 +63,7 @@ mod gh_gate;
 mod git;
 mod git_incoming;
 mod git_workspace;
+mod github_accounts;
 mod github_inbox;
 mod goals;
 mod html_preview;
@@ -331,6 +332,7 @@ pub fn run() {
             side_chat::side_chat_action,
             pull_ask::pull_ask_action,
             github_inbox::pull_request_action,
+            github_accounts::github_account_action,
             ci_autofix::ci_autofix_action,
             pr_watch::pr_watch_action,
             local_servers::local_server_action,

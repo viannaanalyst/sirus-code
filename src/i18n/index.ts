@@ -31,6 +31,7 @@ import { activityEnglish, activityPortuguese } from "./activity-strings";
 import { planEnglish, planPortuguese } from "./plan-strings";
 import { backgroundEnglish, backgroundPortuguese } from "./background-strings";
 import { vscodeThemeEnglish, vscodeThemePortuguese } from "./vscode-theme-strings";
+import { githubAccountEnglish, githubAccountPortuguese } from "./github-account-strings";
 import { connectorsEnglish, connectorsPortuguese } from "./connectors-strings";
 import { reviewInboxEnglish, reviewInboxPortuguese } from "./review-inbox-strings";
 import { pullChecksEnglish, pullChecksPortuguese } from "./pull-checks-strings";
@@ -89,6 +90,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...planPortuguese,
     ...backgroundPortuguese,
     ...vscodeThemePortuguese,
+    ...githubAccountPortuguese,
     ...connectorsPortuguese,
     ...reviewInboxPortuguese,
     ...pullChecksPortuguese,
@@ -187,6 +189,7 @@ const dictionaries: Record<Locale, Record<string, string>> = {
     ...planEnglish,
     ...backgroundEnglish,
     ...vscodeThemeEnglish,
+    ...githubAccountEnglish,
     ...connectorsEnglish,
     ...reviewInboxEnglish,
     ...pullChecksEnglish,

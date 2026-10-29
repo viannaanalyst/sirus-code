@@ -42,3 +42,21 @@
     .general-settings .settings-row:has([role="combobox"]) > div:first-child { flex-basis: 100%; }
   }
 }
+
+/* Settings → Git: GitHub CLI accounts (ADR-188). */
+.github-accounts { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
+.github-accounts-help { margin: 0; color: var(--text-muted); font-size: var(--text-ui-12); line-height: 1.45; }
+.github-accounts-note { margin: 0; color: var(--text-secondary); font-size: var(--text-ui-13); }
+.github-accounts-error { margin: 0; color: var(--danger, var(--text-primary)); font-size: var(--text-ui-12); }
+.github-account { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.github-account-login { color: var(--text-primary); font-size: var(--text-ui-13); font-weight: 500; }
+.github-account-expired { color: var(--warning, var(--text-muted)); font-size: var(--text-ui-11); }
+.github-account-active { display: inline-flex; align-items: center; gap: 4px; color: var(--success, var(--text-secondary)); font-size: var(--text-ui-12); }
+.github-device { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--border-subtle, var(--border)); border-radius: 10px; animation: github-device-in 180ms var(--ease-out) both; }
+.github-device-label { color: var(--text-secondary); font-size: var(--text-ui-12); }
+.github-device-code-row { display: flex; align-items: center; gap: 8px; }
+.github-device-code { color: var(--text-primary); font-family: var(--font-mono); font-size: 22px; letter-spacing: 0.08em; user-select: all; }
+.github-device-actions { display: flex; align-items: center; gap: 10px; }
+.github-device-waiting { color: var(--text-muted); font-size: var(--text-ui-12); }
+@keyframes github-device-in { from { opacity: 0; translate: 0 -4px; } }
+@media (prefers-reduced-motion: reduce) { .github-device { animation: none; } }

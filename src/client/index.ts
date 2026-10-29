@@ -418,6 +418,11 @@ export class SirusClient {
     return this.transport.invoke<import("./types").PullRequestSnapshot>("session_pull_request", { sessionId });
   }
 
+  /** GitHub CLI accounts: list, switch, sign out and the device-flow sign-in (ADR-188). */
+  githubAccountAction(action: import("./types").GitHubAccountAction) {
+    return this.transport.invoke<import("./types").GitHubAccountResponse>("github_account_action", { action });
+  }
+
   openExternalUrl(url: string) {
     return this.transport.invoke<void>("open_external_url", { url });
   }

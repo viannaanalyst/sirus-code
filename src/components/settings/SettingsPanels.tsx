@@ -1,7 +1,7 @@
 import { useTranslation } from "@/i18n/use-translation";
 import type { AgentInstall, AgentProviderId, AppSettings, HostInfo, WorktreeLeftoverScan } from "@/client/types";
 import { formatDiskSize } from "@/lib/project-scripts";
-import { client, localClient } from "@/client";
+import { client, isRemoteUi, localClient } from "@/client";
 import { AppUpdateControl } from "@/components/AppUpdateToast";
 import { WhatsNewDialog } from "@/components/AppUpdatePill";
 import { RefreshCw } from "@/components/icons";
@@ -17,6 +17,7 @@ import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import { NotificationSettings } from "./NotificationSettings";
 import { SkillsSettings } from "./SkillsSettings";
 import { McpSettings } from "./McpSettings";
+import { GitHubAccountsSettings } from "./GitHubAccountsSettings";
 import { PROVIDERS } from "@/lib/providers";
 import { defaultSettings, isProviderEnabled, type SettingsSectionId } from "@/lib/settings";
 import { translate } from "@/i18n";
@@ -125,6 +126,8 @@ export function SettingsPanels({
             </span>
           </SettingsRow>
         </SettingsGroup>
+        {/* The GitHub CLI's accounts live on this Mac only (ADR-188). */}
+        {isRemoteUi ? null : <GitHubAccountsSettings />}
         <SettingsGroup title={t("Behavior")} card>
           <SettingsRow title={t("Automatically fetch when opening project")} description={t("Automatic fetch is unavailable while project Git configuration can execute helpers or disclose credentials. Fetch manually in your terminal.")} comingSoon>
             <Switch checked={false} onChange={() => undefined} disabled />

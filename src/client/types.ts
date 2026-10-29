@@ -1425,3 +1425,13 @@ export interface LoginOffer { id: string; sessionId: string; origin: string; use
 /** "Let the agent sign in to this site?" shown in the conversation. */
 export interface LoginApproval { id: string; sessionId: string; origin: string; username: string }
 export interface LoginPrompts { offers: LoginOffer[]; approvals: LoginApproval[] }
+
+/** A GitHub CLI account on github.com (ADR-188). */
+export interface GitHubAccount { login: string; active: boolean; valid: boolean }
+export type GitHubAccountAction =
+  | { type: "list" } | { type: "switch"; login: string } | { type: "logout"; login: string }
+  | { type: "loginStart" } | { type: "loginWait" } | { type: "loginCancel" };
+export type GitHubAccountResponse =
+  | { type: "accounts"; accounts: GitHubAccount[]; missing: boolean }
+  | { type: "loginCode"; code: string; url: string }
+  | { type: "done" };
